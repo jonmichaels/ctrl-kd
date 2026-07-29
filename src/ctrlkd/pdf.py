@@ -16,10 +16,13 @@ import re as _re
 from .emit import emitter, _printed
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
-MARGIN = 54
-SIZE, LEAD = 10, 12                  # 10pt Courier at 6 lines/inch
-LINES_PER_PAGE = (PAGE_H - 2 * MARGIN) // LEAD          # 57
-MAX_COLS = int((PAGE_W - 2 * MARGIN) / (SIZE * 0.6))    # 84
+MARGIN = 72                          # 1 inch
+SIZE, LEAD = 12, 12                  # 10 CPI pica x 6 LPI — the dot-matrix standard;
+                                     # a 65-col WordStar line is exactly 6.5in
+TOP_MODERN, TOP_PRINTED = 72, 36     # print streams carry their own top-margin blanks
+LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
+LINES_PRINTED = (PAGE_H - 2 * 36) // LEAD                # 60
+MAX_COLS = int((PAGE_W - 2 * MARGIN) / (SIZE * 0.6))     # 65 — WordStar's own margin
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}
@@ -51,9 +54,8 @@ def _wrap_line(spans, width):
         lines.append(line)
     return lines
 
-def _doc_to_pagelines(doc, mode):
+def _doc_to_pagelines(doc, printed):
     """IR -> list of pages, each a list of segment-lines."""
-    printed = mode == 'printed' or _printed(doc)
     lines = []                                            # None = forced page break
     for b in doc.blocks:
         if b.kind == 'pagebreak' or (b.kind == 'softpage' and printed):
@@ -74,9 +76,10 @@ def _doc_to_pagelines(doc, mode):
         for i, n in enumerate(doc.footnotes):
             note = f'[{i + 1}] ' + ''.join(s.text for s in n)
             lines.extend(_wrap_line([(note, frozenset())], MAX_COLS))
+    cap = LINES_PRINTED if printed else LINES_MODERN
     pages, page = [], []
     for l in lines:
-        if l is None or len(page) >= LINES_PER_PAGE:
+        if l is None or len(page) >= cap:
             if page or l is None:
                 pages.append(page); page = []
             if l is None:
@@ -84,6 +87,13 @@ def _doc_to_pagelines(doc, mode):
         page.append(l)
     if page:
         pages.append(page)
+    # we supply the paper margins, so page-edge blank lines (WordStar's own
+    # top/bottom margins in a print stream) would double up: strip them
+    for pg in pages:
+        while pg and not any(t.strip() for t, _ in pg[0]):
+            pg.pop(0)
+        while pg and not any(t.strip() for t, _ in pg[-1]):
+            pg.pop()
     return pages or [[]]
 
 def _coalesce(line):
@@ -96,9 +106,9 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _page_stream(pagelines, bold_all=()):
+def _page_stream(pagelines, top):
     ops = []
-    y = PAGE_H - MARGIN - SIZE
+    y = PAGE_H - top - SIZE
     for line in pagelines:
         x = MARGIN
         for text, styles in _coalesce(line):
@@ -123,7 +133,9 @@ def _page_stream(pagelines, bold_all=()):
 def emit_pdf(doc, mode='modern', **options):
     """Assemble the PDF: catalog, page tree, four Courier fonts, one content
     stream per page, xref. Returns bytes — PDF is a binary format."""
-    pages = _doc_to_pagelines(doc, mode)
+    printed = mode == 'printed' or _printed(doc)
+    pages = _doc_to_pagelines(doc, printed)
+    top = TOP_PRINTED if printed else TOP_MODERN
     objs = []                                             # (obj_number, bytes)
 
     n_pages = len(pages)
@@ -151,7 +163,7 @@ def emit_pdf(doc, mode='modern', **options):
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
                      % (PAGE_W, PAGE_H, font_dict, cnum)))
-        stream = _page_stream(pl)
+        stream = _page_stream(pl, top)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 
