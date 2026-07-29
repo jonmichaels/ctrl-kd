@@ -65,6 +65,14 @@ $ pip install ctrl-kd
 
 Python ≥ 3.9, no dependencies. Library API: `ctrlkd.convert(data, to='html')`.
 
+## Adding an output format
+
+An output format is one function over the parsed document — register it with the
+`@ctrlkd.emitter` decorator, or ship it as a pip-installable plugin via the
+`ctrlkd.emitters` entry-point group and it appears in the CLI automatically.
+**[EXTENDING.md](EXTENDING.md)** has the IR contract, a complete worked example
+(BBCode in ~40 lines), and a checklist.
+
 ## Lineage
 
 Standing on the shoulders of the tools and documentation that kept WordStar

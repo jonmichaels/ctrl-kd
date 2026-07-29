@@ -9,12 +9,53 @@ Two rendering philosophies, chosen by the caller:
 """
 import html as _html
 
+# ---------------------------------------------------------------- registry
+#
+# The extension point. An emitter is any callable (doc, mode='modern', **options)
+# -> str, registered under a name. Two ways in:
+#
+#   @ctrlkd.emitter('latex', ext='.tex')            # in your own code
+#   def emit_latex(doc, mode='modern', **options): ...
+#
+#   [project.entry-points."ctrlkd.emitters"]        # in an installable plugin's
+#   docx = "ctrlkd_docx:emit_docx"                  # pyproject.toml
+#
+# Entry-point plugins are discovered at CLI startup; `pip install ctrl-kd-docx`
+# is all a user needs. See EXTENDING.md for the IR contract and a worked example.
+
+_REGISTRY = {}          # name -> {'fn': callable, 'ext': '.xyz'}
+_ALIASES = {'txt': 'text', 'md': 'markdown'}
+
+def emitter(name, ext=None, aliases=()):
+    """Register an output format. Usable as a decorator."""
+    def deco(fn):
+        _REGISTRY[name] = {'fn': fn, 'ext': ext or '.' + name}
+        for a in aliases:
+            _ALIASES[a] = name
+        return fn
+    return deco
+
+def get_emitter(name):
+    return _REGISTRY[_ALIASES.get(name, name)]
+
+def formats():
+    """All registered format names (canonical + aliases), for CLI choices."""
+    return sorted(set(_REGISTRY) | set(_ALIASES))
+
+def load_plugins():
+    """Discover third-party emitters via the 'ctrlkd.emitters' entry-point group."""
+    from importlib.metadata import entry_points
+    for ep in entry_points(group='ctrlkd.emitters'):
+        if ep.name not in _REGISTRY:
+            fn = ep.load()
+            _REGISTRY[ep.name] = {'fn': fn, 'ext': getattr(fn, 'ext', '.' + ep.name)}
+
 def _printed(doc):
     return doc.meta.get('variant') == 'printstream' or doc.meta.get('columnar')
 
 # ---------------------------------------------------------------- text
 
-def emit_text(doc, mode='modern'):
+def emit_text(doc, mode='modern', **_options):
     out = []
     for b in doc.blocks:
         if b.kind == 'softpage':                 # WordStar's own pagination:
@@ -59,7 +100,7 @@ def _md_span(s):
             core = f'<{t}>{core}</{t}>'
     return lead + core + trail
 
-def emit_markdown(doc, mode='modern'):
+def emit_markdown(doc, mode='modern', **_options):
     if mode == 'printed' or _printed(doc):
         # alignment is the content: a fenced block is the honest representation
         body = emit_text(doc, 'printed')
@@ -107,7 +148,7 @@ def _html_span(s, keep_ws=False):
             text = f'<{t}>{text}</{t}>'
     return text
 
-def emit_html(doc, mode='modern', title=''):
+def emit_html(doc, mode='modern', title='', **_options):
     parts = []
     printed = mode == 'printed' or _printed(doc)
     for b in doc.blocks:
@@ -159,7 +200,7 @@ def _rtf_escape(text):
             out.append(f'\\u{ord(ch)}?')
     return ''.join(out)
 
-def emit_rtf(doc, mode='modern'):
+def emit_rtf(doc, mode='modern', **_options):
     printed = mode == 'printed' or _printed(doc)
     font = r'\f1' if printed else r'\f0'
     parts = []
@@ -188,5 +229,8 @@ def emit_rtf(doc, mode='modern'):
     return (r'{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}}'
             + '\n' + font + r'\fs24 ' + '\n' + body + '\n}\n')
 
-EMITTERS = {'text': emit_text, 'txt': emit_text, 'markdown': emit_markdown,
-            'md': emit_markdown, 'html': emit_html, 'rtf': emit_rtf}
+# built-ins register through the same door plugins use
+emitter('text', ext='.txt')(emit_text)
+emitter('markdown', ext='.md')(emit_markdown)
+emitter('html', ext='.html')(emit_html)
+emitter('rtf', ext='.rtf')(emit_rtf)

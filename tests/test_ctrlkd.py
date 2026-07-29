@@ -200,3 +200,19 @@ def test_ws7_tab_block():
 def test_tiny_file_not_misdetected_as_ws4():
     # regression: len(core)//20 == 0 made 'hi >= 0' always true for tiny files
     assert core.detect(b'ab cd ef\r\n\x1a')['variant'] != 'ws4'
+
+# ---------------------------------------------------------------- extension API
+
+def test_custom_emitter_registration():
+    from ctrlkd import emitter, convert, formats
+    @emitter('shout', ext='.loud', aliases=('yell',))
+    def emit_shout(doc, mode='modern', **options):
+        return ' '.join(l.text() for b in doc.blocks for l in b.lines).upper()
+    assert 'shout' in formats() and 'yell' in formats()
+    out = convert(b'quiet words here.\r\n', to='yell')
+    assert 'QUIET WORDS HERE.' in out
+
+def test_emitters_accept_unknown_options():
+    from ctrlkd import convert
+    for fmt in ('text', 'markdown', 'html', 'rtf'):
+        convert(b'some words here.\r\n', to=fmt, title='x', frob=1)

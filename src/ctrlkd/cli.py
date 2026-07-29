@@ -9,9 +9,6 @@
 import argparse, json, os, sys
 from . import core, emit
 
-EXT = {'text': '.txt', 'txt': '.txt', 'markdown': '.md', 'md': '.md',
-       'html': '.html', 'rtf': '.rtf'}
-
 def diagnose(path, data):
     det = core.detect(data)
     info = {'file': path, **det}
@@ -24,12 +21,14 @@ def diagnose(path, data):
     return info
 
 def main(argv=None):
+    emit.load_plugins()          # third-party emitters (ctrlkd.emitters entry points)
     ap = argparse.ArgumentParser(
         prog='ctrl-kd',
         description='Convert WordStar 4-7 documents and print-to-disk files to '
-                    'text, Markdown, HTML, or RTF. ^KD: save and done.')
+                    'text, Markdown, HTML, or RTF (extensible: see EXTENDING.md). '
+                    '^KD: save and done.')
     ap.add_argument('files', nargs='+', help='input file(s)')
-    ap.add_argument('-t', '--to', action='append', choices=sorted(EXT),
+    ap.add_argument('-t', '--to', action='append', choices=emit.formats(),
                     help='output format (repeatable; default: markdown)')
     ap.add_argument('-o', '--output', help='output file (single input only)')
     ap.add_argument('-d', '--outdir', help='output directory for batch conversion')
@@ -69,14 +68,13 @@ def main(argv=None):
             continue
         base = os.path.splitext(os.path.basename(path))[0]
         for fmt in formats:
-            fn = emit.EMITTERS[fmt]
-            out = (fn(doc, a.mode, title=base) if fmt == 'html'
-                   else fn(doc, a.mode))
+            reg = emit.get_emitter(fmt)
+            out = reg['fn'](doc, a.mode, title=base)
             if a.output:
                 dest = a.output
             else:
                 dest = os.path.join(a.outdir or os.path.dirname(path) or '.',
-                                    base + EXT[fmt])
+                                    base + reg['ext'])
                 if a.outdir:
                     os.makedirs(a.outdir, exist_ok=True)
             with open(dest, 'w', encoding='utf-8', newline='\n') as f:
