@@ -1,0 +1,32 @@
+# Publish to PyPI via trusted publishing (no API tokens, no secrets):
+# PyPI trusts this exact repo + workflow + environment via OIDC.
+# Runs on every version tag push (v1.2.3); can also be run manually
+# against a tag from the Actions page.
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # OIDC for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests
+        run: |
+          pip install -e . pytest
+          pytest tests/ -q
+      - name: Build
+        run: |
+          pip install build
+          python -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
