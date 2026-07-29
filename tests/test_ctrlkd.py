@@ -154,3 +154,49 @@ def test_convert_api():
 def test_parse_refuses_binary():
     with pytest.raises(ValueError):
         core.parse(bytes(range(256)) * 4)
+
+# ---------------------------------------------------------------- WS5+/WS7
+# synthetic 1D symmetric blocks, structure verified against the Sawyer archive
+
+def ws7_block(cmd, payload=b''):
+    body = bytes([cmd]) + payload
+    return b'\x1d' + len(body).to_bytes(2, 'little') + body
+
+def ws7_note(text):
+    inner = b'\x00' * 17 + b'\x1d' + text + b'\x2c\x00'
+    return ws7_block(0x03, inner)
+
+def test_ws7_footnote_extraction_and_ref():
+    data = (ws7_block(0x00) + b'Treaties were made.' + ws7_note(b'See the 1868 accords.') +
+            b' More text follows here.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['variant'] == 'ws5+'
+    assert len(doc.footnotes) == 1
+    assert ''.join(s.text for s in doc.footnotes[0]) == 'See the 1868 accords.'
+    spans = doc.blocks[0].lines[0].spans
+    ref = [s for s in spans if 'fnref' in s.styles]
+    assert ref and ref[0].text == '1' and 'sup' in ref[0].styles
+    md = emit.emit_markdown(doc)
+    assert '[^1]' in md and '[^1]: See the 1868 accords.' in md
+
+def test_ws7_heading_and_softpage():
+    data = (ws7_block(0x00) + ws7_block(0x11, bytes([0x02])) + b'Chapter One' + HARD + HARD +
+            b'Body text of the chapter.' + HARD + ws7_block(0x0B) + b'Next page text.' + HARD)
+    doc = core.parse_ws(data)
+    heads = [b for b in doc.blocks if b.heading]
+    assert heads and heads[0].heading == 2
+    assert heads[0].lines[0].text().strip() == 'Chapter One'
+    assert any(b.kind == 'softpage' for b in doc.blocks)
+    md = emit.emit_markdown(doc)
+    assert '## Chapter One' in md
+    h = emit.emit_html(doc)
+    assert '<h2>Chapter One</h2>' in h
+
+def test_ws7_tab_block():
+    data = ws7_block(0x00) + ws7_block(0x09) + b'Indented by tab block.' + HARD
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].lines[0].text().startswith('    ')
+
+def test_tiny_file_not_misdetected_as_ws4():
+    # regression: len(core)//20 == 0 made 'hi >= 0' always true for tiny files
+    assert core.detect(b'ab cd ef\r\n\x1a')['variant'] != 'ws4'

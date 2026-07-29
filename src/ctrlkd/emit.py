@@ -17,6 +17,10 @@ def _printed(doc):
 def emit_text(doc, mode='modern'):
     out = []
     for b in doc.blocks:
+        if b.kind == 'softpage':                 # WordStar's own pagination:
+            if mode == 'printed':                # meaningful only line-for-line
+                out.append('\f')
+            continue
         if b.kind == 'pagebreak':
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
@@ -37,6 +41,8 @@ _MD_HTML = {'u': 'u', 'sup': 'sup', 'sub': 'sub'}
 
 def _md_span(s):
     text = s.text
+    if 'fnref' in s.styles:
+        return f'[^{text}]'
     if not text.strip():
         return text
     esc = text.replace('\\', '\\\\')
@@ -60,11 +66,15 @@ def emit_markdown(doc, mode='modern'):
         return '```\n' + body.rstrip('\n') + '\n```\n'
     out = []
     for b in doc.blocks:
+        if b.kind == 'softpage':
+            continue
         if b.kind == 'pagebreak':
             out.append('---')
             continue
         lines = [''.join(_md_span(s) for s in line.spans) for line in b.lines]
         para = '\\\n'.join(l for l in lines)          # hard breaks: trailing backslash
+        if b.heading and para.strip():
+            para = '#' * b.heading + ' ' + para.strip()
         if para.strip():
             out.append(para)
     md = '\n\n'.join(out)
@@ -92,16 +102,27 @@ def _html_span(s, keep_ws=False):
         n = len(text) - len(text.lstrip())
         text = '&nbsp;' * n + text.lstrip()
     for st in sorted(s.styles):
-        t = _TAG[st]
-        text = f'<{t}>{text}</{t}>'
+        t = _TAG.get(st)                              # e.g. 'fnref' has no tag of its own
+        if t:
+            text = f'<{t}>{text}</{t}>'
     return text
 
 def emit_html(doc, mode='modern', title=''):
     parts = []
     printed = mode == 'printed' or _printed(doc)
     for b in doc.blocks:
+        if b.kind == 'softpage':
+            if printed:
+                parts.append('<hr class="pb">')
+            continue
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
+            continue
+        if b.heading:
+            txt = ' '.join(''.join(_html_span(s) for s in line.spans)
+                           for line in b.lines).strip()
+            if txt:
+                parts.append(f'<h{b.heading}>{txt}</h{b.heading}>')
             continue
         if printed:
             body = '\n'.join(''.join(_html_span(s, keep_ws=True) for s in line.spans)
@@ -143,14 +164,20 @@ def emit_rtf(doc, mode='modern'):
     font = r'\f1' if printed else r'\f0'
     parts = []
     for b in doc.blocks:
+        if b.kind == 'softpage':
+            if printed:
+                parts.append(r'\page ')
+            continue
         if b.kind == 'pagebreak':
             parts.append(r'\page ')
             continue
         lines = []
         for line in b.lines:
-            seg = ''.join('{' + ''.join(_RTF_ON[s] for s in sorted(sp.styles))
+            seg = ''.join('{' + ''.join(_RTF_ON.get(s, '') for s in sorted(sp.styles))
                           + _rtf_escape(sp.text) + '}' for sp in line.spans)
             lines.append(seg)
+        if b.heading:
+            lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
         joiner = r'\line ' if not printed else r'\line '
         para = joiner.join(lines)
         if para.strip() or printed:

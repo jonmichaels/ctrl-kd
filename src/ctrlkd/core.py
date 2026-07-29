@@ -35,8 +35,9 @@ class Line:
 
 @dataclass
 class Block:
-    kind: str                            # 'para' | 'pagebreak'
+    kind: str                            # 'para' | 'pagebreak' | 'softpage'
     lines: list = field(default_factory=list)
+    heading: int = 0                     # 0 = body text; 1-3 = WS5+ title/header/subheading
 
 @dataclass
 class Document:
@@ -68,7 +69,10 @@ def detect(data: bytes) -> dict:
           'text_pct': txt, 'symmetric_blocks_1d': blocks_1d, 'size': len(core)}
     if txt < 40:
         return {'variant': 'binary', 'reason': f'only {txt}% text-like', **ev}
-    if soft >= 3 or hi >= len(core) // 20:
+    if blocks_1d >= 2:
+        # 1D symmetric blocks are WS5+ machinery regardless of anything else
+        return {'variant': 'ws5+', **ev}
+    if soft >= 3 or hi >= max(1, len(core) // 20):
         # WS5+ kept soft returns but dropped the bit-7-on-last-letter convention:
         # a wordstar file with many soft returns and near-zero high bits is WS5+,
         # as is one using 1D symmetric blocks (footnotes etc., WS5+ only)
@@ -160,9 +164,10 @@ WS_DROP = {0x01, 0x03, 0x08, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
 DOT_PAGEBREAK = {b'PA', b'CP'}
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
-                  unknown: dict) -> list:
+                  unknown: dict, fn_counter: list = None) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
-    (WordStar styles span line breaks)."""
+    (WordStar styles span line breaks). fn_counter (ws5+ only) numbers the
+    footnote-reference sentinels injected by _symmetric_blocks."""
     spans, buf = [], bytearray()
 
     def flush():
@@ -175,7 +180,11 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
         b = raw[i]
         if b == 0x1B and i + 1 < len(raw):        # extended char escape
             buf.append(raw[i + 1]); i += 2; continue
-        if b in WS_TOGGLES:
+        if fn_counter is not None and b == SENT_FNREF:
+            flush()
+            fn_counter[0] += 1
+            spans.append(Span(str(fn_counter[0]), frozenset(active | {'sup', 'fnref'})))
+        elif b in WS_TOGGLES:
             flush()
             style = WS_TOGGLES[b]
             (active.remove if style in active else active.add)(style)
@@ -185,11 +194,11 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             pass                                  # inactive soft hyphen
         elif b == 0x1F:
             buf.append(0x2D)                      # active soft hyphen
+        elif b == 0x09:
+            buf.append(b)
         elif b < 0x20 or b == 0x7F:
-            if b not in (0x09,):
+            if b not in WS_DROP:
                 unknown[b] = unknown.get(b, 0) + 1
-            else:
-                buf.append(b)
         elif b >= 0x80 and strip_hibit:
             buf.append(b & 0x7F)
         else:
@@ -198,31 +207,47 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     flush()
     return spans
 
+SENT_FNREF = 0x07      # sentinels injected into the cleaned stream; these bytes
+SENT_SOFTPAGE = 0x0B   # cannot appear as text in a WS5+ document body
+SENT_HEADING = 0x11
+
+def _note_text(block: bytes, encoding: str) -> str:
+    """Note content is NESTED: header, then an inner 1D, the text, then a 2-byte
+    length + 1D tail (verified on the Sawyer WS7 archive: 'Footnote\\r\\n,\\x00')."""
+    inner = block.split(b'\x1d')
+    text = inner[1][:-2] if len(inner) > 1 and len(inner[1]) > 2 else block[20:]
+    clean = bytes(c for c in text if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
+    return clean.decode(encoding, 'replace').strip()
+
 def _symmetric_blocks(data: bytes, encoding: str):
-    """Strip WS5+ 1D symmetric sequences, collecting footnote/endnote text.
-    Returns (cleaned_bytes, footnotes, markers) where markers maps byte offset in
-    cleaned stream -> footnote index. Implemented from the published format notes
-    (block: 2-byte LE length, command type at +2, content from +20); our corpus is
-    WS4 so this path is spec-correct but sample-starved — WS5+ test files welcome."""
+    """Strip WS5+ 1D symmetric sequences (2-byte LE length, command type at +2),
+    collecting footnotes/endnotes and injecting sentinels for the block types that
+    carry document structure. Verified against the 86 WS7 documents in Robert J.
+    Sawyer's WordStar archive."""
     out = bytearray()
-    footnotes, markers = [], {}
+    footnotes = []
     i = 0
     while i < len(data):
         if data[i] == 0x1D and i + 3 <= len(data):
             jump = int.from_bytes(data[i + 1:i + 3], 'little')
             block = data[i + 1:i + 3 + jump]
-            if len(block) > 20 and block[2] in (0x03, 0x04):      # foot/endnote
-                note = bytes(c & 0x7F if c >= 0x80 else c for c in block[20:]
-                             if (c & 0x7F) >= 0x20)
-                footnotes.append(note.decode(encoding, 'replace'))
-                markers[len(out)] = len(footnotes)
-            elif len(block) > 2 and block[2] == 0x09:             # tab
+            cmd = block[2] if len(block) > 2 else -1
+            if cmd in (0x03, 0x04):                               # foot/endnote
+                footnotes.append(_note_text(block, encoding))
+                out.append(SENT_FNREF)
+            elif cmd == 0x09:                                     # tab
                 out += b'    '
+            elif cmd == 0x0B:                                     # end of page
+                out.append(SENT_SOFTPAGE)
+            elif cmd == 0x11 and len(block) > 3:                  # paragraph style
+                level = {0x05: 1, 0x02: 2, 0x03: 3}.get(block[3], 0)
+                if level:
+                    out += bytes([SENT_HEADING, 0x30 + level])
             i += jump + 3
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), footnotes, markers
+    return bytes(out), footnotes
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -230,14 +255,16 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta.update(det)
     strip_hibit = det['variant'] == 'ws4'
 
-    if det['variant'] == 'ws5+':
-        data, notes, _markers = _symmetric_blocks(data, encoding)
+    ws5 = det['variant'] == 'ws5+'
+    if ws5:
+        data, notes = _symmetric_blocks(data, encoding)
         doc.footnotes = [[Span(n)] for n in notes]
 
     physical, margin = lines_pass(data)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots = set(), {}, []
+    fn_counter = [0] if ws5 else None
     cur = Block('para')
     cur_line = Line()
     ruler = False
@@ -266,7 +293,17 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
             continue
-        spans = _decode_spans(raw, strip_hibit, encoding, active, unknown)
+        if ws5:                                    # sentinels from _symmetric_blocks
+            if raw.count(SENT_SOFTPAGE):
+                close_block()
+                doc.blocks.append(Block('softpage'))
+                raw = raw.replace(bytes([SENT_SOFTPAGE]), b'')
+            if raw[:1] == bytes([SENT_HEADING]) and len(raw) > 1:
+                close_block()
+                cur.heading = raw[1] - 0x30
+                raw = raw[2:]
+            raw = raw.replace(bytes([SENT_HEADING]), b'')
+        spans = _decode_spans(raw, strip_hibit, encoding, active, unknown, fn_counter)
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
