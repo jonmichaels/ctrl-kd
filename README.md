@@ -62,7 +62,8 @@ against surviving period printouts of the same documents. Its rules are empirica
 ## Install
 
 ```console
-$ pipx install ctrl-kd        # or: pip install ctrl-kd
+$ brew install jonmichaels/tap/ctrl-kd     # macOS / Linuxbrew
+$ pipx install ctrl-kd                     # or: pip install ctrl-kd
 ```
 
 Python ≥ 3.9, no dependencies. Library API: `ctrlkd.convert(data, to='html')`.

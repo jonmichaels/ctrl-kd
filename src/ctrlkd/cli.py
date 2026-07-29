@@ -25,8 +25,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         prog='ctrl-kd',
         description='Convert WordStar 4-7 documents and print-to-disk files to '
-                    'text, Markdown, HTML, or RTF (extensible: see EXTENDING.md). '
-                    '^KD: save and done.')
+                    'text, Markdown, HTML, RTF, or PDF (extensible: see '
+                    'EXTENDING.md). ^KD: save and done.')
     ap.add_argument('files', nargs='+', help='input file(s)')
     ap.add_argument('-t', '--to', action='append', choices=emit.formats(),
                     help='output format (repeatable; default: markdown)')
