@@ -4,3 +4,6 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+
+# maintainer-local release notes — never commit (see CLAUDE.md)
+RELEASING.md
