@@ -82,6 +82,14 @@ documentation community. Behaviors were studied and reimplemented; no code was
 copied. The development corpus is personal and is not distributed — tests use
 synthetic fixtures that encode the same behaviors.
 
+## Credits
+
+Written by Jon Michaels — whose 1987–1992 WordStar files, and the need to read
+them again, are the reason this exists — with Athena (Claude, Anthropic) as
+co-author: the byte archaeology, the wrap test, and the implementation grew out
+of a joint effort to recover those disks. Every commit carries the co-author
+trailer.
+
 ## License
 
 MIT © Jon Michaels

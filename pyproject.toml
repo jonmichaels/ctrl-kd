@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ctrl-kd"
-version = "0.1.0"
+version = "1.0.0"
 description = "Convert WordStar 4-7 documents and print-to-disk files to text, Markdown, HTML, or RTF. ^KD: save and done."
 readme = "README.md"
 license = {text = "MIT"}
@@ -12,7 +12,7 @@ authors = [{name = "Jon Michaels"}]
 requires-python = ">=3.9"
 keywords = ["wordstar", "converter", "retrocomputing", "archive", "dos"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
