@@ -235,3 +235,32 @@ def test_highbit_binary_not_ws4():
     data = (b'+,(\x14 /0\x02' + bytes([0x88, 0x99, 0xAA, 0x07, 0x01]) * 40 +
             b'some ascii' + b'\x00' * 150)
     assert core.detect(data)['variant'] == 'binary'
+
+# ---------------------------------------------------------------- pdf
+
+def test_pdf_structure():
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(core.parse_ws(make_prose()))
+    assert isinstance(pdf, bytes) and pdf.startswith(b'%PDF-1.4')
+    assert pdf.rstrip().endswith(b'%%EOF')
+    assert pdf.count(b'/Type /Page ') == 1 and b'/Courier' in pdf
+    assert b'(Second paragraph.)' in pdf
+
+def test_pdf_pagebreak_makes_pages():
+    from ctrlkd.pdf import emit_pdf
+    data = b'Page one text here.' + HARD + b'.pa' + HARD + b'Page two text here.' + HARD
+    pdf = emit_pdf(core.parse_ws(data))
+    assert pdf.count(b'/Type /Page ') == 2
+
+def test_pdf_styles_and_escaping():
+    from ctrlkd.pdf import emit_pdf
+    data = b'\x02' + ws4_text('Bold (word)') + b'\x02 ' + b'\x13' + ws4_text('under') + b'\x13' + HARD
+    pdf = emit_pdf(core.parse_ws(data))
+    assert b'/F2' in pdf                      # Courier-Bold used
+    assert b'\\(word\\)' in pdf               # parens escaped
+    assert b' l S' in pdf                     # underline stroke drawn
+
+def test_pdf_via_cli_registry():
+    from ctrlkd import get_emitter
+    out = get_emitter('pdf')['fn'](core.parse_ws(make_prose()))
+    assert out[:5] == b'%PDF-'

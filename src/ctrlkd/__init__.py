@@ -2,8 +2,9 @@
 from .core import detect, parse, parse_ws, parse_printstream, Document, Block, Line, Span
 from .emit import (emit_text, emit_markdown, emit_html, emit_rtf,
                    emitter, get_emitter, formats, load_plugins)
+from .pdf import emit_pdf                        # registers the 'pdf' format
 
-__version__ = '1.0.2'
+__version__ = '1.1.0'
 
 def convert(data: bytes, to: str = 'markdown', mode: str = 'modern',
             encoding: str = 'cp437', **options) -> str:

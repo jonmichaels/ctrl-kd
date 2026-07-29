@@ -77,8 +77,12 @@ def main(argv=None):
                                     base + reg['ext'])
                 if a.outdir:
                     os.makedirs(a.outdir, exist_ok=True)
-            with open(dest, 'w', encoding='utf-8', newline='\n') as f:
-                f.write(out)
+            if isinstance(out, bytes):           # binary formats (e.g. pdf)
+                with open(dest, 'wb') as f:
+                    f.write(out)
+            else:
+                with open(dest, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(out)
             print(f'{path} -> {dest}')
     return status
 

@@ -2,7 +2,8 @@
 
 An output format ("emitter") is one function. It never touches WordStar bytes —
 parsing is done before it runs. It receives the intermediate representation (IR)
-and returns a string. Everything the four built-in formats do, yours can do.
+and returns a string — or bytes, for binary formats (the built-in PDF emitter
+does this); the CLI writes bytes results in binary mode. Everything the four built-in formats do, yours can do.
 
 ## The contract
 
