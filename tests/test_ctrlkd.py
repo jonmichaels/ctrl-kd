@@ -229,3 +229,9 @@ def test_ws4_highbit_control_toggle():
     assert sup and ''.join(s.text for s in sup) == '1'
     tail = spans[-1]
     assert 'sup' not in tail.styles and '\x14' not in tail.text
+
+def test_highbit_binary_not_ws4():
+    # binary with high-bit density but low text% (e.g. game data) is not WordStar
+    data = (b'+,(\x14 /0\x02' + bytes([0x88, 0x99, 0xAA, 0x07, 0x01]) * 40 +
+            b'some ascii' + b'\x00' * 150)
+    assert core.detect(data)['variant'] == 'binary'

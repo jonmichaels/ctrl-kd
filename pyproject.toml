@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ctrl-kd"
-version = "1.0.1"
+version = "1.0.2"
 description = "Convert WordStar 4-7 documents and print-to-disk files to text, Markdown, HTML, or RTF. ^KD: save and done."
 readme = "README.md"
 license = {text = "MIT"}

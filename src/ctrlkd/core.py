@@ -72,7 +72,9 @@ def detect(data: bytes) -> dict:
     if blocks_1d >= 2:
         # 1D symmetric blocks are WS5+ machinery regardless of anything else
         return {'variant': 'ws5+', **ev}
-    if soft >= 3 or hi >= max(1, len(core) // 20):
+    # soft returns are strong WS evidence on their own; high-bit density alone is
+    # not — binaries are full of high bytes — unless the file is mostly text
+    if soft >= 3 or (hi >= max(1, len(core) // 20) and txt >= 70):
         # WS5+ kept soft returns but dropped the bit-7-on-last-letter convention:
         # a wordstar file with many soft returns and near-zero high bits is WS5+,
         # as is one using 1D symmetric blocks (footnotes etc., WS5+ only)
