@@ -264,3 +264,15 @@ def test_pdf_via_cli_registry():
     from ctrlkd import get_emitter
     out = get_emitter('pdf')['fn'](core.parse_ws(make_prose()))
     assert out[:5] == b'%PDF-'
+
+def test_pdf_chapter_drop_survives():
+    # machine top margin (uniform blanks on every page) strips; the author's
+    # extra blank lines on page 1 (chapter-drop) survive
+    from ctrlkd.pdf import emit_pdf
+    page1 = b'\r\n' * 8 + b'Chapter opening text here.\r\n'
+    page2 = b'\r\n' * 2 + b'Second page text here.\r\n'
+    pdf = emit_pdf(core.parse_printstream(page1 + b'\x0c' + page2), 'printed')
+    import re
+    ys = [float(m) for m in re.findall(rb'([0-9.]+) Td \(Chapter', pdf)]
+    y2 = [float(m) for m in re.findall(rb'([0-9.]+) Td \(Second', pdf)]
+    assert ys and y2 and ys[0] < y2[0]   # page-1 text starts LOWER than page-2 text

@@ -87,13 +87,28 @@ def _doc_to_pagelines(doc, printed):
         page.append(l)
     if page:
         pages.append(page)
-    # we supply the paper margins, so page-edge blank lines (WordStar's own
-    # top/bottom margins in a print stream) would double up: strip them
-    for pg in pages:
-        while pg and not any(t.strip() for t, _ in pg[0]):
-            pg.pop(0)
-        while pg and not any(t.strip() for t, _ in pg[-1]):
-            pg.pop()
+    # We supply the paper margins, so WordStar's own margin blanks in a print
+    # stream would double up. But deliberate spacing (a chapter-drop on page 1)
+    # must survive: the MACHINE margin is uniform on every page, so strip only
+    # the minimum leading-blank count seen on pages 2+ — anything beyond it on
+    # any page is the author's layout. Trailing blanks are always machine.
+    def leading(pg):
+        n = 0
+        while n < len(pg) and not any(t.strip() for t, _ in pg[n]):
+            n += 1
+        return n
+    if printed and pages:
+        machine = min(leading(pg) for pg in pages[1:]) if len(pages) > 1 \
+                  else leading(pages[0])
+        for pg in pages:
+            del pg[:min(machine, leading(pg))]
+            while pg and not any(t.strip() for t, _ in pg[-1]):
+                pg.pop()
+    else:
+        for pg in pages:
+            del pg[:leading(pg)]
+            while pg and not any(t.strip() for t, _ in pg[-1]):
+                pg.pop()
     return pages or [[]]
 
 def _coalesce(line):
