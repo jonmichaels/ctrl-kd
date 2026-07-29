@@ -61,11 +61,15 @@ against surviving period printouts of the same documents. Its rules are empirica
 
 ## Install
 
+Straight from GitHub (not yet on PyPI):
+
 ```console
-$ pip install ctrl-kd
+$ pipx install git+https://github.com/jonmichaels/ctrl-kd
 ```
 
-Python ≥ 3.9, no dependencies. Library API: `ctrlkd.convert(data, to='html')`.
+or `pip install git+https://github.com/jonmichaels/ctrl-kd` into an environment
+of your choice. Python ≥ 3.9, no dependencies.
+Library API: `ctrlkd.convert(data, to='html')`.
 
 ## Adding an output format
 
