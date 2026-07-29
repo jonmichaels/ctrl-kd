@@ -43,7 +43,11 @@ The `--help` string once advertised the wrong format list for two releases. When
 formats/flags change, update: cli.py `description=`, README intro + examples,
 EXTENDING.md, pyproject.toml `description`, and the Homebrew formula `desc`.
 
-## Releasing (generic steps — the complete checklist is maintainer-local)
+## Releasing
+
+Which number moves: **patch** = bug fix, no interface change; **minor** = new
+format/flag/IR field, existing code keeps working; **major** = anything that breaks
+the CLI, `convert()`, or the IR contract (see above).
 
 1. Bump version in **both** `pyproject.toml` and `src/ctrlkd/__init__.py`.
 2. Tests green; if behavior changed, eyeball real output, don't trust exit codes.
@@ -51,8 +55,17 @@ EXTENDING.md, pyproject.toml `description`, and the Homebrew formula `desc`.
    `.github/workflows/publish.yml` → PyPI via trusted publishing (no tokens).
 4. PyPI's JSON API caches; confirm the upload in the workflow log, not the API.
 5. `gh release create vX.Y.Z ...` — the tag alone is invisible on the Releases page.
-6. Bump `url` + `sha256` in `jonmichaels/homebrew-tap` `Formula/ctrl-kd.rb` to the
-   new sdist (get both from `https://pypi.org/pypi/ctrl-kd/json`).
+6. Bump the Homebrew formula in `jonmichaels/homebrew-tap` (`Formula/ctrl-kd.rb`)
+   to the new sdist, then sanity-check on a Mac
+   (`brew update && brew upgrade ctrl-kd && brew test ctrl-kd`):
 
-`RELEASING.md` is intentionally **untracked** (.gitignore) — it's the maintainer's
-local copy of this checklist plus private deployment steps. Do not commit it.
+   ```console
+   $ curl -s https://pypi.org/pypi/ctrl-kd/json | python3 -c "
+   import json,sys
+   d=json.load(sys.stdin); v=d['info']['version']
+   f=[x for x in d['releases'][v] if x['packagetype']=='sdist'][0]
+   print(f['url']); print(f['digests']['sha256'])"
+   ```
+
+   A new dependency would also need `resource` blocks in the formula — and ctrl-kd
+   has none by design, so that's a decision, not a detail.
