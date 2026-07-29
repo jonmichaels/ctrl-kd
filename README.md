@@ -43,9 +43,12 @@ against surviving period printouts of the same documents. Its rules are empirica
 * **Print streams render verbatim** — they ARE the printed page — with printer
   style codes decoded (superscript/underline/italic/bold pairs; table in
   `core.PRINT_CODES`, derived from a late-80s dot-matrix driver and overridable).
-* **WS5+ symmetric blocks** (`0x1D`: real footnotes/endnotes, added in WS5) are
-  parsed per the published format notes. Our reference corpus is WS4, so this
-  path is spec-correct but sample-starved — **WS5–7 test files welcome.**
+* **WS5+ symmetric blocks** (`0x1D`: real footnotes/endnotes, headings, page
+  breaks — machinery added in WS5) are parsed with their nested structure,
+  verified against the 86 WordStar 7 documents in Robert J. Sawyer's public
+  WordStar archive: footnotes extract with in-text references (`[^n]` in
+  Markdown), paragraph styles become headings, and 82/86 convert with zero
+  mojibake. More WS5–7 corpora still welcome.
 
 ## Modes
 
