@@ -216,3 +216,16 @@ def test_emitters_accept_unknown_options():
     from ctrlkd import convert
     for fmt in ('text', 'markdown', 'html', 'rtf'):
         convert(b'some words here.\r\n', to=fmt, title='x', frob=1)
+
+def test_ws4_highbit_control_toggle():
+    # WS4 sets bit 7 on the last char of a word EVEN when it's a style toggle:
+    # 0x94 == ^T|0x80 must close the superscript, not leak into the text
+    data = (ws4_text('Treaties were made.') + b'\x141\x94  ' +
+            ws4_text('Officially the era ended there.') + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['variant'] == 'ws4'
+    spans = doc.blocks[0].lines[0].spans
+    sup = [s for s in spans if 'sup' in s.styles]
+    assert sup and ''.join(s.text for s in sup) == '1'
+    tail = spans[-1]
+    assert 'sup' not in tail.styles and '\x14' not in tail.text

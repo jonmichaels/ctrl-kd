@@ -177,7 +177,10 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
 
     i = 0
     while i < len(raw):
-        b = raw[i]
+        # WS4's bit-7-on-last-letter applies to CONTROL TOGGLES too (a word ending
+        # at a style boundary yields e.g. 0x94 = ^T|0x80) — so mask BEFORE dispatch,
+        # or high-bit toggles leak into text and styles never close.
+        b = raw[i] & 0x7F if strip_hibit and raw[i] >= 0x80 else raw[i]
         if b == 0x1B and i + 1 < len(raw):        # extended char escape
             buf.append(raw[i + 1]); i += 2; continue
         if fn_counter is not None and b == SENT_FNREF:
@@ -199,8 +202,6 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
         elif b < 0x20 or b == 0x7F:
             if b not in WS_DROP:
                 unknown[b] = unknown.get(b, 0) + 1
-        elif b >= 0x80 and strip_hibit:
-            buf.append(b & 0x7F)
         else:
             buf.append(b)
         i += 1

@@ -3,7 +3,7 @@ from .core import detect, parse, parse_ws, parse_printstream, Document, Block, L
 from .emit import (emit_text, emit_markdown, emit_html, emit_rtf,
                    emitter, get_emitter, formats, load_plugins)
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 def convert(data: bytes, to: str = 'markdown', mode: str = 'modern',
             encoding: str = 'cp437', **options) -> str:
