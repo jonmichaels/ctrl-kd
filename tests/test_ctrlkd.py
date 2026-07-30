@@ -297,9 +297,30 @@ def test_pdf_headings_render_bold():
     assert any(t == 'Body' and 'b' not in st for t, st in segs)
 
 def test_pdf_exact_fill_no_blank_sheet():
-    # content exactly filling a page left a trailing empty page (job-011 finding)
+    # job-011 finding; the 1.1.5 fix popped BEFORE stripping and missed it, and
+    # this test's first version used input that detects as printstream, so it
+    # could never fail (job-012 finding). Now: real WS4 bytes, via parse().
     from ctrlkd.pdf import _doc_to_pagelines, LINES_MODERN
-    n = (LINES_MODERN + 1) // 2   # paragraphs at 1 line + 1 blank each
-    data = b''.join(b'Paragraph %d here.' % i + HARD + HARD for i in range(n))
+    # 26 one-line paragraphs + a final paragraph long enough to wrap once:
+    # 54 entries of content on page 1, the final structural blank spills to
+    # page 2, stripping hollows it -> the 1.1.5 blank sheet ([54, 0])
+    n = (LINES_MODERN - 2) // 2
+    data = b''.join(ws4_text('Paragraph %d here today.' % i) + HARD + HARD
+                    for i in range(n))
+    data += ws4_text('This final paragraph is deliberately long enough that the '
+                     'wrap test must break it across two physical lines.') + HARD
+    doc = core.parse(data)
+    assert doc.meta['variant'] == 'ws4'          # the test's own premise, pinned
+    pages = _doc_to_pagelines(doc, False)
+    assert [len(pg) for pg in pages] == [LINES_MODERN]
+
+def test_pdf_trailing_double_pagebreak_no_blank_sheet():
+    # the other pop path: an explicitly empty final page from trailing .pa .pa
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (b'Page one text here.' + HARD + b'.pa' + HARD + b'.pa' + HARD)
     pages = _doc_to_pagelines(core.parse_ws(data), False)
     assert all(pg for pg in pages), [len(pg) for pg in pages]
+    # interior blank pages from .pa .pa BETWEEN content are preserved
+    data2 = (b'One.' + HARD + b'.pa' + HARD + b'.pa' + HARD + b'Two.' + HARD)
+    pages2 = _doc_to_pagelines(core.parse_ws(data2), False)
+    assert [bool(pg) for pg in pages2] == [True, False, True]

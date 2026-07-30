@@ -90,10 +90,6 @@ def _doc_to_pagelines(doc, printed):
         page.append(l)
     if page:
         pages.append(page)
-    # content that exactly fills a page left a trailing empty page (blank sheet
-    # in modern mode); explicit interior blanks from .pa .pa are preserved
-    while len(pages) > 1 and not pages[-1]:
-        pages.pop()
     # We supply the paper margins, so WordStar's own margin blanks in a print
     # stream would double up. But deliberate spacing (a chapter-drop on page 1)
     # must survive: the MACHINE margin is uniform on every page, so strip only
@@ -116,6 +112,12 @@ def _doc_to_pagelines(doc, printed):
             del pg[:leading(pg)]
             while pg and not any(t.strip() for t, _ in pg[-1]):
                 pg.pop()
+    # Trailing empty pages produce blank sheets. The pop must run AFTER the
+    # blank-stripping above — stripping is what hollows out a final page that
+    # held only blank lines (1.1.5 popped before stripping and missed it; found
+    # by the Swift port, job-012). Interior blanks from .pa .pa are preserved.
+    while len(pages) > 1 and not pages[-1]:
+        pages.pop()
     return pages or [[]]
 
 def _coalesce(line):
