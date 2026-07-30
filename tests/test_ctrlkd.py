@@ -276,3 +276,11 @@ def test_pdf_chapter_drop_survives():
     ys = [float(m) for m in re.findall(rb'([0-9.]+) Td \(Chapter', pdf)]
     y2 = [float(m) for m in re.findall(rb'([0-9.]+) Td \(Second', pdf)]
     assert ys and y2 and ys[0] < y2[0]   # page-1 text starts LOWER than page-2 text
+
+def test_md_multistyle_span_is_deterministic():
+    # frozenset iteration made bold+strike nesting vary across runs (hash seed);
+    # found by the Swift port. sorted() pins it: delimiters inside, tags outside.
+    from ctrlkd.emit import _md_span
+    from ctrlkd.core import Span
+    assert _md_span(Span('w', frozenset({'b', 'strike'}))) == '~~**w**~~'
+    assert _md_span(Span('w', frozenset({'b', 'u'}))) == '<u>**w**</u>'

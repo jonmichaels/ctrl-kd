@@ -92,7 +92,12 @@ def _md_span(s):
     lead = esc[:len(esc) - len(esc.lstrip())]
     trail = esc[len(esc.rstrip()):]
     core = esc.strip()
-    for st in s.styles:
+    # sorted: frozenset iteration order varies with hash seed, which made multi-style
+    # nesting order (e.g. bold+strike) nondeterministic BETWEEN RUNS. Alphabetical
+    # order happens to nest delimiter styles (b, i, strike) inside tag styles
+    # (sub, sup, u), which is also what the Swift port documents. Found by the
+    # ctrlkd-swift port's pre-vector determinism check (2026-07-29).
+    for st in sorted(s.styles):
         if st in _MD:
             core = f'{_MD[st]}{core}{_MD[st]}'
         elif st in _MD_HTML:
