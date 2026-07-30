@@ -76,6 +76,13 @@ An output format is one function over the parsed document — register it with t
 **[EXTENDING.md](EXTENDING.md)** has the IR contract, a complete worked example
 (BBCode in ~40 lines), and a checklist.
 
+## Siblings
+
+**[soft-return](https://github.com/jonmichaels/soft-return)** — CtrlKD, a Swift
+port of this engine, verified byte-for-byte against this implementation via
+machine-generated test vectors (the two projects found six real bugs in each
+other during the port). It grows the `sr` CLI and the Soft Return macOS app.
+
 ## Lineage
 
 Standing on the shoulders of the tools and documentation that kept WordStar
