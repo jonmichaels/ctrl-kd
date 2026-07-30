@@ -284,3 +284,22 @@ def test_md_multistyle_span_is_deterministic():
     from ctrlkd.core import Span
     assert _md_span(Span('w', frozenset({'b', 'strike'}))) == '~~**w**~~'
     assert _md_span(Span('w', frozenset({'b', 'u'}))) == '<u>**w**</u>'
+
+def test_pdf_headings_render_bold():
+    # the docstring promised it; the Swift port (job-011) found it unimplemented
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (ws7_block(0x00) + ws7_block(0x11, bytes([0x02])) + b'Chapter One' + HARD + HARD +
+            b'Body text here.' + HARD)
+    pages = _doc_to_pagelines(core.parse_ws(data), False)
+    segs = [seg for pg in pages for line in pg for seg in line]
+    # wrapLine tokenizes into words: assert at segment granularity
+    assert any(t == 'Chapter' and 'b' in st for t, st in segs)
+    assert any(t == 'Body' and 'b' not in st for t, st in segs)
+
+def test_pdf_exact_fill_no_blank_sheet():
+    # content exactly filling a page left a trailing empty page (job-011 finding)
+    from ctrlkd.pdf import _doc_to_pagelines, LINES_MODERN
+    n = (LINES_MODERN + 1) // 2   # paragraphs at 1 line + 1 blank each
+    data = b''.join(b'Paragraph %d here.' % i + HARD + HARD for i in range(n))
+    pages = _doc_to_pagelines(core.parse_ws(data), False)
+    assert all(pg for pg in pages), [len(pg) for pg in pages]

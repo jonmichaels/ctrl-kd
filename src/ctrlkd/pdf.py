@@ -64,7 +64,10 @@ def _doc_to_pagelines(doc, printed):
         if b.kind == 'softpage':
             continue
         for line in b.lines:
-            spans = [(s.text, s.styles) for s in line.spans]
+            # the docstring's "headings bold" promise: heading blocks render in
+            # Courier-Bold (found unimplemented by the Swift port, job-011)
+            spans = [(s.text, s.styles | {'b'} if b.heading else s.styles)
+                     for s in line.spans]
             if printed:
                 lines.append(spans)                       # verbatim, no wrap
             else:
@@ -87,6 +90,10 @@ def _doc_to_pagelines(doc, printed):
         page.append(l)
     if page:
         pages.append(page)
+    # content that exactly fills a page left a trailing empty page (blank sheet
+    # in modern mode); explicit interior blanks from .pa .pa are preserved
+    while len(pages) > 1 and not pages[-1]:
+        pages.pop()
     # We supply the paper margins, so WordStar's own margin blanks in a print
     # stream would double up. But deliberate spacing (a chapter-drop on page 1)
     # must survive: the MACHINE margin is uniform on every page, so strip only
