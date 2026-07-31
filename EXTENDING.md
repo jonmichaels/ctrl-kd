@@ -24,7 +24,30 @@ def emit_myformat(doc, mode='modern', **options) -> str
 ```
 Document
   .blocks     list[Block]
-  .footnotes  list[list[Span]]   # numbered 1..n, referenced in text (see fnref)
+  .footnotes  list[list[Span]]   # numbered 1..n, referenced in text (see fnref).
+                                 # Footnotes, endnotes, AND annotations (WS5+/WS7):
+                                 # all three print the same way (a numbered list at
+                                 # the end), so this stays one flattened, ordered
+                                 # view for emitters that don't care which is which.
+  .endnotes     list[list[Span]] # WS5+/WS7 endnotes only, same shape as .footnotes
+  .annotations  list[list[Span]] # WS5+/WS7 annotations only, same shape
+  .comments     list[Note]       # WS5+/WS7 comments: WordStar never prints these,
+                                 # so they're NOT in .footnotes -- only reachable
+                                 # here or via .notes. Often the most interesting
+                                 # content in a file (hidden author asides).
+  .notes      list[Note]        # ALL note kinds, in document order -- the
+                                 # authoritative structure; .footnotes/.endnotes/
+                                 # .annotations/.comments above are convenience
+                                 # views over this. Note: kind, text, number
+                                 # (footnote/endnote only), tag (annotation's own
+                                 # display-tag text, if any), line_count,
+                                 # number_format, convert_to, dot_commands (any
+                                 # dot-command lines found INSIDE the note's own
+                                 # text, stripped from `text` but kept verbatim),
+                                 # offset
+  .unknown_blocks  list[UnknownBlock]  # unrecognised WS5+/WS7 symmetrical-sequence
+                                       # types, preserved instead of dropped.
+                                       # UnknownBlock: cmd, data (raw bytes), offset
   .meta       dict               # detection + parse info, e.g.:
                                  #   variant: 'ws4' | 'ws5+' | 'printstream' | 'text'
                                  #   columnar: bool   (ruler-line document: fixed-width!)

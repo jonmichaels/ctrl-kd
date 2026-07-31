@@ -40,9 +40,61 @@ class Block:
     heading: int = 0                     # 0 = body text; 1-3 = WS5+ title/header/subheading
 
 @dataclass
+class Note:
+    """One footnote/endnote/annotation/comment: WordStar 7.0 symmetrical
+    sequence types 3-6 (WordStar International, 1992). All four share one
+    layout (line-count word, tag/number word, conversion-flag byte, text) so
+    one model covers them; `kind` is what lets callers tell them apart."""
+    kind: str                  # 'footnote' | 'endnote' | 'annotation' | 'comment'
+    text: str = ''
+    number: int | None = None  # footnote/endnote only: the file's own note number
+                                # (else None -- annotations/comments have no numeric
+                                # identity in the spec, only annotations have `tag`)
+    tag: str | None = None     # annotations only: the nested tag's display TEXT (can
+                                # be null); footnote/endnote carry a number instead,
+                                # comments carry neither -- spec-documented "not used"
+    line_count: int = 0        # WordStar's stored text height -- cheap pagination
+    number_format: int = 0     # conv-flag high nybble: 0 symbols,1 upper,2 lower,3
+                                # numeric -- meaningless for annotations (spec: "not
+                                # used"), left 0 there rather than reporting noise
+    convert_to: int = 0        # conv-flag low nybble: 0 = none, else target note type
+                                # (same annotation caveat as number_format)
+    dot_commands: list = field(default_factory=list)  # the note's OWN dot-command
+                                # lines (a ruler or comment can live inside a note's
+                                # text same as the body) -- stripped from `text` but
+                                # preserved verbatim, in order, not dropped
+    offset: int = 0            # source byte offset of this block's opening 0x1D
+
+@dataclass
+class UnknownBlock:
+    """A symmetrical sequence whose type we don't interpret: kept verbatim
+    (bytes + source offset) instead of being silently dropped, per the
+    project rule to preserve what isn't understood -- so --diagnose can
+    report it instead of going quiet."""
+    cmd: int
+    data: bytes
+    offset: int
+
+@dataclass
 class Document:
     blocks: list = field(default_factory=list)
-    footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+)
+    footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
+                                                       # endnotes, and annotations, in document
+                                                       # order -- all three are rendered the
+                                                       # same way (a numbered list at the end);
+                                                       # see doc.notes to tell them apart
+    endnotes: list = field(default_factory=list)      # list[list[Span]] (WS5+, type 4 only)
+    annotations: list = field(default_factory=list)   # list[list[Span]] (WS5+, type 5 only)
+    comments: list = field(default_factory=list)      # list[Note] (WS5+, type 6): never
+                                                       # printed by WordStar itself, but kept
+                                                       # here -- often the most interesting
+                                                       # content in a file (hidden author asides)
+    notes: list = field(default_factory=list)         # list[Note], ALL kinds, document order:
+                                                       # the authoritative structure; footnotes/
+                                                       # endnotes/annotations/comments above are
+                                                       # convenience views over this
+    unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
+                                                         # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
 
     def iter_lines(self):
@@ -214,30 +266,122 @@ SENT_FNREF = 0x07      # sentinels injected into the cleaned stream; these bytes
 SENT_SOFTPAGE = 0x0B   # cannot appear as text in a WS5+ document body
 SENT_HEADING = 0x11
 
-def _note_text(block: bytes, encoding: str) -> str:
-    """Note content is NESTED: header, then an inner 1D, the text, then a 2-byte
-    length + 1D tail (verified on the Sawyer WS7 archive: 'Footnote\\r\\n,\\x00')."""
-    inner = block.split(b'\x1d')
-    text = inner[1][:-2] if len(inner) > 1 and len(inner[1]) > 2 else block[20:]
-    clean = bytes(c for c in text if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
-    return clean.decode(encoding, 'replace').strip()
+# Symmetrical-sequence "Notes" types (WordStar 7.0 file format spec, WordStar
+# International, 1992): 3 Footnote, 4 Endnote, 5 Annotation, 6 Comment. All
+# four are rendered inline via a reference marker except comments, which
+# WordStar never prints -- they're only reachable through the model.
+NOTE_KINDS = {0x03: 'footnote', 0x04: 'endnote', 0x05: 'annotation', 0x06: 'comment'}
+
+def _strip_dot_commands(raw: bytes, encoding: str):
+    """Split note text into physical lines (the same hard-return bytes the
+    body splits on) and pull any dot-command lines out of it -- a note can
+    carry its own dot commands (a .rr ruler, a '..' comment line) exactly
+    like the body can, and the body already never renders those as text.
+    Unrecognised dot commands are kept verbatim, in order, not dropped;
+    surviving text lines are cleaned the same way note text always was and
+    rejoined with a space (notes are short callouts, not reflowed prose)."""
+    lines = re.split(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a', bytes(raw))
+    kept, dots = [], []
+    for line in lines:
+        stripped = bytes(b & 0x7F for b in line)      # same masking the body uses
+        if stripped[:1] == b'.':
+            dots.append(stripped.rstrip().decode(encoding, 'replace'))
+            continue
+        clean = bytes(c for c in line if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
+        piece = clean.decode(encoding, 'replace').strip()
+        if piece:
+            kept.append(piece)
+    return ' '.join(kept), dots
+
+def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
+    """Decode one note block's content (the bytes between the type byte and
+    the closing count+0x1D), per the spec's Notes section:
+
+        Word: line count of the note text
+        Word: offset to the internal tag sequence (high bit set -> low 15
+              bits are the offset) OR the note number itself (high bit clear)
+        Byte: conversion flag (used only when there is no internal tag) --
+              low nybble = target type if converted (0 = not converted),
+              high nybble = numbering format (0 symbols,1 upper,2 lower,3 numeric)
+        Remaining bytes: the note text, which may itself hold ONE nested
+              symmetrical sequence (the internal tag, or a font change) --
+              spec: "Currently only one level of this recursion is used."
+
+    The tag/conversion-flag word and the internal tag mean different things
+    per kind, though: only footnotes/endnotes carry a NUMBER (the spec is
+    explicit that annotations'/comments' equivalent fields are "not used").
+    Annotations instead carry a TEXT tag ("the text used to display and
+    print the tag of the note") in the very same position a footnote's
+    internal tag would carry its number -- so the same nested-sequence walk
+    below extracts a number for footnote/endnote and a tag string for
+    annotation, and the outer conversion flag is only trusted where the
+    spec says it's actually used (not annotations).
+    """
+    kind = NOTE_KINDS[cmd]
+    if len(content) < 5:
+        return Note(kind=kind, offset=offset)
+    line_count = int.from_bytes(content[0:2], 'little')
+    tag_word = int.from_bytes(content[2:4], 'little')
+    conv_flag = content[4]
+    numeric = kind in ('footnote', 'endnote')
+    number = (None if tag_word & 0x8000 else tag_word) if numeric else None
+    tag = None
+    remainder = content[5:]
+
+    text_bytes = bytearray()
+    i = 0
+    while i < len(remainder):
+        if remainder[i] == 0x1D and i + 3 <= len(remainder):
+            jump = int.from_bytes(remainder[i + 1:i + 3], 'little')
+            inner = remainder[i + 1:i + 3 + jump]
+            inner_cmd = inner[2] if len(inner) > 2 else -1
+            if inner_cmd == cmd:                        # the internal tag sequence
+                inner_content = inner[3:-3] if len(inner) >= 6 else inner[3:]
+                if numeric and len(inner_content) >= 5:
+                    number = int.from_bytes(inner_content[2:4], 'little')
+                    conv_flag = inner_content[4]
+                elif kind == 'annotation' and len(inner_content) > 5:
+                    raw_tag = bytes(c for c in inner_content[5:]
+                                    if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
+                    tag = raw_tag.decode(encoding, 'replace').strip() or None
+            i += jump + 3                                # skip the whole nested sequence
+        else:
+            text_bytes.append(remainder[i])
+            i += 1
+
+    text, dots = _strip_dot_commands(bytes(text_bytes), encoding)
+    if kind == 'annotation':
+        # spec: "Byte: Conversion flag. Not used for annotations." -- don't
+        # report noise from a byte the format documents as meaningless here.
+        number_format, convert_to = 0, 0
+    else:
+        number_format, convert_to = (conv_flag >> 4) & 0x0F, conv_flag & 0x0F
+    return Note(kind=kind, text=text, number=number, tag=tag, line_count=line_count,
+                number_format=number_format, convert_to=convert_to,
+                dot_commands=dots, offset=offset)
 
 def _symmetric_blocks(data: bytes, encoding: str):
     """Strip WS5+ 1D symmetric sequences (2-byte LE length, command type at +2),
-    collecting footnotes/endnotes and injecting sentinels for the block types that
-    carry document structure. Verified against the 86 WS7 documents in Robert J.
-    Sawyer's WordStar archive."""
+    collecting notes (footnotes/endnotes/annotations/comments, types 3-6) and
+    injecting sentinels for the block types that carry document structure.
+    Types we don't interpret are preserved as opaque UnknownBlocks rather than
+    dropped (project rule: preserve what you don't understand). Verified
+    against the 86 WS7 documents in Robert J. Sawyer's WordStar archive."""
     out = bytearray()
-    footnotes = []
+    notes = []
+    unknown = []
     i = 0
     while i < len(data):
         if data[i] == 0x1D and i + 3 <= len(data):
+            start = i
             jump = int.from_bytes(data[i + 1:i + 3], 'little')
             block = data[i + 1:i + 3 + jump]
             cmd = block[2] if len(block) > 2 else -1
-            if cmd in (0x03, 0x04):                               # foot/endnote
-                footnotes.append(_note_text(block, encoding))
-                out.append(SENT_FNREF)
+            if cmd in NOTE_KINDS:
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                notes.append(_parse_note(cmd, content, start, encoding))
+                if cmd != 0x06:                          # comments: never printed inline
+                    out.append(SENT_FNREF)
             elif cmd == 0x09:                                     # tab
                 out += b'    '
             elif cmd == 0x0B:                                     # end of page
@@ -246,11 +390,13 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 level = {0x05: 1, 0x02: 2, 0x03: 3}.get(block[3], 0)
                 if level:
                     out += bytes([SENT_HEADING, 0x30 + level])
+            else:
+                unknown.append(UnknownBlock(cmd, bytes(block), start))
             i += jump + 3
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), footnotes
+    return bytes(out), notes, unknown
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -260,8 +406,21 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
 
     ws5 = det['variant'] == 'ws5+'
     if ws5:
-        data, notes = _symmetric_blocks(data, encoding)
-        doc.footnotes = [[Span(n)] for n in notes]
+        data, notes, blobs = _symmetric_blocks(data, encoding)
+        doc.notes = notes
+        doc.unknown_blocks = blobs
+        # footnotes/endnotes/annotations are all rendered the same way (a
+        # numbered list at the end) and share one inline reference counter
+        # below, so `footnotes` stays the flattened view emitters already
+        # know how to render; endnotes/annotations are also split out so
+        # callers that DO want to tell them apart don't have to re-filter
+        # doc.notes themselves. Comments are never rendered inline -- they
+        # only ever show up in doc.notes / doc.comments.
+        doc.footnotes = [[Span(n.text)] for n in notes if n.kind in
+                         ('footnote', 'endnote', 'annotation')]
+        doc.endnotes = [[Span(n.text)] for n in notes if n.kind == 'endnote']
+        doc.annotations = [[Span(n.text)] for n in notes if n.kind == 'annotation']
+        doc.comments = [n for n in notes if n.kind == 'comment']
 
     physical, margin = lines_pass(data)
     doc.meta['margin_estimate'] = margin

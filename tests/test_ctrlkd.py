@@ -158,16 +158,42 @@ def test_parse_refuses_binary():
 # ---------------------------------------------------------------- WS5+/WS7
 # synthetic 1D symmetric blocks, structure verified against the Sawyer archive
 
-def ws7_block(cmd, payload=b''):
-    body = bytes([cmd]) + payload
-    return b'\x1d' + len(body).to_bytes(2, 'little') + body
+def ws7_block(cmd, content=b''):
+    """One WS7 symmetrical sequence: 0x1D, count, type byte, content, the
+    matching trailing count, closing 0x1D. Count = len(content) + 4 (per the
+    WordStar 7.0 file format spec, WordStar International, 1992: the count is
+    the sequence's own length minus 3, and it's stored so that adding it to
+    the address of the opening 0x1D lands on the trailing count)."""
+    count = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
 
-def ws7_note(text):
-    inner = b'\x00' * 17 + b'\x1d' + text + b'\x2c\x00'
-    return ws7_block(0x03, inner)
+def ws7_note(cmd, text, number=1, line_count=1, number_format=3, convert_to=0):
+    """One footnote/endnote/annotation/comment note block (types 3-6): line
+    count, note number (embedded directly -- tag-word high bit clear),
+    conversion flag (high nybble = numbering format, low nybble = convert-to
+    type), then the note text."""
+    conv_flag = ((number_format & 0x0F) << 4) | (convert_to & 0x0F)
+    content = (line_count.to_bytes(2, 'little') + number.to_bytes(2, 'little') +
+               bytes([conv_flag]) + text)
+    return ws7_block(cmd, content)
+
+def ws7_note_with_tag(cmd, text, number, line_count=1, number_format=3, convert_to=0):
+    """A note whose number and conversion flag live in a nested internal tag
+    sequence (tag-word high bit set) instead of the outer header -- the
+    common case for footnotes/endnotes once WordStar has assigned a display
+    number. The tag is embedded partway through the text, as real files do,
+    to prove nested-sequence stripping doesn't just get lucky on placement."""
+    conv_flag = ((number_format & 0x0F) << 4) | (convert_to & 0x0F)
+    tag_content = b'\x00\x00' + number.to_bytes(2, 'little') + bytes([conv_flag])
+    tag = ws7_block(cmd, tag_content)
+    split = len(text) // 2
+    outer_text = text[:split] + tag + text[split:]
+    content = line_count.to_bytes(2, 'little') + b'\x00\x80' + b'\x00' + outer_text
+    return ws7_block(cmd, content)
 
 def test_ws7_footnote_extraction_and_ref():
-    data = (ws7_block(0x00) + b'Treaties were made.' + ws7_note(b'See the 1868 accords.') +
+    data = (ws7_block(0x00) + b'Treaties were made.' +
+            ws7_note(0x03, b'See the 1868 accords.') +
             b' More text follows here.' + HARD)
     doc = core.parse_ws(data)
     assert doc.meta['variant'] == 'ws5+'
@@ -196,6 +222,132 @@ def test_ws7_tab_block():
     data = ws7_block(0x00) + ws7_block(0x09) + b'Indented by tab block.' + HARD
     doc = core.parse_ws(data)
     assert doc.blocks[0].lines[0].text().startswith('    ')
+
+def test_ws7_note_text_is_not_the_conversion_flag_byte():
+    # regression for the original bug: _note_text() split on 0x1D and took
+    # inner[1], which for a header-less note (no nested tag) returned the
+    # conversion-flag BYTE decoded as text, not the note itself.
+    data = ws7_note(0x03, b'Real footnote text.')
+    doc = core.parse_ws(data)
+    assert len(doc.notes) == 1
+    assert doc.notes[0].text == 'Real footnote text.'
+    assert doc.notes[0].text not in ('3', '4', '\x33', '\x34')
+
+def test_ws7_four_note_kinds_distinguished():
+    # all four note types (footnote/endnote/annotation/comment) in one file:
+    # each must be modeled as its own kind, not flattened together, and
+    # comments must never surface in the inline-referenced footnote view.
+    data = (ws7_block(0x00) +
+            ws7_note(0x03, b'Footnote One.', number=1) +
+            b'body one ' +
+            ws7_note(0x04, b'Endnote one.', number=1) +
+            b'body two ' +
+            ws7_note(0x05, b'An annotation.', number=0) +
+            b'body three ' +
+            ws7_note(0x06, b'A hidden author aside.', number=0) +
+            b'body four' + HARD)
+    doc = core.parse_ws(data)
+    kinds = [n.kind for n in doc.notes]
+    assert kinds == ['footnote', 'endnote', 'annotation', 'comment']
+    assert [n.text for n in doc.notes] == [
+        'Footnote One.', 'Endnote one.', 'An annotation.', 'A hidden author aside.']
+    # footnotes/endnotes/annotations render inline like footnotes (3 refs);
+    # comments never do
+    assert len(doc.footnotes) == 3
+    assert len(doc.endnotes) == 1 and doc.endnotes[0][0].text == 'Endnote one.'
+    assert len(doc.annotations) == 1 and doc.annotations[0][0].text == 'An annotation.'
+    assert len(doc.comments) == 1 and doc.comments[0].text == 'A hidden author aside.'
+    refs = [s for s in doc.blocks[0].lines[0].spans if 'fnref' in s.styles]
+    assert [r.text for r in refs] == ['1', '2', '3']       # comment got no ref
+    # the comment's text must not leak into rendered output at all
+    md = emit.emit_markdown(doc)
+    assert 'hidden author aside' not in md
+
+def test_ws7_note_metadata_captured():
+    # line count, resolved number, and the conversion flag's two nybbles
+    # (format/convert-to) must survive -- previously discarded entirely.
+    data = ws7_note(0x04, b'Two-line endnote text.', number=7, line_count=2,
+                    number_format=1, convert_to=0)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.kind == 'endnote'
+    assert note.line_count == 2
+    assert note.number == 7
+    assert note.number_format == 1          # upper-case lettering
+    assert note.convert_to == 0             # not converted
+    assert note.offset == 0                 # source byte offset of the opening 0x1D
+
+def test_ws7_note_nested_tag_resolves_number_and_strips_bytes():
+    # the note text may hold ONE nested symmetrical sequence -- the internal
+    # tag carrying the real number/conv-flag once WordStar assigns one. It
+    # must be stripped from the visible text and its number/flag must win.
+    data = ws7_note_with_tag(0x03, b'Split across the tag boundary.',
+                             number=42, number_format=2, convert_to=0)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.text == 'Split across the tag boundary.'
+    assert note.number == 42
+    assert note.number_format == 2
+    assert '\x1d' not in note.text
+
+def ws7_annotation_with_tag(dot_lines, text, tag_text, junk_conv_flag=0x05):
+    """An annotation shaped like a real WS7 one: its OWN text embeds one or
+    more dot-command lines (a ruler, a '..' comment -- WordStar notes can
+    carry these same as the body can), followed by a nested tag sequence
+    whose remaining bytes are a display TEXT string (not a number -- that's
+    footnote/endnote-only), followed by the real annotation text. The
+    conversion-flag byte is documented "not used" for annotations, so it's
+    deliberately junk here to prove it's ignored rather than misreported."""
+    tag_content = b'\x00\x00\x00\x00' + bytes([junk_conv_flag]) + tag_text
+    tag = ws7_block(0x05, tag_content)
+    body = b'\r\n'.join(dot_lines) + b'\r\n' + tag + b' ' + text + b'\r\n'
+    content = b'\x01\x00' + b'\x00\x80' + bytes([junk_conv_flag]) + body
+    return ws7_block(0x05, content)
+
+def test_ws7_annotation_own_dot_commands_stripped_and_tag_captured():
+    # reproduces the real NOTES.TST annotation shape: the note's own text
+    # embeds a dot-command line that must not leak into rendered text (but
+    # must be preserved verbatim), and its nested tag holds a TEXT string,
+    # not a number -- annotations don't have a numeric identity.
+    data = ws7_annotation_with_tag(
+        dot_lines=[b'.. a descriptive remark', b'.rrL----!----R'],
+        text=b'Annotation One', tag_text=b'AC1')
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.kind == 'annotation'
+    assert note.text == 'Annotation One'
+    assert note.tag == 'AC1'
+    assert note.number is None
+    assert note.dot_commands == ['.. a descriptive remark', '.rrL----!----R']
+    assert '.rr' not in note.text and '..' not in note.text
+    # the conversion flag is documented unused for annotations: don't report
+    # noise from it even though the byte in this fixture is non-zero
+    assert note.number_format == 0 and note.convert_to == 0
+
+def test_ws7_note_own_dot_command_stripped_generally():
+    # NOT special-cased to .rr: any dot-command line inside ANY note kind's
+    # text must be stripped from the rendered text and preserved verbatim.
+    text = b'.. an internal editorial remark\r\nThe real footnote text.'
+    data = ws7_note(0x03, text, number=1)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.text == 'The real footnote text.'
+    assert note.dot_commands == ['.. an internal editorial remark']
+
+def test_ws7_unknown_symmetric_type_preserved():
+    # an unrecognised symmetrical-sequence type must be kept as an opaque
+    # blob with its source offset, not silently dropped.
+    data = b'lead in ' + ws7_block(0x63, b'mystery payload') + b' trailing text' + HARD
+    doc = core.parse_ws(data)
+    assert len(doc.unknown_blocks) == 1
+    blob = doc.unknown_blocks[0]
+    assert blob.cmd == 0x63
+    assert blob.offset == len(b'lead in ')
+    assert b'mystery payload' in blob.data
+    # it must not leak into the visible text either
+    text = doc.blocks[0].lines[0].text()
+    assert 'mystery payload' not in text
+    assert 'lead in' in text and 'trailing text' in text
 
 def test_tiny_file_not_misdetected_as_ws4():
     # regression: len(core)//20 == 0 made 'hi >= 0' always true for tiny files

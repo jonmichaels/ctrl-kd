@@ -17,7 +17,17 @@ def diagnose(path, data):
         info.update({k: doc.meta[k] for k in
                      ('margin_estimate', 'dot_commands', 'unknown_codes', 'columnar')})
         info['paragraphs'] = sum(1 for b in doc.blocks if b.kind == 'para')
-        info['footnotes'] = len(doc.footnotes)
+        # note kinds, counted separately (footnote/endnote/annotation/comment)
+        # rather than flattened, so a rescue tool can tell a file has hidden
+        # comments even when this run is only converting to plain text
+        info['notes'] = {kind: sum(1 for n in doc.notes if n.kind == kind)
+                         for kind in ('footnote', 'endnote', 'annotation', 'comment')}
+        # unrecognised symmetrical-sequence types: preserved, not silently
+        # dropped, so --diagnose can report them instead of going quiet
+        info['unknown_blocks'] = [
+            {'type': f'0x{u.cmd:02x}' if u.cmd >= 0 else 'malformed',
+             'offset': u.offset, 'length': len(u.data)}
+            for u in doc.unknown_blocks]
     return info
 
 def main(argv=None):
