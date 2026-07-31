@@ -13,7 +13,7 @@ Styles: bold/italic map to the Courier variants, underline is drawn, superscript
 is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
-from .emit import emitter, _printed
+from .emit import emitter, _printed, _annotated_notes, _ref_pairs
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
@@ -21,8 +21,43 @@ SIZE, LEAD = 12, 12                  # 10 CPI pica x 6 LPI — the dot-matrix st
                                      # a 65-col WordStar line is exactly 6.5in
 TOP_MODERN, TOP_PRINTED = 72, 36     # print streams carry their own top-margin blanks
 LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
-LINES_PRINTED = (PAGE_H - 2 * 36) // LEAD                # 60
+LINES_PRINTED = (PAGE_H - 2 * 36) // LEAD                # 60 -- the US Letter default;
+                                                          # printed mode's real per-document
+                                                          # figure comes from _printed_cap(),
+                                                          # which honours .pl-derived geometry
 MAX_COLS = int((PAGE_W - 2 * MARGIN) / (SIZE * 0.6))     # 65 — WordStar's own margin
+
+# Period-authentic footnote layout (Printed mode only -- WordStar Professional
+# 5 manual, pp. 138-139, and the WSCHANGE factory-defaults table, WS7 manual):
+FOOTNOTE_SEPARATOR = '-' * 20     # "Footnotes are separated from the text by a
+                                  # line of 20 dashes." -- a fixed count, not
+                                  # the text measure.
+CONTINUATION_TEXT = '...Continued...'   # WSCHANGE factory default (footnote
+                                        # continuation text)
+FOOTNOTE_FLOOR = 3               # "A minimum of three lines of regular text
+                                  # are printed on a page regardless of the
+                                  # size of the footnote area" (except the
+                                  # last page of the document)
+
+def _resolved_page_height(doc, printed):
+    """Page height in points for THIS document. Printed mode honours the
+    file's own .pl-derived geometry (core.py's doc.meta['page']['height_in']
+    -- file geometry wins for page size, best-effort). Modern mode does NOT:
+    it deliberately reflows to fill its own fixed page rather than preserve
+    the original measure (Printed is the faithfulness mode; Modern's whole
+    point is a page that's simply pleasant to read), so it always renders at
+    the fixed US Letter height regardless of what the file declares."""
+    if not printed:
+        return PAGE_H
+    height_in = doc.meta.get('page', {}).get('height_in', 11.0)
+    return max(LEAD * (FOOTNOTE_FLOOR + 1), round(height_in * 72))
+
+def _printed_cap(doc):
+    """Lines of vertical room on a printed page for THIS document -- the
+    cap used both for plain pagination and as the footnote layout's page
+    budget (see _paginate_printed_notes)."""
+    page_h = _resolved_page_height(doc, True)
+    return max(FOOTNOTE_FLOOR + 1, (page_h - 2 * TOP_PRINTED) // LEAD)
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}
@@ -54,8 +89,256 @@ def _wrap_line(spans, width):
         lines.append(line)
     return lines
 
+# ----------------------------------------------- printed footnote layout
+#
+# WordStar Professional 5 manual, pp. 138-139 (quoted in full in the module
+# docstring's spirit, restated here at the point it's implemented):
+#
+#   "Footnotes are separated from the text by a line of 20 dashes. If a
+#   footnote doesn't fit at the bottom of the page, the continued text is
+#   printed in the footnote area at the bottom of the next page (except
+#   after the last page of regular text, where footnotes are printed at
+#   the top of the page). A minimum of three lines of regular text are
+#   printed on a page regardless of the size of the footnote area except
+#   on the last page of the document."
+#
+# The reference NEVER moves (no reserve-and-push/TeX-style lookahead --
+# WordStar didn't do that); the footnote area at the page bottom grows to
+# hold its notes, eating body-text space down to a floor of FOOTNOTE_FLOOR
+# lines; whatever doesn't fit is split, continuing in the next page's area
+# (marked with CONTINUATION_TEXT); the floor is lifted, and any final
+# leftover prints at the page TOP instead, once there's no more body text.
+#
+# Endnotes never touch the per-page footnote area at all -- WordStar collects
+# them at the true end of the document (no .pe support here -- see report),
+# with NO heading (WordStar never printed one; see EXTENDING.md/report).
+# Annotations print at the page bottom exactly like footnotes (same ruling).
+# Comments never print (WordStar's own rule) and never reach this code --
+# core.py never emits a reference sentinel for them.
+
+def _note_marker(note, label):
+    """Footnote reference-in-the-note, WSCHANGE factory default: no lead
+    character, trailing '.' -> '1.'. Annotations have no documented mark of
+    their own -- the spec gives them a free-text `tag` instead ("the text
+    used to display and print the tag of the note"); `label` (from
+    emit.py's _annotated_notes, shared so every format agrees) is already
+    that tag when the author set one, falling back to a running count
+    otherwise -- so this only ever needs to add the footnote's own
+    trailing '.', never re-derive the tag-vs-number choice itself."""
+    if note.kind == 'annotation':
+        return f'{label} '
+    return f'{label}. '
+
+def _endnote_marker(label):
+    """Endnote reference-in-the-note, WSCHANGE factory default: lead '(',
+    trail ')' -> '(1)'."""
+    return f'({label}) '
+
+def _note_wrap(marker, text, width):
+    """One note's rendered lines for the page-bottom area or the endnote
+    listing -- wrapped with the same engine body text uses. WordStar prints
+    note text in the default font (no styling carried from the reference),
+    so this only ever wraps plain text."""
+    return _wrap_line([(marker, frozenset()), (text, frozenset())], width) or [[]]
+
+def _body_stream_printed(doc):
+    """Printed-mode body content as a flat stream for the layout loop below:
+    each item is either None (a forced page break -- .pa/.cp or WordStar's
+    own softpage) or (spans, refs), spans being one verbatim IR line (printed
+    mode never wraps body text) and refs the ordered list of (label, Note)
+    footnote/annotation references newly appearing on it. Endnote references
+    are recognised (so a fnref span's index into `refs_all` stays intact)
+    but never queued here -- they don't participate in the per-page footnote
+    area, they collect at the document's end instead (_endnote_pages).
+
+    The displayed body reference is `label`, NOT the fnref span's raw
+    `.text` (core.py's shared fn_counter position across ALL non-comment
+    kinds) -- footnotes and endnotes are numbered INDEPENDENTLY per kind
+    (WordStar has separate `.f#`/`.e#` starting-value commands, which only
+    make sense for two independent sequences), matching what emit.py's
+    text/markdown/html output already does via _annotated_notes/
+    _display_number. A bare superscript '1' can therefore legitimately mean
+    footnote 1 OR endnote 1 in the body text -- WordStar resolved that
+    ambiguity in the NOTE AREA via mark style ('1.' vs '(1)'), not by
+    inventing a combined number, so the same label is used in both places."""
+    refs_all = _ref_pairs(_annotated_notes(doc))
+    stream = []
+    for b in doc.blocks:
+        if b.kind in ('pagebreak', 'softpage'):
+            stream.append(None)
+            continue
+        for line in b.lines:
+            spans = []
+            refs = []
+            for s in line.spans:
+                styles = s.styles | {'b'} if b.heading else s.styles
+                if 'fnref' in s.styles and s.text.isdigit():
+                    k = int(s.text)
+                    if 0 < k <= len(refs_all):
+                        note, label = refs_all[k - 1]
+                        spans.append((label, styles))          # per-kind number, not the
+                                                                # raw shared fn_counter index
+                        if note.kind in ('footnote', 'annotation'):
+                            refs.append((label, note))
+                        continue
+                spans.append((s.text, styles))
+            stream.append((spans, refs))
+    return stream
+
+def _area_size(entries):
+    """Total lines the footnote area occupies: the fixed 3-line header
+    (blank / 20-dash separator / blank -- VMI 240 = one blank line at 6 LPI)
+    plus each entry's own lines plus one blank line between entries (VMI 240
+    "between notes"). 0 when there's nothing to show at all."""
+    if not entries:
+        return 0
+    return 3 + sum(len(e) for e in entries) + (len(entries) - 1)
+
+def _render_area(entries):
+    if not entries:
+        return []
+    out = [[], [(FOOTNOTE_SEPARATOR, frozenset())], []]
+    for k, e in enumerate(entries):
+        if k:
+            out.append([])
+        out.extend(e)
+    return out
+
+def _admit_footnotes(entries, queue, ceiling):
+    """Move whole/partial rendered note-chunks from the FRONT of `queue`
+    into `entries` (mutating both) until the footnote area would exceed
+    `ceiling` lines. A chunk that only partly fits is split: the part that
+    fits joins `entries`, and the remainder goes back on the front of
+    `queue` with CONTINUATION_TEXT prepended, ready to resume on a later
+    page's area -- this is the only place a note's text is ever cut."""
+    while queue:
+        chunk = queue[0]
+        overhead = 1 if entries else 3          # inter-note blank, or the
+                                                 # area's header if it's empty so far
+        room = ceiling - _area_size(entries) - overhead
+        if room >= len(chunk):
+            entries.append(chunk)
+            queue.pop(0)
+            continue
+        # Splitting prepends a CONTINUATION_TEXT line to the remainder, so it
+        # only advances when room >= 2: at room == 1 we would admit one line
+        # and add one straight back, forever. When the page cannot even manage
+        # that AND the area is still empty, force two lines through -- a page
+        # that overflows slightly beats a hang or lost text (Jon's ruling on
+        # the Modern spill case: no text lost, no infinite loops).
+        if room >= 2:
+            split = room
+        elif not entries:
+            split = min(len(chunk), 2)
+        else:
+            break                                # defer: next page starts empty
+        entries.append(chunk[:split])
+        rest = chunk[split:]
+        if rest:
+            queue[0] = [[(CONTINUATION_TEXT, frozenset())]] + rest
+        else:
+            queue.pop(0)
+        break
+
+def _footnote_ceiling(cap, body_len, is_terminal):
+    """Max lines the footnote area may occupy on a page where `body_len`
+    lines are already committed. Always bounded by the room actually left
+    on the page (cap - body_len) -- entries can never push the total past
+    cap. Additionally bounded by cap - FOOTNOTE_FLOOR on every page EXCEPT
+    the one holding the document's last line of regular text, where the
+    floor's protection lifts (the WS5 manual's stated exception)."""
+    room = cap - body_len
+    return room if is_terminal else min(room, cap - FOOTNOTE_FLOOR)
+
+def _paginate_printed_notes(doc, cap, width):
+    """The WS5-manual algorithm: paginate the body verbatim (references never
+    move), growing each page's footnote area to hold whatever was referenced
+    on it, splitting overflow into the next page's area (marked continued),
+    floored at FOOTNOTE_FLOOR lines of body -- except on the page holding the
+    last line of regular text, where the floor lifts and any leftover prints
+    at the top of a fresh page instead of continuing to a bottom area that
+    doesn't exist."""
+    stream = _body_stream_printed(doc)
+    last_idx = -1
+    for i, item in enumerate(stream):
+        if item is not None and any(t.strip() for t, _ in item[0]):
+            last_idx = i
+
+    pages = []
+    queue = []                                  # list[list[line]]: rendered note
+                                                 # chunks awaiting a footnote area,
+                                                 # in document order
+    i, n = 0, len(stream)
+    while i < n:
+        body, entries, is_terminal = [], [], False
+        _admit_footnotes(entries, queue,
+                         _footnote_ceiling(cap, len(body), is_terminal))   # carry-over first
+        while i < n:
+            item = stream[i]
+            if item is None:
+                i += 1
+                break                            # forced break: page ends here
+            spans, refs = item
+            if len(body) + 1 + _area_size(entries) > cap:
+                break                            # natural page-full: line moves on
+            body.append(spans)
+            if i == last_idx:
+                is_terminal = True
+            i += 1
+            for label, note in refs:
+                queue.append(_note_wrap(_note_marker(note, label), note.text, width))
+            _admit_footnotes(entries, queue, _footnote_ceiling(cap, len(body), is_terminal))
+        pages.append(body + _render_area(entries))
+    # Whatever's STILL queued once the document is exhausted prints at the
+    # TOP of its own page(s) -- "except after the last page of regular text,
+    # where footnotes are printed at the top of the page."
+    while queue:
+        entries = []
+        _admit_footnotes(entries, queue, _footnote_ceiling(cap, 0, True))
+        pages.append(_render_area(entries))
+    return pages
+
+def _endnote_pages(doc, cap, width):
+    """Endnotes collect at the true end of the document with NO heading
+    (WordStar never printed one -- any "Notes"/"Sources" heading in a period
+    document was typed by the author). No .pe support: this always renders
+    them at document end, never at an earlier .pe point (see report).
+
+    Numbered from endnotes' OWN independent sequence (via emit.py's
+    _annotated_notes/_display_number, doc.meta['endnote_number_start']) --
+    NOT the shared fn_counter position -- so a document with 2 footnotes
+    then 2 endnotes shows endnotes (1)/(2), matching the same labels their
+    body references now display (see _body_stream_printed), not (3)/(4)."""
+    endnotes = [(note, label) for note, label in _annotated_notes(doc) if note.kind == 'endnote']
+    if not endnotes:
+        return []
+    lines = []
+    for k, (note, label) in enumerate(endnotes):
+        if k:
+            lines.append([])
+        lines.extend(_note_wrap(_endnote_marker(label), note.text, width))
+    pages, page = [], []
+    for l in lines:
+        if len(page) >= cap:
+            pages.append(page); page = []
+        page.append(l)
+    if page:
+        pages.append(page)
+    return pages
+
+def _has_placeable_notes(doc):
+    return any(n.kind in ('footnote', 'endnote', 'annotation') for n in doc.notes)
+
 def _doc_to_pagelines(doc, printed):
     """IR -> list of pages, each a list of segment-lines."""
+    if printed and _has_placeable_notes(doc):
+        cap = _printed_cap(doc)
+        pages = _paginate_printed_notes(doc, cap, MAX_COLS)
+        pages += _endnote_pages(doc, cap, MAX_COLS)
+        while len(pages) > 1 and not pages[-1]:
+            pages.pop()
+        return pages or [[]]
+
     lines = []                                            # None = forced page break
     for b in doc.blocks:
         if b.kind == 'pagebreak' or (b.kind == 'softpage' and printed):
@@ -74,12 +357,15 @@ def _doc_to_pagelines(doc, printed):
                 lines.extend(_wrap_line(spans, MAX_COLS))
         if not printed and b.lines:
             lines.append([])                              # blank line between paragraphs
-    if doc.footnotes:
+    if doc.footnotes and not printed:
+        # Printed mode's own layout is handled above (period-authentic,
+        # per-page); this end-of-document dump is Modern-only -- explicitly
+        # out of scope to change (Modern's own layout is a separate task).
         lines += [[], [('-' * 20, frozenset())], []]
         for i, n in enumerate(doc.footnotes):
             note = f'[{i + 1}] ' + ''.join(s.text for s in n)
             lines.extend(_wrap_line([(note, frozenset())], MAX_COLS))
-    cap = LINES_PRINTED if printed else LINES_MODERN
+    cap = _printed_cap(doc) if printed else LINES_MODERN
     pages, page = [], []
     for l in lines:
         if l is None or len(page) >= cap:
@@ -130,9 +416,9 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _page_stream(pagelines, top):
+def _page_stream(pagelines, top, page_h=PAGE_H):
     ops = []
-    y = PAGE_H - top - SIZE
+    y = page_h - top - SIZE
     for line in pagelines:
         x = MARGIN
         for text, styles in _coalesce(line):
@@ -160,6 +446,9 @@ def emit_pdf(doc, mode='modern', **options):
     printed = mode == 'printed' or _printed(doc)
     pages = _doc_to_pagelines(doc, printed)
     top = TOP_PRINTED if printed else TOP_MODERN
+    page_h = _resolved_page_height(doc, printed)          # file geometry wins in
+                                                           # printed mode (Task: .pl);
+                                                           # modern stays fixed Letter
     objs = []                                             # (obj_number, bytes)
 
     n_pages = len(pages)
@@ -186,8 +475,8 @@ def emit_pdf(doc, mode='modern', **options):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
-                     % (PAGE_W, PAGE_H, font_dict, cnum)))
-        stream = _page_stream(pl, top)
+                     % (PAGE_W, page_h, font_dict, cnum)))
+        stream = _page_stream(pl, top, page_h)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 

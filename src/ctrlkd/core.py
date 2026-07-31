@@ -217,6 +217,149 @@ WS_DROP = {0x01, 0x03, 0x08, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
 
 DOT_PAGEBREAK = {b'PA', b'CP'}
 
+# ------------------------------------------------------------ page geometry
+#
+# .pl (page length), .po (page offset), .mt (top margin), .mb (bottom margin)
+# -- WordStar 7.0 file format spec (WordStar International, 1992). The trap:
+# a UNIT-LESS numeric argument to .pl/.mt/.mb is LINES, and to .po is print
+# COLUMNS -- never inches. (The only other modern implementation, WordTsar,
+# admits via its own @todo that it falls back to inches when no unit is
+# given; that is exactly the bug this avoids.) WordStar 5.0+ also allows an
+# explicit unit suffix on these arguments -- '"'/I/IN for inches, C/CM for
+# centimetres, P/PM for points, case-insensitive -- which this DOES convert,
+# since at that point the file is telling us the unit rather than leaving it
+# to the trap-default.
+#
+# Everything below assumes the fixed 6 LPI / 10 CPI baseline this project
+# already uses elsewhere (pdf.py's Courier metrics; margin_estimate's WS4
+# default). WordStar itself lets LPI/CPI vary (.lh, .cw), but tracking those
+# per-line is well beyond what a page-geometry pass needs.
+
+_DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
+_DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
+
+_PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
+                  b'MB': 'mb_lines', b'PO': 'po_cols'}
+
+# Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
+# 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
+# Letter, 84 lines/14in Legal, 81 lines/13.5in Foolscap Folio (the pre-ISO UK
+# long sheet). All three share the same 8.5in width, so only page HEIGHT is
+# resolved here -- there is no dot command for physical page width.
+NAMED_PAGE_HEIGHTS = (('Letter', 11.0), ('Legal', 14.0), ('Foolscap Folio', 13.5))
+# "Close" isn't spec-given -- a judgment call, not a reading. 0.25in is a
+# bit over a line and a half at 6 LPI: near enough to call it the named
+# size; farther out, honour the raw geometry instead of forcing a label
+# onto it (Jon's ruling: "snap ... when close; otherwise honour the raw
+# geometry").
+PAGE_SIZE_SNAP_IN = 0.25
+
+DEFAULT_PL_LINES = 66.0    # WordStar's own default: 66 lines = 11in = US Letter
+DEFAULT_MT_LINES = 3.0     # spec: ".MT ... Default value is 3 lines."
+DEFAULT_MB_LINES = 8.0     # spec: ".MB ... The default value is 8 lines."
+DEFAULT_PO_COLS = 0.0      # no default is stated in the spec for .po; 0 (flush
+                           # with the paper edge) is the least presumptuous
+                           # reading rather than a remembered/guessed figure.
+
+def _dot_arg_inches(value: float, unit: bytes | None):
+    """Convert a dot-command argument's optional unit suffix to inches.
+    Returns None for no unit (caller applies the lines/columns default) or an
+    unrecognised unit (treated the same as no unit -- defensive, not a crash)."""
+    if not unit:
+        return None
+    u = unit.upper()
+    if u in (b'"', b'I', b'IN'):
+        return value
+    if u in (b'C', b'CM'):
+        return value / 2.54
+    if u in (b'P', b'PM'):
+        return value / 72.0
+    return None
+
+def _resolve_lines_arg(value: float, unit: bytes | None) -> float:
+    """.pl/.mt/.mb argument -> lines, at 6 LPI. Unit-less IS lines already
+    (see module note above); a unit suffix is inches/cm/points via 6 LPI."""
+    inches = _dot_arg_inches(value, unit)
+    return value if inches is None else inches * 6.0
+
+def _resolve_cols_arg(value: float, unit: bytes | None) -> float:
+    """.po argument -> print columns, at 10 CPI. Unit-less IS columns."""
+    inches = _dot_arg_inches(value, unit)
+    return value if inches is None else inches * 10.0
+
+def _resolve_page_size(pl_lines: float):
+    """pl_lines -> (height_in, size_name). Snaps to a named size when close;
+    otherwise reports the raw geometry under 'Custom' rather than forcing a
+    label that doesn't fit."""
+    height_in = pl_lines / 6.0
+    name, named_in = min(NAMED_PAGE_HEIGHTS, key=lambda nh: abs(nh[1] - height_in))
+    if abs(named_in - height_in) <= PAGE_SIZE_SNAP_IN:
+        return named_in, name
+    return height_in, 'Custom'
+
+def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
+    """Try to interpret one dot-command line as page geometry (.pl/.po/.mt/.mb)
+    or a WordTsar-invented command (.PT/.PSA/.PSB -- "not a Wordstar command"
+    per WordTsar's own source, so their mere presence is a producer signal).
+    Mutates `page` (first occurrence per command wins -- WordStar dot commands
+    are stateful and could recur mid-document, but one resolved answer per
+    document is what a consumer needs; see EXTENDING.md/report) and
+    `meta_extra` for producer-related findings. The line is ALWAYS also kept
+    verbatim in doc.meta['dot_commands'] by the caller, recognised or not --
+    this function only adds interpretation on top, never replaces preservation.
+
+    .F#/.E# (same spec) set the footnote/endnote starting numbering value --
+    the two-character command NAME itself ends in the literal '#' (like
+    .L# line-numbering), which the generic [A-Za-z]{1,3} matcher below can't
+    match, so it's handled directly first. Best-effort: only the NUMERIC
+    starting-value form is modelled (doc.meta['footnote_number_start']/
+    ['endnote_number_start'] -- the hook emit.py's per-kind note numbering
+    already reads, so this makes it live rather than only defaulting to 1).
+    A bare D/P consecutive-vs-restart-per-page mode argument is preserved
+    verbatim in dot_commands but not modelled -- doing that correctly needs
+    per-page state at PARSE time, before pagination exists."""
+    head = cmd[1:3].upper()
+    if head in (b'F#', b'E#'):
+        key = 'footnote_number_start' if head == b'F#' else 'endnote_number_start'
+        if key not in meta_extra:
+            num = _DOT_NUM_RE.match(cmd[3:])
+            if num and num.group(1):
+                meta_extra[key] = int(float(num.group(1)))
+        return
+    m = _DOT_CMD_RE.match(cmd)
+    if not m:
+        return
+    name = m.group(1).upper()
+    arg = m.group(2)
+    key = _PAGE_DOT_KEYS.get(name)
+    if key is not None:
+        if page.get(key) is not None:
+            return                                    # first occurrence wins
+        num = _DOT_NUM_RE.match(arg)
+        if not num or not num.group(1):
+            return
+        value = float(num.group(1))
+        unit = num.group(2)
+        resolver = _resolve_cols_arg if name == b'PO' else _resolve_lines_arg
+        page[key] = resolver(value, unit)
+    elif name in (b'PT', b'PSA', b'PSB'):
+        # WordTsar's own invented dot commands (its source calls them "not a
+        # Wordstar command"). A real WordStar file never contains these --
+        # their presence IS the producer signal. `variant` stays what it is
+        # (the ENCODING, still WS5+/7); this is provenance, not format.
+        meta_extra['producer'] = 'wordtsar'
+        num = _DOT_NUM_RE.match(arg)
+        value = float(num.group(1)) if num and num.group(1) else None
+        if name == b'PSA' and value is not None and 'space_after_lines' not in meta_extra:
+            meta_extra['space_after_lines'] = value       # best-effort: honoured as
+        elif name == b'PSB' and value is not None and 'space_before_lines' not in meta_extra:  # data only --
+            meta_extra['space_before_lines'] = value       # no paragraph-spacing model exists yet
+        elif name == b'PT' and 'pt_raw' not in meta_extra:
+            # A Qt QPageSize enum index -- meaningless outside Qt and liable
+            # to shift between Qt versions. Record it verbatim; do NOT
+            # hardcode a mapping nobody has verified against Qt's own enum.
+            meta_extra['pt_raw'] = arg.decode('latin-1', 'replace').strip()
+
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
@@ -360,6 +503,47 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
                 number_format=number_format, convert_to=convert_to,
                 dot_commands=dots, offset=offset)
 
+# Tabs and dot leaders (symmetrical sequence type 9, WordStar 7.0 file format
+# spec): Word tab size in HMIs, Word absolute tab size in HMIs, Byte tab
+# type, Byte tab size in tenths. Documented tab-type bytes: ' ' hard tab,
+# soft space (0xA0) soft tab, '#' decimal, '!' center, '[' right-align. ']'
+# is an UNDOCUMENTED right-align variant -- WordTsar's author found it by
+# testing against MicroPro's own PRINT.TST (confirmed present here too: a
+# type-9 block with tab type byte 0x5D, ']'). It renders identically to the
+# documented '[': same right-align intent, just a second byte value nobody
+# wrote down. Any other byte is a dot-leader character (spec: "Other
+# character such as '.' or '*' are used for dot leaders.").
+#
+# HMI -> columns: at 1440 units/inch and 10 CPI, one column is 1440/10 = 144
+# HMI -- the same derivation the project's footnote-VMI research already
+# used for VMI (1440/6 = 240 per line at 6 LPI); treated here as the matching
+# inference for the horizontal axis, not a spec-stated constant.
+TAB_HMI_PER_COL = 144
+TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
+
+def _tab_columns(content: bytes):
+    """Decode one type-9 block's content -> (columns, leader_byte). We can't
+    reflow text to truly right/center/decimal-align a tab without knowing the
+    width of what follows it -- this pass runs before line/word splitting --
+    so those types degrade to plain space padding, but of the CORRECT width
+    (from the tab's own HMI size) rather than a guessed constant. Dot-leader
+    tabs (any byte outside the documented/undocumented set) repeat their own
+    leader character, which is both more correct and directly observable."""
+    if len(content) < 5:
+        return 4, b' '                                 # malformed/short block: the old
+                                                        # fixed-4-spaces behaviour as a
+                                                        # safe fallback, never a crash
+    size = int.from_bytes(content[0:2], 'little')
+    tab_type = content[4]
+    cols = max(1, round(size / TAB_HMI_PER_COL))
+    if tab_type in (0x20, 0xA0, ord('#'), ord('!')) or tab_type in TAB_RIGHT_TYPES:
+        leader = b' '
+    elif 0x20 <= tab_type < 0x7F:
+        leader = bytes([tab_type])                    # dot-leader character
+    else:
+        leader = b' '
+    return cols, leader
+
 def _symmetric_blocks(data: bytes, encoding: str):
     """Strip WS5+ 1D symmetric sequences (2-byte LE length, command type at +2),
     collecting notes (footnotes/endnotes/annotations/comments, types 3-6) and
@@ -382,8 +566,10 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 notes.append(_parse_note(cmd, content, start, encoding))
                 if cmd != 0x06:                          # comments: never printed inline
                     out.append(SENT_FNREF)
-            elif cmd == 0x09:                                     # tab
-                out += b'    '
+            elif cmd == 0x09:                                     # tab (and dot leaders)
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                cols, leader = _tab_columns(content)
+                out += leader * cols
             elif cmd == 0x0B:                                     # end of page
                 out.append(SENT_SOFTPAGE)
             elif cmd == 0x11 and len(block) > 3:                  # paragraph style
@@ -430,6 +616,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     cur = Block('para')
     cur_line = Line()
     ruler = False
+    page, meta_extra = {}, {}
 
     def close_line():
         nonlocal cur_line
@@ -454,6 +641,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks.append(Block('pagebreak'))
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
+            _parse_page_dot(cmd, page, meta_extra)
             continue
         if ws5:                                    # sentinels from _symmetric_blocks
             if raw.count(SENT_SOFTPAGE):
@@ -481,6 +669,30 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['dot_commands'] = dots
     doc.meta['unknown_codes'] = {f'0x{k:02x}': v for k, v in sorted(unknown.items())}
     doc.meta['columnar'] = ruler
+
+    pl_lines = page.get('pl_lines')
+    height_in, size_name = _resolve_page_size(pl_lines if pl_lines is not None
+                                              else DEFAULT_PL_LINES)
+    mt_lines = page.get('mt_lines')
+    mb_lines = page.get('mb_lines')
+    po_cols = page.get('po_cols')
+    # Exposed per the IR contract: a consumer must be able to distinguish
+    # "Legal (from file)" from "Letter (default)" -- provenance lives
+    # alongside every resolved figure, not just the page size.
+    doc.meta['page'] = {
+        'pl_lines': pl_lines if pl_lines is not None else DEFAULT_PL_LINES,
+        'height_in': height_in,
+        'size_name': size_name,
+        'size_source': 'file' if pl_lines is not None else 'default',
+        'mt_lines': mt_lines if mt_lines is not None else DEFAULT_MT_LINES,
+        'mt_source': 'file' if mt_lines is not None else 'default',
+        'mb_lines': mb_lines if mb_lines is not None else DEFAULT_MB_LINES,
+        'mb_source': 'file' if mb_lines is not None else 'default',
+        'po_cols': po_cols if po_cols is not None else DEFAULT_PO_COLS,
+        'po_source': 'file' if po_cols is not None else 'default',
+    }
+    if meta_extra:
+        doc.meta.update(meta_extra)
     return doc
 
 # ---------------------------------------------------------------- print streams
@@ -493,6 +705,31 @@ PRINT_CODES = {0x18: ('sup', True), 0x12: ('sup', False),
                0x05: ('i', True), 0x06: ('i', False),
                0x1E: ('b', True), 0x1F: ('b', False)}
 
+def _detect_comment_bug(data: bytes):
+    """COMMENT.BUG: a documented WordStar bug (Sawyer, WS archive REF notes,
+    2013) -- a document containing ^ONC comments, printed to disk with the
+    ASCII/ASC256/PRVIEW/WS4 drivers (NOT XTRACT), has everything after the
+    comment deleted from that line, may gain a stray ^T (0x14), and the line
+    ends with a bare LF (0x0A) instead of CR LF (0x0D 0x0A). This is damage
+    WordStar itself introduced at print time in the 1990s -- not a parse
+    failure -- so it's reported as a signature, not silently swallowed or
+    mistaken for something this tool got wrong.
+
+    Detection is necessarily a heuristic (a bare-LF line ending is the
+    documented signature, but a print stream that happens to use plain Unix
+    line endings throughout would also match); callers should read the flag
+    as "this signature is present", not "this file definitely hit the bug"."""
+    count, first, prev = 0, None, -1
+    for i, b in enumerate(data):
+        if b == 0x0A and prev != 0x0D:
+            count += 1
+            if first is None:
+                first = i
+        prev = b
+    if not count:
+        return None
+    return {'count': count, 'first_offset': first, 'stray_ctrl_t': b'\x14' in data}
+
 def parse_printstream(data: bytes, encoding: str = 'cp437',
                       codes: dict = None) -> Document:
     """A print-to-disk capture IS the printed page: every line verbatim, printer
@@ -502,6 +739,9 @@ def parse_printstream(data: bytes, encoding: str = 'cp437',
     cut = data.find(b'\x1a')
     if cut != -1:
         data = data[:cut]
+    bug = _detect_comment_bug(data)
+    if bug:
+        doc.meta['comment_bug'] = bug
     active = set()
     cur = Block('para')
     line = Line()
