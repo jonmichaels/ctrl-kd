@@ -158,16 +158,47 @@ def test_parse_refuses_binary():
 # ---------------------------------------------------------------- WS5+/WS7
 # synthetic 1D symmetric blocks, structure verified against the Sawyer archive
 
-def ws7_block(cmd, payload=b''):
-    body = bytes([cmd]) + payload
-    return b'\x1d' + len(body).to_bytes(2, 'little') + body
+def ws7_block(cmd, content=b''):
+    """One WS7 symmetrical sequence: 0x1D, count, type byte, content, the
+    matching trailing count, closing 0x1D. Count = len(content) + 4 (per the
+    WordStar 7.0 file format spec, WordStar International, 1992: the count is
+    the sequence's own length minus 3, and it's stored so that adding it to
+    the address of the opening 0x1D lands on the trailing count)."""
+    count = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
 
-def ws7_note(text):
-    inner = b'\x00' * 17 + b'\x1d' + text + b'\x2c\x00'
-    return ws7_block(0x03, inner)
+def ws7_note(cmd, text, number=1, line_count=1, number_format=3, convert_to=0):
+    """One footnote/endnote/annotation/comment note block (types 3-6): line
+    count, note number (embedded directly -- tag-word high bit clear),
+    conversion flag (high nybble = numbering format, low nybble = convert-to
+    type), then the note text."""
+    conv_flag = ((number_format & 0x0F) << 4) | (convert_to & 0x0F)
+    content = (line_count.to_bytes(2, 'little') + number.to_bytes(2, 'little') +
+               bytes([conv_flag]) + text)
+    return ws7_block(cmd, content)
+
+def ws7_note_with_tag(cmd, text, number, line_count=1, number_format=3, convert_to=0):
+    """A note whose number and conversion flag live in a nested internal tag
+    sequence (tag-word high bit set) instead of the outer header -- the
+    common case for footnotes/endnotes once WordStar has assigned a display
+    number. The tag is embedded partway through the text, as real files do,
+    to prove nested-sequence stripping doesn't just get lucky on placement."""
+    conv_flag = ((number_format & 0x0F) << 4) | (convert_to & 0x0F)
+    tag_content = b'\x00\x00' + number.to_bytes(2, 'little') + bytes([conv_flag])
+    tag = ws7_block(cmd, tag_content)
+    split = len(text) // 2
+    outer_text = text[:split] + tag + text[split:]
+    content = line_count.to_bytes(2, 'little') + b'\x00\x80' + b'\x00' + outer_text
+    return ws7_block(cmd, content)
 
 def test_ws7_footnote_extraction_and_ref():
-    data = (ws7_block(0x00) + b'Treaties were made.' + ws7_note(b'See the 1868 accords.') +
+    # number=0: WordStar's own file format stores a 0-based internal index
+    # (confirmed against a real WS7 file), so the FIRST footnote in a
+    # document is stored as 0 -- the display number a reader/emitter shows
+    # is that index plus WordStar's documented starting value of 1 (see
+    # test_footnote_endnote_number_is_1_based_not_stored_index below).
+    data = (ws7_block(0x00) + b'Treaties were made.' +
+            ws7_note(0x03, b'See the 1868 accords.', number=0) +
             b' More text follows here.' + HARD)
     doc = core.parse_ws(data)
     assert doc.meta['variant'] == 'ws5+'
@@ -196,6 +227,132 @@ def test_ws7_tab_block():
     data = ws7_block(0x00) + ws7_block(0x09) + b'Indented by tab block.' + HARD
     doc = core.parse_ws(data)
     assert doc.blocks[0].lines[0].text().startswith('    ')
+
+def test_ws7_note_text_is_not_the_conversion_flag_byte():
+    # regression for the original bug: _note_text() split on 0x1D and took
+    # inner[1], which for a header-less note (no nested tag) returned the
+    # conversion-flag BYTE decoded as text, not the note itself.
+    data = ws7_note(0x03, b'Real footnote text.')
+    doc = core.parse_ws(data)
+    assert len(doc.notes) == 1
+    assert doc.notes[0].text == 'Real footnote text.'
+    assert doc.notes[0].text not in ('3', '4', '\x33', '\x34')
+
+def test_ws7_four_note_kinds_distinguished():
+    # all four note types (footnote/endnote/annotation/comment) in one file:
+    # each must be modeled as its own kind, not flattened together, and
+    # comments must never surface in the inline-referenced footnote view.
+    data = (ws7_block(0x00) +
+            ws7_note(0x03, b'Footnote One.', number=1) +
+            b'body one ' +
+            ws7_note(0x04, b'Endnote one.', number=1) +
+            b'body two ' +
+            ws7_note(0x05, b'An annotation.', number=0) +
+            b'body three ' +
+            ws7_note(0x06, b'A hidden author aside.', number=0) +
+            b'body four' + HARD)
+    doc = core.parse_ws(data)
+    kinds = [n.kind for n in doc.notes]
+    assert kinds == ['footnote', 'endnote', 'annotation', 'comment']
+    assert [n.text for n in doc.notes] == [
+        'Footnote One.', 'Endnote one.', 'An annotation.', 'A hidden author aside.']
+    # footnotes/endnotes/annotations render inline like footnotes (3 refs);
+    # comments never do
+    assert len(doc.footnotes) == 3
+    assert len(doc.endnotes) == 1 and doc.endnotes[0][0].text == 'Endnote one.'
+    assert len(doc.annotations) == 1 and doc.annotations[0][0].text == 'An annotation.'
+    assert len(doc.comments) == 1 and doc.comments[0].text == 'A hidden author aside.'
+    refs = [s for s in doc.blocks[0].lines[0].spans if 'fnref' in s.styles]
+    assert [r.text for r in refs] == ['1', '2', '3']       # comment got no ref
+    # the comment's text must not leak into rendered output at all
+    md = emit.emit_markdown(doc)
+    assert 'hidden author aside' not in md
+
+def test_ws7_note_metadata_captured():
+    # line count, resolved number, and the conversion flag's two nybbles
+    # (format/convert-to) must survive -- previously discarded entirely.
+    data = ws7_note(0x04, b'Two-line endnote text.', number=7, line_count=2,
+                    number_format=1, convert_to=0)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.kind == 'endnote'
+    assert note.line_count == 2
+    assert note.number == 7
+    assert note.number_format == 1          # upper-case lettering
+    assert note.convert_to == 0             # not converted
+    assert note.offset == 0                 # source byte offset of the opening 0x1D
+
+def test_ws7_note_nested_tag_resolves_number_and_strips_bytes():
+    # the note text may hold ONE nested symmetrical sequence -- the internal
+    # tag carrying the real number/conv-flag once WordStar assigns one. It
+    # must be stripped from the visible text and its number/flag must win.
+    data = ws7_note_with_tag(0x03, b'Split across the tag boundary.',
+                             number=42, number_format=2, convert_to=0)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.text == 'Split across the tag boundary.'
+    assert note.number == 42
+    assert note.number_format == 2
+    assert '\x1d' not in note.text
+
+def ws7_annotation_with_tag(dot_lines, text, tag_text, junk_conv_flag=0x05):
+    """An annotation shaped like a real WS7 one: its OWN text embeds one or
+    more dot-command lines (a ruler, a '..' comment -- WordStar notes can
+    carry these same as the body can), followed by a nested tag sequence
+    whose remaining bytes are a display TEXT string (not a number -- that's
+    footnote/endnote-only), followed by the real annotation text. The
+    conversion-flag byte is documented "not used" for annotations, so it's
+    deliberately junk here to prove it's ignored rather than misreported."""
+    tag_content = b'\x00\x00\x00\x00' + bytes([junk_conv_flag]) + tag_text
+    tag = ws7_block(0x05, tag_content)
+    body = b'\r\n'.join(dot_lines) + b'\r\n' + tag + b' ' + text + b'\r\n'
+    content = b'\x01\x00' + b'\x00\x80' + bytes([junk_conv_flag]) + body
+    return ws7_block(0x05, content)
+
+def test_ws7_annotation_own_dot_commands_stripped_and_tag_captured():
+    # reproduces the real NOTES.TST annotation shape: the note's own text
+    # embeds a dot-command line that must not leak into rendered text (but
+    # must be preserved verbatim), and its nested tag holds a TEXT string,
+    # not a number -- annotations don't have a numeric identity.
+    data = ws7_annotation_with_tag(
+        dot_lines=[b'.. a descriptive remark', b'.rrL----!----R'],
+        text=b'Annotation One', tag_text=b'AC1')
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.kind == 'annotation'
+    assert note.text == 'Annotation One'
+    assert note.tag == 'AC1'
+    assert note.number is None
+    assert note.dot_commands == ['.. a descriptive remark', '.rrL----!----R']
+    assert '.rr' not in note.text and '..' not in note.text
+    # the conversion flag is documented unused for annotations: don't report
+    # noise from it even though the byte in this fixture is non-zero
+    assert note.number_format == 0 and note.convert_to == 0
+
+def test_ws7_note_own_dot_command_stripped_generally():
+    # NOT special-cased to .rr: any dot-command line inside ANY note kind's
+    # text must be stripped from the rendered text and preserved verbatim.
+    text = b'.. an internal editorial remark\r\nThe real footnote text.'
+    data = ws7_note(0x03, text, number=1)
+    doc = core.parse_ws(data)
+    note = doc.notes[0]
+    assert note.text == 'The real footnote text.'
+    assert note.dot_commands == ['.. an internal editorial remark']
+
+def test_ws7_unknown_symmetric_type_preserved():
+    # an unrecognised symmetrical-sequence type must be kept as an opaque
+    # blob with its source offset, not silently dropped.
+    data = b'lead in ' + ws7_block(0x63, b'mystery payload') + b' trailing text' + HARD
+    doc = core.parse_ws(data)
+    assert len(doc.unknown_blocks) == 1
+    blob = doc.unknown_blocks[0]
+    assert blob.cmd == 0x63
+    assert blob.offset == len(b'lead in ')
+    assert b'mystery payload' in blob.data
+    # it must not leak into the visible text either
+    text = doc.blocks[0].lines[0].text()
+    assert 'mystery payload' not in text
+    assert 'lead in' in text and 'trailing text' in text
 
 def test_tiny_file_not_misdetected_as_ws4():
     # regression: len(core)//20 == 0 made 'hi >= 0' always true for tiny files
@@ -324,3 +481,650 @@ def test_pdf_trailing_double_pagebreak_no_blank_sheet():
     data2 = (b'One.' + HARD + b'.pa' + HARD + b'.pa' + HARD + b'Two.' + HARD)
     pages2 = _doc_to_pagelines(core.parse_ws(data2), False)
     assert [bool(pg) for pg in pages2] == [True, False, True]
+
+# ---------------------------------------------------------------- note-aware export
+# footnote/endnote/annotation/comment inclusion (convert.py) and per-format,
+# per-kind rendering (emit.py). One synthetic doc carries all four kinds so
+# every format/inclusion test exercises the real mix a WS7 file has.
+
+def four_kind_data():
+    # number=0 for the (only, i.e. first) footnote/endnote: WS7's own
+    # storage is a 0-based index: see
+    # test_footnote_endnote_number_is_1_based_not_stored_index.
+    return (ws7_block(0x00) +
+            b'one ' + ws7_note(0x03, b'Footnote text.', number=0) +
+            b' two ' + ws7_note(0x04, b'Endnote text.', number=0) +
+            b' three ' + ws7_annotation_with_tag(
+                dot_lines=[b'.. remark'], text=b'Annotation text', tag_text=b'AC1') +
+            b' four ' + ws7_note(0x06, b'Comment text.', number=0) +
+            b' five' + HARD)
+
+@pytest.fixture
+def four_kind_doc():
+    return core.parse_ws(four_kind_data())
+
+# -- display numbering: WordStar shows 1-based, core.py stores a 0-based index --
+
+def test_footnote_endnote_number_is_1_based_not_stored_index():
+    # WordStar's own documented numbering starts at 1 (WSCHANGE's factory
+    # defaults render a footnote mark as "1." and an endnote as "(1)" for
+    # the first note; a `.f#`-style dot command can move the start point,
+    # but 1 is the default). core.py's Note.number is the file's raw
+    # internal index, and that index is 0-based (confirmed against a real
+    # WS7 file) -- so the first footnote/endnote in a document is STORED as
+    # 0 and must be DISPLAYED as 1. Showing 0 leaks a storage detail no
+    # WordStar user ever saw.
+    data = (ws7_block(0x00) +
+            b'a ' + ws7_note(0x03, b'First footnote.', number=0) +
+            b' b ' + ws7_note(0x03, b'Second footnote.', number=1) +
+            b' c ' + ws7_note(0x04, b'First endnote.', number=0) + b' d' + HARD)
+    doc = core.parse_ws(data)
+    md = emit.emit_markdown(doc)
+    assert '[^1]: First footnote.' in md
+    assert '[^2]: Second footnote.' in md
+    assert '[^e1]: First endnote.' in md
+    t = emit.emit_text(doc)
+    assert '[1] First footnote.' in t and '[2] Second footnote.' in t
+    h = emit.emit_html(doc)
+    assert '<a id="fnref1" href="#fn1" role="doc-noteref">1</a>' in h
+    assert '<a id="fnref2" href="#fn2" role="doc-noteref">2</a>' in h
+    r = emit.emit_rtf(doc)
+    assert 'First footnote.' in r and 'Second footnote.' in r
+    # presentation-only: the raw stored index must survive untouched
+    assert [n.number for n in doc.notes if n.kind == 'footnote'] == [0, 1]
+    assert doc.notes[2].number == 0 and doc.notes[2].kind == 'endnote'
+
+def test_footnote_number_start_hook_ready_for_future_dot_command():
+    # core.py doesn't parse a `.f#`-style starting-number dot command yet
+    # (another agent is adding dot-command parsing separately) -- this
+    # proves the one named place designed to receive that value
+    # (doc.meta['footnote_number_start']) already produces the right
+    # display number today, so wiring in real `.f#` parsing later is a
+    # one-line change in core.py, not a redesign here.
+    data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=0) + b' y' + HARD
+    doc = core.parse_ws(data)
+    doc.meta['footnote_number_start'] = 5
+    md = emit.emit_markdown(doc)
+    assert '[^5]: Only footnote.' in md
+
+# -- Task 1: convert() / select_notes() inclusion API --------------------
+
+def test_select_notes_default_excludes_comments(four_kind_doc):
+    from ctrlkd.emit import DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS, select_notes
+    kinds = [n.kind for n in select_notes(four_kind_doc)]
+    assert kinds == ['footnote', 'endnote', 'annotation']
+    assert select_notes(four_kind_doc, DEFAULT_NOTE_KINDS) == select_notes(four_kind_doc)
+    all_kinds = [n.kind for n in select_notes(four_kind_doc, ALL_NOTE_KINDS)]
+    assert all_kinds == ['footnote', 'endnote', 'annotation', 'comment']
+
+def test_select_notes_unknown_kind_ignored_not_raised(four_kind_doc):
+    from ctrlkd.emit import select_notes
+    assert select_notes(four_kind_doc, {'bogus'}) == []
+
+def test_convert_default_excludes_comments_opt_in_surfaces_them():
+    from ctrlkd import convert
+    from ctrlkd.convert import ALL_NOTE_KINDS
+    data = four_kind_data()
+    default_out = convert(data, to='markdown')
+    assert 'Comment text.' not in default_out
+    opt_in = convert(data, to='markdown', notes=ALL_NOTE_KINDS)
+    assert 'Comment text.' in opt_in
+
+def test_convert_notes_option_forwards_to_html_and_rtf():
+    from ctrlkd import convert
+    from ctrlkd.convert import ALL_NOTE_KINDS
+    data = four_kind_data()
+    assert 'Comment text.' not in convert(data, to='html')
+    assert 'Comment text.' in convert(data, to='html', notes=ALL_NOTE_KINDS)
+    assert 'Comment text.' not in convert(data, to='rtf')
+    assert 'Comment text.' in convert(data, to='rtf', notes=ALL_NOTE_KINDS)
+
+# -- Task 2: text -----------------------------------------------------
+
+def test_emit_text_sections_labeled_by_kind(four_kind_doc):
+    t = emit.emit_text(four_kind_doc)
+    assert 'Footnotes:\n[1] Footnote text.' in t
+    assert 'Endnotes:\n[1] Endnote text.' in t
+    assert 'Annotations:\n[AC1] Annotation text' in t
+    assert 'Comments:' not in t and 'Comment text.' not in t
+
+def test_emit_text_comments_opt_in_own_section(four_kind_doc):
+    from ctrlkd.emit import ALL_NOTE_KINDS
+    t = emit.emit_text(four_kind_doc, notes=ALL_NOTE_KINDS)
+    assert 'Comments:\n[1] Comment text.' in t
+
+# -- Task 2: markdown ---------------------------------------------------
+
+def test_emit_markdown_kinds_get_distinct_labels(four_kind_doc):
+    md = emit.emit_markdown(four_kind_doc)
+    assert '[^1]' in md and '[^1]: Footnote text.' in md
+    assert '[^e1]' in md and '[^e1]: Endnote text.' in md
+    assert '[^aAC1]' in md and '[^aAC1]: Annotation text' in md
+    assert 'Comment text.' not in md
+
+def test_emit_markdown_comments_opt_in_are_orphan_defs(four_kind_doc):
+    from ctrlkd.emit import ALL_NOTE_KINDS
+    md = emit.emit_markdown(four_kind_doc, notes=ALL_NOTE_KINDS)
+    assert '[^c1]: Comment text.' in md
+    # comments never get an inline reference (WordStar never printed them,
+    # so there's no source anchor point to reference)
+    assert '[^c1]]' not in md
+
+def test_emit_markdown_excluding_a_kind_also_drops_its_inline_ref(four_kind_doc):
+    md = emit.emit_markdown(four_kind_doc, notes={'footnote'})
+    assert '[^1]' in md and '[^1]: Footnote text.' in md
+    assert '[^e1]' not in md and 'Endnote text.' not in md
+    assert '[^aAC1]' not in md and 'Annotation text' not in md
+
+# -- Task 2: html (DPUB-ARIA) --------------------------------------------
+
+def test_emit_html_noteref_anchors_and_backlinks(four_kind_doc):
+    h = emit.emit_html(four_kind_doc)
+    assert '<a id="fnref1" href="#fn1" role="doc-noteref">1</a>' in h
+    assert '<a id="enref1" href="#en1" role="doc-noteref">1</a>' in h
+    assert '<a id="anrefAC1" href="#anAC1" role="doc-noteref">AC1</a>' in h
+    assert '<a href="#fnref1" role="doc-backlink">' in h
+    assert '<a href="#enref1" role="doc-backlink">' in h
+    assert '<a href="#anrefAC1" role="doc-backlink">' in h
+
+def test_emit_html_sections_use_doc_endnotes_not_deprecated_roles(four_kind_doc):
+    h = emit.emit_html(four_kind_doc)
+    # doc-endnotes: "a collection of notes at the end of a work" -- the
+    # spec-correct landmark for ALL our note kinds, since none of them are
+    # rendered at their original in-body position (no format here has pages)
+    assert h.count('role="doc-endnotes"') == 3           # footnote/endnote/annotation
+    assert '<h2 id="footnotes-label">Footnotes</h2>' in h
+    assert '<h2 id="endnotes-label">Endnotes</h2>' in h
+    assert '<h2 id="annotations-label">Annotations</h2>' in h
+    # doc-footnote is spec'd for in-body notes (ours are moved to the end,
+    # so it doesn't apply); doc-endnote is deprecated as a listitem role.
+    # Neither should appear anywhere.
+    assert 'role="doc-footnote"' not in h
+    assert 'role="doc-endnote"' not in h
+    # doc-endnotes must not be applied directly to the list itself
+    assert '<ol role="doc-endnotes">' not in h
+    assert 'data-note-kind="annotation"' in h and 'data-note-tag="AC1"' in h
+
+def test_emit_html_comments_excluded_by_default_opt_in_no_backlink(four_kind_doc):
+    from ctrlkd.emit import ALL_NOTE_KINDS
+    default_h = emit.emit_html(four_kind_doc)
+    assert 'Comment text.' not in default_h and 'doc-endnotes' in default_h
+    h = emit.emit_html(four_kind_doc, notes=ALL_NOTE_KINDS)
+    assert 'Comment text.' in h
+    assert '<h2 id="comments-label">Comments</h2>' in h
+    # comments have no inline reference to link back to
+    assert 'cmref' not in h
+
+# -- Task 2: rtf (real \footnote destination) ----------------------------
+
+def test_emit_rtf_footnote_uses_real_chftn_destination(four_kind_doc):
+    r = emit.emit_rtf(four_kind_doc)
+    assert r'\chftn' in r and r'\*\footnote' in r
+    assert 'Footnote text.' in r
+    assert r.count('{') == r.count('}')
+
+def test_emit_rtf_endnote_and_annotation_use_ftnalt(four_kind_doc):
+    r = emit.emit_rtf(four_kind_doc)
+    assert r'\ftnalt' in r
+    # exactly two \footnote destinations carry \ftnalt: the endnote and the
+    # tagged annotation (the plain footnote must NOT carry it)
+    assert r.count(r'\footnote\ftnalt') == 2
+    assert 'Endnote text.' in r and 'Annotation text' in r
+    assert r'AC1' in r                      # annotation's own tag as its mark
+
+def test_emit_rtf_comments_use_real_annotation_destination(four_kind_doc):
+    from ctrlkd.emit import ALL_NOTE_KINDS
+    default_r = emit.emit_rtf(four_kind_doc)
+    assert r'\annotation' not in default_r and 'Comment text.' not in default_r
+    r = emit.emit_rtf(four_kind_doc, notes=ALL_NOTE_KINDS)
+    assert r'\*\annotation' in r and r'\chatn' in r and r'\atnid' in r
+    assert 'Comment text.' in r
+    assert r.count('{') == r.count('}')
+
+def test_emit_rtf_no_extra_font_codes_in_note_destinations(four_kind_doc):
+    # house rule: never write font attributes onto every paragraph/note --
+    # \fs (size) inside a note destination is fine (matches the existing
+    # heading-size precedent), but \f0/\f1 (an actual FONT change) must only
+    # ever appear where the document declares its one-time default.
+    from ctrlkd.emit import ALL_NOTE_KINDS
+    bare = emit.emit_rtf(core.parse_ws(make_prose()))
+    baseline = bare.count(r'\f0') + bare.count(r'\f1')
+    with_notes = emit.emit_rtf(four_kind_doc, notes=ALL_NOTE_KINDS)
+    assert with_notes.count(r'\f0') + with_notes.count(r'\f1') == baseline
+
+# -- fonts/HTML CSS untouched by this rework ------------------------------
+
+def test_emit_html_css_stays_one_head_blob(four_kind_doc):
+    h = emit.emit_html(four_kind_doc)
+    assert h.count('<style>') == 1
+    assert 'style=' not in h                # no inline per-element font/style attrs
+
+# ================================================================== 8< ====
+# The three sections below are core.py/pdf.py work: dot-command page
+# geometry (.pl/.po/.mt/.mb), a couple of small parser additions (the
+# undocumented right-tab type, WordTsar producer detection, COMMENT.BUG),
+# and Printed mode's period-authentic footnote page layout.
+
+# ---------------------------------------------------------------- page geometry
+
+def test_page_geometry_defaults_to_letter():
+    # no .pl/.po/.mt/.mb anywhere -- WordStar's own .pl 66 default, and what
+    # the PDF emitter already rendered before any of this existed.
+    doc = core.parse_ws(b'Body text, no dot commands.' + HARD)
+    page = doc.meta['page']
+    assert page['pl_lines'] == 66.0
+    assert page['height_in'] == 11.0
+    assert page['size_name'] == 'Letter'
+    assert page['size_source'] == 'default'
+    assert page['mt_lines'] == 3.0 and page['mt_source'] == 'default'
+    assert page['mb_lines'] == 8.0 and page['mb_source'] == 'default'
+    assert page['po_cols'] == 0.0 and page['po_source'] == 'default'
+
+def test_page_geometry_pl_unitless_is_lines_not_inches():
+    # THE trap: WordTsar's own @todo admits it falls back to inches when
+    # .pl has no unit suffix. A bare 66 must resolve to 66 LINES (11in,
+    # Letter) -- reading it as 66 INCHES would be an absurd ~6ft page, and
+    # would NOT come back around to Letter by coincidence.
+    doc = core.parse_ws(b'.PL 66' + HARD + b'Body text.' + HARD)
+    page = doc.meta['page']
+    assert page['pl_lines'] == 66.0
+    assert page['height_in'] == 11.0
+    assert page['size_name'] == 'Letter'
+    assert page['size_source'] == 'file'
+
+def test_page_geometry_pl_legal_and_foolscap():
+    # 6 LPI: .pl 84 -> 14in (Legal), .pl 81 -> 13.5in (Foolscap Folio, the
+    # pre-ISO UK long sheet) -- the spec's own worked example plus the two
+    # other named sizes this project recognises.
+    for lines, name, inches in ((84, 'Legal', 14.0), (81, 'Foolscap Folio', 13.5)):
+        doc = core.parse_ws(('.PL %d' % lines).encode() + HARD + b'x' + HARD)
+        page = doc.meta['page']
+        assert page['size_name'] == name
+        assert page['height_in'] == inches
+        assert page['size_source'] == 'file'
+
+def test_page_geometry_mt_mb_po_parsed():
+    data = b'.MT 4' + HARD + b'.MB 9' + HARD + b'.PO 12' + HARD + b'Body.' + HARD
+    page = core.parse_ws(data).meta['page']
+    assert page['mt_lines'] == 4.0 and page['mt_source'] == 'file'
+    assert page['mb_lines'] == 9.0 and page['mb_source'] == 'file'
+    assert page['po_cols'] == 12.0 and page['po_source'] == 'file'
+
+def test_page_geometry_explicit_unit_suffix_converts():
+    # NOT the trap case above -- WordStar 5.0+ DOES allow an explicit unit
+    # suffix, and that must still convert correctly (inches here; .pl's
+    # argument is always resolved back to lines internally).
+    doc = core.parse_ws(b'.PL 11"' + HARD + b'Body.' + HARD)
+    assert doc.meta['page']['pl_lines'] == 66.0
+    assert doc.meta['page']['size_name'] == 'Letter'
+
+def test_page_geometry_snaps_close_but_honours_far_raw_geometry():
+    close = core.parse_ws(b'.PL 67' + HARD + b'x' + HARD)     # 11.1667in: within 0.25 of Letter
+    assert close.meta['page']['size_name'] == 'Letter'
+    assert close.meta['page']['height_in'] == 11.0             # snapped to the named figure
+    far = core.parse_ws(b'.PL 70' + HARD + b'x' + HARD)        # 11.667in: > 0.25 from Letter
+    assert far.meta['page']['size_name'] == 'Custom'
+    assert far.meta['page']['height_in'] == pytest.approx(70 / 6)   # raw geometry honoured
+
+def test_page_geometry_dot_commands_still_preserved_verbatim():
+    # recognising .pl/.mt/.mb/.po must not stop them being kept in the
+    # project's standing verbatim dot-command log.
+    doc = core.parse_ws(b'.PL 84' + HARD + b'Body.' + HARD)
+    assert '.PL 84' in doc.meta['dot_commands']
+
+def test_page_geometry_malformed_pl_does_not_crash():
+    # a truncated/garbage argument must degrade to the default, never raise
+    doc = core.parse_ws(b'.PL' + HARD + b'Body.' + HARD)
+    assert doc.meta['page']['pl_lines'] == 66.0
+    assert doc.meta['page']['size_source'] == 'default'
+
+# ---------------------------------------------------------------- small parser additions
+
+def _ws7_tab(size_hmi, tab_type_byte, tenths=0):
+    content = (size_hmi.to_bytes(2, 'little') + size_hmi.to_bytes(2, 'little') +
+               bytes([tab_type_byte]) + bytes([tenths]))
+    return ws7_block(0x09, content)
+
+def test_ws7_tab_undocumented_right_align_type():
+    # ']' is an undocumented right-align tab variant WordTsar's author found
+    # testing MicroPro's own PRINT.TST; a real type-9 block there carries
+    # tab type ']' with size 4500 HMI (4500/144 = 31.25 -> 31 columns).
+    data = ws7_block(0x00) + _ws7_tab(4500, ord(']')) + b'Indented.' + HARD
+    doc = core.parse_ws(data)
+    text = doc.blocks[0].lines[0].text()
+    assert text.startswith(' ' * 31)
+    assert text.strip() == 'Indented.'
+
+def test_ws7_tab_dot_leader_repeats_leader_character():
+    # spec: "Other character such as '.' or '*' are used for dot leaders."
+    # A leading "Row" keeps the expanded leader dots from starting the
+    # physical line -- a line literally starting with '.' is (correctly,
+    # pre-existing behaviour, unrelated to this fix) read as a dot command.
+    data = ws7_block(0x00) + b'Row' + _ws7_tab(720, ord('.')) + b'Contents' + HARD  # 720/144=5
+    doc = core.parse_ws(data)
+    text = doc.blocks[0].lines[0].text()
+    assert '.' * 5 in text
+    assert text.startswith('Row') and text.endswith('Contents')
+
+def test_ws7_tab_malformed_block_does_not_crash():
+    data = ws7_block(0x00) + ws7_block(0x09) + b'Still here.' + HARD   # empty content
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].lines[0].text().endswith('Still here.')
+
+def test_producer_detection_wordtsar_dot_commands():
+    # .PT/.PSA/.PSB are WordTsar's OWN invented dot commands ("not a
+    # Wordstar command" per its own source) -- their presence is a
+    # provenance signal, not a format one.
+    data = b'.PT 5' + HARD + b'.PSA 1.5' + HARD + b'.PSB 2' + HARD + b'Body.' + HARD
+    doc = core.parse_ws(data)
+    assert doc.meta['producer'] == 'wordtsar'
+    assert doc.meta['pt_raw'] == '5'                    # recorded verbatim, not mapped
+    assert doc.meta['space_after_lines'] == 1.5
+    assert doc.meta['space_before_lines'] == 2.0
+
+def test_producer_absent_for_real_wordstar_files():
+    doc = core.parse_ws(b'.PL 66' + HARD + b'Body.' + HARD)
+    assert 'producer' not in doc.meta
+
+def test_comment_bug_detected_on_bare_lf_line_ending():
+    # COMMENT.BUG signature: a line ending in a bare LF instead of CR LF.
+    # Framed as WordStar's OWN print-time damage, not a parse failure.
+    good = b'Line one.\r\nLine two.\r\n'
+    bad = b'Line one.\r\nLine two.\n'
+    assert core.parse_printstream(good).meta.get('comment_bug') is None
+    bug = core.parse_printstream(bad).meta.get('comment_bug')
+    assert bug is not None and bug['count'] == 1
+
+def test_comment_bug_flags_stray_ctrl_t():
+    bad = b'Comment line\x14 truncated here\nNext line.\r\n'
+    bug = core.parse_printstream(bad).meta.get('comment_bug')
+    assert bug is not None and bug['stray_ctrl_t'] is True
+
+# ---------------------------------------------------------------- Printed footnote layout
+
+def _page_texts(pages):
+    """Pages (as returned by pdf._doc_to_pagelines) -> plain strings, styling
+    dropped, for content assertions."""
+    return [[''.join(t for t, _ in line) for line in pg] for pg in pages]
+
+def test_pdf_printed_footnote_area_basic_shape():
+    from ctrlkd.pdf import _doc_to_pagelines, FOOTNOTE_SEPARATOR
+    data = (b'.PL 24' + HARD +
+            b'Line one text.' + HARD +
+            b'Line two text.' + HARD +
+            ws7_block(0x00) +
+            b'Line three has a note' + ws7_note(0x03, b'Short note text.', number=0) +
+            b' here.' + HARD +
+            b'Line four text.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    texts = _page_texts(pages)
+    assert len(pages) == 1                       # small note, plenty of room: one page
+    flat = texts[0]
+    # the reference never moved off its own body line
+    ref_lines = [l for l in flat if 'Line three has a note' in l]
+    assert ref_lines and ref_lines[0].rstrip().endswith('here.')
+    assert any(l == FOOTNOTE_SEPARATOR for l in flat)
+    assert any(l.startswith('1. Short note text.') for l in flat)
+    # VMI-240 rhythm: one blank line immediately above and below the separator
+    sep_i = flat.index(FOOTNOTE_SEPARATOR)
+    assert flat[sep_i - 1] == '' and flat[sep_i + 1] == ''
+
+def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
+    from ctrlkd.pdf import _doc_to_pagelines, CONTINUATION_TEXT
+    words = [f'word{i:03d}' for i in range(80)]
+    data = (b'.PL 18' + HARD +                    # a small page: forces a split
+            ws7_block(0x00) +
+            b'First body line has the note' + ws7_note(0x03, ' '.join(words).encode(), number=0) +
+            b' right here.' + HARD +
+            b'Second body line.' + HARD + b'Third body line.' + HARD +
+            b'Fourth body line.' + HARD + b'Fifth body line.' + HARD +
+            b'Sixth body line.' + HARD + b'Seventh body line.' + HARD +
+            b'Eighth body line.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    texts = _page_texts(pages)
+    assert len(pages) > 1                         # it really did overflow
+
+    # the reference never moved -- it's on whichever page the body naturally lands on
+    ref_page = next(i for i, pg in enumerate(texts) if any('First body line' in l for l in pg))
+    assert ref_page == 0
+
+    # the floor: pages before the note is fully drained still carry >= 3 body lines
+    # (every non-footnote, non-blank, non-separator line counts as body)
+    def body_count(pg):
+        return sum(1 for l in pg if l and l != CONTINUATION_TEXT and 'word' not in l
+                   and not l.startswith('-'))
+    assert body_count(texts[0]) == 3
+
+    # continuation marker shows up, and nothing after page 0 repeats the "1." marker
+    later_lines = [l for pg in texts[1:] for l in pg]
+    assert any(l == CONTINUATION_TEXT for l in later_lines)
+    assert not any(l.startswith('1. word000') for l in later_lines)
+
+    # completeness: every word appears, in order, exactly once, across all pages
+    collected = []
+    for l in (ln for pg in texts for ln in pg):
+        if l == CONTINUATION_TEXT or l == '' or l.startswith('-'):
+            continue
+        if 'word' in l:
+            collected.append(l[3:] if l.startswith('1. ') else l)
+    reconstructed = ' '.join(collected).split()
+    assert reconstructed == words
+
+def test_pdf_printed_reference_position_independent_of_note_length():
+    # rule 1: "the reference never moves" -- whether the note is one word or
+    # a hundred, the line carrying the reference lands on the SAME page,
+    # because only the FOOTNOTE area's split, never the body's, absorbs overflow.
+    def page_of_ref(note_text):
+        data = (b'.PL 18' + HARD + ws7_block(0x00) +
+                b'Ref line' + ws7_note(0x03, note_text) + b' end.' + HARD +
+                b'Two.' + HARD + b'Three.' + HARD + b'Four.' + HARD + b'Five.' + HARD)
+        doc = core.parse_ws(data)
+        texts = _page_texts(_doc_to_pagelines_local(doc, True))
+        return next(i for i, pg in enumerate(texts) if any('Ref line' in l for l in pg))
+    from ctrlkd.pdf import _doc_to_pagelines as _doc_to_pagelines_local
+    short = page_of_ref(b'Tiny.')
+    long_ = page_of_ref(' '.join(f'w{i}' for i in range(200)).encode())
+    assert short == 0 and long_ == 0
+
+def test_pdf_printed_last_page_overflow_prints_at_top_no_floor():
+    from ctrlkd.pdf import _doc_to_pagelines, FOOTNOTE_SEPARATOR, CONTINUATION_TEXT
+    words = [f'word{i:03d}' for i in range(60)]
+    data = (b'.PL 12' + HARD +                     # tiny page: cap well under the note's size
+            ws7_block(0x00) +
+            b'Only line has a note' + ws7_note(0x03, ' '.join(words).encode(), number=0) +
+            b' here.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    texts = _page_texts(pages)
+    assert len(pages) > 1                          # the note alone can't fit with the body
+    # no body text anywhere on the trailing (note-only) pages
+    for pg in texts[1:]:
+        assert not any('Only line' in l for l in pg)
+        assert pg[0] == '' and any(l == FOOTNOTE_SEPARATOR for l in pg)   # block starts at the top
+    # completeness again, even across a multi-page spill
+    collected = []
+    for l in (ln for pg in texts for ln in pg):
+        if l == CONTINUATION_TEXT or l == '' or l.startswith('-'):
+            continue
+        if 'word' in l:
+            collected.append(l[3:] if l.startswith('1. ') else l)
+    assert ' '.join(collected).split() == words
+
+def test_pdf_printed_endnotes_collect_at_end_with_no_heading():
+    from ctrlkd.pdf import _doc_to_pagelines, FOOTNOTE_SEPARATOR
+    data = (ws7_block(0x00) + b'Body text has an endnote' +
+            ws7_note(0x04, b'The endnote text goes here.', number=0) + b' done.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    texts = _page_texts(pages)
+    flat = [l for pg in texts for l in pg]
+    assert any(l.strip() == '(1) The endnote text goes here.' for l in flat)
+    # endnotes never trigger the footnote-area separator (they don't share
+    # its page-bottom mechanism), and get no author-less heading of any kind
+    assert not any(l == FOOTNOTE_SEPARATOR for l in flat)
+    assert not any('endnote' in l.lower() and l.strip().startswith(('Endnote', 'ENDNOTE'))
+                   for l in flat)
+
+def test_pdf_printed_endnotes_numbered_independently_of_footnotes():
+    # WordStar has SEPARATE .f#/.e# starting-value commands -- two
+    # independent counters, not one shared one. 2 footnotes then 2 endnotes
+    # must show endnotes as (1)/(2), not (3)/(4) (the shared-counter bug a
+    # previous round of this work had -- caught by cross-checking against
+    # the concurrently-built flat emitters, which already got this right).
+    data = (ws7_block(0x00) +
+            b'a' + ws7_note(0x03, b'First footnote.', number=0) +
+            b' b' + ws7_note(0x03, b'Second footnote.', number=1) +
+            b' c' + ws7_note(0x04, b'First endnote.', number=0) +
+            b' d' + ws7_note(0x04, b'Second endnote.', number=1) + b' e' + HARD)
+    doc = core.parse_ws(data)
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(doc, True)
+    flat = [l for pg in _page_texts(pages) for l in pg]
+    assert any(l.strip() == '1. First footnote.' for l in flat)
+    assert any(l.strip() == '2. Second footnote.' for l in flat)
+    assert any(l.strip() == '(1) First endnote.' for l in flat)
+    assert any(l.strip() == '(2) Second endnote.' for l in flat)
+    assert not any('(3)' in l or '(4)' in l for l in flat)
+    # the body reference for footnote 1 and endnote 1 are BOTH a bare "1" --
+    # WordStar's own documented ambiguity, resolved by mark style, not number
+    ref_line = flat[0]
+    assert ref_line.count('1') == 2 and ref_line.count('2') == 2
+
+def test_footnote_endnote_number_start_dot_commands():
+    # .F#/.E# (WordStar 7.0 file format spec): set the starting numbering
+    # value -- the hook emit.py's per-kind numbering already reads.
+    data = (b'.F# 5' + HARD + b'.E# 10' + HARD +
+            ws7_block(0x00) + b'x' + ws7_note(0x03, b'Foot.', number=0) +
+            b' y' + ws7_note(0x04, b'End.', number=0) + b' z' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['footnote_number_start'] == 5
+    assert doc.meta['endnote_number_start'] == 10
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(doc, True)
+    flat = [l for pg in _page_texts(pages) for l in pg]
+    assert any(l.strip() == '5. Foot.' for l in flat)
+    assert any(l.strip() == '(10) End.' for l in flat)
+
+def test_footnote_endnote_number_start_absent_defaults_to_one():
+    doc = core.parse_ws(b'.PL 66' + HARD + b'Body.' + HARD)
+    assert 'footnote_number_start' not in doc.meta
+    assert 'endnote_number_start' not in doc.meta
+
+def test_pdf_printed_annotation_uses_its_own_tag_as_marker():
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (ws7_block(0x00) + b'Body text has an annotation' +
+            ws7_annotation_with_tag(dot_lines=[b'.. internal remark'],
+                                    text=b'Annotation body text.', tag_text=b'AC1') +
+            b' done.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.notes[0].kind == 'annotation' and doc.notes[0].tag == 'AC1'
+    pages = _doc_to_pagelines(doc, True)
+    flat = [l for pg in _page_texts(pages) for l in pg]
+    assert any(l.strip() == 'AC1 Annotation body text.' for l in flat)
+
+def test_pdf_printed_pl_geometry_changes_page_capacity():
+    # Task 1 x Task 2: a Legal-length file should hold noticeably more
+    # lines per printed page than the same content forced small by .pl.
+    from ctrlkd.pdf import _printed_cap
+    letter_doc = core.parse_ws(b'.PL 66' + HARD + b'x' + HARD)
+    small_doc = core.parse_ws(b'.PL 12' + HARD + b'x' + HARD)
+    assert _printed_cap(small_doc) < _printed_cap(letter_doc)
+
+def test_pdf_printed_no_page_ever_exceeds_its_capacity():
+    # the one invariant everything else rests on: body lines already
+    # committed this page must count against how much footnote-area room
+    # is left, not just against the floor -- a ceiling that only knows
+    # cap-FOOTNOTE_FLOOR (and ignores how many body lines are already on
+    # the page) can admit MORE footnote content than the page has room for
+    # once even one body line has been placed on a terminal page.
+    from ctrlkd.pdf import _doc_to_pagelines, _printed_cap
+    words = [f'word{i:03d}' for i in range(60)]
+    data = (b'.PL 12' + HARD + ws7_block(0x00) +
+            b'Only line has a note' + ws7_note(0x03, ' '.join(words).encode(), number=0) +
+            b' here.' + HARD)
+    doc = core.parse_ws(data)
+    cap = _printed_cap(doc)
+    pages = _doc_to_pagelines(doc, True)
+    assert all(len(pg) <= cap for pg in pages), [len(pg) for pg in pages]
+
+
+# --- CLI surface -----------------------------------------------------------
+# The library had 89 passing tests while `ctrl-kd --diagnose` crashed on an
+# import error: every test exercised the API, none ran main(). These cover the
+# thing a user actually types.
+
+def _run_cli(tmp_path, data, *args):
+    from ctrlkd import cli
+    src = tmp_path / 'SAMPLE.WS'
+    src.write_bytes(data)
+    out = tmp_path / 'out.txt'
+    rc = cli.main([str(src), '-t', 'text', '-o', str(out), *args])
+    return rc, (out.read_text() if out.exists() else '')
+
+def test_cli_converts_and_writes_a_file(tmp_path):
+    rc, text = _run_cli(tmp_path, four_kind_data())
+    assert rc == 0
+    assert 'Footnote text.' in text
+
+def test_cli_default_includes_notes_but_never_comments(tmp_path):
+    _, text = _run_cli(tmp_path, four_kind_data())
+    assert 'Footnote text.' in text and 'Endnote text.' in text
+    assert 'Annotation text' in text
+    assert 'Comment text.' not in text     # WordStar never printed comments
+
+def test_cli_no_notes_suppresses_all_note_kinds(tmp_path):
+    _, text = _run_cli(tmp_path, four_kind_data(), '--no-notes')
+    for gone in ('Footnote text.', 'Endnote text.', 'Annotation text', 'Comment text.'):
+        assert gone not in text
+
+def test_cli_comments_flag_opts_them_in(tmp_path):
+    _, text = _run_cli(tmp_path, four_kind_data(), '--comments')
+    assert 'Comment text.' in text
+    assert 'Footnote text.' in text        # and does not displace the defaults
+
+def test_cli_diagnose_emits_valid_json_with_note_counts_and_page(tmp_path, capsys):
+    import json
+    from ctrlkd import cli
+    src = tmp_path / 'SAMPLE.WS'
+    src.write_bytes(four_kind_data())
+    assert cli.main([str(src), '--diagnose']) in (0, None)
+    info = json.loads(capsys.readouterr().out)
+    assert info['notes'] == {'footnote': 1, 'endnote': 1,
+                             'annotation': 1, 'comment': 1}
+    assert info['page']['size_name'] == 'Letter'
+    assert info['page']['size_source'] == 'default'
+
+
+# --- regressions found by the pre-publish audit ------------------------------
+
+def test_printed_pdf_terminates_on_tiny_page_with_wrapping_footnote():
+    """A small .pl plus a footnote that wraps used to hang forever: a split
+    prepends a continuation line, so at room==1 each pass admitted one line and
+    added one back. Real WordStar files used small page lengths (labels, index
+    cards), so this was reachable, not exotic."""
+    from ctrlkd import pdf
+    words = ' '.join(f'w{i}' for i in range(30)).encode()
+    data = (b'.PL 6\r\n' + ws7_block(0x00) + b'Ref' +
+            ws7_note(0x03, words, number=0) + b' end.\r\n')
+    doc = core.parse(data)
+    pages = pdf._doc_to_pagelines(doc, True)      # must return, not spin
+    assert len(pages) < 200                        # bounded, not runaway
+    body = '\n'.join(''.join(t for t, _ in ln) for p in pages for ln in p)
+    assert 'w29' in body                           # and no text was lost
+
+@pytest.mark.parametrize('fmt', ['text', 'markdown', 'html', 'rtf'])
+def test_stray_sentinel_byte_in_body_does_not_crash(fmt):
+    """SENT_FNREF is a raw 0x07, so a literal 0x07 in a document body is
+    miscounted as a note reference with no note behind it. That must degrade to
+    text, not raise IndexError."""
+    data = ws7_block(0x00) + b'Body with a stray byte: \x07 right there.' + HARD
+    out = getattr(emit, f'emit_{fmt}')(core.parse(data))
+    assert 'right there.' in out
+
+def test_repeated_wordtsar_spacing_dot_commands_first_occurrence_wins():
+    """The first-wins guard checked key names the parser never writes, so the
+    last occurrence silently won instead of the first."""
+    data = b'.PSA 1\r\n.PSA 99\r\n' + ws7_block(0x00) + b'Body.' + HARD
+    assert core.parse(data).meta['space_after_lines'] == 1.0

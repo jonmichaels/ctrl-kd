@@ -24,7 +24,30 @@ def emit_myformat(doc, mode='modern', **options) -> str
 ```
 Document
   .blocks     list[Block]
-  .footnotes  list[list[Span]]   # numbered 1..n, referenced in text (see fnref)
+  .footnotes  list[list[Span]]   # numbered 1..n, referenced in text (see fnref).
+                                 # Footnotes, endnotes, AND annotations (WS5+/WS7):
+                                 # all three print the same way (a numbered list at
+                                 # the end), so this stays one flattened, ordered
+                                 # view for emitters that don't care which is which.
+  .endnotes     list[list[Span]] # WS5+/WS7 endnotes only, same shape as .footnotes
+  .annotations  list[list[Span]] # WS5+/WS7 annotations only, same shape
+  .comments     list[Note]       # WS5+/WS7 comments: WordStar never prints these,
+                                 # so they're NOT in .footnotes -- only reachable
+                                 # here or via .notes. Often the most interesting
+                                 # content in a file (hidden author asides).
+  .notes      list[Note]        # ALL note kinds, in document order -- the
+                                 # authoritative structure; .footnotes/.endnotes/
+                                 # .annotations/.comments above are convenience
+                                 # views over this. Note: kind, text, number
+                                 # (footnote/endnote only), tag (annotation's own
+                                 # display-tag text, if any), line_count,
+                                 # number_format, convert_to, dot_commands (any
+                                 # dot-command lines found INSIDE the note's own
+                                 # text, stripped from `text` but kept verbatim),
+                                 # offset
+  .unknown_blocks  list[UnknownBlock]  # unrecognised WS5+/WS7 symmetrical-sequence
+                                       # types, preserved instead of dropped.
+                                       # UnknownBlock: cmd, data (raw bytes), offset
   .meta       dict               # detection + parse info, e.g.:
                                  #   variant: 'ws4' | 'ws5+' | 'printstream' | 'text'
                                  #   columnar: bool   (ruler-line document: fixed-width!)
@@ -140,3 +163,47 @@ function (`emit_bbcode.ext = '.bb'`) to override.
 - [ ] Escapes the format's special characters in span text
 - [ ] Survives a document with no footnotes, no headings, and empty blocks
 - [ ] Accepts `**options` it doesn't know
+
+## `doc.meta` keys
+
+Free-form dict on `Document`, populated by the parser. Emitters may read any of
+these; none are required.
+
+| Key | Meaning |
+|---|---|
+| `variant` | `ws4` / `ws5+` / `printstream` / `text` — how the file is *encoded* |
+| `producer` | who *wrote* it, when detectable. `'wordtsar'` when the WordTsar-only dot commands `.PT`/`.PSA`/`.PSB` are present — those are not WordStar commands. Provenance, not format: a WordTsar file is still `ws5+` |
+| `page` | page geometry from the file's own `.pl`/`.po`/`.mt`/`.mb`, with provenance: `size_name`, `size_source` (`'file'` \| `'default'`), `height_in`, `pl_lines`, `mt_lines`, `mb_lines`, `po_cols` and their `*_source`. **Unit-less dot-command arguments are LINES, not inches.** Lets a caller say "Legal (from file)" vs "Letter (default)" |
+| `footnote_number_start` / `endnote_number_start` | starting values from `.f#` / `.e#`, default 1. Footnotes and endnotes number **independently** — WordStar has separate commands for separate sequences |
+| `comment_bug` | printstream only. WordStar's own print-time damage: documents containing `^ONC` comments, printed to disk with the ASCII/ASC256/PRVIEW/WS4 drivers (not XTRACT), lost the rest of the line after the comment. `{count, first_offset, stray_ctrl_t}`. **Report this as 1990s damage, not as a parse failure** — telling those apart is the point of a rescue tool |
+| `margin_estimate` | statistically recovered wrap column |
+| `dot_commands` | every dot-command line, verbatim and in order, recognised or not |
+| `unknown_codes` | control bytes the parser did not interpret |
+| `columnar` | the document only makes sense fixed-width |
+
+`doc.unknown_blocks` holds unrecognised WS5+ symmetrical sequences as
+`UnknownBlock(cmd, data, offset)` rather than discarding them. Preserving what we
+cannot yet interpret is deliberate: it makes `--diagnose` honest about what a file
+contains, and keeps lossless round-trip possible later.
+
+## Notes
+
+`doc.notes` is the authoritative list, in document order, of `Note(kind, text,
+number, tag, line_count, number_format, convert_to, dot_commands, offset)` where
+`kind` is `footnote` / `endnote` / `annotation` / `comment` (WordStar 7.0
+symmetrical-sequence types 3-6). `doc.footnotes` / `.endnotes` / `.annotations` /
+`.comments` are filtered views.
+
+- **Comments were never printed by WordStar** and are excluded by default; pass
+  `notes=` to opt them in. They are always preserved and reported by `--diagnose`.
+- `Note.number` is the file's **raw 0-based index**, not a display number. Use the
+  emitters' display-label helper rather than printing it directly.
+- Annotations carry a **tag string** (e.g. `AC1`), not a number.
+
+### A naming footgun to know about
+
+`ctrlkd/__init__.py` re-exports `convert()`, which rebinds the package attribute
+`ctrlkd.convert` from the *submodule* to the *function*. `import ctrlkd.convert
+as m` therefore binds `m` to the function. Use `from ctrlkd.convert import name`
+for module members (e.g. `DEFAULT_NOTE_KINDS`). Nothing in the package is broken
+by this, but third-party code can be surprised.

@@ -40,9 +40,61 @@ class Block:
     heading: int = 0                     # 0 = body text; 1-3 = WS5+ title/header/subheading
 
 @dataclass
+class Note:
+    """One footnote/endnote/annotation/comment: WordStar 7.0 symmetrical
+    sequence types 3-6 (WordStar International, 1992). All four share one
+    layout (line-count word, tag/number word, conversion-flag byte, text) so
+    one model covers them; `kind` is what lets callers tell them apart."""
+    kind: str                  # 'footnote' | 'endnote' | 'annotation' | 'comment'
+    text: str = ''
+    number: int | None = None  # footnote/endnote only: the file's own note number
+                                # (else None -- annotations/comments have no numeric
+                                # identity in the spec, only annotations have `tag`)
+    tag: str | None = None     # annotations only: the nested tag's display TEXT (can
+                                # be null); footnote/endnote carry a number instead,
+                                # comments carry neither -- spec-documented "not used"
+    line_count: int = 0        # WordStar's stored text height -- cheap pagination
+    number_format: int = 0     # conv-flag high nybble: 0 symbols,1 upper,2 lower,3
+                                # numeric -- meaningless for annotations (spec: "not
+                                # used"), left 0 there rather than reporting noise
+    convert_to: int = 0        # conv-flag low nybble: 0 = none, else target note type
+                                # (same annotation caveat as number_format)
+    dot_commands: list = field(default_factory=list)  # the note's OWN dot-command
+                                # lines (a ruler or comment can live inside a note's
+                                # text same as the body) -- stripped from `text` but
+                                # preserved verbatim, in order, not dropped
+    offset: int = 0            # source byte offset of this block's opening 0x1D
+
+@dataclass
+class UnknownBlock:
+    """A symmetrical sequence whose type we don't interpret: kept verbatim
+    (bytes + source offset) instead of being silently dropped, per the
+    project rule to preserve what isn't understood -- so --diagnose can
+    report it instead of going quiet."""
+    cmd: int
+    data: bytes
+    offset: int
+
+@dataclass
 class Document:
     blocks: list = field(default_factory=list)
-    footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+)
+    footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
+                                                       # endnotes, and annotations, in document
+                                                       # order -- all three are rendered the
+                                                       # same way (a numbered list at the end);
+                                                       # see doc.notes to tell them apart
+    endnotes: list = field(default_factory=list)      # list[list[Span]] (WS5+, type 4 only)
+    annotations: list = field(default_factory=list)   # list[list[Span]] (WS5+, type 5 only)
+    comments: list = field(default_factory=list)      # list[Note] (WS5+, type 6): never
+                                                       # printed by WordStar itself, but kept
+                                                       # here -- often the most interesting
+                                                       # content in a file (hidden author asides)
+    notes: list = field(default_factory=list)         # list[Note], ALL kinds, document order:
+                                                       # the authoritative structure; footnotes/
+                                                       # endnotes/annotations/comments above are
+                                                       # convenience views over this
+    unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
+                                                         # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
 
     def iter_lines(self):
@@ -165,6 +217,149 @@ WS_DROP = {0x01, 0x03, 0x08, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
 
 DOT_PAGEBREAK = {b'PA', b'CP'}
 
+# ------------------------------------------------------------ page geometry
+#
+# .pl (page length), .po (page offset), .mt (top margin), .mb (bottom margin)
+# -- WordStar 7.0 file format spec (WordStar International, 1992). The trap:
+# a UNIT-LESS numeric argument to .pl/.mt/.mb is LINES, and to .po is print
+# COLUMNS -- never inches. (The only other modern implementation, WordTsar,
+# admits via its own @todo that it falls back to inches when no unit is
+# given; that is exactly the bug this avoids.) WordStar 5.0+ also allows an
+# explicit unit suffix on these arguments -- '"'/I/IN for inches, C/CM for
+# centimetres, P/PM for points, case-insensitive -- which this DOES convert,
+# since at that point the file is telling us the unit rather than leaving it
+# to the trap-default.
+#
+# Everything below assumes the fixed 6 LPI / 10 CPI baseline this project
+# already uses elsewhere (pdf.py's Courier metrics; margin_estimate's WS4
+# default). WordStar itself lets LPI/CPI vary (.lh, .cw), but tracking those
+# per-line is well beyond what a page-geometry pass needs.
+
+_DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
+_DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
+
+_PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
+                  b'MB': 'mb_lines', b'PO': 'po_cols'}
+
+# Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
+# 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
+# Letter, 84 lines/14in Legal, 81 lines/13.5in Foolscap Folio (the pre-ISO UK
+# long sheet). All three share the same 8.5in width, so only page HEIGHT is
+# resolved here -- there is no dot command for physical page width.
+NAMED_PAGE_HEIGHTS = (('Letter', 11.0), ('Legal', 14.0), ('Foolscap Folio', 13.5))
+# "Close" isn't spec-given -- a judgment call, not a reading. 0.25in is a
+# bit over a line and a half at 6 LPI: near enough to call it the named
+# size; farther out, honour the raw geometry instead of forcing a label
+# onto it (Jon's ruling: "snap ... when close; otherwise honour the raw
+# geometry").
+PAGE_SIZE_SNAP_IN = 0.25
+
+DEFAULT_PL_LINES = 66.0    # WordStar's own default: 66 lines = 11in = US Letter
+DEFAULT_MT_LINES = 3.0     # spec: ".MT ... Default value is 3 lines."
+DEFAULT_MB_LINES = 8.0     # spec: ".MB ... The default value is 8 lines."
+DEFAULT_PO_COLS = 0.0      # no default is stated in the spec for .po; 0 (flush
+                           # with the paper edge) is the least presumptuous
+                           # reading rather than a remembered/guessed figure.
+
+def _dot_arg_inches(value: float, unit: bytes | None):
+    """Convert a dot-command argument's optional unit suffix to inches.
+    Returns None for no unit (caller applies the lines/columns default) or an
+    unrecognised unit (treated the same as no unit -- defensive, not a crash)."""
+    if not unit:
+        return None
+    u = unit.upper()
+    if u in (b'"', b'I', b'IN'):
+        return value
+    if u in (b'C', b'CM'):
+        return value / 2.54
+    if u in (b'P', b'PM'):
+        return value / 72.0
+    return None
+
+def _resolve_lines_arg(value: float, unit: bytes | None) -> float:
+    """.pl/.mt/.mb argument -> lines, at 6 LPI. Unit-less IS lines already
+    (see module note above); a unit suffix is inches/cm/points via 6 LPI."""
+    inches = _dot_arg_inches(value, unit)
+    return value if inches is None else inches * 6.0
+
+def _resolve_cols_arg(value: float, unit: bytes | None) -> float:
+    """.po argument -> print columns, at 10 CPI. Unit-less IS columns."""
+    inches = _dot_arg_inches(value, unit)
+    return value if inches is None else inches * 10.0
+
+def _resolve_page_size(pl_lines: float):
+    """pl_lines -> (height_in, size_name). Snaps to a named size when close;
+    otherwise reports the raw geometry under 'Custom' rather than forcing a
+    label that doesn't fit."""
+    height_in = pl_lines / 6.0
+    name, named_in = min(NAMED_PAGE_HEIGHTS, key=lambda nh: abs(nh[1] - height_in))
+    if abs(named_in - height_in) <= PAGE_SIZE_SNAP_IN:
+        return named_in, name
+    return height_in, 'Custom'
+
+def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
+    """Try to interpret one dot-command line as page geometry (.pl/.po/.mt/.mb)
+    or a WordTsar-invented command (.PT/.PSA/.PSB -- "not a Wordstar command"
+    per WordTsar's own source, so their mere presence is a producer signal).
+    Mutates `page` (first occurrence per command wins -- WordStar dot commands
+    are stateful and could recur mid-document, but one resolved answer per
+    document is what a consumer needs; see EXTENDING.md/report) and
+    `meta_extra` for producer-related findings. The line is ALWAYS also kept
+    verbatim in doc.meta['dot_commands'] by the caller, recognised or not --
+    this function only adds interpretation on top, never replaces preservation.
+
+    .F#/.E# (same spec) set the footnote/endnote starting numbering value --
+    the two-character command NAME itself ends in the literal '#' (like
+    .L# line-numbering), which the generic [A-Za-z]{1,3} matcher below can't
+    match, so it's handled directly first. Best-effort: only the NUMERIC
+    starting-value form is modelled (doc.meta['footnote_number_start']/
+    ['endnote_number_start'] -- the hook emit.py's per-kind note numbering
+    already reads, so this makes it live rather than only defaulting to 1).
+    A bare D/P consecutive-vs-restart-per-page mode argument is preserved
+    verbatim in dot_commands but not modelled -- doing that correctly needs
+    per-page state at PARSE time, before pagination exists."""
+    head = cmd[1:3].upper()
+    if head in (b'F#', b'E#'):
+        key = 'footnote_number_start' if head == b'F#' else 'endnote_number_start'
+        if key not in meta_extra:
+            num = _DOT_NUM_RE.match(cmd[3:])
+            if num and num.group(1):
+                meta_extra[key] = int(float(num.group(1)))
+        return
+    m = _DOT_CMD_RE.match(cmd)
+    if not m:
+        return
+    name = m.group(1).upper()
+    arg = m.group(2)
+    key = _PAGE_DOT_KEYS.get(name)
+    if key is not None:
+        if page.get(key) is not None:
+            return                                    # first occurrence wins
+        num = _DOT_NUM_RE.match(arg)
+        if not num or not num.group(1):
+            return
+        value = float(num.group(1))
+        unit = num.group(2)
+        resolver = _resolve_cols_arg if name == b'PO' else _resolve_lines_arg
+        page[key] = resolver(value, unit)
+    elif name in (b'PT', b'PSA', b'PSB'):
+        # WordTsar's own invented dot commands (its source calls them "not a
+        # Wordstar command"). A real WordStar file never contains these --
+        # their presence IS the producer signal. `variant` stays what it is
+        # (the ENCODING, still WS5+/7); this is provenance, not format.
+        meta_extra['producer'] = 'wordtsar'
+        num = _DOT_NUM_RE.match(arg)
+        value = float(num.group(1)) if num and num.group(1) else None
+        if name == b'PSA' and value is not None and 'space_after_lines' not in meta_extra:
+            meta_extra['space_after_lines'] = value       # best-effort: honoured as
+        elif name == b'PSB' and value is not None and 'space_before_lines' not in meta_extra:  # data only --
+            meta_extra['space_before_lines'] = value       # no paragraph-spacing model exists yet
+        elif name == b'PT' and 'pt_raw' not in meta_extra:
+            # A Qt QPageSize enum index -- meaningless outside Qt and liable
+            # to shift between Qt versions. Record it verbatim; do NOT
+            # hardcode a mapping nobody has verified against Qt's own enum.
+            meta_extra['pt_raw'] = arg.decode('latin-1', 'replace').strip()
+
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
@@ -214,43 +409,180 @@ SENT_FNREF = 0x07      # sentinels injected into the cleaned stream; these bytes
 SENT_SOFTPAGE = 0x0B   # cannot appear as text in a WS5+ document body
 SENT_HEADING = 0x11
 
-def _note_text(block: bytes, encoding: str) -> str:
-    """Note content is NESTED: header, then an inner 1D, the text, then a 2-byte
-    length + 1D tail (verified on the Sawyer WS7 archive: 'Footnote\\r\\n,\\x00')."""
-    inner = block.split(b'\x1d')
-    text = inner[1][:-2] if len(inner) > 1 and len(inner[1]) > 2 else block[20:]
-    clean = bytes(c for c in text if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
-    return clean.decode(encoding, 'replace').strip()
+# Symmetrical-sequence "Notes" types (WordStar 7.0 file format spec, WordStar
+# International, 1992): 3 Footnote, 4 Endnote, 5 Annotation, 6 Comment. All
+# four are rendered inline via a reference marker except comments, which
+# WordStar never prints -- they're only reachable through the model.
+NOTE_KINDS = {0x03: 'footnote', 0x04: 'endnote', 0x05: 'annotation', 0x06: 'comment'}
+
+def _strip_dot_commands(raw: bytes, encoding: str):
+    """Split note text into physical lines (the same hard-return bytes the
+    body splits on) and pull any dot-command lines out of it -- a note can
+    carry its own dot commands (a .rr ruler, a '..' comment line) exactly
+    like the body can, and the body already never renders those as text.
+    Unrecognised dot commands are kept verbatim, in order, not dropped;
+    surviving text lines are cleaned the same way note text always was and
+    rejoined with a space (notes are short callouts, not reflowed prose)."""
+    lines = re.split(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a', bytes(raw))
+    kept, dots = [], []
+    for line in lines:
+        stripped = bytes(b & 0x7F for b in line)      # same masking the body uses
+        if stripped[:1] == b'.':
+            dots.append(stripped.rstrip().decode(encoding, 'replace'))
+            continue
+        clean = bytes(c for c in line if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
+        piece = clean.decode(encoding, 'replace').strip()
+        if piece:
+            kept.append(piece)
+    return ' '.join(kept), dots
+
+def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
+    """Decode one note block's content (the bytes between the type byte and
+    the closing count+0x1D), per the spec's Notes section:
+
+        Word: line count of the note text
+        Word: offset to the internal tag sequence (high bit set -> low 15
+              bits are the offset) OR the note number itself (high bit clear)
+        Byte: conversion flag (used only when there is no internal tag) --
+              low nybble = target type if converted (0 = not converted),
+              high nybble = numbering format (0 symbols,1 upper,2 lower,3 numeric)
+        Remaining bytes: the note text, which may itself hold ONE nested
+              symmetrical sequence (the internal tag, or a font change) --
+              spec: "Currently only one level of this recursion is used."
+
+    The tag/conversion-flag word and the internal tag mean different things
+    per kind, though: only footnotes/endnotes carry a NUMBER (the spec is
+    explicit that annotations'/comments' equivalent fields are "not used").
+    Annotations instead carry a TEXT tag ("the text used to display and
+    print the tag of the note") in the very same position a footnote's
+    internal tag would carry its number -- so the same nested-sequence walk
+    below extracts a number for footnote/endnote and a tag string for
+    annotation, and the outer conversion flag is only trusted where the
+    spec says it's actually used (not annotations).
+    """
+    kind = NOTE_KINDS[cmd]
+    if len(content) < 5:
+        return Note(kind=kind, offset=offset)
+    line_count = int.from_bytes(content[0:2], 'little')
+    tag_word = int.from_bytes(content[2:4], 'little')
+    conv_flag = content[4]
+    numeric = kind in ('footnote', 'endnote')
+    number = (None if tag_word & 0x8000 else tag_word) if numeric else None
+    tag = None
+    remainder = content[5:]
+
+    text_bytes = bytearray()
+    i = 0
+    while i < len(remainder):
+        if remainder[i] == 0x1D and i + 3 <= len(remainder):
+            jump = int.from_bytes(remainder[i + 1:i + 3], 'little')
+            inner = remainder[i + 1:i + 3 + jump]
+            inner_cmd = inner[2] if len(inner) > 2 else -1
+            if inner_cmd == cmd:                        # the internal tag sequence
+                inner_content = inner[3:-3] if len(inner) >= 6 else inner[3:]
+                if numeric and len(inner_content) >= 5:
+                    number = int.from_bytes(inner_content[2:4], 'little')
+                    conv_flag = inner_content[4]
+                elif kind == 'annotation' and len(inner_content) > 5:
+                    raw_tag = bytes(c for c in inner_content[5:]
+                                    if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
+                    tag = raw_tag.decode(encoding, 'replace').strip() or None
+            i += jump + 3                                # skip the whole nested sequence
+        else:
+            text_bytes.append(remainder[i])
+            i += 1
+
+    text, dots = _strip_dot_commands(bytes(text_bytes), encoding)
+    if kind == 'annotation':
+        # spec: "Byte: Conversion flag. Not used for annotations." -- don't
+        # report noise from a byte the format documents as meaningless here.
+        number_format, convert_to = 0, 0
+    else:
+        number_format, convert_to = (conv_flag >> 4) & 0x0F, conv_flag & 0x0F
+    return Note(kind=kind, text=text, number=number, tag=tag, line_count=line_count,
+                number_format=number_format, convert_to=convert_to,
+                dot_commands=dots, offset=offset)
+
+# Tabs and dot leaders (symmetrical sequence type 9, WordStar 7.0 file format
+# spec): Word tab size in HMIs, Word absolute tab size in HMIs, Byte tab
+# type, Byte tab size in tenths. Documented tab-type bytes: ' ' hard tab,
+# soft space (0xA0) soft tab, '#' decimal, '!' center, '[' right-align. ']'
+# is an UNDOCUMENTED right-align variant -- WordTsar's author found it by
+# testing against MicroPro's own PRINT.TST (confirmed present here too: a
+# type-9 block with tab type byte 0x5D, ']'). It renders identically to the
+# documented '[': same right-align intent, just a second byte value nobody
+# wrote down. Any other byte is a dot-leader character (spec: "Other
+# character such as '.' or '*' are used for dot leaders.").
+#
+# HMI -> columns: at 1440 units/inch and 10 CPI, one column is 1440/10 = 144
+# HMI -- the same derivation the project's footnote-VMI research already
+# used for VMI (1440/6 = 240 per line at 6 LPI); treated here as the matching
+# inference for the horizontal axis, not a spec-stated constant.
+TAB_HMI_PER_COL = 144
+TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
+
+def _tab_columns(content: bytes):
+    """Decode one type-9 block's content -> (columns, leader_byte). We can't
+    reflow text to truly right/center/decimal-align a tab without knowing the
+    width of what follows it -- this pass runs before line/word splitting --
+    so those types degrade to plain space padding, but of the CORRECT width
+    (from the tab's own HMI size) rather than a guessed constant. Dot-leader
+    tabs (any byte outside the documented/undocumented set) repeat their own
+    leader character, which is both more correct and directly observable."""
+    if len(content) < 5:
+        return 4, b' '                                 # malformed/short block: the old
+                                                        # fixed-4-spaces behaviour as a
+                                                        # safe fallback, never a crash
+    size = int.from_bytes(content[0:2], 'little')
+    tab_type = content[4]
+    cols = max(1, round(size / TAB_HMI_PER_COL))
+    if tab_type in (0x20, 0xA0, ord('#'), ord('!')) or tab_type in TAB_RIGHT_TYPES:
+        leader = b' '
+    elif 0x20 <= tab_type < 0x7F:
+        leader = bytes([tab_type])                    # dot-leader character
+    else:
+        leader = b' '
+    return cols, leader
 
 def _symmetric_blocks(data: bytes, encoding: str):
     """Strip WS5+ 1D symmetric sequences (2-byte LE length, command type at +2),
-    collecting footnotes/endnotes and injecting sentinels for the block types that
-    carry document structure. Verified against the 86 WS7 documents in Robert J.
-    Sawyer's WordStar archive."""
+    collecting notes (footnotes/endnotes/annotations/comments, types 3-6) and
+    injecting sentinels for the block types that carry document structure.
+    Types we don't interpret are preserved as opaque UnknownBlocks rather than
+    dropped (project rule: preserve what you don't understand). Verified
+    against the 86 WS7 documents in Robert J. Sawyer's WordStar archive."""
     out = bytearray()
-    footnotes = []
+    notes = []
+    unknown = []
     i = 0
     while i < len(data):
         if data[i] == 0x1D and i + 3 <= len(data):
+            start = i
             jump = int.from_bytes(data[i + 1:i + 3], 'little')
             block = data[i + 1:i + 3 + jump]
             cmd = block[2] if len(block) > 2 else -1
-            if cmd in (0x03, 0x04):                               # foot/endnote
-                footnotes.append(_note_text(block, encoding))
-                out.append(SENT_FNREF)
-            elif cmd == 0x09:                                     # tab
-                out += b'    '
+            if cmd in NOTE_KINDS:
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                notes.append(_parse_note(cmd, content, start, encoding))
+                if cmd != 0x06:                          # comments: never printed inline
+                    out.append(SENT_FNREF)
+            elif cmd == 0x09:                                     # tab (and dot leaders)
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                cols, leader = _tab_columns(content)
+                out += leader * cols
             elif cmd == 0x0B:                                     # end of page
                 out.append(SENT_SOFTPAGE)
             elif cmd == 0x11 and len(block) > 3:                  # paragraph style
                 level = {0x05: 1, 0x02: 2, 0x03: 3}.get(block[3], 0)
                 if level:
                     out += bytes([SENT_HEADING, 0x30 + level])
+            else:
+                unknown.append(UnknownBlock(cmd, bytes(block), start))
             i += jump + 3
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), footnotes
+    return bytes(out), notes, unknown
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -260,8 +592,21 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
 
     ws5 = det['variant'] == 'ws5+'
     if ws5:
-        data, notes = _symmetric_blocks(data, encoding)
-        doc.footnotes = [[Span(n)] for n in notes]
+        data, notes, blobs = _symmetric_blocks(data, encoding)
+        doc.notes = notes
+        doc.unknown_blocks = blobs
+        # footnotes/endnotes/annotations are all rendered the same way (a
+        # numbered list at the end) and share one inline reference counter
+        # below, so `footnotes` stays the flattened view emitters already
+        # know how to render; endnotes/annotations are also split out so
+        # callers that DO want to tell them apart don't have to re-filter
+        # doc.notes themselves. Comments are never rendered inline -- they
+        # only ever show up in doc.notes / doc.comments.
+        doc.footnotes = [[Span(n.text)] for n in notes if n.kind in
+                         ('footnote', 'endnote', 'annotation')]
+        doc.endnotes = [[Span(n.text)] for n in notes if n.kind == 'endnote']
+        doc.annotations = [[Span(n.text)] for n in notes if n.kind == 'annotation']
+        doc.comments = [n for n in notes if n.kind == 'comment']
 
     physical, margin = lines_pass(data)
     doc.meta['margin_estimate'] = margin
@@ -271,6 +616,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     cur = Block('para')
     cur_line = Line()
     ruler = False
+    page, meta_extra = {}, {}
 
     def close_line():
         nonlocal cur_line
@@ -295,6 +641,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks.append(Block('pagebreak'))
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
+            _parse_page_dot(cmd, page, meta_extra)
             continue
         if ws5:                                    # sentinels from _symmetric_blocks
             if raw.count(SENT_SOFTPAGE):
@@ -322,6 +669,30 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['dot_commands'] = dots
     doc.meta['unknown_codes'] = {f'0x{k:02x}': v for k, v in sorted(unknown.items())}
     doc.meta['columnar'] = ruler
+
+    pl_lines = page.get('pl_lines')
+    height_in, size_name = _resolve_page_size(pl_lines if pl_lines is not None
+                                              else DEFAULT_PL_LINES)
+    mt_lines = page.get('mt_lines')
+    mb_lines = page.get('mb_lines')
+    po_cols = page.get('po_cols')
+    # Exposed per the IR contract: a consumer must be able to distinguish
+    # "Legal (from file)" from "Letter (default)" -- provenance lives
+    # alongside every resolved figure, not just the page size.
+    doc.meta['page'] = {
+        'pl_lines': pl_lines if pl_lines is not None else DEFAULT_PL_LINES,
+        'height_in': height_in,
+        'size_name': size_name,
+        'size_source': 'file' if pl_lines is not None else 'default',
+        'mt_lines': mt_lines if mt_lines is not None else DEFAULT_MT_LINES,
+        'mt_source': 'file' if mt_lines is not None else 'default',
+        'mb_lines': mb_lines if mb_lines is not None else DEFAULT_MB_LINES,
+        'mb_source': 'file' if mb_lines is not None else 'default',
+        'po_cols': po_cols if po_cols is not None else DEFAULT_PO_COLS,
+        'po_source': 'file' if po_cols is not None else 'default',
+    }
+    if meta_extra:
+        doc.meta.update(meta_extra)
     return doc
 
 # ---------------------------------------------------------------- print streams
@@ -334,6 +705,31 @@ PRINT_CODES = {0x18: ('sup', True), 0x12: ('sup', False),
                0x05: ('i', True), 0x06: ('i', False),
                0x1E: ('b', True), 0x1F: ('b', False)}
 
+def _detect_comment_bug(data: bytes):
+    """COMMENT.BUG: a documented WordStar bug (Sawyer, WS archive REF notes,
+    2013) -- a document containing ^ONC comments, printed to disk with the
+    ASCII/ASC256/PRVIEW/WS4 drivers (NOT XTRACT), has everything after the
+    comment deleted from that line, may gain a stray ^T (0x14), and the line
+    ends with a bare LF (0x0A) instead of CR LF (0x0D 0x0A). This is damage
+    WordStar itself introduced at print time in the 1990s -- not a parse
+    failure -- so it's reported as a signature, not silently swallowed or
+    mistaken for something this tool got wrong.
+
+    Detection is necessarily a heuristic (a bare-LF line ending is the
+    documented signature, but a print stream that happens to use plain Unix
+    line endings throughout would also match); callers should read the flag
+    as "this signature is present", not "this file definitely hit the bug"."""
+    count, first, prev = 0, None, -1
+    for i, b in enumerate(data):
+        if b == 0x0A and prev != 0x0D:
+            count += 1
+            if first is None:
+                first = i
+        prev = b
+    if not count:
+        return None
+    return {'count': count, 'first_offset': first, 'stray_ctrl_t': b'\x14' in data}
+
 def parse_printstream(data: bytes, encoding: str = 'cp437',
                       codes: dict = None) -> Document:
     """A print-to-disk capture IS the printed page: every line verbatim, printer
@@ -343,6 +739,9 @@ def parse_printstream(data: bytes, encoding: str = 'cp437',
     cut = data.find(b'\x1a')
     if cut != -1:
         data = data[:cut]
+    bug = _detect_comment_bug(data)
+    if bug:
+        doc.meta['comment_bug'] = bug
     active = set()
     cur = Block('para')
     line = Line()

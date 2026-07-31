@@ -13,6 +13,8 @@ $ ctrl-kd ESSAY.WS -t html -t rtf       # multiple formats
 $ ctrl-kd ESSAY.WS -t pdf --mode printed # a facsimile of the 1990 printout
 $ ctrl-kd --mode printed LETTER.WS      # line-for-line, as it printed in 1990
 $ ctrl-kd --diagnose MYSTERY.FIL        # what IS this file?
+$ ctrl-kd --comments MEMO.WS            # include the author's hidden comments
+$ ctrl-kd --no-notes PAPER.WS           # body text only, no notes
 ```
 
 ## Why another converter?
@@ -48,9 +50,19 @@ against surviving period printouts of the same documents. Its rules are empirica
 * **WS5+ symmetric blocks** (`0x1D`: real footnotes/endnotes, headings, page
   breaks — machinery added in WS5) are parsed with their nested structure,
   verified against the 86 WordStar 7 documents in Robert J. Sawyer's public
-  WordStar archive: footnotes extract with in-text references (`[^n]` in
-  Markdown), paragraph styles become headings, and 82/86 convert with zero
-  mojibake. More WS5–7 corpora still welcome.
+  WordStar archive. All **four** note kinds WordStar distinguished are read and
+  kept apart — footnote, endnote, annotation, and comment — with in-text
+  references (`[^n]` in Markdown, DPUB-ARIA anchors in HTML, real `\footnote`
+  destinations in RTF). **Comments never appear unless you ask for them**, since
+  WordStar never printed them; `--diagnose` still reports that they exist.
+  Paragraph styles become headings, and 82/86 convert with zero mojibake.
+  More WS5–7 corpora still welcome.
+* **Page geometry** from the file's own `.pl`/`.po`/`.mt`/`.mb`, so `--mode
+  printed` uses the page the author set up rather than an assumed one — and
+  `--diagnose` says whether the size came from the file or from the default.
+  In `printed` mode footnotes are laid out the way WordStar laid them out: at
+  the foot of the page that references them, behind a twenty-dash separator,
+  split across pages with `...Continued...` when they do not fit.
 
 ## Modes
 

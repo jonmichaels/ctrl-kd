@@ -3,10 +3,6 @@ from .core import detect, parse, parse_ws, parse_printstream, Document, Block, L
 from .emit import (emit_text, emit_markdown, emit_html, emit_rtf,
                    emitter, get_emitter, formats, load_plugins)
 from .pdf import emit_pdf                        # registers the 'pdf' format
+from .convert import convert, select_notes, DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS
 
-__version__ = '1.1.6'
-
-def convert(data: bytes, to: str = 'markdown', mode: str = 'modern',
-            encoding: str = 'cp437', **options) -> str:
-    """One-call API: bytes in, converted string out."""
-    return get_emitter(to)['fn'](parse(data, encoding=encoding), mode, **options)
+__version__ = '1.2.0'
