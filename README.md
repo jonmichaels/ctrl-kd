@@ -57,9 +57,11 @@ against surviving period printouts of the same documents. Its rules are empirica
   WordStar never printed them; `--diagnose` still reports that they exist.
   Paragraph styles become headings, and 82/86 convert with zero mojibake.
   More WS5–7 corpora still welcome.
-* **Page geometry** from the file's own `.pl`/`.po`/`.mt`/`.mb`, so `--mode
-  printed` uses the page the author set up rather than an assumed one — and
-  `--diagnose` says whether the size came from the file or from the default.
+* **Page geometry** from the file's own `.pl`/`.po`/`.mt`/`.mb`/`.hm`/`.fm`/
+  `.lh`/`.ls`, so `--mode printed` paginates with WordStar's own vertical model
+  — `.pl − .mt − .mb` at the `.lh` line height, 55 text lines for WordStar's
+  defaults, not a guessed 1-inch margin — and `--diagnose` says whether each
+  figure came from the file or from the default.
   In `printed` mode footnotes are laid out the way WordStar laid them out: at
   the foot of the page that references them, behind a twenty-dash separator,
   split across pages with `...Continued...` when they do not fit.

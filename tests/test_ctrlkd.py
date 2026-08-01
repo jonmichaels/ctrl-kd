@@ -778,6 +778,115 @@ def test_page_geometry_malformed_pl_does_not_crash():
     assert doc.meta['page']['pl_lines'] == 66.0
     assert doc.meta['page']['size_source'] == 'default'
 
+# ------------------------------------------- the vertical model (text_lines)
+
+def test_page_geometry_defaults_give_wordstar_55_not_60():
+    # THE fix this section exists for: WordStar's own defaults (.pl 66
+    # .mt 3 .mb 8 .lh 8) put 55 text lines on a page -- the manual's model,
+    # (pl - mt - mb) at 6 LPI -- not the 60 a naive 1in-margin Letter
+    # computation produced for every document before 1.3.0.
+    from ctrlkd.pdf import _printed_cap
+    doc = core.parse_ws(b'Body text.' + HARD)
+    assert doc.meta['page']['text_lines'] == 55
+    assert _printed_cap(doc) == 55
+
+def test_page_geometry_mt_mb_change_capacity():
+    doc = core.parse_ws(b'.MT 6' + HARD + b'.MB 6' + HARD + b'x' + HARD)
+    assert doc.meta['page']['text_lines'] == 54          # 66 - 6 - 6
+
+def test_page_geometry_lh_parsed_and_scales_capacity():
+    # .lh is 1/48in units: .lh 16 doubles the line height, halving capacity
+    # (the manual: "Changing the line height affects the number of lines
+    # that can be printed on a page"). floor(55 * 8 / 16) = 27.
+    doc = core.parse_ws(b'.LH 16' + HARD + b'x' + HARD)
+    page = doc.meta['page']
+    assert page['lh_48'] == 16.0 and page['lh_source'] == 'file'
+    assert page['text_lines'] == 27
+
+def test_page_geometry_lh_unit_suffix_converts():
+    # .lh 12p = 12/72in = 8/48in -> the standard height, stated in points
+    doc = core.parse_ws(b'.LH 12P' + HARD + b'x' + HARD)
+    assert doc.meta['page']['lh_48'] == 8.0
+    assert doc.meta['page']['text_lines'] == 55
+
+def test_page_geometry_lh_zero_and_auto_rejected():
+    # .lh 0 is meaningless and .lh a is auto-leading -- both leave the
+    # default standing (and stay preserved verbatim in dot_commands)
+    for arg in (b'.LH 0', b'.LH A'):
+        doc = core.parse_ws(arg + HARD + b'x' + HARD)
+        assert doc.meta['page']['lh_48'] == 8.0
+        assert doc.meta['page']['lh_source'] == 'default'
+        assert doc.meta['page']['text_lines'] == 55
+
+def test_page_geometry_ls_recorded_but_never_divides_capacity():
+    # the trap the manual defuses: line-spacing blanks are LITERAL lines in
+    # the file ("when you use line spacing, the blank lines become part of
+    # the file" -- WS7 manual, "Line Spacing"), so the body already carries
+    # them; dividing capacity by .ls would double-count.
+    doc = core.parse_ws(b'.LS 2' + HARD + b'x' + HARD)
+    page = doc.meta['page']
+    assert page['ls'] == 2.0 and page['ls_source'] == 'file'
+    assert page['text_lines'] == 55                       # unchanged
+
+def test_page_geometry_ls_out_of_range_rejected():
+    # spec: "a line spacing of between 1 and 9"
+    for arg in (b'.LS 0', b'.LS 12'):
+        doc = core.parse_ws(arg + HARD + b'x' + HARD)
+        assert doc.meta['page']['ls'] == 1.0
+        assert doc.meta['page']['ls_source'] == 'default'
+
+def test_page_geometry_hm_fm_parsed_but_reserve_no_space():
+    # header/footer margins position header and footer INSIDE .mt/.mb
+    # (".MT ... The header is printed within this margin") -- parsed with
+    # provenance for --diagnose, never subtracted from capacity
+    doc = core.parse_ws(b'.HM 1' + HARD + b'.FM 3' + HARD + b'x' + HARD)
+    page = doc.meta['page']
+    assert page['hm_lines'] == 1.0 and page['hm_source'] == 'file'
+    assert page['fm_lines'] == 3.0 and page['fm_source'] == 'file'
+    assert page['text_lines'] == 55                       # unchanged
+
+def test_page_geometry_absurd_margins_clamp_not_crash():
+    # margins that eat the whole page (garbage in a misdetected binary)
+    # degrade to a 1-line model, never zero/negative/crash
+    doc = core.parse_ws(b'.PL 12' + HARD + b'.MT 40' + HARD + b'.MB 40' + HARD + b'x' + HARD)
+    assert doc.meta['page']['text_lines'] == 1
+
+def test_pdf_printed_top_offset_follows_mt():
+    # the default .mt 3 IS the 36pt top this emitter always used; a bigger
+    # .mt moves the text start down in real points (1 line = 12pt at 6 LPI)
+    from ctrlkd.pdf import _printed_top
+    assert _printed_top(core.parse_ws(b'x' + HARD)) == 36
+    assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 72
+
+def test_pdf_printed_lead_follows_lh():
+    # .lh 8 IS the 12pt lead; .lh 16 prints double-spaced at 24pt
+    from ctrlkd.pdf import _printed_lead
+    assert _printed_lead(core.parse_ws(b'x' + HARD)) == 12.0
+    assert _printed_lead(core.parse_ws(b'.LH 16' + HARD + b'x' + HARD)) == 24.0
+
+def test_pdf_output_bytes_carry_mt_top_and_lh_lead():
+    # end-to-end: the geometry must reach the CONTENT STREAM, not just the
+    # helpers -- .mt 6 starts text at 72pt from the top, .lh 16 spaces
+    # baselines 24pt apart. Read the Td y-coordinates back out of the bytes.
+    import re
+    from ctrlkd.pdf import emit_pdf
+    data = (b'.MT 6' + HARD + b'.LH 16' + HARD +
+            b'Line one.' + HARD + b'Line two.' + HARD + b'Line three.' + HARD)
+    pdf = emit_pdf(core.parse_ws(data), mode='printed')
+    ys = [float(m) for m in re.findall(rb'[\d.]+ ([\d.]+) Td', pdf)]
+    assert ys[0] == 792 - 72 - 12                  # top from .mt, not fixed 36
+    assert ys[0] - ys[1] == 24.0                   # lead from .lh, not fixed 12
+    assert ys[1] - ys[2] == 24.0
+
+def test_pdf_printstream_capacity_is_the_full_page():
+    # a print stream IS the printed page -- its margin blanks travel in-band,
+    # so the page budget is the FULL 66 lines of a Letter page: anything
+    # smaller could split a physical page the printer produced whole
+    from ctrlkd.pdf import _printed_cap, _printed_top
+    doc = core.parse_printstream(b'line one\r\nline two\r\n')
+    assert _printed_cap(doc) == 66
+    assert _printed_top(doc) == 36                        # fixed: not .mt-derived
+
 # ---------------------------------------------------------------- small parser additions
 
 def _ws7_tab(size_hmi, tab_type_byte, tenths=0):
@@ -874,6 +983,8 @@ def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
     from ctrlkd.pdf import _doc_to_pagelines, CONTINUATION_TEXT
     words = [f'word{i:03d}' for i in range(80)]
     data = (b'.PL 18' + HARD +                    # a small page: forces a split
+            b'.MT 3' + HARD + b'.MB 3' + HARD +   # stated so capacity is 18-3-3=12,
+                                                   # not left to the 3+8 defaults
             ws7_block(0x00) +
             b'First body line has the note' + ws7_note(0x03, ' '.join(words).encode(), number=0) +
             b' right here.' + HARD +
@@ -1041,7 +1152,9 @@ def test_pdf_printed_no_page_ever_exceeds_its_capacity():
     # once even one body line has been placed on a terminal page.
     from ctrlkd.pdf import _doc_to_pagelines, _printed_cap
     words = [f'word{i:03d}' for i in range(60)]
-    data = (b'.PL 12' + HARD + ws7_block(0x00) +
+    data = (b'.PL 12' + HARD +
+            b'.MT 3' + HARD + b'.MB 3' + HARD +   # capacity 12-3-3=6, margins stated
+            ws7_block(0x00) +
             b'Only line has a note' + ws7_note(0x03, ' '.join(words).encode(), number=0) +
             b' here.' + HARD)
     doc = core.parse_ws(data)

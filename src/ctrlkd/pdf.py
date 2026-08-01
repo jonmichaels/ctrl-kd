@@ -19,12 +19,14 @@ PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
 SIZE, LEAD = 12, 12                  # 10 CPI pica x 6 LPI — the dot-matrix standard;
                                      # a 65-col WordStar line is exactly 6.5in
-TOP_MODERN, TOP_PRINTED = 72, 36     # print streams carry their own top-margin blanks
+TOP_MODERN, TOP_PRINTED = 72, 36     # printed: default when a stream has no geometry
+                                     # meta (its margin blanks travel in-band); WS docs
+                                     # get an .mt-derived top from _printed_top()
 LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
-LINES_PRINTED = (PAGE_H - 2 * 36) // LEAD                # 60 -- the US Letter default;
-                                                          # printed mode's real per-document
-                                                          # figure comes from _printed_cap(),
-                                                          # which honours .pl-derived geometry
+# Printed capacity is per-document: _printed_cap() -- WordStar's own model
+# (.pl - .mt - .mb at the .lh line height; 55 for WordStar's defaults). The
+# old hardcoded (PAGE_H - 2*36)//LEAD = 60 was a naive Letter computation
+# that matched no WordStar the manual describes.
 MAX_COLS = int((PAGE_W - 2 * MARGIN) / (SIZE * 0.6))     # 65 — WordStar's own margin
 
 # Period-authentic footnote layout (Printed mode only -- WordStar Professional
@@ -55,9 +57,45 @@ def _resolved_page_height(doc, printed):
 def _printed_cap(doc):
     """Lines of vertical room on a printed page for THIS document -- the
     cap used both for plain pagination and as the footnote layout's page
-    budget (see _paginate_printed_notes)."""
+    budget (see _paginate_printed_notes).
+
+    WS documents carry doc.meta['page'] and get WordStar's own vertical
+    model (core._text_lines_per_page: .pl - .mt - .mb at the .lh line
+    height -- 55 for WordStar's defaults, NOT the 60 a naive 1in-margin
+    computation gives). Print streams have no 'page' meta and ARE the
+    printed page -- their margin blanks travel in-band -- so their budget
+    is the FULL page height in lines (66 on Letter): anything smaller
+    would split a physical page that the printer produced whole."""
+    page = doc.meta.get('page')
+    if page is not None:
+        return max(FOOTNOTE_FLOOR + 1, page.get('text_lines', 55))
     page_h = _resolved_page_height(doc, True)
-    return max(FOOTNOTE_FLOOR + 1, (page_h - 2 * TOP_PRINTED) // LEAD)
+    return max(FOOTNOTE_FLOOR + 1, int(page_h // LEAD))
+
+def _printed_top(doc):
+    """Top-of-text offset in points for printed mode. WS documents start
+    where .mt says (lines at 6 LPI -> 12pt each; the default .mt 3 is the
+    36pt this emitter always used). Print streams keep the fixed 36pt --
+    their own top-margin blanks are in the data (minus the machine-margin
+    strip in _doc_to_pagelines). Clamped inside the page so garbage .mt
+    from a misdetected binary degrades to an ugly page, never an absurd
+    coordinate space."""
+    page = doc.meta.get('page')
+    if page is None:
+        return TOP_PRINTED
+    page_h = _resolved_page_height(doc, True)
+    return max(0, min(round(page.get('mt_lines', 3.0) * 12), page_h - LEAD))
+
+def _printed_lead(doc):
+    """Baseline-to-baseline distance in points for printed mode: .lh is
+    1/48in units, a point is 1/72in -> lh * 1.5. Default .lh 8 IS the 12pt
+    lead this emitter always used. Print streams (no 'page' meta) keep the
+    fixed LEAD."""
+    page = doc.meta.get('page')
+    if page is None:
+        return LEAD
+    lh = page.get('lh_48', 8.0)
+    return lh * 1.5 if lh > 0 else LEAD
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}
@@ -416,7 +454,7 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _page_stream(pagelines, top, page_h=PAGE_H):
+def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD):
     ops = []
     y = page_h - top - SIZE
     for line in pagelines:
@@ -436,7 +474,7 @@ def _page_stream(pagelines, top, page_h=PAGE_H):
             if 'strike' in styles and text.strip():
                 ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
             x += w
-        y -= LEAD
+        y -= lead
     return b'\n'.join(ops)
 
 @emitter('pdf')
@@ -445,7 +483,9 @@ def emit_pdf(doc, mode='modern', **options):
     stream per page, xref. Returns bytes — PDF is a binary format."""
     printed = mode == 'printed' or _printed(doc)
     pages = _doc_to_pagelines(doc, printed)
-    top = TOP_PRINTED if printed else TOP_MODERN
+    top = _printed_top(doc) if printed else TOP_MODERN    # .mt-derived for WS docs;
+                                                           # default .mt 3 IS the old 36pt
+    lead = _printed_lead(doc) if printed else LEAD        # .lh-derived; .lh 8 IS 12pt
     page_h = _resolved_page_height(doc, printed)          # file geometry wins in
                                                            # printed mode (Task: .pl);
                                                            # modern stays fixed Letter
@@ -476,7 +516,7 @@ def emit_pdf(doc, mode='modern', **options):
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
                      % (PAGE_W, page_h, font_dict, cnum)))
-        stream = _page_stream(pl, top, page_h)
+        stream = _page_stream(pl, top, page_h, lead)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 

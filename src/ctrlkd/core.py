@@ -16,6 +16,7 @@ WordStar background this code encodes:
   sent to the printer, captured to a file. They ARE the printed page.
 """
 from __future__ import annotations
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -239,7 +240,9 @@ _DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
 _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 
 _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
-                  b'MB': 'mb_lines', b'PO': 'po_cols'}
+                  b'MB': 'mb_lines', b'PO': 'po_cols',
+                  b'HM': 'hm_lines', b'FM': 'fm_lines',
+                  b'LH': 'lh_48', b'LS': 'ls'}
 
 # Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
 # 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
@@ -260,6 +263,10 @@ DEFAULT_MB_LINES = 8.0     # spec: ".MB ... The default value is 8 lines."
 DEFAULT_PO_COLS = 0.0      # no default is stated in the spec for .po; 0 (flush
                            # with the paper edge) is the least presumptuous
                            # reading rather than a remembered/guessed figure.
+DEFAULT_HM_LINES = 2.0     # spec: ".HM ... Default is 2." (header sits INSIDE .mt)
+DEFAULT_FM_LINES = 2.0     # spec: ".FM ... Default is 2." (footer sits INSIDE .mb)
+DEFAULT_LH_48 = 8.0        # spec: ".LH ... The default is 8/48 or 6 lines per inch."
+DEFAULT_LS = 1.0           # single spacing (WS7 manual, "Line Spacing")
 
 def _dot_arg_inches(value: float, unit: bytes | None):
     """Convert a dot-command argument's optional unit suffix to inches.
@@ -286,6 +293,57 @@ def _resolve_cols_arg(value: float, unit: bytes | None) -> float:
     """.po argument -> print columns, at 10 CPI. Unit-less IS columns."""
     inches = _dot_arg_inches(value, unit)
     return value if inches is None else inches * 10.0
+
+def _resolve_lh_arg(value: float, unit: bytes | None):
+    """.lh argument -> line height in 1/48in units. Unit-less IS 48ths (WS7
+    manual: "You can also type the dot command in 48ths of an inch. For
+    example, .lh 8 is 8/48 inch, or the standard 6 lines per inch"); an
+    explicit unit suffix converts. `.lh a` (auto-leading) never reaches here
+    -- the numeric matcher won't match it, so it stays default + verbatim.
+    A non-positive height is meaningless: rejected (None), default stands."""
+    inches = _dot_arg_inches(value, unit)
+    resolved = value if inches is None else inches * 48.0
+    return resolved if resolved > 0 else None
+
+def _resolve_ls_arg(value: float, unit: bytes | None):
+    """.ls argument -> line spacing. "A line spacing of between 1 and 9"
+    (WS7 file format spec); anything else is junk, rejected (None). Any unit
+    suffix is likewise junk -- spacing is a count, not a measure."""
+    if unit is not None or not 1 <= value <= 9:
+        return None
+    return value
+
+_PAGE_DOT_RESOLVERS = {'po_cols': _resolve_cols_arg, 'lh_48': _resolve_lh_arg,
+                       'ls': _resolve_ls_arg}     # everything else: lines at 6 LPI
+
+def _text_lines_per_page(pl_lines: float, mt_lines: float, mb_lines: float,
+                         lh_48: float) -> int:
+    """Printed text lines per page -- WordStar's own vertical model (WS7
+    manual, "Page Layout"): "The top and bottom margins define the space
+    between the text and the top and bottom of the paper. On an 8.5 x 11-inch
+    page, if the top margin is .33 inches and the bottom margin is 1.33
+    inches, the space left for text is 9.33 inches." Lines available is that
+    text height divided by the line height (.lh, 1/48in units): "Changing the
+    line height affects the number of lines that can be printed on a page."
+    WordStar's own defaults (.pl 66 .mt 3 .mb 8 .lh 8) give 55.
+
+    Deliberately NOT in the formula:
+    - .hm/.fm -- the header prints WITHIN .mt and the footer WITHIN .mb
+      (".MT ... The header is printed within this margin"; ".MB ... The
+      footer or page number is printed within this margin"), so they position
+      header/footer inside space already subtracted, never reserve more.
+    - .ls -- line-spacing blanks are literal lines in the file ("when you use
+      line spacing, the blank lines become part of the file", WS7 manual,
+      "Line Spacing"), so the body text already carries them; dividing
+      capacity by .ls would double-count.
+
+    Unit-less .mt/.mb are lines at the fixed 6 LPI baseline (the module-note
+    assumption); .lh at parse time is resolved once per document (first
+    occurrence wins), not tracked per-line."""
+    usable = pl_lines - mt_lines - mb_lines            # lines at 6 LPI
+    if not math.isfinite(usable) or not math.isfinite(lh_48) or lh_48 <= 0:
+        return 1
+    return max(1, int(usable * 8.0 / lh_48))
 
 def _resolve_page_size(pl_lines: float):
     """pl_lines -> (height_in, size_name). Snaps to a named size when close;
@@ -340,8 +398,10 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
             return
         value = float(num.group(1))
         unit = num.group(2)
-        resolver = _resolve_cols_arg if name == b'PO' else _resolve_lines_arg
-        page[key] = resolver(value, unit)
+        resolver = _PAGE_DOT_RESOLVERS.get(key, _resolve_lines_arg)
+        resolved = resolver(value, unit)
+        if resolved is not None:                      # junk argument: default stands
+            page[key] = resolved
     elif name in (b'PT', b'PSA', b'PSB'):
         # WordTsar's own invented dot commands (its source calls them "not a
         # Wordstar command"). A real WordStar file never contains these --
@@ -676,6 +736,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     mt_lines = page.get('mt_lines')
     mb_lines = page.get('mb_lines')
     po_cols = page.get('po_cols')
+    hm_lines = page.get('hm_lines')
+    fm_lines = page.get('fm_lines')
+    lh_48 = page.get('lh_48')
+    ls = page.get('ls')
     # Exposed per the IR contract: a consumer must be able to distinguish
     # "Legal (from file)" from "Letter (default)" -- provenance lives
     # alongside every resolved figure, not just the page size.
@@ -690,7 +754,22 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         'mb_source': 'file' if mb_lines is not None else 'default',
         'po_cols': po_cols if po_cols is not None else DEFAULT_PO_COLS,
         'po_source': 'file' if po_cols is not None else 'default',
+        'hm_lines': hm_lines if hm_lines is not None else DEFAULT_HM_LINES,
+        'hm_source': 'file' if hm_lines is not None else 'default',
+        'fm_lines': fm_lines if fm_lines is not None else DEFAULT_FM_LINES,
+        'fm_source': 'file' if fm_lines is not None else 'default',
+        'lh_48': lh_48 if lh_48 is not None else DEFAULT_LH_48,
+        'lh_source': 'file' if lh_48 is not None else 'default',
+        'ls': ls if ls is not None else DEFAULT_LS,
+        'ls_source': 'file' if ls is not None else 'default',
     }
+    # The one derived figure consumers actually need: printed text lines per
+    # page, from WordStar's own vertical model (see _text_lines_per_page for
+    # the formula and the deliberate exclusions). Defaults -> 55, NOT the 60
+    # a naive 1in-margin Letter computation gives.
+    doc.meta['page']['text_lines'] = _text_lines_per_page(
+        doc.meta['page']['pl_lines'], doc.meta['page']['mt_lines'],
+        doc.meta['page']['mb_lines'], doc.meta['page']['lh_48'])
     if meta_extra:
         doc.meta.update(meta_extra)
     return doc
