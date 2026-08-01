@@ -57,9 +57,11 @@ Block
               'pagebreak'  explicit page break (.pa dot command / form feed)
               'softpage'   WordStar's own pagination — render only in printed mode
   .heading    0 = body; 1..3 = title/heading/subheading level (WS5+)
-  .lines      list[Line]
+  .lines      list[Line]     # PHYSICAL lines since 2.0.0 — see below
 Line
   .spans      list[Span]
+  .soft       bool           # True: ends in WordStar's own word wrap (a real line
+                             # break on paper; just a join point for reflow)
   .text()     -> str        # convenience: all span text joined
 Span
   .text       str
@@ -73,9 +75,15 @@ Span
 
 Semantics worth knowing:
 
-* Within a `para` block, each `Line` is a **deliberate** line break (a poem line,
-  a name/date heading, a chart row) — word wrap was already joined during
-  parsing. Paragraph separation is the block boundary itself.
+* Within a `para` block, each `Line` is a **physical** line — exactly what sat on
+  one printed line, including WordStar's own word wrap (`line.soft` marks those).
+  Rendering line-for-line (printed mode)? Use `block.lines` directly. Reflowing
+  (modern mode)? Call **`core.merged_lines(block)`** to get logical lines with
+  soft-wrapped runs joined back (spaces inserted with WordStar's own rule, none
+  after a hyphen); each logical line is then a deliberate break (a poem line, a
+  name/date heading, a chart row). Before 2.0.0 the joining happened at parse
+  time and printed mode couldn't undo it — thousand-column lines ran off the
+  page. Paragraph separation is the block boundary itself.
 * Leading spaces in line text are the author's indentation. Keep them if your
   format can.
 * Blank-line geometry inside `printed`-mode documents is page layout — preserve it.
@@ -84,7 +92,7 @@ Semantics worth knowing:
 
 ```python
 # ctrlkd_bbcode.py
-from ctrlkd import emitter
+from ctrlkd import emitter, merged_lines
 
 TAGS = {'b': 'b', 'i': 'i', 'u': 'u', 'sup': 'sup', 'sub': 'sub', 'strike': 's'}
 
@@ -98,7 +106,8 @@ def emit_bbcode(doc, mode='modern', **options):
             out.append('[hr]')
             continue
         lines = []
-        for line in block.lines:
+        # physical lines when line-for-line, logical lines when reflowing
+        for line in (block.lines if mode == 'printed' else merged_lines(block)):
             seg = ''
             for span in line.spans:
                 text = span.text
@@ -173,7 +182,7 @@ these; none are required.
 |---|---|
 | `variant` | `ws4` / `ws5+` / `printstream` / `text` — how the file is *encoded* |
 | `producer` | who *wrote* it, when detectable. `'wordtsar'` when the WordTsar-only dot commands `.PT`/`.PSA`/`.PSB` are present — those are not WordStar commands. Provenance, not format: a WordTsar file is still `ws5+` |
-| `page` | page geometry from the file's own `.pl`/`.po`/`.mt`/`.mb`/`.hm`/`.fm`/`.lh`/`.ls`, with provenance: `size_name`, `size_source` (`'file'` \| `'default'`), `height_in`, `pl_lines`, `mt_lines`, `mb_lines`, `po_cols`, `hm_lines`, `fm_lines`, `lh_48` (line height, 1/48 in units), `ls` and their `*_source`. **Unit-less dot-command arguments are LINES, not inches** (`.lh`'s are 1/48 in; `.po`'s are columns). Also carries the derived `text_lines` — printed text lines per page from WordStar's own model, `(pl − mt − mb)` at the `.lh` line height (55 for the defaults). `.hm`/`.fm` never reserve space (header/footer print *inside* `.mt`/`.mb`) and `.ls` never divides capacity (its blank lines are literal lines in the file); both are recorded for diagnosis only. Lets a caller say "Legal (from file)" vs "Letter (default)" |
+| `page` | page geometry from the file's own `.pl`/`.po`/`.mt`/`.mb`/`.hm`/`.fm`/`.lh`/`.ls`/`.cw`, with provenance: `size_name`, `size_source` (`'file'` \| `'default'`), `height_in`, `pl_lines`, `mt_lines`, `mb_lines`, `po_cols`, `hm_lines`, `fm_lines`, `lh_48` (line height, 1/48 in units), `ls`, `cw_120` (character width, 1/120 in units — 12 is 10 CPI) and their `*_source`. **Unit-less dot-command arguments are LINES, not inches** (`.lh`'s are 1/48 in; `.po`'s are columns; `.cw`'s are 1/120 in). Also carries the derived `text_lines` — printed text lines per page from WordStar's own model, `(pl − mt − mb)` at the `.lh` line height (55 for the defaults). `.po` defaults to **8** columns — the WS7 manual's ".8 inch" — and positions printed text at `po × cw` from the paper edge. `.hm`/`.fm` never reserve space (header/footer print *inside* `.mt`/`.mb`) and `.ls` never divides capacity (its blank lines are literal lines in the file); both are recorded for diagnosis only. Lets a caller say "Legal (from file)" vs "Letter (default)" |
 | `footnote_number_start` / `endnote_number_start` | starting values from `.f#` / `.e#`, default 1. Footnotes and endnotes number **independently** — WordStar has separate commands for separate sequences |
 | `comment_bug` | printstream only. WordStar's own print-time damage: documents containing `^ONC` comments, printed to disk with the ASCII/ASC256/PRVIEW/WS4 drivers (not XTRACT), lost the rest of the line after the comment. `{count, first_offset, stray_ctrl_t}`. **Report this as 1990s damage, not as a parse failure** — telling those apart is the point of a rescue tool |
 | `margin_estimate` | statistically recovered wrap column |

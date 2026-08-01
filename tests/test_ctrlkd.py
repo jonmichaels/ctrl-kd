@@ -718,7 +718,9 @@ def test_page_geometry_defaults_to_letter():
     assert page['size_source'] == 'default'
     assert page['mt_lines'] == 3.0 and page['mt_source'] == 'default'
     assert page['mb_lines'] == 8.0 and page['mb_source'] == 'default'
-    assert page['po_cols'] == 0.0 and page['po_source'] == 'default'
+    # 8, not 0: WS7 manual, "The default page offset is .8 inch" -- since 2.0.0
+    # renders the offset, the manual's stated default governs
+    assert page['po_cols'] == 8.0 and page['po_source'] == 'default'
 
 def test_page_geometry_pl_unitless_is_lines_not_inches():
     # THE trap: WordTsar's own @todo admits it falls back to inches when
@@ -877,6 +879,96 @@ def test_pdf_output_bytes_carry_mt_top_and_lh_lead():
     assert ys[0] == 792 - 72 - 12                  # top from .mt, not fixed 36
     assert ys[0] - ys[1] == 24.0                   # lead from .lh, not fixed 12
     assert ys[1] - ys[2] == 24.0
+
+# ------------------------------------------- horizontal geometry (2.0.0)
+
+# WS4-shaped bytes: soft return = 8D 0A, hard = 0D 0A. ws4_text-style helper
+# fixtures exist above for style codes; plain ASCII is enough here.
+SOFT = b'\x8d\x0a'
+
+def _ws_wrapped_para():
+    # two soft-wrapped physical lines then a hard return -- classic word wrap.
+    # Lines are near the 65-col default margin so lines_pass reads the soft
+    # breaks as wrap (joining would overflow), not as deliberate breaks.
+    l1 = b'w' * 30 + b' ' + b'x' * 30
+    l2 = b'y' * 30 + b' ' + b'z' * 30
+    return l1 + SOFT + l2 + HARD
+
+def test_soft_wrapped_lines_stay_physical_in_the_ir():
+    doc = core.parse_ws(_ws_wrapped_para())
+    para = [b for b in doc.blocks if b.kind == 'para'][0]
+    assert len(para.lines) == 2                    # physical lines preserved
+    assert para.lines[0].soft is True              # ...and marked
+    assert para.lines[1].soft is False
+
+def test_merged_lines_reproduces_the_old_logical_line():
+    # the reflow view: soft runs joined with the old space rule
+    doc = core.parse_ws(_ws_wrapped_para())
+    para = [b for b in doc.blocks if b.kind == 'para'][0]
+    logical = core.merged_lines(para)
+    assert len(logical) == 1
+    text = logical[0].text()
+    assert text == 'w' * 30 + ' ' + 'x' * 30 + ' ' + 'y' * 30 + ' ' + 'z' * 30
+
+def test_merged_lines_suppresses_space_after_hyphen():
+    # l1 must be long enough that lines_pass reads the soft break as wrap
+    # (L + 1 + W >= the 65-col default margin), or the break is 'line' and
+    # never merges at all
+    l1 = b'a' * 56 + b' hyphen-'
+    data = l1 + SOFT + b'ated word plus enough text to reach the margin here.' + HARD
+    doc = core.parse_ws(data)
+    para = [b for b in doc.blocks if b.kind == 'para'][0]
+    logical = core.merged_lines(para)
+    assert 'hyphen-ated' in logical[0].text()      # no space injected
+
+def test_printed_text_renders_physical_lines_modern_renders_logical():
+    # emit_text on a parse_ws doc directly: convert()'s auto-detect would
+    # read these low-high-bit synthetic bytes as a printstream and never
+    # exercise the soft flags at all (a vacuous pass)
+    from ctrlkd.emit import emit_text
+    doc = core.parse_ws(_ws_wrapped_para())
+    printed = emit_text(doc, mode='printed')
+    modern = emit_text(doc, mode='modern')
+    assert 'w' * 30 + ' ' + 'x' * 30 + '\n' + 'y' * 30 in printed   # break kept
+    assert 'x' * 30 + ' ' + 'y' * 30 in modern                       # joined
+
+def test_page_geometry_cw_parsed_and_units():
+    doc = core.parse_ws(b'.CW 10' + HARD + b'x' + HARD)
+    assert doc.meta['page']['cw_120'] == 10.0
+    assert doc.meta['page']['cw_source'] == 'file'
+    # 0.1 inch = 12/120ths -- the default pitch, stated in inches
+    doc = core.parse_ws(b'.CW 0.1"' + HARD + b'x' + HARD)
+    assert doc.meta['page']['cw_120'] == pytest.approx(12.0)
+
+def test_page_geometry_cw_zero_rejected():
+    doc = core.parse_ws(b'.CW 0' + HARD + b'x' + HARD)
+    assert doc.meta['page']['cw_120'] == 12.0
+    assert doc.meta['page']['cw_source'] == 'default'
+
+def test_pdf_printed_size_and_left_follow_cw_po():
+    from ctrlkd.pdf import _printed_size, _printed_left
+    d_default = core.parse_ws(b'x' + HARD)
+    assert _printed_size(d_default) == 12
+    assert _printed_left(d_default, 12) == pytest.approx(8 * 12 * 0.6)   # 57.6
+    d_elite = core.parse_ws(b'.CW 10' + HARD + b'.PO 12' + HARD + b'x' + HARD)
+    assert _printed_size(d_elite) == 10
+    assert _printed_left(d_elite, 10) == pytest.approx(12 * 10 * 0.6)    # 72.0
+
+def test_pdf_output_bytes_carry_po_left_and_cw_size():
+    # end-to-end: x-coordinates and Tf size come from the file's own .po/.cw
+    import re
+    from ctrlkd.pdf import emit_pdf
+    data = (b'.PO 12' + HARD + b'.CW 10' + HARD + b'Line one.' + HARD)
+    pdf = emit_pdf(core.parse_ws(data), mode='printed')
+    m = re.search(rb'/F1 (\d+) Tf \d+ Ts ([\d.]+) [\d.]+ Td', pdf)
+    assert m and m.group(1) == b'10'               # elite type size
+    assert m.group(2) == b'72.0'                   # 12 cols x 10pt x 0.6em
+
+def test_pdf_printstream_keeps_fixed_margin_and_size():
+    from ctrlkd.pdf import _printed_size, _printed_left
+    ps = core.parse_printstream(b'line one\r\n')
+    assert _printed_size(ps) == 12
+    assert _printed_left(ps, 12) == 72.0           # streams: offset is in-band
 
 def test_pdf_printstream_capacity_is_the_full_page():
     # a print stream IS the printed page -- its margin blanks travel in-band,

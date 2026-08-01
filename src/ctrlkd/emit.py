@@ -10,6 +10,8 @@ Two rendering philosophies, chosen by the caller:
 import html as _html
 import re
 
+from .core import merged_lines
+
 # ---------------------------------------------------------------- registry
 #
 # The extension point. An emitter is any callable (doc, mode='modern', **options)
@@ -164,6 +166,7 @@ def emit_text(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
+    printed = mode == 'printed' or _printed(doc)
     out = []
     for b in doc.blocks:
         if b.kind == 'softpage':                 # WordStar's own pagination:
@@ -174,7 +177,9 @@ def emit_text(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
         lines = []
-        for line in b.lines:
+        # printed: PHYSICAL lines (soft returns broke the line on paper);
+        # modern: logical lines, soft runs joined back (core.merged_lines)
+        for line in (b.lines if printed else merged_lines(b)):
             seg = []
             for s in line.spans:
                 note, label = (_resolve_ref(refs, s.text)
@@ -275,7 +280,8 @@ def emit_markdown(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
         if b.kind == 'pagebreak':
             out.append('---')
             continue
-        lines = [''.join(_md_span(s, refs, keep) for s in line.spans) for line in b.lines]
+        lines = [''.join(_md_span(s, refs, keep) for s in line.spans)
+                 for line in merged_lines(b)]          # logical lines: soft wraps joined
         para = '\\\n'.join(l for l in lines)          # hard breaks: trailing backslash
         if b.heading and para.strip():
             para = '#' * b.heading + ' ' + para.strip()
@@ -417,16 +423,19 @@ def emit_html(doc, mode='modern', title='', notes=DEFAULT_NOTE_KINDS, **_options
             parts.append('<hr class="pb">')
             continue
         if b.heading:
-            txt = ' '.join(_html_line(line, refs, keep) for line in b.lines).strip()
+            # merged either mode: a heading is a logical unit, and joining its
+            # logical lines with a space is what this always rendered
+            txt = ' '.join(_html_line(line, refs, keep) for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}>{txt}</h{b.heading}>')
             continue
         if printed:
+            # PHYSICAL lines: inside <pre>, a soft return is a real line break
             body = '\n'.join(_html_line(line, refs, keep, keep_ws=True) for line in b.lines)
             if body.strip():
                 parts.append(f'<pre>{body}</pre>')
         else:
-            lines = [_html_line(line, refs, keep) for line in b.lines]
+            lines = [_html_line(line, refs, keep) for line in merged_lines(b)]
             para = '<br>\n'.join(lines)
             if para.strip():
                 parts.append(f'<p>{para}</p>')
@@ -540,7 +549,9 @@ def emit_rtf(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
             parts.append(r'\page ')
             continue
         lines = []
-        for line in b.lines:
+        # printed: physical lines (\line at every printed break, soft or hard);
+        # modern: logical lines only
+        for line in (b.lines if printed else merged_lines(b)):
             seg = ''.join(_rtf_span(sp, refs, keep) for sp in line.spans)
             lines.append(seg)
         if b.heading:

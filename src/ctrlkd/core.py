@@ -30,6 +30,9 @@ class Span:
 @dataclass
 class Line:
     spans: list = field(default_factory=list)
+    soft: bool = False                   # ends in WordStar's own word wrap (8D soft
+                                          # return): ON PAPER this was a real line break;
+                                          # for reflow it joins the next line (merged_lines)
 
     def text(self):
         return ''.join(s.text for s in self.spans)
@@ -39,6 +42,36 @@ class Block:
     kind: str                            # 'para' | 'pagebreak' | 'softpage'
     lines: list = field(default_factory=list)
     heading: int = 0                     # 0 = body text; 1-3 = WS5+ title/header/subheading
+
+def merged_lines(block: Block) -> list:
+    """Block.lines with soft-wrapped runs joined back into logical lines --
+    what Block.lines itself WAS before 2.0.0 stored physical lines.
+
+    Printed mode renders Block.lines directly: a soft return is where
+    WordStar broke the line on paper, so the physical line IS the printed
+    line (merging them was the bug that printed thousand-column lines).
+    Reflowing consumers (every Modern emitter) call this instead: a soft
+    break is just word wrap, so the continuation belongs to the same logical
+    line. The join rule is the one parse_ws itself used when it merged at
+    parse time -- a space in the wrapped line's trailing style, suppressed
+    after an existing space or a hyphenated break -- so Modern output is
+    byte-identical either side of the 2.0.0 split."""
+    out, cur = [], None
+    for line in block.lines:
+        if cur is None:
+            cur = Line(list(line.spans))
+        else:
+            cur.spans.extend(line.spans)
+        if line.soft:
+            t = cur.spans[-1].text if cur.spans else ''
+            if t and not t.endswith((' ', '-')):
+                cur.spans.append(Span(' ', cur.spans[-1].styles))
+            continue
+        out.append(cur)
+        cur = None
+    if cur is not None:
+        out.append(cur)
+    return out
 
 @dataclass
 class Note:
@@ -242,7 +275,7 @@ _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
                   b'MB': 'mb_lines', b'PO': 'po_cols',
                   b'HM': 'hm_lines', b'FM': 'fm_lines',
-                  b'LH': 'lh_48', b'LS': 'ls'}
+                  b'LH': 'lh_48', b'LS': 'ls', b'CW': 'cw_120'}
 
 # Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
 # 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
@@ -260,13 +293,18 @@ PAGE_SIZE_SNAP_IN = 0.25
 DEFAULT_PL_LINES = 66.0    # WordStar's own default: 66 lines = 11in = US Letter
 DEFAULT_MT_LINES = 3.0     # spec: ".MT ... Default value is 3 lines."
 DEFAULT_MB_LINES = 8.0     # spec: ".MB ... The default value is 8 lines."
-DEFAULT_PO_COLS = 0.0      # no default is stated in the spec for .po; 0 (flush
-                           # with the paper edge) is the least presumptuous
-                           # reading rather than a remembered/guessed figure.
+DEFAULT_PO_COLS = 8.0      # WS7 manual, "Page Layout": "The default page offset
+                           # is .8 inch" -- 8 print columns at the default 10 CPI.
+                           # (Through 1.3.0 this was 0, "least presumptuous", from
+                           # the file-format spec stating none; the manual DOES
+                           # state one, and 2.0.0 actually renders the offset, so
+                           # the manual's figure governs.)
 DEFAULT_HM_LINES = 2.0     # spec: ".HM ... Default is 2." (header sits INSIDE .mt)
 DEFAULT_FM_LINES = 2.0     # spec: ".FM ... Default is 2." (footer sits INSIDE .mb)
 DEFAULT_LH_48 = 8.0        # spec: ".LH ... The default is 8/48 or 6 lines per inch."
 DEFAULT_LS = 1.0           # single spacing (WS7 manual, "Line Spacing")
+DEFAULT_CW_120 = 12.0      # spec: ".CW ... The default is 12 (12/120ths is 10
+                           # characters per inch)."
 
 def _dot_arg_inches(value: float, unit: bytes | None):
     """Convert a dot-command argument's optional unit suffix to inches.
@@ -313,8 +351,18 @@ def _resolve_ls_arg(value: float, unit: bytes | None):
         return None
     return value
 
+def _resolve_cw_arg(value: float, unit: bytes | None):
+    """.cw argument -> character width in 1/120in units. Unit-less IS 120ths
+    (spec: ".CW ... the width of the characters in 1/120 inch increments. ...
+    The default is 12 (12/120ths is 10 characters per inch)"); an explicit
+    unit suffix converts. Non-positive width is meaningless: rejected."""
+    inches = _dot_arg_inches(value, unit)
+    resolved = value if inches is None else inches * 120.0
+    return resolved if resolved > 0 else None
+
 _PAGE_DOT_RESOLVERS = {'po_cols': _resolve_cols_arg, 'lh_48': _resolve_lh_arg,
-                       'ls': _resolve_ls_arg}     # everything else: lines at 6 LPI
+                       'ls': _resolve_ls_arg,
+                       'cw_120': _resolve_cw_arg}  # everything else: lines at 6 LPI
 
 def _text_lines_per_page(pl_lines: float, mt_lines: float, mb_lines: float,
                          lh_48: float) -> int:
@@ -717,9 +765,17 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
-            t = cur_line.spans[-1].text if cur_line.spans else ''
-            if t and not t.endswith((' ', '-')):
-                cur_line.spans.append(Span(' ', cur_line.spans[-1].styles))
+            # A soft return: a REAL line break on paper (printed mode renders
+            # it), just word wrap for reflow (merged_lines joins it back with
+            # the space rule that used to live right here). 2.0.0: physical
+            # lines are stored; merging is the consumer's choice now.
+            if cur_line.spans:
+                cur_line.soft = True
+                close_line()
+            elif cur.lines:
+                cur.lines[-1].soft = True          # invisible (toggles-only) line:
+                                                    # its softness binds the previous
+                                                    # printed line, as the old merge did
         elif sep == 'line':
             close_line()
         else:                                      # para / eof
@@ -740,6 +796,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     fm_lines = page.get('fm_lines')
     lh_48 = page.get('lh_48')
     ls = page.get('ls')
+    cw_120 = page.get('cw_120')
     # Exposed per the IR contract: a consumer must be able to distinguish
     # "Legal (from file)" from "Letter (default)" -- provenance lives
     # alongside every resolved figure, not just the page size.
@@ -762,6 +819,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         'lh_source': 'file' if lh_48 is not None else 'default',
         'ls': ls if ls is not None else DEFAULT_LS,
         'ls_source': 'file' if ls is not None else 'default',
+        'cw_120': cw_120 if cw_120 is not None else DEFAULT_CW_120,
+        'cw_source': 'file' if cw_120 is not None else 'default',
     }
     # The one derived figure consumers actually need: printed text lines per
     # page, from WordStar's own vertical model (see _text_lines_per_page for

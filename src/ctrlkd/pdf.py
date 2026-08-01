@@ -13,6 +13,7 @@ Styles: bold/italic map to the Courier variants, underline is drawn, superscript
 is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
+from .core import merged_lines as _merged_lines
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
@@ -96,6 +97,37 @@ def _printed_lead(doc):
         return LEAD
     lh = page.get('lh_48', 8.0)
     return lh * 1.5 if lh > 0 else LEAD
+
+def _printed_size(doc):
+    """Type size in points for printed mode, from .cw: character width in
+    1/120in units, and Courier advances 0.6em, so a pitch of cw/120in per
+    character IS a (cw*72/120)/0.6 = cw*1.0 point font. The default .cw 12
+    (10 CPI pica) IS the 12pt this emitter always used; .cw 10 is 12 CPI
+    elite at 10pt. Rounded to whole points (the Tf operator is written as
+    an integer, as it always has been), floored at 1. Print streams keep
+    the fixed SIZE."""
+    page = doc.meta.get('page')
+    if page is None:
+        return SIZE
+    cw = page.get('cw_120', 12.0)
+    return max(1, round(cw)) if cw > 0 else SIZE
+
+def _printed_left(doc, size):
+    """Left edge of text in points for printed mode, from .po: "the number
+    of print columns from the left edge of the paper to the left margin of
+    text. The current setting of character width (.CW) determines the
+    actual amount of indentation" -- so the offset is po columns at this
+    document's own advance (0.6em of `size`). The default .po 8 (the WS7
+    manual's ".8 inch" at 10 CPI) lands at 57.6pt -- NOT the old fixed 72pt
+    MARGIN, which was this emitter's guess, not WordStar's. Print streams
+    keep MARGIN: their offset spaces, where a driver emitted them, are
+    in-band. Clamped inside the page for garbage .po from misdetected
+    binaries."""
+    page = doc.meta.get('page')
+    if page is None:
+        return float(MARGIN)
+    left = page.get('po_cols', 8.0) * size * 0.6
+    return max(0.0, min(left, PAGE_W - size * 0.6))
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}
@@ -384,7 +416,10 @@ def _doc_to_pagelines(doc, printed):
             continue
         if b.kind == 'softpage':
             continue
-        for line in b.lines:
+        # printed renders PHYSICAL lines (a soft return broke the line on
+        # paper); modern reflows LOGICAL lines (soft runs joined back --
+        # core.merged_lines, the 2.0.0 split)
+        for line in (b.lines if printed else _merged_lines(b)):
             # the docstring's "headings bold" promise: heading blocks render in
             # Courier-Bold (found unimplemented by the Swift port, job-011)
             spans = [(s.text, s.styles | {'b'} if b.heading else s.styles)
@@ -454,21 +489,24 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD):
+def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
+                 left=float(MARGIN)):
     ops = []
-    y = page_h - top - SIZE
+    sup_size = max(1, round(size * 2 / 3))       # 8 at the default 12 -- the
+                                                  # ratio this emitter always used
+    y = page_h - top - size
     for line in pagelines:
-        x = MARGIN
+        x = left
         for text, styles in _coalesce(line):
             if not text:
                 continue
             sup = 'sup' in styles or 'sub' in styles
-            size = 8 if sup else SIZE
+            size_here = sup_size if sup else size
             rise = 3 if 'sup' in styles else (-2 if 'sub' in styles else 0)
             font = FONTS[('b' in styles, 'i' in styles)]
             ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                       (font.encode(), size, rise, x, y, _esc(text)))
-            w = len(text) * size * 0.6
+                       (font.encode(), size_here, rise, x, y, _esc(text)))
+            w = len(text) * size_here * 0.6
             if 'u' in styles and text.strip():
                 ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
             if 'strike' in styles and text.strip():
@@ -486,6 +524,10 @@ def emit_pdf(doc, mode='modern', **options):
     top = _printed_top(doc) if printed else TOP_MODERN    # .mt-derived for WS docs;
                                                            # default .mt 3 IS the old 36pt
     lead = _printed_lead(doc) if printed else LEAD        # .lh-derived; .lh 8 IS 12pt
+    size = _printed_size(doc) if printed else SIZE        # .cw-derived; .cw 12 IS 12pt
+    left = _printed_left(doc, size) if printed else float(MARGIN)   # .po-derived;
+                                                           # default .po 8 = 57.6pt, the
+                                                           # manual's .8in -- see _printed_left
     page_h = _resolved_page_height(doc, printed)          # file geometry wins in
                                                            # printed mode (Task: .pl);
                                                            # modern stays fixed Letter
@@ -516,7 +558,7 @@ def emit_pdf(doc, mode='modern', **options):
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
                      % (PAGE_W, page_h, font_dict, cnum)))
-        stream = _page_stream(pl, top, page_h, lead)
+        stream = _page_stream(pl, top, page_h, lead, size, left)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 
