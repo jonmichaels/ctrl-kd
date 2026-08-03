@@ -100,7 +100,7 @@ def _rw_symmetric_blocks(cases):
     out = []
     for c in cases:
         data = bytes.fromhex(c['input_hex'])
-        body, notes, _blobs, _tabs = core._symmetric_blocks(data, 'cp437')
+        body, notes, _blobs, _tabs, _gfx = core._symmetric_blocks(data, 'cp437')
         new = dict(c)
         new['output_hex'] = body.hex()
         if 'footnotes' in c:
