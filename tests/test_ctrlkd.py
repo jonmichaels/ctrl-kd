@@ -1333,3 +1333,42 @@ def test_repeated_wordtsar_spacing_dot_commands_first_occurrence_wins():
     last occurrence silently won instead of the first."""
     data = b'.PSA 1\r\n.PSA 99\r\n' + ws7_block(0x00) + b'Body.' + HARD
     assert core.parse(data).meta['space_after_lines'] == 1.0
+
+
+# ---------------------------------------------------------------- A2: blank lines are content
+
+def test_ws4_leading_blank_lines_survive_to_pagelines():
+    """Jon's chapter drop: extra returns before the first text are AUTHORIAL
+    layout and must print. WordStar's own rule (WS7 Reference, "Page Layout"):
+    `.sb` defaults OFF, so blank lines at the top of a page DO print; only SOFT
+    blanks created by line spacing > 1 are suppressed, and only at a page top.
+
+    Shape taken from Jon's real WORK/W4P1: a dot command, then soft/soft/
+    hard/hard/soft blank terminators, then the first text.
+    """
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (b'.op' + HARD + SOFT + SOFT + HARD + HARD + SOFT
+            + ws4_text('In 1867 and 1868, the government made its last treaties.') + HARD)
+    pages = _doc_to_pagelines(core.parse_ws(data), True)
+    blanks = 0
+    for line in pages[0]:
+        if ''.join(t for t, _ in line).strip():
+            break
+        blanks += 1
+    assert blanks >= 4, f'chapter drop lost: {blanks} leading blank lines, expected >= 4'
+
+
+def test_ws4_double_spacing_survives_to_pagelines():
+    """`.ls 2` materialises its filler as SOFT blank lines in the file (WS7
+    Reference: "when you use line spacing, the blank lines become part of the
+    file"). Jon's W4P1 is double-spaced this way: 226 text lines interleaved
+    with 200 soft blanks. Collapsing them destroys the document's vertical
+    rhythm and its page count.
+    """
+    from ctrlkd.pdf import _doc_to_pagelines
+    body = b''
+    for n in range(6):
+        body += ws4_text(f'Line number {n} of the double spaced body text.') + SOFT + SOFT
+    pages = _doc_to_pagelines(core.parse_ws(body), True)
+    pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
+    assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
