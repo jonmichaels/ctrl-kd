@@ -863,6 +863,23 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 out += leader * cols
             elif cmd == 0x0B:                                     # end of page
                 out.append(SENT_SOFTPAGE)
+            elif cmd == 0x0D:                                     # paragraph number
+                # WordStar's AUTOMATIC outline/legal numbering (.p#) -- "2.1.3"
+                # and the like. It used to fall through to UnknownBlock, which
+                # DELETES the computed number from the output entirely: not
+                # unstyled, gone. Outline-numbered essays, wills and structured
+                # reports lost every generated number with no trace.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                out += bytes(c & 0x7F for c in content
+                             if 0x20 <= (c & 0x7F) < 0x7F)
+            elif cmd == 0x0E:                                     # index item
+                # An inline indexed PHRASE. WordStar prints the phrase in the
+                # body -- the index ENTRY is the non-printing part -- so
+                # dropping the block risks losing text outright when the phrase
+                # is not duplicated in the visible stream.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                out += bytes(c & 0x7F for c in content
+                             if 0x20 <= (c & 0x7F) < 0x7F)
             elif cmd == 0x11 and len(block) > 3:                  # paragraph style
                 level = {0x05: 1, 0x02: 2, 0x03: 3}.get(block[3], 0)
                 if level:

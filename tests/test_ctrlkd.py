@@ -1562,3 +1562,24 @@ def test_default_mode_is_printed():
     # same answer as someone at a shell
     md = emit.emit_markdown(core.parse_ws(make_prose()))
     assert md.lstrip().startswith('```'), 'library default is not printed'
+
+
+def test_paragraph_number_text_is_not_deleted():
+    """Type 0x0D is WordStar's AUTOMATIC outline/legal numbering (.p#). It used
+    to fall to UnknownBlock, which deletes the computed number outright -- not
+    unstyled, GONE. Outline-numbered essays, wills and structured reports lost
+    every generated number with no trace."""
+    data = (ws7_block(0x00) + ws7_block(0x0D, b'\x00\x00' + b'2.1.3') +
+            b' body text here' + HARD)
+    txt = emit.emit_text(core.parse_ws(data), 'printed')
+    assert '2.1.3' in txt, 'the generated paragraph number was deleted'
+
+
+def test_index_item_phrase_survives():
+    """Type 0x0E carries an inline indexed PHRASE. WordStar prints the phrase in
+    the body -- the index ENTRY is the non-printing part -- so dropping the block
+    risks losing text outright."""
+    data = (ws7_block(0x00) + ws7_block(0x0E, b'\x00\x00' + b'Chandrasekhar') +
+            b' was an astrophysicist' + HARD)
+    txt = emit.emit_text(core.parse_ws(data), 'printed')
+    assert 'Chandrasekhar' in txt, 'the indexed phrase was lost'
