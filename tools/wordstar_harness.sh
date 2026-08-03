@@ -104,8 +104,13 @@ for _ in $(seq 1 100); do
         [ "$A" = "$B" ] && { FOUND="$CAND"; break; }
     fi
 done
+# Kill ONLY the emulator this run started. `pgrep -x dosbox-x` would kill every
+# dosbox on the machine, including a concurrent run of this same script -- which
+# is exactly what happened when two experiments were run back to back: the first
+# run's cleanup killed the second mid-keystroke, and it stalled at the print
+# prompt with a half-typed filename.
 kill "$DBX" 2>/dev/null || true
-for p in $(pgrep -x dosbox-x 2>/dev/null); do kill "$p" 2>/dev/null || true; done
+wait "$DBX" 2>/dev/null || true
 
 if [ -z "$FOUND" ]; then
     echo "no print output produced." >&2
