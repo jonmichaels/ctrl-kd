@@ -1868,3 +1868,45 @@ def test_justify_is_not_faked_with_padding_in_plain_text():
     doc.meta['variant'] = 'ws4'
     assert 'Justified body.' in emit_text(doc, mode='modern')
     assert '  Justified' not in emit_text(doc, mode='modern')
+
+
+def test_margins_are_per_block_state_not_first_occurrence():
+    """C9. `.lm`/`.rm`/`.pm` are stateful, and emphatically not first-occurrence
+    the way page geometry is -- one archive file sets `.pm` seven hundred times."""
+    doc = core.parse_ws(b'.lm 5\r\n.rm 60\r\nIndented.\r\n.pm 4\r\nPara margin.\r\n')
+    assert [(b.left_margin, b.right_margin, b.para_margin) for b in doc.blocks] == [
+        (5.0, 60.0, None), (5.0, 60.0, 4.0)]
+    # never set -> None, so a consumer applies its own default rather than a
+    # fabricated one
+    b = core.parse_ws(b'Plain.\r\n').blocks[0]
+    assert (b.left_margin, b.right_margin, b.para_margin) == (None, None, None)
+
+
+def test_margins_accept_columns_and_inches():
+    """The archive writes both `.rm 65` and `.rm 6.5"`."""
+    assert core.parse_ws(b'.rm 65\r\nT.\r\n').blocks[0].right_margin == 65.0
+    assert core.parse_ws(b'.rm 6.5"\r\nT.\r\n').blocks[0].right_margin == 65.0
+
+
+def test_centering_measures_against_the_documents_own_margins():
+    """A centred line sits between `.lm` and `.rm`, not inside a hardcoded 65 --
+    so narrowing the margin moves the centre."""
+    from ctrlkd.emit import emit_text
+
+    def indent(src):
+        doc = core.parse_ws(src)
+        doc.meta['variant'] = 'ws4'
+        line = [l for l in emit_text(doc, mode='modern').split('\n') if l.strip()][0]
+        return len(line) - len(line.lstrip())
+
+    narrow = indent(b'.rm 40\r\n.oc on\r\nCentre me.\r\n')
+    wide = indent(b'.rm 70\r\n.oc on\r\nCentre me.\r\n')
+    assert narrow < wide, (narrow, wide)
+    # `.lm` shifts the centre too: WordStar centres BETWEEN the margins
+    assert indent(b'.lm 10\r\n.rm 40\r\n.oc on\r\nCentre me.\r\n') > narrow
+
+
+def test_margins_do_not_leak_into_document_formatting():
+    """They are per-block state; `meta['formatting']` is for document-wide flags."""
+    meta = core.parse_ws(b'.lm 5\r\n.rm 60\r\nT.\r\n').meta['formatting']
+    assert meta == {}

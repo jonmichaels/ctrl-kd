@@ -162,22 +162,25 @@ def _note_slug(label):
 
 # ---------------------------------------------------------------- text
 
-def _text_width(doc) -> int:
-    """The column the text is laid out within, for centring and right-alignment.
+def _text_width(block) -> int:
+    """The column this BLOCK's text is laid out within, for centring and
+    right-alignment.
 
-    `.rm` (right margin) is what WordStar itself measures against; the archive's
-    most common values are 65 and 60. Absent that, fall back to the 65 the rest of
-    this project already wraps at.
+    `.rm` is what WordStar itself measures against, and it is per-block because it
+    is stateful -- a quoted passage narrows the margin and the passage after it
+    widens back. The archive's most common values are 65 and 60. Absent any `.rm`,
+    fall back to the 65 the rest of this project already wraps at.
+
+    `.lm` is added back on: WordStar centres between the two margins, so a block
+    indented to column 5 with a right margin at 60 centres about column 32, not
+    column 30.
     """
-    rm = (doc.meta.get('page') or {}).get('rm_cols')
-    try:
-        rm = int(rm)
-    except (TypeError, ValueError):
-        rm = 0
-    return rm if rm > 0 else 65
+    rm = block.right_margin if block.right_margin and block.right_margin > 0 else 65
+    lm = block.left_margin or 0
+    return int(rm + lm)
 
 
-def _align_lines(lines, align, doc):
+def _align_lines(lines, align, block):
     """Centre or right-align a block's lines within the text width.
 
     Register C16/C17. A centred heading used to render flush left in every
@@ -192,7 +195,7 @@ def _align_lines(lines, align, doc):
     """
     if align not in ('center', 'right'):
         return lines
-    width = _text_width(doc)
+    width = _text_width(block)
     out = []
     for ln in lines:
         stripped = ln.strip()
@@ -237,7 +240,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 else:
                     seg.append(s.text)
             lines.append(''.join(seg))
-        lines = _align_lines(lines, b.align, doc)
+        lines = _align_lines(lines, b.align, b)
         para = '\n'.join(lines)
         if para.strip() or mode == 'printed':
             out.append(para)
