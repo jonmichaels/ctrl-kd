@@ -1411,6 +1411,27 @@ def test_era_table_drives_the_version_behaviour():
     # an unknown variant must not strip high bits: that would silently destroy
     # extended characters, which is the worst available failure
     assert era_for('ws9-from-the-future').high_bit_wordwrap is False
+    # ...but the fallback is a guess about ENCODING and nothing more. 'binary' is
+    # a variant detect() actually returns, so it gets its own row rather than
+    # inheriting ws5+ -- see the next test for what inheriting it destroyed.
+    assert era_for('binary').symmetric_blocks is False
+    assert era_for('binary').high_bit_wordwrap is False
+
+
+def test_binary_variant_does_not_get_symmetric_block_parsing():
+    """Regression: 'binary' inherited the ws5+ fallback, which switched symmetric
+    blocks on for a file detect() had declined to identify. _symmetric_blocks
+    treats EVERY 0x1D as a block-start marker, so an escaped 0x1D swallowed the
+    rest of the line.
+
+    Found by the Swift port's extended-escape test, which had no counterpart
+    here. All five escaped control bytes must survive identically."""
+    for b in (0x01, 0x1C, 0x1D, 0x1E, 0x1F):
+        data = b'A' + bytes([0x1B, b]) + b'B' + HARD
+        doc = core.parse_ws(data)
+        assert doc.meta['variant'] == 'binary'
+        text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
+        assert text == 'A' + chr(b) + 'B', f'escaped {b:#04x} was not passed through'
 
 
 def test_parse_records_the_era_it_used():
