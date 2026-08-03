@@ -1633,3 +1633,38 @@ def test_dot_commands_have_a_position():
     assert pos[1][0] > pos[0][0], 'the second command is in a later block'
     # the flat list still exists for callers that only want to know what was seen
     assert doc.meta['dot_commands'] == ['.op', '.cp 5']
+
+
+def test_tab_indent_does_not_look_like_an_authors_indent():
+    """`lines_pass` treats a next line starting with a space as a DELIBERATE
+    break -- a poem, a block quote. Sound, but `_symmetric_blocks` expands
+    WordStar's type-9 TAB sequences into literal spaces before the classifier
+    runs, and WordStar re-stamps a left indent onto every wrapped line. So every
+    machine-wrapped line looked author-indented, and whole paragraphs never
+    reflowed in Modern: they rendered as physical lines with the wrong margins.
+
+    Tested at `lines_pass` directly, because that is where the decision is made
+    and the tab offsets are its input. Offsets are recorded in the CLEANED
+    stream rather than injected as a sentinel byte -- the day's other sentinel
+    (0x07) collided with a real WordStar code."""
+    a = b'the quick brown fox jumps over the lazy dog and it runs onward'
+    b = b'     continuing the very same sentence with no real break at all'
+    data = a + SOFT + b + HARD
+
+    # No tab information: the leading spaces read as the author's -> deliberate
+    plain = core.lines_pass(data)[0]
+    assert plain[0][1] == 'line'
+
+    # Told that the second line's indent came from a TAB -> word wrap
+    marked = core.lines_pass(data, {len(a) + len(SOFT)})[0]
+    assert marked[0][1] == 'wrap', \
+        'a tab-indented wrapped line was still read as a deliberate break'
+
+
+def test_a_typed_indent_is_still_a_deliberate_break():
+    """The rule must keep working for what it was FOR: an indent the author
+    actually typed still marks a deliberate break, or every poem reflows into
+    prose. The poem corpus is the acceptance gate for any change here."""
+    poem = (b'     A short poem line,' + SOFT +
+            b'     another short line.' + HARD)
+    assert core.lines_pass(poem)[0][0][1] == 'line'
