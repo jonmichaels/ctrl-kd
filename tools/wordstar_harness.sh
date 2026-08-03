@@ -89,7 +89,11 @@ CONF="$WORK/harness.conf"
 } > "$CONF"
 
 echo "running WordStar ($MODE) ..." >&2
-( cd "$WORK" && DISPLAY="${DISP:-}" timeout 300 dosbox-x -conf "$CONF" -nogui >/dev/null 2>&1 || true ) &
+# `setsid` puts the emulator in its OWN process group, so cleanup below can
+# signal the whole tree with one negative PID. Without it there is nothing to
+# aim at: backgrounding a subshell gives you the SUBSHELL's pid, and killing
+# that orphans everything inside it. See the cleanup comment for what that cost.
+setsid env DISPLAY="${DISP:-}" dosbox-x -conf "$CONF" -nogui >/dev/null 2>&1 &
 DBX=$!
 
 # Wait for output to appear and stop growing, rather than guessing a duration.
@@ -104,13 +108,33 @@ for _ in $(seq 1 100); do
         [ "$A" = "$B" ] && { FOUND="$CAND"; break; }
     fi
 done
-# Kill ONLY the emulator this run started. `pgrep -x dosbox-x` would kill every
-# dosbox on the machine, including a concurrent run of this same script -- which
-# is exactly what happened when two experiments were run back to back: the first
-# run's cleanup killed the second mid-keystroke, and it stalled at the print
-# prompt with a half-typed filename.
-kill "$DBX" 2>/dev/null || true
+# Kill ONLY the emulator this run started -- and make sure it actually DIES.
+#
+# `pkill -x dosbox-x` would kill every dosbox on the machine, including a
+# concurrent run of this same script: that happened, and the first run's cleanup
+# killed the second mid-keystroke, leaving it stalled at the print prompt with a
+# half-typed filename. So this signals one process GROUP, never a name.
+#
+# WHY THE ESCALATION IS NOT OPTIONAL (borgcube, 2026-08-03): this used to be a
+# bare `kill "$DBX"`, and DOSBox-X IGNORES SIGTERM. Every run therefore leaked
+# its emulator. Nineteen accumulated over one day, each still writing to its
+# redirect, and they filled a 936 G root filesystem to zero bytes free -- which
+# takes down every service on the box, not just this script. `kill` returning 0
+# means the signal was delivered, never that the process died. Verify, then
+# escalate to the signal nothing can catch.
+kill -TERM -"$DBX" 2>/dev/null || kill -TERM "$DBX" 2>/dev/null || true
+for _ in 1 2 3 4 5; do
+    kill -0 "$DBX" 2>/dev/null || break
+    sleep 1
+done
+if kill -0 "$DBX" 2>/dev/null; then
+    kill -KILL -"$DBX" 2>/dev/null || kill -KILL "$DBX" 2>/dev/null || true
+    sleep 1
+fi
 wait "$DBX" 2>/dev/null || true
+if kill -0 "$DBX" 2>/dev/null; then
+    echo "WARNING: emulator pid $DBX survived SIGKILL -- check for orphans" >&2
+fi
 
 if [ -z "$FOUND" ]; then
     echo "no print output produced." >&2
