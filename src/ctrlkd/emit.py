@@ -14,11 +14,11 @@ from .core import merged_lines
 
 # ---------------------------------------------------------------- registry
 #
-# The extension point. An emitter is any callable (doc, mode='modern', **options)
+# The extension point. An emitter is any callable (doc, mode='printed', **options)
 # -> str, registered under a name. Two ways in:
 #
 #   @ctrlkd.emitter('latex', ext='.tex')            # in your own code
-#   def emit_latex(doc, mode='modern', **options): ...
+#   def emit_latex(doc, mode='printed', **options): ...
 #
 #   [project.entry-points."ctrlkd.emitters"]        # in an installable plugin's
 #   docx = "ctrlkd_docx:emit_docx"                  # pyproject.toml
@@ -162,7 +162,7 @@ def _note_slug(label):
 
 # ---------------------------------------------------------------- text
 
-def emit_text(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -265,7 +265,7 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
             core = f'<{t}>{core}</{t}>'
     return lead + core + trail
 
-def emit_markdown(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     if mode == 'printed' or _printed(doc):
         # alignment is the content: a fenced block is the honest representation
@@ -408,7 +408,7 @@ def _html_notes_sections(pairs, keep):
             f'<ol>{"".join(lis)}</ol></section>')
     return sections
 
-def emit_html(doc, mode='modern', title='', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -533,7 +533,7 @@ def _rtf_span(sp, refs, keep):
     styles = sorted(st for st in sp.styles if st != 'fnref')
     return '{' + ''.join(_RTF_ON.get(st, '') for st in styles) + _rtf_escape(sp.text) + '}'
 
-def emit_rtf(doc, mode='modern', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)

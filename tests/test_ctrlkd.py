@@ -142,12 +142,12 @@ def test_emit_text(prose_doc):
 
 def test_emit_markdown_styles():
     data = b'\x02' + ws4_text('Bold') + b'\x02 ' + b'\x19' + ws4_text('ital') + b'\x19' + HARD
-    md = emit.emit_markdown(core.parse_ws(data))
+    md = emit.emit_markdown(core.parse_ws(data), mode='modern')
     assert '**Bold**' in md and '*ital*' in md
 
 def test_emit_html_poem_breaks():
     poem = b'     line one,' + SOFT + b'     line two.' + HARD
-    h = emit.emit_html(core.parse_ws(poem))
+    h = emit.emit_html(core.parse_ws(poem), mode='modern')
     assert '<br>' in h and '<p>' in h
 
 def test_emit_html_printed_pre():
@@ -220,7 +220,7 @@ def test_ws7_footnote_extraction_and_ref():
     spans = doc.blocks[0].lines[0].spans
     ref = [s for s in spans if 'fnref' in s.styles]
     assert ref and ref[0].text == '1' and 'sup' in ref[0].styles
-    md = emit.emit_markdown(doc)
+    md = emit.emit_markdown(doc, mode='modern')
     assert '[^1]' in md and '[^1]: See the 1868 accords.' in md
 
 def test_ws7_heading_and_softpage():
@@ -231,9 +231,9 @@ def test_ws7_heading_and_softpage():
     assert heads and heads[0].heading == 2
     assert heads[0].lines[0].text().strip() == 'Chapter One'
     assert any(b.kind == 'softpage' for b in doc.blocks)
-    md = emit.emit_markdown(doc)
+    md = emit.emit_markdown(doc, mode='modern')
     assert '## Chapter One' in md
-    h = emit.emit_html(doc)
+    h = emit.emit_html(doc, mode='modern')
     assert '<h2>Chapter One</h2>' in h
 
 def test_ws7_tab_block():
@@ -532,16 +532,16 @@ def test_footnote_endnote_number_is_1_based_not_stored_index():
             b' b ' + ws7_note(0x03, b'Second footnote.', number=1) +
             b' c ' + ws7_note(0x04, b'First endnote.', number=0) + b' d' + HARD)
     doc = core.parse_ws(data)
-    md = emit.emit_markdown(doc)
+    md = emit.emit_markdown(doc, mode='modern')
     assert '[^1]: First footnote.' in md
     assert '[^2]: Second footnote.' in md
     assert '[^e1]: First endnote.' in md
-    t = emit.emit_text(doc)
+    t = emit.emit_text(doc, mode='modern')
     assert '[1] First footnote.' in t and '[2] Second footnote.' in t
-    h = emit.emit_html(doc)
+    h = emit.emit_html(doc, mode='modern')
     assert '<a id="fnref1" href="#fn1" role="doc-noteref">1</a>' in h
     assert '<a id="fnref2" href="#fn2" role="doc-noteref">2</a>' in h
-    r = emit.emit_rtf(doc)
+    r = emit.emit_rtf(doc, mode='modern')
     assert 'First footnote.' in r and 'Second footnote.' in r
     # presentation-only: the raw stored index must survive untouched
     assert [n.number for n in doc.notes if n.kind == 'footnote'] == [0, 1]
@@ -557,7 +557,7 @@ def test_footnote_number_start_hook_ready_for_future_dot_command():
     data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=0) + b' y' + HARD
     doc = core.parse_ws(data)
     doc.meta['footnote_number_start'] = 5
-    md = emit.emit_markdown(doc)
+    md = emit.emit_markdown(doc, mode='modern')
     assert '[^5]: Only footnote.' in md
 
 # -- Task 1: convert() / select_notes() inclusion API --------------------
@@ -609,7 +609,7 @@ def test_emit_text_comments_opt_in_own_section(four_kind_doc):
 # -- Task 2: markdown ---------------------------------------------------
 
 def test_emit_markdown_kinds_get_distinct_labels(four_kind_doc):
-    md = emit.emit_markdown(four_kind_doc)
+    md = emit.emit_markdown(four_kind_doc, mode='modern')
     assert '[^1]' in md and '[^1]: Footnote text.' in md
     assert '[^e1]' in md and '[^e1]: Endnote text.' in md
     assert '[^aAC1]' in md and '[^aAC1]: Annotation text' in md
@@ -617,14 +617,14 @@ def test_emit_markdown_kinds_get_distinct_labels(four_kind_doc):
 
 def test_emit_markdown_comments_opt_in_are_orphan_defs(four_kind_doc):
     from ctrlkd.emit import ALL_NOTE_KINDS
-    md = emit.emit_markdown(four_kind_doc, notes=ALL_NOTE_KINDS)
+    md = emit.emit_markdown(four_kind_doc, notes=ALL_NOTE_KINDS, mode='modern')
     assert '[^c1]: Comment text.' in md
     # comments never get an inline reference (WordStar never printed them,
     # so there's no source anchor point to reference)
     assert '[^c1]]' not in md
 
 def test_emit_markdown_excluding_a_kind_also_drops_its_inline_ref(four_kind_doc):
-    md = emit.emit_markdown(four_kind_doc, notes={'footnote'})
+    md = emit.emit_markdown(four_kind_doc, notes={'footnote'}, mode='modern')
     assert '[^1]' in md and '[^1]: Footnote text.' in md
     assert '[^e1]' not in md and 'Endnote text.' not in md
     assert '[^aAC1]' not in md and 'Annotation text' not in md
@@ -1542,3 +1542,23 @@ def test_op_suppresses_the_page_number():
     from ctrlkd.pdf import emit_pdf
     doc = core.parse_ws(b'.op\r\n' + _hf_doc(10))
     assert not re.search(rb'HEADER-TEXT PAGE \d', emit_pdf(doc, 'printed'))
+
+
+def test_default_mode_is_printed():
+    """Jon's ruling 2026-08-03: 'the CLI ships now and with the app. The CLI
+    decisions are the app decisions.' Soft Return.app opens documents in Printed
+    style; the CLI defaulted to Modern. One product, two defaults.
+
+    This is a BREAKING change -- every script that omitted --mode changes output
+    -- and is why the release is a major version."""
+    import subprocess, sys as _s
+    help_text = subprocess.run([_s.executable, '-c',
+        'import sys; sys.argv=["ctrl-kd","--help"];'
+        'from ctrlkd.cli import main; main()'],
+        capture_output=True, text=True).stdout
+    assert 'DEFAULT' in help_text and 'printed:' in help_text, \
+        'the CLI help no longer states printed as the default'
+    # and the library agrees with the CLI, so a caller who omits mode gets the
+    # same answer as someone at a shell
+    md = emit.emit_markdown(core.parse_ws(make_prose()))
+    assert md.lstrip().startswith('```'), 'library default is not printed'
