@@ -1619,3 +1619,17 @@ def test_pageline_is_still_a_plain_list_for_existing_callers():
     page = _doc_to_pagelines(core.parse_ws(make_prose()), True)[0]
     assert isinstance(page[0], list)
     assert all(isinstance(seg, tuple) and len(seg) == 2 for seg in page[0])
+
+
+def test_dot_commands_have_a_position():
+    """`dot_commands` is a flat list with no anchor, so a consumer that wants to
+    SHOW a dot command in place -- Soft Return.app's Show Invisibles -- had
+    nowhere to put the mark. (block, line) is the coarsest anchor that is
+    actually stable: it survives reflow, which a byte offset does not."""
+    doc = core.parse_ws(b'.op\r\nfirst para line\r\n\r\n.cp 5\r\nsecond para\r\n')
+    pos = doc.meta['dot_positions']
+    assert [t for _, _, t in pos] == ['.op', '.cp 5']
+    assert pos[0][:2] == (0, 0), 'a leading dot command should anchor at the start'
+    assert pos[1][0] > pos[0][0], 'the second command is in a later block'
+    # the flat list still exists for callers that only want to know what was seen
+    assert doc.meta['dot_commands'] == ['.op', '.cp 5']

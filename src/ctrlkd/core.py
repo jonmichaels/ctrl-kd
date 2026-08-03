@@ -920,7 +920,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     physical, margin = lines_pass(data)
     doc.meta['margin_estimate'] = margin
 
-    active, unknown, dots = set(), {}, []
+    active, unknown, dots, dot_at = set(), {}, [], []
     fn_counter = [0] if ws5 else None
     cur = Block('para')
     cur_line = Line()
@@ -945,6 +945,13 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         if stripped[:1] == b'.':                   # dot command line
             cmd = stripped.rstrip()
             dots.append(cmd.decode(encoding, 'replace'))
+            # Where in the document this command sat. `dot_commands` is a flat
+            # list with no anchor, so a consumer that wants to SHOW a dot
+            # command in place -- Soft Return.app's Show Invisibles -- has
+            # nowhere to put the mark. Recording (block index, line index within
+            # that block) costs nothing and is the coarsest anchor that is
+            # actually stable: it survives reflow, which a byte offset does not.
+            dot_at.append((len(doc.blocks), len(cur.lines), cmd.decode(encoding, 'replace')))
             if cmd[1:3].upper() in DOT_PAGEBREAK:
                 close_block()
                 doc.blocks.append(Block('pagebreak'))
@@ -1011,6 +1018,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     close_block()
 
     doc.meta['dot_commands'] = dots
+    # (block, line, text) for each dot command, so a caller can render one in
+    # place instead of only knowing that it existed somewhere.
+    doc.meta['dot_positions'] = dot_at
     doc.meta['unknown_codes'] = {f'0x{k:02x}': v for k, v in sorted(unknown.items())}
     doc.meta['columnar'] = ruler
 
