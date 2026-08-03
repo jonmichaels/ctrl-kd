@@ -426,11 +426,26 @@ ERAS = {
 ERAS['printstream'] = Era('printstream', False, False, False, False, 'tenth-inch', 28)
 ERAS['text'] = ERAS['printstream']
 
+# 'binary' is a DETECTED variant, not an unknown one, and it must not inherit the
+# ws5+ fallback below. Doing so switched symmetric-block parsing ON for a file
+# detect() had already declined to identify, and _symmetric_blocks treats every
+# 0x1D as a block-start marker: `A <ESC> 0x1D B` parsed to 'A', losing both the
+# escaped byte and every byte after it. Caught by the Swift port's escape test,
+# which this table had silently regressed; Python's own suite had no equivalent.
+# Conservative on BOTH axes -- no high-bit stripping AND no symmetric blocks.
+ERAS['binary'] = Era('binary', False, False, False, False, 'tenth-inch', 28)
+
 
 def era_for(variant):
-    """The Era for a detected variant. Unknown variants get the WS5+ entry,
-    which is the least destructive guess: it does NOT strip high bits, so an
-    unrecognised file loses no extended characters."""
+    """The Era for a detected variant. Variants detect() can actually return all
+    have their own entry above; a name from nowhere gets the WS5+ entry, which
+    does NOT strip high bits, so it loses no extended characters.
+
+    That fallback is a guess about ENCODING only. It is emphatically not a
+    licence to enable behaviour that can destroy text -- which is exactly what
+    happened when 'binary' was left to inherit it and picked up symmetric-block
+    parsing along the way. Any new variant belongs in the table, conservative on
+    every axis, rather than relying on this."""
     return ERAS.get(variant, ERAS['ws5+'])
 
 
