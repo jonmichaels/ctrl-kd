@@ -1488,3 +1488,57 @@ def test_fnref_sentinel_cannot_collide_with_a_real_wordstar_code():
     # and a literal ^G in a body must not be mistaken for a reference
     doc = core.parse_ws(ws4_text('before') + bytes([0x07]) + ws4_text('after') + HARD)
     assert 'before' in doc.blocks[0].lines[0].text()
+
+
+# ---------------------------------------------------------------- headers/footers
+
+def _hf_doc(n=120):
+    out = ['.he HEADER-TEXT PAGE #', '.fo FOOTER-TEXT PAGE #']
+    out += [f'LINE {i:03d} ' + '-' * 40 for i in range(1, n + 1)]
+    return ('\r\n'.join(out) + '\r\n').encode()
+
+
+def test_head_foot_text_reaches_the_ir():
+    """`.he`/`.fo` are fully-documented dot commands that had NO field anywhere
+    in the IR: the text was captured only in the dot_commands diagnostic and
+    discarded by every emitter. The reserved SPACE was honoured; the content
+    was not."""
+    doc = core.parse_ws(b'.he TOP\r\n.h2 TOP2\r\n.fo BOTTOM\r\nbody\r\n')
+    assert doc.headers == {1: 'TOP', 2: 'TOP2'}
+    assert doc.footers == {1: 'BOTTOM'}
+
+
+def test_head_foot_land_where_wordstar_puts_them():
+    """Placement MEASURED on WordStar 4 (2026-08-03): header on page line 0,
+    body starting at line 3 (.mt), 55 body lines, footer on line 60
+    (.pl - .mb + .fm). Asserted in lines, not points, so it stays readable."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
+    body = re.search(rb'stream\r?\n(.*?)\r?\nendstream', pdf, re.S).group(1)
+    rows = [(float(y), t.decode('latin-1'))
+            for _, y, t in re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', body)]
+    line_of = lambda y: round((792 - y - 12) / 12)
+    hdr = [line_of(y) for y, t in rows if 'HEADER-TEXT' in t]
+    txt = [line_of(y) for y, t in rows if t.strip().startswith('LINE')]
+    ftr = [line_of(y) for y, t in rows if 'FOOTER-TEXT' in t]
+    assert hdr == [0], f'header should sit on page line 0, got {hdr}'
+    assert txt[0] == 3, f'body should start at .mt 3, got {txt[0]}'
+    assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
+    assert ftr == [60], f'footer at .pl-.mb+.fm = 60, got {ftr}'
+
+
+def test_hash_becomes_the_page_number():
+    import re
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
+    assert sorted(set(re.findall(rb'HEADER-TEXT PAGE (\d)', pdf))) == [b'1', b'2', b'3']
+
+
+def test_op_suppresses_the_page_number():
+    """`.op` -- 'omit page number ... unless the # has been used in footers or
+    headers'."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+    doc = core.parse_ws(b'.op\r\n' + _hf_doc(10))
+    assert not re.search(rb'HEADER-TEXT PAGE \d', emit_pdf(doc, 'printed'))

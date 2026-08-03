@@ -117,6 +117,23 @@ class UnknownBlock:
 @dataclass
 class Document:
     blocks: list = field(default_factory=list)
+    # Running head/foot text, by line number (1-5). `.he`/`.fo` are line 1.
+    # Added 2026-08-03: these are fully-documented dot commands that had NO
+    # field anywhere in the IR, so their text was captured only in the
+    # dot_commands diagnostic string and silently discarded by every emitter --
+    # the reserved SPACE was honoured, the content was not. A running title or
+    # "Page #" line vanished from every page with no indication it existed.
+    #
+    # Geometry, MEASURED on WordStar 4 (2026-08-03) rather than inferred:
+    #   line 1        header text          (.he/.h1-.h5)
+    #   .hm lines     blank                (default 2)
+    #   .pl-.mt-.mb   body                 (55 at the defaults)
+    #   .fm lines     blank                (default 2)
+    #   1 line        footer text          (.fo/.f1-.f5)
+    #   remainder     blank                (to fill .mb)
+    # so .mt 3 == header + .hm 2, and .mb 8 == .fm 2 + footer + 5.
+    headers: dict = field(default_factory=dict)       # {1..5: str}
+    footers: dict = field(default_factory=dict)       # {1..5: str}
     footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
                                                        # endnotes, and annotations, in document
                                                        # order -- all three are rendered the
@@ -519,6 +536,31 @@ def _resolve_page_size(pl_lines: float):
         return named_in, name
     return height_in, 'Custom'
 
+_HEAD_FOOT_RE = re.compile(rb'^\.(H[E1-5]|F[O1-5])\s?(.*)$', re.I)
+
+
+def _parse_head_foot(cmd: bytes, doc, encoding: str):
+    """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
+
+    `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
+    document can carry up to five of each. An empty argument CLEARS that line,
+    which is how WordStar turns a running head off part-way through -- so an
+    empty value is stored as '' and not skipped.
+
+    The text is kept verbatim, `#` included: the page-number substitution
+    depends on which page it lands on and belongs to the emitter, not here.
+    """
+    m = _HEAD_FOOT_RE.match(cmd)
+    if not m:
+        return
+    tag = m.group(1).upper()
+    text = m.group(2).decode(encoding, 'replace').rstrip()
+    which = doc.headers if tag.startswith(b'H') else doc.footers
+    second = tag[1:2]
+    line = 1 if second in (b'E', b'O') else int(second)
+    which[line] = text
+
+
 def _cp_lines(cmd: bytes) -> int:
     """The n of a `.cp n`, defaulting to 1 (a bare `.cp` asks for one line).
 
@@ -900,6 +942,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks.append(blk)
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
+            _parse_head_foot(cmd, doc, encoding)
             _parse_page_dot(cmd, page, meta_extra)
             continue
         if ws5:                                    # sentinels from _symmetric_blocks
