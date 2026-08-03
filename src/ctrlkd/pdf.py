@@ -73,6 +73,7 @@ def _printed_cap(doc):
     page_h = _resolved_page_height(doc, True)
     return max(FOOTNOTE_FLOOR + 1, int(page_h // LEAD))
 
+
 def _printed_top(doc):
     """Top-of-text offset in points for printed mode. WS documents start
     where .mt says (lines at 6 LPI -> 12pt each; the default .mt 3 is the
