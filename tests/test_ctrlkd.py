@@ -44,7 +44,12 @@ def make_prose():
 def test_wrap_joins_prose():
     lines, margin = core.lines_pass(make_prose())
     seps = [s for _, s in lines]
-    assert seps == ['wrap', 'wrap', 'para', 'eof']
+    # 2026-08-03: blank lines are CONTENT now and are emitted with their own
+    # terminator kind, after the line they follow. The text lines' own
+    # classification is unchanged -- assert that separately from the blanks.
+    assert [x for x in seps if not x.startswith('blank-')] == \
+        ['wrap', 'wrap', 'para', 'eof']
+    assert seps.count('blank-hard') + seps.count('blank-soft') == 2
 
 def test_poem_lines_kept():
     # short lines ending in SOFT returns where the next word would have fit:
@@ -54,7 +59,12 @@ def test_poem_lines_kept():
             b'     Second stanza opens,' + SOFT +
             b'     and closes.' + HARD)
     lines, _ = core.lines_pass(poem)
-    assert [s for _, s in lines] == ['line', 'para', 'line', 'eof']
+    assert [s for _, s in lines if not s.startswith('blank-')] == \
+        ['line', 'para', 'line', 'eof']
+    # the stanza gap is SOFT+HARD+SOFT = two real blank lines on paper, and
+    # both survive with their own terminator kinds
+    assert [s for _, s in lines if s.startswith('blank-')] == \
+        ['blank-hard', 'blank-soft']
 
 def test_wrap_boundary_is_strict():
     # word landing EXACTLY at the margin: WS4 still wrapped -> join, not break
@@ -66,7 +76,10 @@ def test_wrap_boundary_is_strict():
 def test_single_hard_is_line_break():
     data = b'Jon Michaels' + SOFT + b'March 6, 1992' + SOFT + HARD + SOFT + b'Body text.' + HARD
     lines, _ = core.lines_pass(data)
-    assert [s for _, s in lines] == ['line', 'para', 'eof']
+    assert [s for _, s in lines if not s.startswith('blank-')] == \
+        ['line', 'para', 'eof']
+    assert [s for _, s in lines if s.startswith('blank-')] == \
+        ['blank-hard', 'blank-soft']
 
 def test_double_spaced_wrap_collapses():
     # double-spaced files put a blank soft line between every wrapped line

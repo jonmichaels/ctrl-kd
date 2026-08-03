@@ -58,6 +58,11 @@ def merged_lines(block: Block) -> list:
     byte-identical either side of the 2.0.0 split."""
     out, cur = [], None
     for line in block.lines:
+        if not line.spans:
+            # A blank PHYSICAL line (2026-08-03). Printed renders it; reflow
+            # does not -- Modern emits its own blank between paragraphs, and a
+            # `.ls 2` filler line is typography, not a logical line of text.
+            continue
         if cur is None:
             cur = Line(list(line.spans))
         else:
@@ -212,6 +217,23 @@ def lines_pass(data: bytes):
     while i < len(lines):
         text, kind = lines[i]
         if not _visible(text).strip():
+            # A blank line is CONTENT, not a delimiter (fixed 2026-08-03).
+            # It used to be skipped here and counted only to classify the
+            # PREVIOUS line's separator, then discarded -- which deleted 221 of
+            # 448 physical lines from a real double-spaced 1992 essay, took the
+            # author's chapter-drop with it, and changed the page count.
+            # The terminator KIND is carried because WordStar distinguishes
+            # them: `.ls > 1` materialises its filler as SOFT blanks (WS7
+            # Reference: "the blank lines become part of the file") and always
+            # suppresses those at a page top, while HARD blanks are the
+            # author's own returns and print (`.sb` defaults off, and does not
+            # exist at all before WS5).
+            # Keep the RAW bytes, not b'': a line can be VISUALLY blank while
+            # still carrying style toggles (bold-on and nothing else). Emitting
+            # b'' would drop the toggle and unstyle everything after it. The
+            # consumer decodes spans as usual; they simply render to nothing.
+            if kind != 'eof':
+                out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard'))
             i += 1
             continue
         n_hard = 1 if kind == 'hard' else 0
@@ -239,6 +261,13 @@ def lines_pass(data: bytes):
                 W = len(nxt_vis.split(b' ', 1)[0])
                 sep = 'line' if L + 1 + W < margin else 'wrap'
         out.append((text, sep))
+        # The blanks this run consumed, in document order, after the line they
+        # follow. They were counted above to classify `sep` and are now also
+        # kept as content -- the counting and the keeping are separate jobs.
+        for b in range(i + 1, j):
+            btext, bk = lines[b]
+            if bk != 'eof':
+                out.append((btext, 'blank-soft' if bk == 'soft' else 'blank-hard'))
         i = j
     return out, margin
 
@@ -778,6 +807,23 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                                     # printed line, as the old merge did
         elif sep == 'line':
             close_line()
+        elif sep.startswith('blank-'):
+            # A blank physical line. It is CONTENT in printed mode (it occupied
+            # a line on paper) and it does NOT close the block -- the text line
+            # before it already carried the 'para' separator if this run was a
+            # paragraph boundary. `soft` records which kind it was: `.ls` filler
+            # (soft) versus the author's own return (hard).
+            close_line()
+            blank = Line(spans=[], soft=(sep == 'blank-soft'))
+            if not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para':
+                # The text line before this one carried 'para' and already
+                # closed its block, so `cur` is empty. On paper this blank
+                # FOLLOWS that paragraph -- attach it there, so a paragraph
+                # block still starts with text (which callers rely on) and the
+                # linear order is unchanged.
+                doc.blocks[-1].lines.append(blank)
+            else:
+                cur.lines.append(blank)
         else:                                      # para / eof
             close_block()
     close_block()
