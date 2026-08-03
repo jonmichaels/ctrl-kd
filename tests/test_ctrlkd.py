@@ -1461,3 +1461,30 @@ def test_cp_boundary_is_strict():
     first = [''.join(t for t, _ in ln) for ln in pages[0]]
     assert any('LINE 046' in l for l in first), 'exactly n remaining must NOT break'
     assert any('LINE 055' in l for l in first)
+
+
+# ---------------------------------------------------------------- dropped codes
+
+def test_overprint_is_reported_not_silently_dropped():
+    """^H (0x08) is how WordStar-era authors composed accented letters and ad-hoc
+    symbols: type, backspace, overtype. Discarding it silently loses content with
+    no trace at all -- unlike its neighbours, which at least get counted. The
+    project's own rule is never to go quiet."""
+    data = ws4_text('cafe') + bytes([0x08]) + ws4_text("'") + HARD
+    doc = core.parse_ws(data)
+    assert '0x08' in doc.meta['unknown_codes'], \
+        'overprint vanished without even a diagnostic'
+
+
+def test_fnref_sentinel_cannot_collide_with_a_real_wordstar_code():
+    """The note-reference sentinel must be a byte a document CANNOT contain.
+    It was 0x07 -- ^G, phantom rubout: rare by 1990 but real, and a literal one
+    in a WS5+ body was read as a note reference. Out of range degraded
+    gracefully; an in-range collision silently attached the WRONG footnote to
+    body text."""
+    from ctrlkd.core import SENT_FNREF, WS_TOGGLES, WS_DROP
+    assert SENT_FNREF not in WS_TOGGLES, 'sentinel collides with a style toggle'
+    assert SENT_FNREF != 0x07, 'sentinel is back on ^G, which documents can hold'
+    # and a literal ^G in a body must not be mistaken for a reference
+    doc = core.parse_ws(ws4_text('before') + bytes([0x07]) + ws4_text('after') + HARD)
+    assert 'before' in doc.blocks[0].lines[0].text()
