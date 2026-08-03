@@ -422,6 +422,31 @@ def _endnote_pages(doc, cap, width):
 def _has_placeable_notes(doc):
     return any(n.kind in ('footnote', 'endnote', 'annotation') for n in doc.notes)
 
+class PageLine(list):
+    """One laid-out line: a list of (text, styles) segments, plus the SOFT flag.
+
+    Added 2026-08-03. A paginated line used to be a bare list, so `Line.soft` --
+    which the IR has carried since 2.0.0 -- never reached the paginated
+    representation. Anything working from pagelines therefore could not tell a
+    soft return (WordStar's own word wrap, and the filler `.ls > 1` materialises)
+    from a hard one (the author pressing Return). That distinction is not
+    cosmetic: it is what carries authorial intent at a page top, and it is what
+    Soft Return.app needs for Show Invisibles.
+
+    Deliberately a LIST SUBCLASS rather than a new type: every existing consumer
+    iterates a pageline as a list of segments and keeps working untouched, while
+    new code can ask for `.soft`. Changing the contract outright would have
+    touched the emitters, the footnote paginator and both geometry oracles at
+    once, for no behavioural gain.
+    """
+
+    __slots__ = ('soft',)
+
+    def __init__(self, segments=(), soft=False):
+        super().__init__(segments)
+        self.soft = soft
+
+
 def _doc_to_pagelines(doc, printed):
     """IR -> list of pages, each a list of segment-lines."""
     if printed and _has_placeable_notes(doc):
@@ -456,9 +481,11 @@ def _doc_to_pagelines(doc, printed):
             spans = [(s.text, s.styles | {'b'} if b.heading else s.styles)
                      for s in line.spans]
             if printed:
-                lines.append(spans)                       # verbatim, no wrap
+                # verbatim, no wrap -- and carrying the line's own soft flag
+                lines.append(PageLine(spans, soft=line.soft))
             else:
-                lines.extend(_wrap_line(spans, MAX_COLS))
+                lines.extend(PageLine(w, soft=line.soft)
+                             for w in _wrap_line(spans, MAX_COLS))
         if not printed and b.lines:
             lines.append([])                              # blank line between paragraphs
     if doc.footnotes and not printed:
