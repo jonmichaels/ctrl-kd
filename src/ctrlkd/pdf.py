@@ -615,7 +615,7 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     return b'\n'.join(ops)
 
 @emitter('pdf')
-def emit_pdf(doc, mode='modern', **options):
+def emit_pdf(doc, mode='printed', **options):
     """Assemble the PDF: catalog, page tree, four Courier fonts, one content
     stream per page, xref. Returns bytes — PDF is a binary format."""
     printed = mode == 'printed' or _printed(doc)
