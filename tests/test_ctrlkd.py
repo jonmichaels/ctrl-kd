@@ -1910,3 +1910,35 @@ def test_margins_do_not_leak_into_document_formatting():
     """They are per-block state; `meta['formatting']` is for document-wide flags."""
     meta = core.parse_ws(b'.lm 5\r\n.rm 60\r\nT.\r\n').meta['formatting']
     assert meta == {}
+
+
+def _ws_block(cmd, content=b''):
+    """One WS5+ symmetric sequence with REAL framing: `1D <jump> <cmd> <content>
+    <jump> 1D`, bracketed by its own length. Same construction as
+    tools/ws_fixture.py, whose self-test checks it byte-for-byte against real
+    WordStar output."""
+    jump = len(content) + 4
+    j = jump.to_bytes(2, 'little')
+    return b'\x1d' + j + bytes([cmd]) + content + j + b'\x1d'
+
+
+def test_inset_graphics_are_recorded_and_placeheld():
+    """C10. An INSET picture's block content IS its path, and the whole block was
+    being dropped -- so a document with figures rendered as if it had none, with
+    no indication anything was missing.
+
+    A converter cannot render a 1987 .PIX file, but it must not go quiet about
+    one: the path is recorded and a visible placeholder goes where the picture sat.
+    """
+    from ctrlkd.emit import emit_text
+    block = _ws_block(0x10, br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Before. ' + block + b' After.\r\n')
+    assert doc.graphics == [r'C:\PIX\FIGURE1.PIX']
+    text = emit_text(doc, mode='printed')
+    assert '[image: FIGURE1.PIX]' in text, text
+    assert 'Before.' in text and 'After.' in text
+    assert not doc.unknown_blocks, 'the graphic should no longer be an unknown block'
+
+
+def test_a_document_with_no_graphics_reports_none():
+    assert core.parse_ws(ws4_text('Plain.') + HARD).graphics == []
