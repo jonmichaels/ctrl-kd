@@ -440,7 +440,18 @@ _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
                   b'MB': 'mb_lines', b'PO': 'po_cols',
                   b'HM': 'hm_lines', b'FM': 'fm_lines',
-                  b'LH': 'lh_48', b'LS': 'ls', b'CW': 'cw_120'}
+                  b'LH': 'lh_48', b'LS': 'ls', b'CW': 'cw_120',
+                  # `.pn n` sets the number of the page it appears on, so the
+                  # document does not have to start at 1 -- a chapter file in a
+                  # larger manuscript starts wherever the previous one stopped.
+                  # MEASURED on WordStar 4 (2026-08-03): `.pn 7` numbers the
+                  # pages 7, 8, 9 in both the header's `#` and the footer's.
+                  b'PN': 'pn_start',
+                  # `.pc n` is the column of the AUTOMATIC page number -- the one
+                  # WordStar prints on its own. Measured: it does NOT move a `#`
+                  # placed inside a header or footer, which prints where the
+                  # author put it. Two separate mechanisms.
+                  b'PC': 'pc_col'}
 
 # Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
 # 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
@@ -1086,7 +1097,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # Exposed per the IR contract: a consumer must be able to distinguish
     # "Legal (from file)" from "Letter (default)" -- provenance lives
     # alongside every resolved figure, not just the page size.
+    pn_start = page.get('pn_start')
+    pc_col = page.get('pc_col')
     doc.meta['page'] = {
+        # `.pn n` -- the number of the page it appears on, so a chapter file in
+        # a larger manuscript can start where the previous one stopped.
+        # MEASURED on WordStar 4: `.pn 7` numbers the pages 7, 8, 9.
+        'pn_start': int(pn_start) if pn_start is not None else 1,
+        'pn_source': 'file' if pn_start is not None else 'default',
+        # `.pc n` -- the column of the AUTOMATIC page number. Measured: it does
+        # NOT move a `#` placed inside a header or footer, which prints where
+        # the author put it. Two separate mechanisms.
+        'pc_col': int(pc_col) if pc_col is not None else None,
+        'pc_source': 'file' if pc_col is not None else 'default',
         'pl_lines': pl_lines if pl_lines is not None else DEFAULT_PL_LINES,
         'height_in': height_in,
         'size_name': size_name,

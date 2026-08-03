@@ -1668,3 +1668,41 @@ def test_a_typed_indent_is_still_a_deliberate_break():
     poem = (b'     A short poem line,' + SOFT +
             b'     another short line.' + HARD)
     assert core.lines_pass(poem)[0][0][1] == 'line'
+
+
+def test_pn_sets_the_starting_page_number():
+    """`.pn n` numbers the page it appears on, so a chapter file in a larger
+    manuscript starts where the previous one stopped. MEASURED on WordStar 4
+    (2026-08-03): `.pn 7` on a three-page document numbers the pages 7, 8, 9 --
+    in both the header's `#` and the footer's."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+    body = '\r\n'.join(f'LINE {i:03d} ' + '-' * 40 for i in range(1, 121))
+    doc = core.parse_ws(('.pn 7\r\n.he HEADER PAGE #\r\n' + body + '\r\n').encode())
+    assert doc.meta['page']['pn_start'] == 7
+    assert doc.meta['page']['pn_source'] == 'file'
+    nums = sorted(set(re.findall(rb'HEADER PAGE (\d+)', emit_pdf(doc, 'printed'))))
+    assert nums == [b'7', b'8', b'9']
+
+
+def test_page_number_defaults_to_one_and_says_so():
+    doc = core.parse_ws(b'.he H #\r\nbody text here\r\n')
+    assert doc.meta['page']['pn_start'] == 1
+    assert doc.meta['page']['pn_source'] == 'default'
+
+
+def test_pc_is_recorded_but_does_not_move_a_hash_in_a_footer():
+    """MEASURED on WordStar 4: `.pc 40` did NOT move a `#` placed in a footer --
+    it stayed at the `.po` offset. `.pc` positions the AUTOMATIC page number,
+    the one WordStar prints on its own; a `#` an author puts in a header or
+    footer prints where they put it. Two separate mechanisms, and conflating
+    them would move text the author positioned deliberately."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+    body = '\r\n'.join(f'LINE {i:03d}' for i in range(1, 60))
+    doc = core.parse_ws(('.pc 40\r\n.fo #\r\n' + body + '\r\n').encode())
+    assert doc.meta['page']['pc_col'] == 40
+    pdf = emit_pdf(doc, 'printed')
+    xs = {float(x) for x, _, t in
+          re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', pdf) if t.strip() == b'1'}
+    assert xs and min(xs) < 100, '.pc must not reposition an authored # in a footer'
