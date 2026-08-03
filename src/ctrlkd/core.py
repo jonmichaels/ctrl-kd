@@ -298,6 +298,80 @@ DOT_PAGEBREAK = {b'PA', b'CP'}
 # default). WordStar itself lets LPI/CPI vary (.lh, .cw), but tracking those
 # per-line is well beyond what a page-geometry pass needs.
 
+# ---------------------------------------------------------------- release eras
+#
+# WordStar changed behaviour between releases, and a converter has to know
+# WHICH WordStar wrote a file. Until 2026-08-03 those decisions were scattered
+# as inline `variant == 'ws4'` checks, which worked for two eras and would not
+# survive a third. This table is the one place that knows.
+#
+# ADDING A RELEASE (e.g. WS3): add an entry here, make detect() able to return
+# its name, and -- ideally -- confirm each field by RUNNING that WordStar under
+# tools/wordstar_harness.sh rather than trusting a manual. Nothing else should
+# need to grow a version check; if it does, the missing fact belongs in here.
+#
+# Sources for the current entries: WordStar Professional 4.0 (1987) Appendix G
+# and Appendix B; WordStar 7.0 Reference; "Upgrading from a Previous Release"
+# (WS7); WordStar Professional 5.0 "What's New" (1988). Where the last two
+# disagree the field is marked UNVERIFIED -- see column_unit.
+
+class Era:
+    """What one WordStar release does differently. Fields are behaviours, not
+    versions: ask `era.high_bit_wordwrap`, never `variant == 'ws4'`."""
+
+    __slots__ = ('name', 'high_bit_wordwrap', 'symmetric_blocks', 'has_notes',
+                 'has_sb', 'column_unit', 'pc_default')
+
+    def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
+                 has_sb, column_unit, pc_default):
+        self.name = name
+        # WS4 and earlier set bit 7 on the LAST character of each word
+        # (microjustify flags). WS5+ dropped it, and a high byte there is an
+        # extended cp437 character instead -- so this decides whether stripping
+        # the high bit recovers text or destroys it.
+        self.high_bit_wordwrap = high_bit_wordwrap
+        # 0x1D-delimited symmetrical sequences: notes, fonts, colour, styles.
+        self.symmetric_blocks = symmetric_blocks
+        # ^ONF/^ONE/^ONA/^ONC. Blank in the 4.0/3.3 keystroke tables; appears
+        # at 5.5/6.0. A WS4 file cannot contain a note.
+        self.has_notes = has_notes
+        # `.sb on|off` -- suppress blank lines at the top of a page. Absent
+        # from WS4's and WS3.3's command lists entirely (exhaustive Appendix G
+        # extraction, .AV through .XW), so a pre-WS5 file cannot mean it.
+        self.has_sb = has_sb
+        # What a "column" means in .rm/.lm/.pm/.po/.pc. Pre-WS5 it is one
+        # character of the CURRENT FONT; WS5+ it is a fixed 0.1 inch. Equal at
+        # the default .cw 12 (10 cpi), so this only bites a document that
+        # changes .cw AND uses a margin dot command.
+        # UNVERIFIED: WS7's "Upgrading" and WS5's "What's New" name DIFFERENT
+        # command lists as affected. Settle by experiment before relying on it.
+        self.column_unit = column_unit
+        self.pc_default = pc_default          # page-number column
+
+    def __repr__(self):
+        return f'<Era {self.name}>'
+
+
+ERAS = {
+    # name      hibit  sym    notes  .sb    column_unit  .pc
+    'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
+    'ws4':  Era('ws4',  True,  False, False, False, 'font',       28),
+    'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 28),
+}
+
+# A print stream is printer output, not a document: no dot commands survive in
+# it and none of the above applies. It gets the most conservative entry.
+ERAS['printstream'] = Era('printstream', False, False, False, False, 'tenth-inch', 28)
+ERAS['text'] = ERAS['printstream']
+
+
+def era_for(variant):
+    """The Era for a detected variant. Unknown variants get the WS5+ entry,
+    which is the least destructive guess: it does NOT strip high bits, so an
+    unrecognised file loses no extended characters."""
+    return ERAS.get(variant, ERAS['ws5+'])
+
+
 _DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
 _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 
@@ -725,9 +799,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
     det = detect(data)
     doc.meta.update(det)
-    strip_hibit = det['variant'] == 'ws4'
-
-    ws5 = det['variant'] == 'ws5+'
+    era = era_for(det['variant'])
+    doc.meta['era'] = era.name
+    strip_hibit = era.high_bit_wordwrap
+    ws5 = era.symmetric_blocks
     if ws5:
         data, notes, blobs = _symmetric_blocks(data, encoding)
         doc.notes = notes
