@@ -1392,3 +1392,29 @@ def test_ws4_double_spacing_survives_to_pagelines():
     pages = _doc_to_pagelines(core.parse_ws(body), True)
     pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
     assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
+
+
+# ---------------------------------------------------------------- release eras
+
+def test_era_table_drives_the_version_behaviour():
+    """Version differences live in ONE table, not scattered inline checks, so a
+    new release (WS3, WS6) is an entry rather than a hunt through the parser."""
+    from ctrlkd.core import era_for, ERAS
+    assert era_for('ws4').high_bit_wordwrap is True     # microjustify flags
+    assert era_for('ws5+').high_bit_wordwrap is False   # high byte = cp437 char
+    assert era_for('ws4').has_notes is False            # notes arrive at 5.5/6.0
+    assert era_for('ws5+').has_notes is True
+    assert era_for('ws4').has_sb is False               # .sb absent pre-WS5
+    assert era_for('ws5+').has_sb is True
+    assert era_for('ws3').pc_default == 33              # changed to 28 in WS4
+    assert era_for('ws4').pc_default == 28
+    # an unknown variant must not strip high bits: that would silently destroy
+    # extended characters, which is the worst available failure
+    assert era_for('ws9-from-the-future').high_bit_wordwrap is False
+
+
+def test_parse_records_the_era_it_used():
+    """The era is reported, so a caller can see which rules were applied rather
+    than having to re-derive them."""
+    data = ws4_text('Some ordinary body text here.') + HARD
+    assert core.parse_ws(data).meta['era'] in ('ws4', 'ws5+')
