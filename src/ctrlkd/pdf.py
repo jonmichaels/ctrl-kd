@@ -538,9 +538,59 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
-                 left=float(MARGIN)):
+def _running_ops(doc, page_no, page_h, lead, size, left, printed):
+    """Header and footer text for one page, as content-stream ops.
+
+    Geometry MEASURED on WordStar 4 (2026-08-03), not inferred:
+        line 0                      header line 1
+        ...                         header lines 2-5, if used
+        .hm blank lines
+        body
+        .fm blank lines
+        line pl-.mb+.fm             footer line 1
+    so the header sits at the very top of the paper and the footer `.fm` lines
+    below the body's last line. `#` becomes the page number -- WordStar's own
+    token, seen rendering as "PAGE 1 / PAGE 2 / PAGE 3" in the probe.
+
+    `.op` ("omit page number ... unless the # has been used in footers or
+    headers") suppresses the substitution, leaving the literal token out.
+    """
+    if not (doc.headers or doc.footers) or not printed:
+        return []
+    page = doc.meta.get('page') or {}
+    omit = 'op' in {d.split()[0].lstrip('.').lower()
+                    for d in doc.meta.get('dot_commands', []) if d.strip()}
+    pl = int(page.get('pl_lines', 66))
+    mb = int(page.get('mb_lines', 8))
+    fm = int(page.get('fm_lines', 2))
+
+    def render(txt):
+        return txt.replace('#', '' if omit else str(page_no))
+
     ops = []
+    for n, txt in sorted(doc.headers.items()):
+        if not txt:
+            continue
+        y = page_h - (n - 1) * lead - size
+        ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
+                   (FONTS[(False, False)].encode(), size, left, y,
+                    _esc(render(txt))))
+    foot_line = pl - mb + fm
+    for n, txt in sorted(doc.footers.items()):
+        if not txt:
+            continue
+        y = page_h - (foot_line + n - 1) * lead - size
+        if y < 0:
+            continue
+        ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
+                   (FONTS[(False, False)].encode(), size, left, y,
+                    _esc(render(txt))))
+    return ops
+
+
+def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
+                 left=float(MARGIN), running=()):
+    ops = list(running)
     sup_size = max(1, round(size * 2 / 3))       # 8 at the default 12 -- the
                                                   # ratio this emitter always used
     y = page_h - top - size
@@ -602,12 +652,16 @@ def emit_pdf(doc, mode='modern', **options):
     objs.insert(0, (1, b'<< /Type /Catalog /Pages 2 0 R >>'))
     objs.insert(1, (2, b'<< /Type /Pages /Kids [%s] /Count %d >>' % (kids, n_pages)))
 
-    for pnum, cnum, pl in zip(page_nums, content_nums, pages):
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+    for page_index, (pnum, cnum, pl) in enumerate(
+            zip(page_nums, content_nums, pages)):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
                      % (PAGE_W, page_h, font_dict, cnum)))
-        stream = _page_stream(pl, top, page_h, lead, size, left)
+        running = _running_ops(doc, start_no + page_index, page_h, lead,
+                               size, left, printed)
+        stream = _page_stream(pl, top, page_h, lead, size, left, running)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 
