@@ -120,9 +120,19 @@ def _rw_parse_ws(cases):
 
 
 def _rw_pagelines(cases):
+    """Layout cases. HONOUR THE `parser` FIELD: a case that says `parse_ws` means it,
+    and routing it through the front door instead silently changes the answer.
+
+    `.pa` is the case that exposes this. Through `parse_ws` it is a dot command and
+    becomes a page break; through `parse` a short plain-ASCII file detects as a PRINT
+    STREAM, where dot commands are literal text and `.pa` stays a line that reads
+    ".pa". So the same bytes give three pages one way and one page of three lines the
+    other -- and the vector that declared `parse_ws` had been generated the wrong way,
+    which is why the Swift side (which does read the field) could never match it."""
     out = []
     for c in cases:
-        doc = core.parse(bytes.fromhex(c['input_hex']))
+        data = bytes.fromhex(c['input_hex'])
+        doc = core.parse_ws(data) if c.get('parser') == 'parse_ws' else core.parse(data)
         new = dict(c)
         new['pages'] = _pages_json(doc, c['printed'])
         out.append(new)
