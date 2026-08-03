@@ -197,7 +197,14 @@ def compare(name, doc_bytes, out_bytes, verbose=False):
     # Compared in TEXT LINES, not raw indices: the two streams hold a different
     # number of blanks, and text-lines-so-far is the quantity both agree on.
     ours_ok = True
-    derived = derived_breaks(o_body)
+    # DISABLED 2026-08-03. derived_breaks() does not measure WordStar -- see its
+    # docstring. Documenting that was not enough: left running it kept printing a
+    # confident "PAGES DIFFER" verdict whose numbers were our own capacity
+    # reflected back (33 when we paginated at 66, 55 when we paginated at 55).
+    # An instrument that reports a wrong answer with authority is worse than one
+    # that abstains, so it abstains. Re-enable only against a stream whose page
+    # boundaries are verified present in its RAW bytes.
+    derived = None
     if derived:
         ws_at = [text_lines_before(o_body, i) for i in derived]
         our_at = [text_lines_before(d_body, i) for i in d_breaks]
