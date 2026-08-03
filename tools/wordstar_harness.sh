@@ -15,29 +15,25 @@
 # ANY document on demand, including single-spaced ones where the gauntlet's
 # filler-suppression trick has nothing to read.
 #
-# WHAT YOU SUPPLY
-# ---------------
-# A WordStar installation directory. Neither WordStar nor any document ships
-# with this repo; both are yours to provide.
+# SETUP
+# -----
+# Full setup guide, including where to get WordStar, the directory layout each
+# version needs, and every failure mode we have hit:
 #
-#   WS4: MicroPro WordStar Professional Release 4 (1987). Needs WS.EXE plus
-#        WSOVLY1.OVR, WSMSGS.OVR, WSPRINT.OVR. Prints to LPT1, which DOSBox-X
-#        captures to a file. No command-line print switch exists, so the print
-#        dialog is driven with AUTOTYPE.
-#   WS7: WordStar 7.0. Has a real command-line print (`ws FILE /p /x`), so no
-#        keystroke automation is needed -- but note two traps:
-#          * WS.EXE hardcodes C:\WS\PRINTERS for its printer definition files.
-#            Mount the tree so it lands at C:\WS or printing fails with
-#            "Can't print. PDF or driver files not found."
-#          * an install may already redirect print to a file rather than to
-#            LPT1 (look at the Print dialog's "Redirect To" field), and the
-#            directory it names must exist or you get "Not a valid filename".
+#     tools/WORDSTAR-HARNESS.md
 #
-# REQUIREMENTS
-#   dosbox-x, and either a display or Xvfb. Headless works; SDL_VIDEODRIVER=dummy
-#   is enough when you do not need to see the screen, but an Xvfb display plus a
-#   screenshot is the only way to find out WHY a run failed -- WordStar reports
-#   its errors on screen and nowhere else.
+# The short version:
+#   * needs dosbox-x (NOT plain dosbox -- this uses AUTOTYPE and LPT capture),
+#     plus xvfb and imagemagick for failure screenshots.
+#   * you supply WordStar and you supply documents. Neither ships here.
+#   * WS4 tree needs WS.EXE + WSOVLY1.OVR + WSMSGS.OVR + WSPRINT.OVR. It has no
+#     command-line print, so the dialog is driven with AUTOTYPE, and output is
+#     captured off LPT1.
+#   * WS7 has `ws FILE /p /x`, but WS.EXE hardcodes C:\WS\PRINTERS -- the tree
+#     MUST mount at C:\WS -- and an install may redirect print to a file whose
+#     directory has to exist already.
+#   * WordStar reports its errors ON SCREEN ONLY. On failure this script saves a
+#     screenshot next to your output file; that is the only diagnostic there is.
 #
 # USAGE
 #   tools/wordstar_harness.sh ws4 <ws4-dir> <document> <output>
