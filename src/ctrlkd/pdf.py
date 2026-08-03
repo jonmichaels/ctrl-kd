@@ -459,11 +459,24 @@ def _doc_to_pagelines(doc, printed):
         while n < len(pg) and not any(t.strip() for t, _ in pg[n]):
             n += 1
         return n
-    if printed and pages:
+    # ...but ONLY for a PRINT STREAM. Corrected 2026-08-03: this repair was
+    # written for print-to-disk output, where WordStar physically emitted its
+    # top margin as blank lines. A WS4/WS5+ DOCUMENT has no machine margin in
+    # it at all -- `.mt` is a dot command and the emitter applies it as paper
+    # margin -- so every leading blank in one is the author's. Running the
+    # stripper on a document deleted Jon's chapter drop outright, and on any
+    # SINGLE-page document it deleted every leading blank, because the
+    # `len(pages) > 1` fallback measures the only page against itself.
+    if printed and pages and doc.meta.get('variant') == 'printstream':
         machine = min(leading(pg) for pg in pages[1:]) if len(pages) > 1 \
                   else leading(pages[0])
         for pg in pages:
             del pg[:min(machine, leading(pg))]
+            while pg and not any(t.strip() for t, _ in pg[-1]):
+                pg.pop()
+    elif printed and pages:
+        # A document: keep leading blanks (authorial), drop trailing (machine).
+        for pg in pages:
             while pg and not any(t.strip() for t, _ in pg[-1]):
                 pg.pop()
     else:
