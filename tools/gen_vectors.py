@@ -38,7 +38,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 
 from ctrlkd import core, pdf                                    # noqa: E402
-from ctrlkd.emit import emit_text, emit_markdown, emit_html, emit_rtf   # noqa: E402
+from ctrlkd.emit import (emit_text, emit_markdown, emit_html, emit_rtf,   # noqa: E402
+                         ALL_NOTE_KINDS, DEFAULT_NOTE_KINDS)
 
 
 # ------------------------------------------------------------ serialization
@@ -61,8 +62,10 @@ def _doc_json(doc):
             }
             for b in doc.blocks
         ],
-        'footnotes': [[{'text': s.text, 'styles': sorted(s.styles)} for s in fn]
-                      for fn in doc.footnotes],
+        # Flattened to one string per footnote -- the shape the Swift side decodes.
+        # `doc.footnotes` is the convenience view over `doc.notes` (spans, so an
+        # emitter can style them); the vector only needs the text.
+        'footnotes': [''.join(s.text for s in fn) for fn in doc.footnotes],
         'meta': {
             'variant': doc.meta.get('variant'),
             'margin_estimate': doc.meta.get('margin_estimate'),
@@ -159,6 +162,16 @@ def _rw_line_cases(cases):
             }
             for b in doc.blocks
         ]
+        # The same case also carries per-format emit expectations. Regenerating the
+        # blocks but not these left the Swift side comparing new inputs against old
+        # output -- a mismatch that reads as a port bug and is not one.
+        for key, fn, mode in (('emit_text_printed', emit_text, 'printed'),
+                              ('emit_text_modern', emit_text, 'modern'),
+                              ('emit_markdown_modern', emit_markdown, 'modern'),
+                              ('emit_rtf_modern', emit_rtf, 'modern'),
+                              ('emit_html_modern', emit_html, 'modern')):
+            if key in c:
+                new[key] = fn(doc, mode=mode)
         out.append(new)
     return out
 
@@ -178,6 +191,31 @@ def _rw_notes_cases(cases):
             }
             for n in doc.notes
         ]
+        if 'emit' in c:
+            # {format: {note-selection setting: output}} -- the three settings are
+            # which note KINDS get rendered, not a mode. Comments are the difference:
+            # WordStar never printed them, so `default` omits them and `all_notes`
+            # asks for them explicitly.
+            settings = {
+                'default': DEFAULT_NOTE_KINDS,
+                'all_notes': ALL_NOTE_KINDS,
+                'no_notes': frozenset(),
+            }
+            new['emit'] = {
+                # MODERN mode: these vectors exercise note SELECTION, and the
+                # reflowing emitters are where note rendering differs per kind
+                # (markdown footnote refs, HTML doc-endnote sections). Printed mode
+                # is covered separately by `printed_pagelines` below.
+                fmt: {name: fn(doc, mode='modern', notes=kinds)
+                      for name, kinds in settings.items()}
+                for fmt, fn in (('text', emit_text), ('markdown', emit_markdown),
+                                ('html', emit_html), ('rtf', emit_rtf))
+            }
+        if 'printed_pagelines' in c:
+            new['printed_pagelines'] = [
+                [''.join(t for t, _ in ln) for ln in page]
+                for page in pdf._doc_to_pagelines(doc, True)
+            ]
         out[name] = new
     return out
 
