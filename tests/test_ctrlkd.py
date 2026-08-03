@@ -1583,3 +1583,39 @@ def test_index_item_phrase_survives():
             b' was an astrophysicist' + HARD)
     txt = emit.emit_text(core.parse_ws(data), 'printed')
     assert 'Chandrasekhar' in txt, 'the indexed phrase was lost'
+
+
+def test_pagelines_carry_the_soft_flag():
+    """`Line.soft` has existed since 2.0.0 but never reached the PAGINATED
+    representation, so anything working from pagelines could not tell WordStar's
+    own word wrap (and the filler `.ls > 1` materialises) from the author
+    pressing Return. That distinction carries authorial intent at a page top,
+    and Soft Return.app needs it for Show Invisibles."""
+    from ctrlkd.pdf import _doc_to_pagelines, PageLine
+    long_line = b'the quick brown fox jumps over the lazy dog and keeps running onward'
+    doc = core.parse_ws(long_line + SOFT + b'continuation of that sentence' + HARD)
+    page = _doc_to_pagelines(doc, True)[0]
+    assert isinstance(page[0], PageLine)
+    assert page[0].soft is True, 'a wrapped line lost its soft flag'
+    assert page[1].soft is False, 'a hard-terminated line was marked soft'
+
+
+def test_pagelines_keep_soft_hard_of_a_chapter_drop():
+    """The drop is SOFT/SOFT/HARD/HARD/SOFT in a real file: the hard blanks are
+    the author's own returns, the soft ones are line-spacing filler. WordStar
+    treats them differently at a page top, so the distinction has to survive."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (b'.op' + HARD + SOFT + SOFT + HARD + HARD + SOFT +
+            ws4_text('First line of the chapter.') + HARD)
+    blanks = [ln.soft for ln in _doc_to_pagelines(core.parse_ws(data), True)[0]
+              if not ''.join(t for t, _ in ln).strip()]
+    assert blanks[:5] == [True, True, False, False, True]
+
+
+def test_pageline_is_still_a_plain_list_for_existing_callers():
+    """Deliberately a list subclass: every existing consumer iterates a pageline
+    as a list of (text, styles) segments and must keep working untouched."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    page = _doc_to_pagelines(core.parse_ws(make_prose()), True)[0]
+    assert isinstance(page[0], list)
+    assert all(isinstance(seg, tuple) and len(seg) == 2 for seg in page[0])
