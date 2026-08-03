@@ -5,7 +5,7 @@ WordStar's OWN printout of the same document.
 WHY THIS EXISTS
 ---------------
 Printed mode's whole job is to reproduce what WordStar put on paper. For a
-handful of 1987-92 floppies we have both halves of that: the `.WS` source AND
+corpus of period documents one may have both halves of that: the `.WS` source AND
 the print-to-disk output made from it at the time. The printstream is not our
 opinion of correct — it is the 1992 printer's own answer, and it is the only
 ground truth available for questions the manuals do not settle (how `.ls`
@@ -20,9 +20,13 @@ WHAT IT COMPARES, AND WHAT IT DELIBERATELY DOES NOT
 Compared:
   * the LINE STREAM  - the sequence of rendered lines, blanks included,
                        ignoring page boundaries
-  * PAGINATION       - ONLY when the printstream actually carries form feeds
+  * PAGINATION       - by two routes. (a) form feeds, when present. (b) for a
+                       DOUBLE-SPACED printstream, boundaries recovered from
+                       WordStar's own filler suppression — see derived_breaks().
+                       Route (b) is what makes a real-world corpus usable at all:
+                       ONLY when the printstream actually carries form feeds
                        (0x0C). Measured 2026-08-03: not one printstream in the
-                       jmwork corpus does — WordStar's print-to-disk wrote a
+                       corpus tested does — WordStar's print-to-disk wrote a
                        continuous stream and let the printer form-feed. So for
                        that corpus the pagination question is NOT ANSWERABLE
                        here, and the tool says so instead of inventing a
@@ -87,6 +91,37 @@ def render(data: bytes, printstream: bool):
     return stream, breaks[:-1], len(pages)
 
 
+def derived_breaks(stream):
+    """Page boundaries recovered from a double-spaced printstream.
+
+    The printstreams tested carry no form feed, so at first glance
+    it records no page boundaries. It does, in a side effect: under `.ls > 1`
+    the printed pattern is strictly text/blank/text/blank, and WordStar "always
+    suppresses soft blank lines at the top of a page when they are created by a
+    line spacing greater than one" (WS7 Reference, Page Layout). So every place
+    the alternation BREAKS is a page top. WordStar's own suppression is the
+    record of where its pages fell.
+
+    Returns None when the stream is not double-spaced (nothing to read), else
+    the indices where two text lines sit adjacent.
+    """
+    text = [bool(l.strip()) for l in stream]
+    if len(text) < 20:
+        return None
+    # double-spaced == most text lines are followed by a blank
+    followed = sum(1 for i in range(len(text) - 1) if text[i] and not text[i + 1])
+    if not text.count(True) or followed / text.count(True) < 0.8:
+        return None
+    return [i for i in range(1, len(text)) if text[i] and text[i - 1]]
+
+
+def text_lines_before(stream, idx):
+    """How many text-bearing lines precede `idx` — the unit that survives blank
+    suppression, so ours and WordStar's are comparable even though our streams
+    contain a different number of blanks."""
+    return sum(1 for l in stream[:idx] if l.strip())
+
+
 def _leading(page):
     n = 0
     while n < len(page) and not ''.join(t for t, _ in page[n]).strip():
@@ -144,15 +179,35 @@ def compare(name, doc_bytes, out_bytes, verbose=False):
                     o_body, d_body, 'wordstar', 'ours', lineterm='', n=1))[:40]:
                 print(f'{"":12}   {ln}')
 
-    if not paginable:
+    # Page boundaries recovered from the printstream's own suppression pattern.
+    # Compared in TEXT LINES, not raw indices: the two streams hold a different
+    # number of blanks, and text-lines-so-far is the quantity both agree on.
+    ours_ok = True
+    derived = derived_breaks(o_body)
+    if derived:
+        ws_at = [text_lines_before(o_body, i) for i in derived]
+        our_at = [text_lines_before(d_body, i) for i in d_breaks]
+        gaps = [ws_at[i + 1] - ws_at[i] for i in range(len(ws_at) - 1)]
+        pitch = f'{gaps[0]}' if gaps and len(set(gaps)) == 1 else f'{gaps}'
+        if ws_at == our_at:
+            print(f'{"":12}   pages MATCH — {len(ws_at) + 1} pages, '
+                  f'WordStar pitch {pitch} text lines')
+        else:
+            ours_ok = False
+            print(f'{"":12}   PAGES DIFFER (derived from suppressed filler):')
+            print(f'{"":12}     wordstar breaks after text lines {ws_at}')
+            print(f'{"":12}     ours              after text lines {our_at}')
+            print(f'{"":12}     wordstar pitch {pitch}; we make '
+                  f'{len(our_at) + 1} pages, WordStar made {len(ws_at) + 1}')
+    elif not paginable:
         if verbose:
-            print(f'{"":12}   pagination not comparable (no form feeds in the '
-                  f'printstream)')
-    elif d_pages != o_pages:
-        print(f'{"":12}   PAGINATION differs: we make {d_pages}, '
+            print(f'{"":12}   pagination not comparable (no form feeds, and the '
+                  f'printstream is not double-spaced)')
+    elif paginable and d_pages != o_pages:
+        print(f'{"":12}   PAGINATION differs (form feeds): we make {d_pages}, '
               f'WordStar made {o_pages}')
 
-    return same and (not paginable or d_pages == o_pages)
+    return same and ours_ok and (not paginable or d_pages == o_pages)
 
 
 def main(argv):
@@ -189,8 +244,8 @@ def main(argv):
     print(f'PRINTED-MODE PARITY GAUNTLET — {len(names)} matched pairs')
     print(f'{"":12} {"stream":>14}  {"lines ours/ws":>13}  '
           f'{"pages":>8}  lead')
-    print(f'{"":12} (pages shown for information; only compared when the '
-          f'printstream has form feeds)\n')
+    print(f'{"":12} (page column is raw count; boundaries are COMPARED via '
+          f'form feeds or recovered filler)\n')
     passed = 0
     for n in names:
         ok = compare(n,
