@@ -138,7 +138,14 @@ def _rw_emit(cases):
             continue
         doc = core.parse(bytes.fromhex(c['input_hex']))
         new = dict(c)
-        new['expected'] = fn(doc, mode=c['mode'])
+        # `title` is HTML-only and OPTIONAL, and dropping it silently produced 15
+        # failures that looked like emitter divergence: the Swift side passes the
+        # vector's own title through, so a regeneration that ignores it compares a
+        # titled document against an untitled expectation.
+        kwargs = {'mode': c['mode']}
+        if c.get('title') is not None and fn is emit_html:
+            kwargs['title'] = c['title']
+        new['expected'] = fn(doc, **kwargs)
         out.append(new)
     return out
 
@@ -172,6 +179,19 @@ def _rw_line_cases(cases):
                               ('emit_html_modern', emit_html, 'modern')):
             if key in c:
                 new[key] = fn(doc, mode=mode)
+        out.append(new)
+    return out
+
+
+def _rw_convert(cases):
+    """job-010's front-door cases: `convert(data, to=<format>)`, one per registered
+    name plus the `md` alias. These prove the registry wires each name to the right
+    emitter, so they go through `convert` rather than calling an emitter directly."""
+    from ctrlkd.convert import convert
+    out = []
+    for c in cases:
+        new = dict(c)
+        new['expected'] = convert(bytes.fromhex(c['input_hex']), to=c['to'])
         out.append(new)
     return out
 
@@ -249,6 +269,18 @@ def _rewrite_file(path):
     if 'cases' in doc and isinstance(doc['cases'], dict):
         doc['cases'] = _rw_notes_cases(doc['cases'])
         touched.append('cases')
+
+    if 'convert' in doc and isinstance(doc['convert'], list):
+        doc['convert'] = _rw_convert(doc['convert'])
+        touched.append('convert')
+
+    # A print stream carrying form feeds, with its own per-format expectations.
+    ff = doc.get('formfeed_printstream')
+    if isinstance(ff, dict) and 'input_hex' in ff and isinstance(ff.get('emit'), list):
+        stream = core.parse(bytes.fromhex(ff['input_hex']))
+        ff['emit'] = [dict(e, expected=EMITTERS[e['format']](stream, mode=e['mode']))
+                      for e in ff['emit'] if e['format'] in EMITTERS]
+        touched.append('formfeed_printstream')
 
     # Sentinel byte values are documentation inside the vector file itself; they
     # must track the implementation or the file contradicts its own data.
