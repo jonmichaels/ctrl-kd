@@ -207,10 +207,15 @@ class Document:
                                                        # printed by WordStar itself, but kept
                                                        # here -- often the most interesting
                                                        # content in a file (hidden author asides)
-    notes: list = field(default_factory=list)         # list[Note], ALL kinds, document order:
+    notes: list = field(default_factory=list)          # list[Note], ALL kinds, document order:
                                                        # the authoritative structure; footnotes/
                                                        # endnotes/annotations/comments above are
                                                        # convenience views over this
+    # INSET picture paths, in document order -- one per `[image: NAME]` placeholder
+    # in the text. A converter cannot render a 1987 .PIX, but recording the path
+    # means a consumer can find the file, and the placeholder means the reader can
+    # see that a figure belongs there. Register C10.
+    graphics: list = field(default_factory=list)       # list[str]
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
@@ -1127,6 +1132,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
     out = bytearray()
     notes = []
     unknown = []
+    graphics = []
     tab_at = set()
     i = 0
     while i < len(data):
@@ -1162,6 +1168,21 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 out += bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F)
+            elif cmd == 0x10:                                     # inset graphic
+                # An INSET picture placed in the text. The block's content is the
+                # image's path, and it was being dropped whole -- filename and all
+                # -- so a document with figures rendered as if it had none, with no
+                # indication anything was missing. Register C10.
+                #
+                # A converter cannot render a 1987 .PIX file, but it must not go
+                # quiet about one: the path is recorded on the Document and a
+                # visible placeholder goes into the text where the picture sat.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                path = bytes(c & 0x7F for c in content
+                             if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                graphics.append(path)
+                name = path.replace('\\', '/').rsplit('/', 1)[-1] or path
+                out += b'[image: ' + name.encode(encoding, 'replace') + b']'
             elif cmd == 0x0E:                                     # index item
                 # An inline indexed PHRASE. WordStar prints the phrase in the
                 # body -- the index ENTRY is the non-printing part -- so
@@ -1180,7 +1201,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), notes, unknown, tab_at
+    return bytes(out), notes, unknown, tab_at, graphics
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -1195,7 +1216,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # really was typed.
     tab_at = frozenset()
     if ws5:
-        data, notes, blobs, tab_at = _symmetric_blocks(data, encoding)
+        data, notes, blobs, tab_at, graphics = _symmetric_blocks(data, encoding)
+        doc.graphics = graphics
         doc.notes = notes
         doc.unknown_blocks = blobs
         # footnotes/endnotes/annotations are all rendered the same way (a
