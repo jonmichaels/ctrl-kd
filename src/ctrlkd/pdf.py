@@ -63,15 +63,37 @@ def _printed_cap(doc):
     WS documents carry doc.meta['page'] and get WordStar's own vertical
     model (core._text_lines_per_page: .pl - .mt - .mb at the .lh line
     height -- 55 for WordStar's defaults, NOT the 60 a naive 1in-margin
-    computation gives). Print streams have no 'page' meta and ARE the
-    printed page -- their margin blanks travel in-band -- so their budget
-    is the FULL page height in lines (66 on Letter): anything smaller
-    would split a physical page that the printer produced whole."""
+    computation gives).
+
+    PRINT STREAMS GET THE SAME MODEL. Corrected 2026-08-03 (Jon's ruling:
+    "printstreams need to follow WordStar standards, not our falsely invented
+    ones"). This used to hand a print stream the FULL page height -- 66 lines
+    on Letter -- justified by the claim that "their margin blanks travel
+    in-band". That claim was checked against raw bytes and is FALSE for real
+    print-to-disk output: such a stream carries no form feeds, and no top
+    margin after its first page. It is not a stack of whole physical pages; it
+    is a run of printed lines. Paginating it at 66 invented a page size
+    WordStar does not document and no evidence supports.
+
+    So a stream with no page metadata now falls back to WordStar's documented
+    defaults, the same as a document that declares none: .pl 66 - .mt 3 - .mb 8
+    = 55 lines. That is what WordStar 4 itself produces when run (its live
+    output shows 11-line inter-page gaps = .mb 8 + .mt 3, on a 66-line pitch),
+    and it makes the three renderings of one document -- the WS4 source, its
+    print stream, and the live program -- finally agree.
+
+    KNOWN LIMIT, recorded rather than papered over: a print stream that DOES
+    carry its margins in band (WordStar 4's live output does) will now get
+    margin on top of margin. Distinguishing the two cases needs evidence we do
+    not have, and inventing a detector is exactly what this change undoes."""
     page = doc.meta.get('page')
     if page is not None:
         return max(FOOTNOTE_FLOOR + 1, page.get('text_lines', 55))
-    page_h = _resolved_page_height(doc, True)
-    return max(FOOTNOTE_FLOOR + 1, int(page_h // LEAD))
+    from .core import (DEFAULT_PL_LINES, DEFAULT_MT_LINES, DEFAULT_MB_LINES,
+                       DEFAULT_LH_48, _text_lines_per_page)
+    return max(FOOTNOTE_FLOOR + 1,
+               _text_lines_per_page(DEFAULT_PL_LINES, DEFAULT_MT_LINES,
+                                    DEFAULT_MB_LINES, DEFAULT_LH_48))
 
 
 def _printed_top(doc):
