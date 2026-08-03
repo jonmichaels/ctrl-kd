@@ -278,7 +278,13 @@ WS_TOGGLES = {0x02: 'b', 0x13: 'u', 0x19: 'i', 0x14: 'sup', 0x16: 'sub',
               0x18: 'strike', 0x04: 'b'}         # ^D doublestrike -> bold
 WS_DROP = {0x01, 0x03, 0x08, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
 
-DOT_PAGEBREAK = {b'PA', b'CP'}
+DOT_PAGEBREAK = {b'PA'}                 # UNCONDITIONAL page break
+# `.CP n` is CONDITIONAL and cannot be decided here: it depends on how many
+# lines are left on the page, which only the pagination pass knows. It used to
+# live in DOT_PAGEBREAK and so broke every time, inverting the author's intent
+# -- `.cp` exists precisely so a heading does NOT get stranded, and firing it
+# unconditionally inserts the break it was there to prevent.
+DOT_CONDPAGE = b'CP'
 
 # ------------------------------------------------------------ page geometry
 #
@@ -505,6 +511,21 @@ def _resolve_page_size(pl_lines: float):
     if abs(named_in - height_in) <= PAGE_SIZE_SNAP_IN:
         return named_in, name
     return height_in, 'Custom'
+
+def _cp_lines(cmd: bytes) -> int:
+    """The n of a `.cp n`, defaulting to 1 (a bare `.cp` asks for one line).
+
+    Stored on the block so the paginator can apply the rule measured on
+    WordStar 4 on 2026-08-03: break only when the lines REMAINING are strictly
+    fewer than n. Exactly n remaining is enough room and does not break."""
+    m = _DOT_NUM_RE.match(cmd[3:])
+    if not m:
+        return 1
+    try:
+        return max(1, int(float(m.group(1))))
+    except (TypeError, ValueError):
+        return 1
+
 
 def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
     """Try to interpret one dot-command line as page geometry (.pl/.po/.mt/.mb)
@@ -851,6 +872,15 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             if cmd[1:3].upper() in DOT_PAGEBREAK:
                 close_block()
                 doc.blocks.append(Block('pagebreak'))
+            elif cmd[1:3].upper() == DOT_CONDPAGE:
+                # Carry the requested line count to the paginator. Measured on
+                # WordStar 4 (2026-08-03): it breaks only when the lines
+                # REMAINING on the page are strictly fewer than n -- exactly n
+                # remaining is enough room and does not break.
+                close_block()
+                blk = Block('condpage')
+                blk.heading = _cp_lines(cmd)
+                doc.blocks.append(blk)
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
             _parse_page_dot(cmd, page, meta_extra)
