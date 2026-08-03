@@ -1760,3 +1760,66 @@ def test_hard_blanks_do_not_double_space_a_block_that_ends_with_one():
     data += ws4_text('This final paragraph is deliberately long enough that the '
                      'wrap test must break it across two physical lines.') + HARD
     assert [len(pg) for pg in _doc_to_pagelines(core.parse(data), False)] == [LINES_MODERN]
+
+
+# ------------------------------------------------- Category C: formatting state
+
+def test_oc_centering_is_stateful_and_stamps_its_blocks():
+    """C16. `.oc on`/`.oc off` bracket individual headings inside otherwise flush
+    text -- 17 files in the WS7 archive do exactly this -- so the state has to be
+    stamped per block, not resolved once per document."""
+    doc = core.parse_ws(b'Normal.\r\n.oc on\r\nCentred heading\r\n.oc off\r\nNormal again.\r\n')
+    assert [b.align for b in doc.blocks] == ['left', 'center', 'left']
+
+
+def test_oj_takes_c_and_r_not_just_on_off():
+    """C17. The manual leads with on/off; the archive really uses `.oj r` and
+    `.oj c` as well, so all four forms are read."""
+    assert core.parse_ws(b'.oj r\r\nText.\r\n').blocks[0].align == 'right'
+    assert core.parse_ws(b'.oj c\r\nText.\r\n').blocks[0].align == 'center'
+    assert core.parse_ws(b'.oj on\r\nText.\r\n').blocks[0].align == 'justify'
+    assert core.parse_ws(b'.oj off\r\nText.\r\n').blocks[0].align == 'left'
+
+
+def test_centering_wins_over_justification():
+    """WordStar centres the line whatever the justification setting says, which is
+    what lets the archive's `.oc on`/`.oc off` pairs sit inside justified text."""
+    doc = core.parse_ws(b'.oj on\r\n.oc on\r\nCentred.\r\n')
+    assert doc.blocks[0].align == 'center'
+
+
+def test_aw_off_marks_a_block_as_hand_placed():
+    """C23. With word wrap off the author is positioning lines by hand, so a
+    reflowing consumer must not re-wrap them."""
+    doc = core.parse_ws(b'.aw off\r\nHand placed.\r\n')
+    assert doc.blocks[0].wrap is False
+    assert core.parse_ws(b'Ordinary.\r\n').blocks[0].wrap is True
+
+
+def test_pr_orientation_uses_the_syntax_files_actually_use():
+    """C18. `.pr or=l`, not a bare argument -- 18 archive files set landscape this
+    way, and every one of them was rendering portrait with no diagnostic."""
+    assert core.parse_ws(b'.pr or=l\r\nT.\r\n').meta['formatting']['orientation'] == 'landscape'
+    assert core.parse_ws(b'.pr or=p\r\nT.\r\n').meta['formatting']['orientation'] == 'portrait'
+    # an unrelated `.pr` form must not invent an orientation
+    assert 'orientation' not in core.parse_ws(b'.pr profile-edit\r\nT.\r\n').meta['formatting']
+
+
+def test_sr_roll_reads_fractions_points_and_bare_48ths():
+    """C22. All four forms appear in the archive."""
+    def roll(arg):
+        return core.parse_ws(b'.sr ' + arg + b'\r\nT.\r\n').meta['formatting'].get('sub_super_roll_48')
+    assert roll(b'3') == 3.0                 # bare = 48ths, WordStar's own unit
+    assert roll(b'3/48"') == 3.0
+    assert roll(b'4/48i') == 4.0
+    assert roll(b'0') == 0.0                 # a real value: do not shift at all
+    assert abs(roll(b'6pt') - 4.0) < 1e-9    # 6/72in = 4/48in
+
+
+def test_formatting_records_only_what_the_file_set():
+    """Same provenance rule as the page geometry: a consumer must be able to tell
+    'the author asked for portrait' from 'nobody said'."""
+    assert core.parse_ws(b'Just text.\r\n').meta['formatting'] == {}
+    flags = core.parse_ws(b'.ul on\r\n.ps off\r\n.kr on\r\n.sb on\r\nT.\r\n').meta['formatting']
+    assert flags == {'underline_blanks': True, 'proportional': False,
+                     'kerning': True, 'suppress_blanks': True}

@@ -39,9 +39,20 @@ class Line:
 
 @dataclass
 class Block:
-    kind: str                            # 'para' | 'pagebreak' | 'softpage'
+    kind: str            # 'para' | 'pagebreak' | 'softpage' | 'condpage'
     lines: list = field(default_factory=list)
-    heading: int = 0                     # 0 = body text; 1-3 = WS5+ title/header/subheading
+    heading: int = 0     # 0 = body text; 1-3 = WS5+ title/header/subheading
+                         # (for 'condpage' it carries `.cp`'s requested line count)
+    # Horizontal alignment in force when this block was opened: 'left' (WordStar's
+    # default), 'center', 'right' or 'justify'. From `.oc` (centering on/off) and
+    # `.oj` (justification off/on/c/r), which are STATEFUL -- they apply from where
+    # they appear until changed -- so the state is stamped onto each block as it
+    # opens rather than looked up later. Register C16/C17.
+    align: str = 'left'
+    # Whether WordStar was word-wrapping when this block was opened (`.aw on|off`).
+    # Register C23: with wrap off the author is positioning lines by hand, so a
+    # reflowing consumer must NOT re-wrap them or the layout is destroyed.
+    wrap: bool = True
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -533,7 +544,11 @@ def _dot_arg_inches(value: float, unit: bytes | None):
         return value
     if u in (b'C', b'CM'):
         return value / 2.54
-    if u in (b'P', b'PM'):
+    if u in (b'P', b'PM', b'PT'):
+        # `PT` is not in the file-format spec's list (which gives P and PM), but
+        # real files write it: the WS7 archive uses `.sr 5pt` and `.sr 3pt`. It can
+        # only mean points, and without it those arguments fell through to the
+        # unit-less default and were read as 48ths -- silently, and wrong by 1.5x.
         return value / 72.0
     return None
 
@@ -620,6 +635,149 @@ def _resolve_page_size(pl_lines: float):
     return height_in, 'Custom'
 
 _HEAD_FOOT_RE = re.compile(rb'^\.(H[E1-5]|F[O1-5])\s?(.*)$', re.I)
+
+
+_ONOFF_RE = re.compile(rb'^\.([A-Za-z]{2})\s+(ON|OFF|[CRD])\b', re.I)
+
+
+def _onoff(arg: bytes):
+    """`ON`/`OFF` -> True/False, anything else -> None.
+
+    WordStar's on/off dot commands accept only those two words; an argument that
+    is neither (a stray `.oc` inside a manual's own prose, say) leaves the state
+    alone rather than guessing, which is why this returns None instead of False.
+    """
+    a = arg.strip().upper()
+    if a.startswith(b'ON'):
+        return True
+    if a.startswith(b'OFF'):
+        return False
+    return None
+
+
+def _parse_format_dot(cmd: bytes, state: dict) -> None:
+    """Update running FORMATTING state from one dot-command line.
+
+    These differ from the page-geometry commands in `_parse_page_dot`: those
+    resolve once per document (first occurrence wins, because a page is a page),
+    while these are STATEFUL and apply from where they appear onward. A document
+    that centres one heading and then returns to flush left sets `.oc on` and
+    `.oc off` around it, and both must be honoured in order.
+
+    Register C16 (`.oc`), C17 (`.oj`), C21 (`.ul`), C23 (`.aw`), C8 (`.sb`),
+    C19 (`.ps`), C20 (`.kr`). Argument forms taken from the Sawyer WS7 archive
+    rather than from the manual alone -- `.oj` really is used as `.oj r` and
+    `.oj c`, not only on/off.
+    """
+    m = _DOT_CMD_RE.match(cmd)
+    if not m:
+        return
+    name = m.group(1).upper()
+    arg = m.group(2)
+
+    if name == b'OC':                       # centering on/off
+        v = _onoff(arg)
+        if v is not None:
+            state['centering'] = v
+    elif name == b'OJ':                     # justification off/on/c/r
+        v = _onoff(arg)
+        if v is True:
+            state['justify'] = 'justify'
+        elif v is False:
+            state['justify'] = None
+        else:
+            first = arg.strip()[:1].upper()
+            if first == b'C':
+                state['justify'] = 'center'
+            elif first == b'R':
+                state['justify'] = 'right'
+    elif name == b'AW':                     # align/word-wrap on/off
+        v = _onoff(arg)
+        if v is not None:
+            state['wrap'] = v
+    elif name == b'UL':                     # continuous underline of inter-word blanks
+        v = _onoff(arg)
+        if v is not None:
+            state['underline_blanks'] = v
+    elif name == b'SB':                     # suppress blank lines at page top
+        v = _onoff(arg)
+        if v is not None:
+            state['suppress_blanks'] = v
+    elif name == b'PS':                     # proportional spacing
+        v = _onoff(arg)
+        if v is not None:
+            state['proportional'] = v
+    elif name == b'KR':                     # kerning
+        v = _onoff(arg)
+        if v is not None:
+            state['kerning'] = v
+    elif name == b'PR':                     # printer control, incl. orientation
+        # Real syntax, from the archive rather than the manual's prose: `.pr or=l`
+        # / `.pr or=p`. 18 of the 22 files that use `.pr` set landscape this way.
+        # A landscape document rendered portrait is wrong with no diagnostic --
+        # register C18.
+        a = arg.strip().lower()
+        if a.startswith(b'or='):
+            o = a[3:4]
+            if o == b'l':
+                state['orientation'] = 'landscape'
+            elif o == b'p':
+                state['orientation'] = 'portrait'
+    elif name == b'SR':                     # sub/superscript roll
+        # Numeric with an optional unit, and the archive really does use `3/48"`
+        # and `4/48i` as well as `5pt` and a bare `3`. Register C22.
+        roll = _parse_sr_arg(arg)
+        if roll is not None:
+            state['sub_super_roll_48'] = roll
+
+
+_SR_FRACTION_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*/\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
+
+
+def _parse_sr_arg(arg: bytes):
+    """`.sr` -- the sub/superscript roll, in 1/48in units.
+
+    WordStar's own unit for this command is 48ths, so a bare number IS 48ths.
+    The archive also writes it as a fraction of an inch (`3/48"`, `4/48i`) and in
+    points (`5pt`), both of which convert. A roll of 0 is meaningful -- it means
+    do not shift at all -- so this returns None only for an argument it cannot
+    read, never for a legitimate zero.
+    """
+    m = _SR_FRACTION_RE.match(arg)
+    if m:
+        try:
+            num, den = float(m.group(1)), float(m.group(2))
+        except ValueError:
+            return None
+        if den == 0:
+            return None
+        inches = num / den
+        # A unit-less fraction is already a fraction OF AN INCH (`3/48` == 3/48in),
+        # which is what the 48ths unit expresses, so both paths multiply by 48.
+        return inches * 48.0
+    m = _DOT_NUM_RE.match(arg)
+    if not m:
+        return None
+    try:
+        value = float(m.group(1))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    inches = _dot_arg_inches(value, m.group(2))
+    return inches * 48.0 if inches is not None else value
+
+
+def _align_now(state: dict) -> str:
+    """The alignment in force, from the two commands that set it.
+
+    `.oc on` (centering) wins over `.oj`: WordStar centres the line regardless of
+    the justification setting, and the archive uses `.oc on` / `.oc off` around
+    individual headings inside otherwise justified text.
+    """
+    if state.get('centering'):
+        return 'center'
+    return state.get('justify') or 'left'
 
 
 def _parse_head_foot(cmd: bytes, doc, encoding: str):
@@ -1021,7 +1179,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
 
     active, unknown, dots, dot_at = set(), {}, [], []
     fn_counter = [0] if ws5 else None
-    cur = Block('para')
+    # Running FORMATTING state (`.oc`/`.oj`/`.aw`/`.ul`/`.sb`/`.ps`/`.kr`), stamped
+    # onto each block as it opens. Stateful, unlike page geometry -- see
+    # `_parse_format_dot`.
+    fmt = {}
+    cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True))
     cur_line = Line()
     ruler = False
     page, meta_extra = {}, {}
@@ -1037,7 +1199,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         close_line()
         if cur.lines:
             doc.blocks.append(cur)
-        cur = Block('para')
+        cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True))
 
     for raw, sep in physical:
         stripped = bytes(b & 0x7F for b in raw)
@@ -1066,6 +1228,13 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
             _parse_head_foot(cmd, doc, encoding)
+            # A formatting change starts a NEW block: `.oc on` mid-paragraph means
+            # the lines after it are centred and the ones before it are not, and a
+            # single block cannot hold both.
+            before = (_align_now(fmt), fmt.get('wrap', True))
+            _parse_format_dot(cmd, fmt)
+            if (_align_now(fmt), fmt.get('wrap', True)) != before:
+                close_block()
             _parse_page_dot(cmd, page, meta_extra)
             continue
         if ws5:                                    # sentinels from _symmetric_blocks
@@ -1117,6 +1286,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     close_block()
 
     doc.meta['dot_commands'] = dots
+    # The formatting commands that are document-wide rather than per-block. Only
+    # keys the file actually SET appear, so a consumer can tell "the author asked
+    # for portrait" from "nobody said" -- the same provenance rule the page
+    # geometry follows. Register C8/C18/C19/C20/C21/C22.
+    doc.meta['formatting'] = {k: v for k, v in fmt.items()
+                              if k not in ('centering', 'justify', 'wrap')}
     # (block, line, text) for each dot command, so a caller can render one in
     # place instead of only knowing that it existed somewhere.
     doc.meta['dot_positions'] = dot_at
