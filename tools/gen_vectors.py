@@ -145,11 +145,17 @@ def _rw_line_cases(cases):
     for c in cases:
         doc = core.parse_ws(bytes.fromhex(c['input_hex']))
         new = dict(c)
+        # Both views of the same block: the PHYSICAL lines WordStar put on paper, and
+        # the reflowed logical lines `merged_lines` joins them back into. The pair is
+        # the whole point of the 2.0.0 split, so a rewriter that emitted only one of
+        # them would silently delete half the coverage.
         new['blocks'] = [
             {
                 'kind': b.kind,
                 'physical': [{'text': ''.join(s.text for s in l.spans), 'soft': l.soft}
                              for l in b.lines],
+                'merged': [''.join(s.text for s in l.spans)
+                           for l in core.merged_lines(b)],
             }
             for b in doc.blocks
         ]
@@ -227,7 +233,7 @@ def _rewrite_file(path):
                 doc['printstream'][field] = fn(stream)
         touched.append('printstream')
 
-    updated = json.dumps(doc, indent=1, ensure_ascii=False) + '\n'
+    updated = json.dumps(doc, indent=1) + '\n'
     return original != updated, updated, touched
 
 
