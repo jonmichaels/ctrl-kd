@@ -57,12 +57,37 @@ def merged_lines(block: Block) -> list:
     after an existing space or a hyphenated break -- so Modern output is
     byte-identical either side of the 2.0.0 split."""
     out, cur = [], None
+    # Hard blanks are emitted only BETWEEN content, never trailing. A block that
+    # ENDS with the author's blank already gets a structural blank from the Modern
+    # layout, and emitting both double-spaced every paragraph of a WS4 document
+    # ([52, 26] where [54] was right). Buffering them until the next real line
+    # arrives keeps the print-stream case (one block, interior blanks are the only
+    # paragraph separation) without breaking the WS4 case (blank ends the block).
+    pending_blanks = 0
     for line in block.lines:
         if not line.spans:
-            # A blank PHYSICAL line (2026-08-03). Printed renders it; reflow
-            # does not -- Modern emits its own blank between paragraphs, and a
-            # `.ls 2` filler line is typography, not a logical line of text.
+            # A blank PHYSICAL line, and the two kinds mean different things.
+            #
+            # SOFT is `.ls` filler -- typography, not a logical line of text, so
+            # reflow drops it and lets the Modern layout do its own spacing.
+            #
+            # HARD is the author's own return, and it is the ONLY paragraph
+            # separation a print stream has. Dropping it was correct only while
+            # blank lines still delimited BLOCKS; once they became content
+            # (2026-08-03) a whole print stream is one block, so "Modern emits
+            # its own blank between paragraphs" fired exactly once for the
+            # entire document and every paragraph ran together in the PDF.
+            # emit_text kept its blanks and _doc_to_pagelines did not, which is
+            # how the two disagreed for a day. Found by the Swift port.
+            if not line.soft:
+                if cur is not None:
+                    out.append(cur)
+                    cur = None
+                pending_blanks += 1
             continue
+        if pending_blanks:
+            out.extend(Line([]) for _ in range(pending_blanks))
+            pending_blanks = 0
         if cur is None:
             cur = Line(list(line.spans))
         else:

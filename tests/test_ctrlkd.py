@@ -1727,3 +1727,36 @@ def test_pc_is_recorded_but_does_not_move_a_hash_in_a_footer():
     xs = {float(x) for x, _, t in
           re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', pdf) if t.strip() == b'1'}
     assert xs and min(xs) < 100, '.pc must not reposition an authored # in a footer'
+
+
+def test_print_stream_paragraphs_stay_separated_in_modern_layout():
+    """A print stream's ONLY paragraph separation is the author's blank line.
+
+    Once blank lines became content (2026-08-03) an entire print stream is one
+    block, so the Modern layout's "one structural blank per block" fired exactly
+    ONCE for the whole document and every paragraph ran together in the PDF.
+    emit_text kept its blanks and _doc_to_pagelines did not, which is how the two
+    silently disagreed. Found by the Swift port.
+    """
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = b''.join(b'Paragraph %d here.\r\n\r\n' % i for i in range(4))
+    doc = core.parse(data)
+    assert doc.meta['variant'] == 'printstream'          # the test's own premise
+    page = _doc_to_pagelines(doc, False)[0]
+    text = [''.join(t for t, _ in ln) for ln in page]
+    assert text == ['Paragraph 0 here.', '', 'Paragraph 1 here.', '',
+                    'Paragraph 2 here.', '', 'Paragraph 3 here.'], text
+
+
+def test_hard_blanks_do_not_double_space_a_block_that_ends_with_one():
+    """The other half: a WS4 document whose blank lines END each block already
+    gets a structural blank from the Modern layout. Emitting the author's blank
+    as well double-spaced every paragraph ([52, 26] where [54] was right), so
+    hard blanks are emitted only BETWEEN content, never trailing."""
+    from ctrlkd.pdf import _doc_to_pagelines, LINES_MODERN
+    n = (LINES_MODERN - 2) // 2
+    data = b''.join(ws4_text('Paragraph %d here today.' % i) + HARD + HARD
+                    for i in range(n))
+    data += ws4_text('This final paragraph is deliberately long enough that the '
+                     'wrap test must break it across two physical lines.') + HARD
+    assert [len(pg) for pg in _doc_to_pagelines(core.parse(data), False)] == [LINES_MODERN]
