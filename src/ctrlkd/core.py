@@ -215,7 +215,7 @@ def detect(data: bytes) -> dict:
 def _visible(text: bytes) -> bytes:
     return bytes(b & 0x7F for b in text if 0x20 <= (b & 0x7F) < 0x7F)
 
-def lines_pass(data: bytes):
+def lines_pass(data: bytes, tab_at=frozenset()):
     """Split into physical lines and classify every break.
 
     Yields (line_bytes, sep) with sep in {'wrap','line','para','eof'}:
@@ -233,21 +233,25 @@ def lines_pass(data: bytes):
         data = data[:cut]
     parts = re.split(rb'(\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a)', data)
     lines = []
+    at = 0                                   # offset of parts[i] in `data`
     for i in range(0, len(parts), 2):
         text = parts[i]
         brk = parts[i + 1] if i + 1 < len(parts) else b''
         kind = 'eof' if not brk else ('soft' if brk[0] == 0x8D else 'hard')
         if text or kind != 'eof':
-            lines.append((text, kind))
+            # `machine_indent`: this line's leading whitespace was emitted by
+            # WordStar from a TAB, not typed by the author. See the wrap test.
+            lines.append((text, kind, at in tab_at))
+        at += len(text) + len(brk)
 
-    softlens = sorted(len(_visible(t).rstrip()) for t, k in lines
+    softlens = sorted(len(_visible(t).rstrip()) for t, k, _ in lines
                       if k == 'soft' and _visible(t).strip())
     margin = max(65, softlens[int(len(softlens) * 0.9)] if softlens else 0)
 
     out = []
     i = 0
     while i < len(lines):
-        text, kind = lines[i]
+        text, kind, _mi = lines[i]
         if not _visible(text).strip():
             # A blank line is CONTENT, not a delimiter (fixed 2026-08-03).
             # It used to be skipped here and counted only to classify the
@@ -286,7 +290,20 @@ def lines_pass(data: bytes):
             sep = 'line'
         else:
             nxt_vis = _visible(lines[j][0])
-            if nxt_vis[:1] == b' ':
+            if lines[j][2]:
+                # Machine indent: WordStar re-stamped the left margin onto this
+                # wrapped line from a TAB. Drop it before measuring, or the
+                # "first word" is the empty string before the spaces, W is 0,
+                # and the wrap test concludes the next word would have fit --
+                # which lands back on 'deliberate' by a different route.
+                nxt_vis = nxt_vis.lstrip(b' ')
+            if nxt_vis[:1] == b' ' and not lines[j][2]:
+                # An indented continuation the AUTHOR typed is a deliberate
+                # break (a poem, a block quote). One WordStar itself emitted
+                # from a tab is not: it re-stamps the left indent onto every
+                # wrapped line, so treating that as deliberate stopped whole
+                # paragraphs from ever reflowing in Modern -- they rendered as
+                # physical lines with the wrong margins. Diagnosed 2026-08-03.
                 sep = 'line'                      # indented continuation = deliberate
             else:
                 L = len(_visible(text).rstrip())
@@ -297,7 +314,7 @@ def lines_pass(data: bytes):
         # follow. They were counted above to classify `sep` and are now also
         # kept as content -- the counting and the keeping are separate jobs.
         for b in range(i + 1, j):
-            btext, bk = lines[b]
+            btext, bk, _ = lines[b]
             if bk != 'eof':
                 out.append((btext, 'blank-soft' if bk == 'soft' else 'blank-hard'))
         i = j
@@ -856,10 +873,15 @@ def _symmetric_blocks(data: bytes, encoding: str):
     injecting sentinels for the block types that carry document structure.
     Types we don't interpret are preserved as opaque UnknownBlocks rather than
     dropped (project rule: preserve what you don't understand). Verified
-    against the 86 WS7 documents in Robert J. Sawyer's WordStar archive."""
+    against the 86 WS7 documents in Robert J. Sawyer's WordStar archive.
+
+    Also returns the offsets (into the returned stream) at which TAB-derived
+    padding begins -- see lines_pass, which needs to tell a program-emitted
+    indent from one the author typed."""
     out = bytearray()
     notes = []
     unknown = []
+    tab_at = set()
     i = 0
     while i < len(data):
         if data[i] == 0x1D and i + 3 <= len(data):
@@ -875,6 +897,13 @@ def _symmetric_blocks(data: bytes, encoding: str):
             elif cmd == 0x09:                                     # tab (and dot leaders)
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 cols, leader = _tab_columns(content)
+                # Remember that this padding came from a TAB, not from typed
+                # spaces. Recorded as an offset into the CLEANED stream, which
+                # is exactly what lines_pass then scans, so the mark stays
+                # aligned without injecting a sentinel byte -- today's other
+                # sentinel (0x07) collided with a real WordStar code, and that
+                # lesson is cheap to apply here.
+                tab_at.add(len(out))
                 out += leader * cols
             elif cmd == 0x0B:                                     # end of page
                 out.append(SENT_SOFTPAGE)
@@ -905,7 +934,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), notes, unknown
+    return bytes(out), notes, unknown, tab_at
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -915,8 +944,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['era'] = era.name
     strip_hibit = era.high_bit_wordwrap
     ws5 = era.symmetric_blocks
+    # Offsets where WordStar emitted TAB-derived padding. Only WS5+ carries
+    # symmetric blocks, so a WS4 file has none and every leading space in one
+    # really was typed.
+    tab_at = frozenset()
     if ws5:
-        data, notes, blobs = _symmetric_blocks(data, encoding)
+        data, notes, blobs, tab_at = _symmetric_blocks(data, encoding)
         doc.notes = notes
         doc.unknown_blocks = blobs
         # footnotes/endnotes/annotations are all rendered the same way (a
@@ -932,7 +965,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         doc.annotations = [[Span(n.text)] for n in notes if n.kind == 'annotation']
         doc.comments = [n for n in notes if n.kind == 'comment']
 
-    physical, margin = lines_pass(data)
+    physical, margin = lines_pass(data, tab_at)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
