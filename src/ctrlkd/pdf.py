@@ -464,7 +464,7 @@ def _doc_to_pagelines(doc, printed):
     # top margin as blank lines. A WS4/WS5+ DOCUMENT has no machine margin in
     # it at all -- `.mt` is a dot command and the emitter applies it as paper
     # margin -- so every leading blank in one is the author's. Running the
-    # stripper on a document deleted Jon's chapter drop outright, and on any
+    # stripper on a document deleted an author's chapter drop outright, and on any
     # SINGLE-page document it deleted every leading blank, because the
     # `len(pages) > 1` fallback measures the only page against itself.
     if printed and pages and doc.meta.get('variant') == 'printstream':
