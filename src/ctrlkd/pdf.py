@@ -437,6 +437,14 @@ def _doc_to_pagelines(doc, printed):
         if b.kind == 'pagebreak' or (b.kind == 'softpage' and printed):
             lines.append(None)
             continue
+        if b.kind == 'condpage':
+            # `.cp n` -- a break ONLY if fewer than n lines remain. Measured on
+            # WordStar 4 (2026-08-03): exactly n remaining is enough room and
+            # does NOT break; the test is strictly `remaining < n`. Emitted as a
+            # sentinel so the page-filling loop below, which is the only thing
+            # that knows how full the page is, can decide.
+            lines.append(('cond', b.heading or 1))
+            continue
         if b.kind == 'softpage':
             continue
         # printed renders PHYSICAL lines (a soft return broke the line on
@@ -464,6 +472,11 @@ def _doc_to_pagelines(doc, printed):
     cap = _printed_cap(doc) if printed else LINES_MODERN
     pages, page = [], []
     for l in lines:
+        if isinstance(l, tuple) and l and l[0] == 'cond':
+            # strictly fewer than n lines left -> break; exactly n is enough
+            if cap - len(page) < l[1] and page:
+                pages.append(page); page = []
+            continue
         if l is None or len(page) >= cap:
             if page or l is None:
                 pages.append(page); page = []

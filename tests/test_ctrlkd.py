@@ -1418,3 +1418,46 @@ def test_parse_records_the_era_it_used():
     than having to re-derive them."""
     data = ws4_text('Some ordinary body text here.') + HARD
     assert core.parse_ws(data).meta['era'] in ('ws4', 'ws5+')
+
+
+# ---------------------------------------------------------------- .cp
+
+def _cp_doc(cp_before, n, total=60):
+    """Numbered lines with a `.cp n` inserted before line `cp_before`."""
+    out = []
+    for i in range(1, total + 1):
+        if i == cp_before:
+            out.append(f'.cp {n}')
+        out.append(f'LINE {i:03d} ' + '-' * 40)
+    return ('\r\n'.join(out) + '\r\n').encode()
+
+
+def test_cp_does_not_break_when_there_is_room():
+    """`.cp` exists so a heading is NOT stranded at a page bottom. Firing it
+    unconditionally inserts the very break it was there to prevent -- which is
+    what the old code did, treating .CP exactly like .PA."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(core.parse_ws(_cp_doc(20, 10)), True)
+    # 36 of 55 lines remain at line 20: plenty of room, no break there.
+    first = [''.join(t for t, _ in ln) for ln in pages[0]]
+    assert any('LINE 020' in l for l in first), 'line 20 was pushed off page 1'
+    assert any('LINE 055' in l for l in first), 'page 1 should still hold 55 lines'
+
+
+def test_cp_breaks_when_short_of_room():
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(core.parse_ws(_cp_doc(50, 10)), True)
+    first = [''.join(t for t, _ in ln) for ln in pages[0]]
+    # 6 of 55 remain at line 50 -- fewer than 10, so it breaks BEFORE line 50
+    assert any('LINE 049' in l for l in first)
+    assert not any('LINE 050' in l for l in first), '.cp did not break'
+
+
+def test_cp_boundary_is_strict():
+    """Measured on WordStar 4 (2026-08-03): with EXACTLY n lines remaining it
+    does not break -- the test is `remaining < n`, not `<=`."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(core.parse_ws(_cp_doc(46, 10)), True)
+    first = [''.join(t for t, _ in ln) for ln in pages[0]]
+    assert any('LINE 046' in l for l in first), 'exactly n remaining must NOT break'
+    assert any('LINE 055' in l for l in first)
