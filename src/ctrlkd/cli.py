@@ -57,10 +57,11 @@ def main(argv=None):
                     help='output format (repeatable; default: markdown)')
     ap.add_argument('-o', '--output', help='output file (single input only)')
     ap.add_argument('-d', '--outdir', help='output directory for batch conversion')
-    ap.add_argument('--mode', choices=('modern', 'printed'), default='modern',
-                    help='modern: reflowed paragraphs. printed: line-for-line, '
-                         'fixed-width, as it printed in 1990 (default: modern; '
-                         'print streams and ruler-line documents always render printed)')
+    ap.add_argument('--mode', choices=('modern', 'printed'), default='printed',
+                    help='printed: line-for-line, fixed-width, as it printed in '
+                         '1990 (DEFAULT). modern: reflowed paragraphs for '
+                         'reading. Print streams and ruler-line documents '
+                         'always render printed regardless.')
     ap.add_argument('--variant', choices=('ws4', 'ws5+', 'printstream', 'text'),
                     help='override detection')
     ap.add_argument('--encoding', default='cp437',
