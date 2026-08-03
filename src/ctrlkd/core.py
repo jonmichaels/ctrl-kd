@@ -276,7 +276,14 @@ def lines_pass(data: bytes):
 # WordStar inline control codes (same core set WS4 through WS7)
 WS_TOGGLES = {0x02: 'b', 0x13: 'u', 0x19: 'i', 0x14: 'sup', 0x16: 'sub',
               0x18: 'strike', 0x04: 'b'}         # ^D doublestrike -> bold
-WS_DROP = {0x01, 0x03, 0x08, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
+# Codes discarded without comment. 0x08 (^H overprint) was here until
+# 2026-08-03 and is deliberately NOT any more: WordStar-era authors used
+# backspace-and-overtype to compose accented letters and ad-hoc symbols, so
+# dropping it SILENTLY loses content with no trace. It now falls through to the
+# `unknown` tally, which `--diagnose` reports -- the project's own rule is never
+# to go quiet. Composing the overprinted pair properly is a separate job; being
+# able to SEE that a document contains overprints is the prerequisite for it.
+WS_DROP = {0x01, 0x03, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
 
 DOT_PAGEBREAK = {b'PA'}                 # UNCONDITIONAL page break
 # `.CP n` is CONDITIONAL and cannot be decided here: it depends on how many
@@ -637,8 +644,18 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     flush()
     return spans
 
-SENT_FNREF = 0x07      # sentinels injected into the cleaned stream; these bytes
-SENT_SOFTPAGE = 0x0B   # cannot appear as text in a WS5+ document body
+# Sentinels injected into the cleaned stream. They must be bytes that CANNOT
+# occur as content, or a document's own byte gets mistaken for one.
+#
+# SENT_FNREF was 0x07 until 2026-08-03. 0x07 is ^G, WordStar's phantom rubout --
+# rare and print-time-only by 1990, but REAL, and a literal one in a WS5+ body
+# was read as a note reference. Out-of-range degraded gracefully; an IN-range
+# collision silently attached the WRONG footnote to a piece of body text. Moved
+# to 0x00. NUL is not text in a WordStar body -- the format terminates on 0x1A
+# and never emits a NUL as content -- and unlike 0x1B (the extended-character
+# escape, tried first and rejected) nothing downstream consumes it.
+SENT_FNREF = 0x00
+SENT_SOFTPAGE = 0x0B
 SENT_HEADING = 0x11
 
 # Symmetrical-sequence "Notes" types (WordStar 7.0 file format spec, WordStar
