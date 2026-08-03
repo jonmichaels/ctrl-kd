@@ -66,7 +66,22 @@ def merged_lines(block: Block) -> list:
         if cur is None:
             cur = Line(list(line.spans))
         else:
-            cur.spans.extend(line.spans)
+            # A soft-wrapped CONTINUATION line carries WordStar's own re-emitted
+            # left indent -- a `.lm`/tab that the program stamps onto every
+            # wrapped line, not something the author typed. Printed renders it
+            # (it really is on the paper); reflow must not, or the indent ends
+            # up embedded mid-paragraph and the wrapper breaks around it.
+            # Diagnosed 2026-08-03 on a real file whose every physical line
+            # begins with a type-9 tab sequence.
+            spans = list(line.spans)
+            while spans and not spans[0].text.strip():
+                spans.pop(0)
+            if spans:
+                first = spans[0]
+                stripped = first.text.lstrip()
+                if stripped != first.text:
+                    spans[0] = Span(stripped, first.styles)
+            cur.spans.extend(spans)
         if line.soft:
             t = cur.spans[-1].text if cur.spans else ''
             if t and not t.endswith((' ', '-')):
