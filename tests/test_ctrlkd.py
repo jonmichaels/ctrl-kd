@@ -983,13 +983,20 @@ def test_pdf_printstream_keeps_fixed_margin_and_size():
     assert _printed_size(ps) == 12
     assert _printed_left(ps, 12) == 72.0           # streams: offset is in-band
 
-def test_pdf_printstream_capacity_is_the_full_page():
-    # a print stream IS the printed page -- its margin blanks travel in-band,
-    # so the page budget is the FULL 66 lines of a Letter page: anything
-    # smaller could split a physical page the printer produced whole
+def test_pdf_printstream_uses_wordstars_documented_page():
+    # CORRECTED 2026-08-03. This used to assert 66 -- the FULL page -- on the
+    # premise that "a print stream IS the printed page, its margin blanks
+    # travel in-band". Checked against raw bytes, that is false: real
+    # print-to-disk output carries no form feeds and no top margin after its
+    # first page. 66 was a page size WordStar does not document and no evidence
+    # supports.
+    #
+    # A stream that declares no page geometry now gets WordStar's documented
+    # defaults, exactly like a document that declares none: .pl 66 - .mt 3
+    # - .mb 8 = 55. That is also what WordStar 4 produces when actually run.
     from ctrlkd.pdf import _printed_cap, _printed_top
     doc = core.parse_printstream(b'line one\r\nline two\r\n')
-    assert _printed_cap(doc) == 66
+    assert _printed_cap(doc) == 55
     assert _printed_top(doc) == 36                        # fixed: not .mt-derived
 
 # ---------------------------------------------------------------- small parser additions
