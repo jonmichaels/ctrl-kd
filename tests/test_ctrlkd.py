@@ -1823,3 +1823,48 @@ def test_formatting_records_only_what_the_file_set():
     flags = core.parse_ws(b'.ul on\r\n.ps off\r\n.kr on\r\n.sb on\r\nT.\r\n').meta['formatting']
     assert flags == {'underline_blanks': True, 'proportional': False,
                      'kerning': True, 'suppress_blanks': True}
+
+
+def test_centering_actually_renders_in_every_format_that_can_show_it():
+    """C16/C17 -- the half that was missing. The dot commands were parsed and
+    recorded and then had no effect anywhere: a centred heading came out flush
+    left in text, HTML, RTF and PDF alike. That was a gap, not a decision."""
+    from ctrlkd.emit import emit_text, emit_html, emit_rtf
+    src = b'.oc on\r\nCentred.\r\n.oc off\r\n.oj on\r\nJustified body.\r\n'
+    doc = core.parse_ws(src)
+    doc.meta['variant'] = 'ws4'                  # the reflowing path, not <pre>
+
+    text = emit_text(doc, mode='modern')
+    centred = [l for l in text.split('\n') if 'Centred.' in l][0]
+    assert centred.startswith(' '), 'centred line was not indented'
+    assert centred.strip() == 'Centred.'
+
+    html = emit_html(doc, mode='modern')
+    assert '<p style="text-align:center">' in html
+    assert '<p style="text-align:justify">' in html
+
+    rtf = emit_rtf(doc, mode='modern')
+    assert r'\qc ' in rtf and r'\qj ' in rtf
+
+
+def test_left_aligned_documents_are_byte_identical_to_before():
+    """WordStar's default is flush left, so a document that never touches
+    `.oc`/`.oj` must emit exactly what it always did -- no stray style attribute,
+    no stray RTF control."""
+    from ctrlkd.emit import emit_html, emit_rtf
+    doc = core.parse_ws(ws4_text('Just ordinary text.') + HARD)
+    assert 'text-align' not in emit_html(doc, mode='modern')
+    assert r'\qc' not in emit_rtf(doc, mode='modern')
+    assert r'\ql' not in emit_rtf(doc, mode='modern')
+
+
+def test_justify_is_not_faked_with_padding_in_plain_text():
+    """WordStar justifies by widening the spaces it already has. Padding a plain
+    text rendering to a hard column would fabricate whitespace the author never
+    typed, so left and justify render identically there -- and the distinction
+    survives in the IR for the formats that can express it."""
+    from ctrlkd.emit import emit_text
+    doc = core.parse_ws(b'.oj on\r\nJustified body.\r\n')
+    doc.meta['variant'] = 'ws4'
+    assert 'Justified body.' in emit_text(doc, mode='modern')
+    assert '  Justified' not in emit_text(doc, mode='modern')
