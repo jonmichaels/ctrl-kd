@@ -53,6 +53,17 @@ class Block:
     # Register C23: with wrap off the author is positioning lines by hand, so a
     # reflowing consumer must NOT re-wrap them or the layout is destroyed.
     wrap: bool = True
+    # `.lm` / `.rm` / `.pm` in force when this block opened, in print COLUMNS
+    # (10 CPI, the same unit `.po` uses). None means the file never set it, so a
+    # consumer applies its own default rather than a fabricated one. Register C9.
+    #
+    # Stateful like the alignment above, and emphatically NOT first-occurrence:
+    # one archive file sets `.pm` seven hundred times. `.pm` is the PARAGRAPH
+    # margin -- the first line's own indent -- which is why it is separate from
+    # `.lm` rather than folded into it.
+    left_margin: float = None
+    right_margin: float = None
+    para_margin: float = None
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -723,6 +734,19 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 state['orientation'] = 'landscape'
             elif o == b'p':
                 state['orientation'] = 'portrait'
+    elif name in (b'LM', b'RM', b'PM'):     # left / right / paragraph margin
+        # Print columns at 10 CPI, matching `.po`; a unit suffix converts. The
+        # archive writes both (`.rm 65` and `.rm 6.5"`).
+        m = _DOT_NUM_RE.match(arg)
+        if m:
+            try:
+                value = float(m.group(1))
+            except (TypeError, ValueError):
+                value = None
+            if value is not None and math.isfinite(value):
+                key = {b'LM': 'left_margin', b'RM': 'right_margin',
+                       b'PM': 'para_margin'}[name]
+                state[key] = _resolve_cols_arg(value, m.group(2))
     elif name == b'SR':                     # sub/superscript roll
         # Numeric with an optional unit, and the archive really does use `3/48"`
         # and `4/48i` as well as `5pt` and a bare `3`. Register C22.
@@ -766,6 +790,19 @@ def _parse_sr_arg(arg: bytes):
         return None
     inches = _dot_arg_inches(value, m.group(2))
     return inches * 48.0 if inches is not None else value
+
+
+def _block_format(state: dict) -> tuple:
+    """Everything stamped onto a Block when it opens.
+
+    A change to ANY of these has to close the current block, because a single
+    block cannot hold two values of it: `.oc on` mid-paragraph means the lines
+    after it are centred and the ones before are not, and `.lm 5` mid-paragraph
+    means the same about the indent.
+    """
+    return (_align_now(state), state.get('wrap', True),
+            state.get('left_margin'), state.get('right_margin'),
+            state.get('para_margin'))
 
 
 def _align_now(state: dict) -> str:
@@ -1183,7 +1220,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # onto each block as it opens. Stateful, unlike page geometry -- see
     # `_parse_format_dot`.
     fmt = {}
-    cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True))
+    cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
+                left_margin=fmt.get('left_margin'),
+                right_margin=fmt.get('right_margin'),
+                para_margin=fmt.get('para_margin'))
     cur_line = Line()
     ruler = False
     page, meta_extra = {}, {}
@@ -1199,7 +1239,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         close_line()
         if cur.lines:
             doc.blocks.append(cur)
-        cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True))
+        cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
+                    left_margin=fmt.get('left_margin'),
+                    right_margin=fmt.get('right_margin'),
+                    para_margin=fmt.get('para_margin'))
 
     for raw, sep in physical:
         stripped = bytes(b & 0x7F for b in raw)
@@ -1231,9 +1274,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # A formatting change starts a NEW block: `.oc on` mid-paragraph means
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
-            before = (_align_now(fmt), fmt.get('wrap', True))
+            before = _block_format(fmt)
             _parse_format_dot(cmd, fmt)
-            if (_align_now(fmt), fmt.get('wrap', True)) != before:
+            if _block_format(fmt) != before:
                 close_block()
             _parse_page_dot(cmd, page, meta_extra)
             continue
@@ -1290,8 +1333,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # keys the file actually SET appear, so a consumer can tell "the author asked
     # for portrait" from "nobody said" -- the same provenance rule the page
     # geometry follows. Register C8/C18/C19/C20/C21/C22.
-    doc.meta['formatting'] = {k: v for k, v in fmt.items()
-                              if k not in ('centering', 'justify', 'wrap')}
+    doc.meta['formatting'] = {
+        k: v for k, v in fmt.items()
+        if k not in ('centering', 'justify', 'wrap',
+                     'left_margin', 'right_margin', 'para_margin')}
     # (block, line, text) for each dot command, so a caller can render one in
     # place instead of only knowing that it existed somewhere.
     doc.meta['dot_positions'] = dot_at
