@@ -162,6 +162,53 @@ def _note_slug(label):
 
 # ---------------------------------------------------------------- text
 
+def _text_width(doc) -> int:
+    """The column the text is laid out within, for centring and right-alignment.
+
+    `.rm` (right margin) is what WordStar itself measures against; the archive's
+    most common values are 65 and 60. Absent that, fall back to the 65 the rest of
+    this project already wraps at.
+    """
+    rm = (doc.meta.get('page') or {}).get('rm_cols')
+    try:
+        rm = int(rm)
+    except (TypeError, ValueError):
+        rm = 0
+    return rm if rm > 0 else 65
+
+
+def _align_lines(lines, align, doc):
+    """Centre or right-align a block's lines within the text width.
+
+    Register C16/C17. A centred heading used to render flush left in every
+    format -- the dot command was parsed, recorded, and then had no effect
+    anywhere, which is a gap rather than a decision.
+
+    'justify' is deliberately NOT padded here: WordStar justifies by widening the
+    spaces it already has, and a plain-text rendering that pads to a hard column
+    would fabricate whitespace the author never typed. Left and justify therefore
+    render identically in text, and the distinction is preserved in the IR for the
+    formats that CAN express it (HTML/RTF below).
+    """
+    if align not in ('center', 'right'):
+        return lines
+    width = _text_width(doc)
+    out = []
+    for ln in lines:
+        stripped = ln.strip()
+        if not stripped:
+            out.append(ln)
+            continue
+        pad = width - len(stripped)
+        if pad <= 0:
+            out.append(stripped)
+        elif align == 'center':
+            out.append(' ' * (pad // 2) + stripped)
+        else:
+            out.append(' ' * pad + stripped)
+    return out
+
+
 def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
@@ -190,6 +237,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 else:
                     seg.append(s.text)
             lines.append(''.join(seg))
+        lines = _align_lines(lines, b.align, doc)
         para = '\n'.join(lines)
         if para.strip() or mode == 'printed':
             out.append(para)
@@ -408,6 +456,16 @@ def _html_notes_sections(pairs, keep):
             f'<ol>{"".join(lis)}</ol></section>')
     return sections
 
+_HTML_ALIGN = {'center': ' style="text-align:center"',
+               'right': ' style="text-align:right"',
+               'justify': ' style="text-align:justify"'}
+
+# RTF paragraph-alignment controls. `\ql` is the default and is emitted only to
+# CLOSE a previous alignment, since RTF alignment persists across \par.
+_RTF_ALIGN = {'center': r'\qc ', 'right': r'\qr ', 'justify': r'\qj ',
+              'left': r'\ql '}
+
+
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
@@ -438,7 +496,13 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_option
             lines = [_html_line(line, refs, keep) for line in merged_lines(b)]
             para = '<br>\n'.join(lines)
             if para.strip():
-                parts.append(f'<p>{para}</p>')
+                # C16/C17: HTML can express all four alignments, so unlike the
+                # plain-text renderer it does not have to collapse justify into
+                # left. `left` is WordStar's default and gets no attribute, so
+                # every document that never touches `.oc`/`.oj` emits byte-identical
+                # HTML to before.
+                style = _HTML_ALIGN.get(b.align, '')
+                parts.append(f'<p{style}>{para}</p>')
     sections = _html_notes_sections(pairs, keep)
     if sections:
         parts.append('<hr>')
@@ -540,6 +604,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     printed = mode == 'printed' or _printed(doc)
     font = r'\f1' if printed else r'\f0'
     parts = []
+    rtf_align = 'left'          # RTF alignment persists across \par
     for b in doc.blocks:
         if b.kind == 'softpage':
             if printed:
@@ -559,6 +624,13 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         joiner = r'\line ' if not printed else r'\line '
         para = joiner.join(lines)
         if para.strip() or printed:
+            # C16/C17. RTF alignment PERSISTS across \par, so a block must emit its
+            # control whenever the alignment differs from the one still in force --
+            # including `\ql` to return to flush left. Tracking the running value
+            # keeps a document that never aligns anything byte-identical to before.
+            if b.align != rtf_align:
+                parts.append(_RTF_ALIGN[b.align])
+                rtf_align = b.align
             parts.append(para + r'\par ')
         if not printed:
             parts.append(r'\par ')                    # blank line between paragraphs
