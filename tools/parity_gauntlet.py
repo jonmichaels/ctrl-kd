@@ -102,8 +102,22 @@ def derived_breaks(stream):
     the alternation BREAKS is a page top. WordStar's own suppression is the
     record of where its pages fell.
 
-    Returns None when the stream is not double-spaced (nothing to read), else
-    the indices where two text lines sit adjacent.
+    ⚠️ CORRECTED 2026-08-03 — THIS DOES NOT WORK, and is retained only so the
+    mistake is not made again. Checked against the RAW bytes of a real 1992
+    print stream: it holds 0 form feeds, one leading blank run, 225 single
+    blanks, and just 2 text-text adjacencies in 458 lines. It records NO page
+    boundaries. The six "boundaries" this function appeared to recover were
+    manufactured by _doc_to_pagelines' own trailing-blank stripper, which drops
+    the last blank of each page and so butts one page's last text line against
+    the next page's first. The uniform "pitch 33" seen across several documents
+    was simply our own 66-line capacity divided by two.
+
+    A print stream whose margins do not travel in-band cannot tell you how it
+    was paginated. Verify against raw bytes before believing any structure a
+    processed stream appears to show.
+
+    Returns None when the stream is not double-spaced, else the indices where
+    two text lines sit adjacent.
     """
     text = [bool(l.strip()) for l in stream]
     if len(text) < 20:
