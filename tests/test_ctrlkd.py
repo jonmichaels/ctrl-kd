@@ -1356,7 +1356,7 @@ def test_ws4_leading_blank_lines_survive_to_pagelines():
     `.sb` defaults OFF, so blank lines at the top of a page DO print; only SOFT
     blanks created by line spacing > 1 are suppressed, and only at a page top.
 
-    Shape taken from Jon's real WORK/INDIAN: a dot command, then soft/soft/
+    Shape taken from a real WS4 document: a dot command, then soft/soft/
     hard/hard/soft blank terminators, then the first text.
     """
     from ctrlkd.pdf import _doc_to_pagelines
@@ -1374,9 +1374,9 @@ def test_ws4_leading_blank_lines_survive_to_pagelines():
 def test_ws4_double_spacing_survives_to_pagelines():
     """`.ls 2` materialises its filler as SOFT blank lines in the file (WS7
     Reference: "when you use line spacing, the blank lines become part of the
-    file"). Jon's INDIAN is double-spaced this way: 226 text lines interleaved
-    with 200 soft blanks. Collapsing them destroys the document's vertical
-    rhythm and its page count.
+    file"). A real double-spaced WS4 essay is stored this way -- text lines
+    interleaved with soft blanks -- and collapsing them destroys the document's
+    vertical rhythm and its page count.
     """
     from ctrlkd.pdf import _doc_to_pagelines
     body = b''
