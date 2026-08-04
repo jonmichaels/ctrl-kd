@@ -6,4 +6,4 @@ from .emit import (emit_text, emit_markdown, emit_html, emit_rtf,
 from .pdf import emit_pdf                        # registers the 'pdf' format
 from .convert import convert, select_notes, DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS
 
-__version__ = '2.0.0'
+__version__ = '3.0.0'
