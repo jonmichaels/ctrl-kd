@@ -53,6 +53,11 @@ def _resolved_page_height(doc, printed):
     if not printed:
         return PAGE_H
     height_in = doc.meta.get('page', {}).get('height_in', 11.0)
+    if height_in == 0:
+        # `.pl 0` = page breaks off (bug 12284; see core._text_lines_per_page).
+        # The text model already never breaks; the PDF page box itself falls
+        # back to Letter -- a truly unbounded page is not expressible in PDF.
+        return PAGE_H
     return max(LEAD * (FOOTNOTE_FLOOR + 1), round(height_in * 72))
 
 def _printed_cap(doc):

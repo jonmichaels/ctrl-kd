@@ -236,6 +236,17 @@ def test_ws7_heading_and_softpage():
     h = emit.emit_html(doc, mode='modern')
     assert '<h2>Chapter One</h2>' in h
 
+def test_pl_zero_turns_page_breaks_off():
+    # MicroPro bug 12284 (engineering note 649): '.pl0' at the start of PRVIEW
+    # output exists so "displayed page breaks are thus avoided" -- .pl 0 means
+    # NO page breaks in 7.0 document mode. The old page model computed a
+    # 0-height page, floored to a 4-line cap: maximal breakage, the exact
+    # opposite. 60 lines must now stay on one printed page.
+    body = b''.join(b'Line %d of the continuous document.\r\n' % i for i in range(60))
+    doc = core.parse_ws(b'.pl 0\r\n' + body)
+    from ctrlkd.pdf import _doc_to_pagelines
+    assert len(_doc_to_pagelines(doc, True)) == 1
+
 def test_softpage_never_breaks_a_page():
     # WSFORMAT.TXT on 0Bh End of page: "This sequence should usually be
     # ignored. It's used by the WordStar editor to keep track of page breaks.
