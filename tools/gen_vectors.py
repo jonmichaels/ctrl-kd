@@ -295,10 +295,14 @@ def _rewrite_file(path):
     # Sentinel byte values are documentation inside the vector file itself; they
     # must track the implementation or the file contradicts its own data.
     if 'sentinels' in doc:
-        doc['sentinels'].update({
-            'SENT_FNREF': f'0x{core.SENT_FNREF:02x}',
-            'SENT_SOFTPAGE': f'0x{core.SENT_SOFTPAGE:02x}',
-        })
+        # RETIRED 2026-08-04. Structure travels as OFFSETS now, not injected bytes:
+        # every byte a sentinel could use is a real WordStar control code. The key
+        # is rewritten rather than deleted so the vector file says so out loud
+        # instead of quietly losing a field.
+        doc['sentinels'] = {
+            'retired': 'structure travels as offsets; the sentinel bytes 0x00 ^@, '
+                       '0x0B ^K and 0x11 ^Q are all real WordStar control codes',
+        }
         touched.append('sentinels')
 
     # A print stream's own geometry, which the printstream page-model change moved.
