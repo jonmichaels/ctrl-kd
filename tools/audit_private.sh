@@ -23,6 +23,9 @@ cd "$(dirname "$0")/.."
 #   - the private network name
 #   - corpus directory names as PATH SEGMENTS (leading /), never bare words,
 #     so a shell variable such as $WORK is not a false positive
+# Bracketed single-char classes keep each sensitive literal OUT of this
+# public file while matching identically -- the checker must not itself
+# carry what it checks for.
 PAT='(/mnt/md[0]|/home/[a-z]+/|hum[u]ng|jmw[o]rk|old-files-pr[o]ject|/CEL[E]B/|/W[O]RK/[A-Z]|fl[o]ppy-[a-z])'
 
 fail=0
