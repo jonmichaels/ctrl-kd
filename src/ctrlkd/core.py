@@ -303,7 +303,7 @@ def detect(data: bytes) -> dict:
 def _visible(text: bytes) -> bytes:
     return bytes(b & 0x7F for b in text if 0x20 <= (b & 0x7F) < 0x7F)
 
-def lines_pass(data: bytes, tab_at=frozenset()):
+def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
     """Split into physical lines and classify every break.
 
     Yields (line_bytes, sep) with sep in {'wrap','line','para','eof'}:
@@ -315,12 +315,21 @@ def lines_pass(data: bytes, tab_at=frozenset()):
       wrap  a soft return that is just word wrap: join with a space
     Margin is the 90th percentile of soft-wrapped line lengths (outliers from
     hanging punctuation sit 1-2 past the true margin), floor 65 (WS4 default).
+
+    `marks` maps an offset in `data` to a structural event that used to be an
+    in-band SENTINEL BYTE -- a note reference, a soft page break, a paragraph
+    style. Every byte those sentinels used is a real WordStar control code
+    (0x00 ^@, 0x0B ^K, 0x11 ^Q), so a document containing one was misread; see
+    `_symmetric_blocks`. Marks travel as offsets for the same reason `tab_at`
+    does, and each emitted line carries the marks that fall inside it, rebased
+    to that line.
     """
     cut = data.find(b'\x1a')
     if cut != -1:
         data = data[:cut]
     parts = re.split(rb'(\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a)', data)
     lines = []
+    starts = []                              # (offset, length, index) per emitted line
     at = 0                                   # offset of parts[i] in `data`
     for i in range(0, len(parts), 2):
         text = parts[i]
@@ -329,17 +338,38 @@ def lines_pass(data: bytes, tab_at=frozenset()):
         if text or kind != 'eof':
             # `machine_indent`: this line's leading whitespace was emitted by
             # WordStar from a TAB, not typed by the author. See the wrap test.
-            lines.append((text, kind, at in tab_at))
+            starts.append((at, len(text), len(lines)))
+            lines.append([text, kind, at in tab_at, []])
         at += len(text) + len(brk)
 
-    softlens = sorted(len(_visible(t).rstrip()) for t, k, _ in lines
+    # Attach each mark to the line that contains it. A mark landing INSIDE a
+    # break (a soft page break sits between two lines, not within one) belongs
+    # to the line that FOLLOWS it, at relative offset 0 -- otherwise it would be
+    # silently dropped, which is the failure the sentinels were replaced to end.
+    for off, m in sorted((marks or {}).items()):
+        placed = False
+        for a, ln, idx in starts:
+            if a <= off < a + ln:
+                lines[idx][3].append((off - a, m))
+                placed = True
+                break
+        if not placed:
+            nxt = next((idx for a, ln, idx in starts if a >= off), None)
+            if nxt is not None:
+                lines[nxt][3].append((0, m))
+            elif lines:
+                lines[-1][3].append((len(lines[-1][0]), m))
+    for _t, _k, _mi, mk in lines:
+        mk.sort()
+
+    softlens = sorted(len(_visible(t).rstrip()) for t, k, _, _ in lines
                       if k == 'soft' and _visible(t).strip())
     margin = max(65, softlens[int(len(softlens) * 0.9)] if softlens else 0)
 
     out = []
     i = 0
     while i < len(lines):
-        text, kind, _mi = lines[i]
+        text, kind, _mi, _mk = lines[i]
         if not _visible(text).strip():
             # A blank line is CONTENT, not a delimiter (fixed 2026-08-03).
             # It used to be skipped here and counted only to classify the
@@ -357,7 +387,7 @@ def lines_pass(data: bytes, tab_at=frozenset()):
             # b'' would drop the toggle and unstyle everything after it. The
             # consumer decodes spans as usual; they simply render to nothing.
             if kind != 'eof':
-                out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard'))
+                out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard', _mk))
             i += 1
             continue
         n_hard = 1 if kind == 'hard' else 0
@@ -370,7 +400,7 @@ def lines_pass(data: bytes, tab_at=frozenset()):
                 n_hard += 1 if k == 'hard' else 0
             j += 1
         if j >= len(lines):
-            out.append((text, 'eof'))
+            out.append((text, 'eof', _mk))
             break
         if n_hard >= 1 and n_total >= 2:
             sep = 'para'
@@ -397,14 +427,14 @@ def lines_pass(data: bytes, tab_at=frozenset()):
                 L = len(_visible(text).rstrip())
                 W = len(nxt_vis.split(b' ', 1)[0])
                 sep = 'line' if L + 1 + W < margin else 'wrap'
-        out.append((text, sep))
+        out.append((text, sep, _mk))
         # The blanks this run consumed, in document order, after the line they
         # follow. They were counted above to classify `sep` and are now also
         # kept as content -- the counting and the keeping are separate jobs.
         for b in range(i + 1, j):
-            btext, bk, _ = lines[b]
+            btext, bk, _, bmk = lines[b]
             if bk != 'eof':
-                out.append((btext, 'blank-soft' if bk == 'soft' else 'blank-hard'))
+                out.append((btext, 'blank-soft' if bk == 'soft' else 'blank-hard', bmk))
         i = j
     return out, margin
 
@@ -1088,10 +1118,17 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
             meta_extra['pt_raw'] = arg.decode('latin-1', 'replace').strip()
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
-                  unknown: dict, fn_counter: list = None) -> list:
+                  unknown: dict, fn_counter: list = None, fnref_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
-    (WordStar styles span line breaks). fn_counter (ws5+ only) numbers the
-    footnote-reference sentinels injected by _symmetric_blocks."""
+    (WordStar styles span line breaks).
+
+    `fnref_at` holds the OFFSETS within this line at which a note reference
+    belongs. They used to be an in-band sentinel byte, but every byte available
+    for one is a real WordStar control code -- SENT_FNREF sat on 0x00, which the
+    spec assigns to ^@ "fix the print position" and which occurs 2328 times in
+    five archive documents. A literal one was read as a note reference to a note
+    that does not exist. `fn_counter` (ws5+ only) numbers them.
+    """
     spans, buf = [], bytearray()
 
     def flush():
@@ -1099,19 +1136,27 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             spans.append(Span(buf.decode(encoding, 'replace'), frozenset(active)))
             buf.clear()
 
+    pending = sorted(fnref_at)
     i = 0
-    while i < len(raw):
+    while i < len(raw) or pending:
+        # A note reference sits BETWEEN bytes, so emit any that fall here before
+        # decoding the byte at this offset.
+        while pending and pending[0] <= i:
+            pending.pop(0)
+            if fn_counter is not None:
+                flush()
+                fn_counter[0] += 1
+                spans.append(Span(str(fn_counter[0]),
+                                  frozenset(active | {'sup', 'fnref'})))
+        if i >= len(raw):
+            break
         # WS4's bit-7-on-last-letter applies to CONTROL TOGGLES too (a word ending
         # at a style boundary yields e.g. 0x94 = ^T|0x80) — so mask BEFORE dispatch,
         # or high-bit toggles leak into text and styles never close.
         b = raw[i] & 0x7F if strip_hibit and raw[i] >= 0x80 else raw[i]
         if b == 0x1B and i + 1 < len(raw):        # extended char escape
             buf.append(raw[i + 1]); i += 2; continue
-        if fn_counter is not None and b == SENT_FNREF:
-            flush()
-            fn_counter[0] += 1
-            spans.append(Span(str(fn_counter[0]), frozenset(active | {'sup', 'fnref'})))
-        elif b in WS_TOGGLES:
+        if b in WS_TOGGLES:
             flush()
             style = WS_TOGGLES[b]
             (active.remove if style in active else active.add)(style)
@@ -1142,9 +1187,25 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
 # to 0x00. NUL is not text in a WordStar body -- the format terminates on 0x1A
 # and never emits a NUL as content -- and unlike 0x1B (the extended-character
 # escape, tried first and rejected) nothing downstream consumes it.
-SENT_FNREF = 0x00
-SENT_SOFTPAGE = 0x0B
-SENT_HEADING = 0x11
+# RETIRED 2026-08-04. These were IN-BAND SENTINEL BYTES injected into the cleaned
+# stream, and every byte available for one is a real WordStar control code:
+#
+#   0x00  ^@  fix the print position      2328 occurrences in 5 archive documents
+#   0x0B  ^K  index marker                  21 occurrences in 3
+#   0x11  ^Q  custom print control          37 occurrences in 5
+#
+# A literal ^K produced a page break the author never wrote. SENT_FNREF was moved
+# ONTO 0x00 earlier the same week, on the reasoning that "NUL is not text in a
+# WordStar body" -- the spec says 0x00 is ^@, so that move traded a rare clash
+# (^G, phantom rubout) for a common one.
+#
+# Structure now travels as OFFSETS in a `marks` map, which is what `tab_at`
+# already did; its own comment read "that lesson is cheap to apply here", and it
+# had not been applied backwards. The names are kept only so an external caller
+# importing them fails loudly rather than silently reading a stale constant.
+SENT_FNREF = None
+SENT_SOFTPAGE = None
+SENT_HEADING = None
 
 # Symmetrical-sequence "Notes" types (WordStar 7.0 file format spec, WordStar
 # International, 1992): 3 Footnote, 4 Endnote, 5 Annotation, 6 Comment. All
@@ -1296,6 +1357,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
     notes = []
     unknown = []
     graphics = []
+    marks = {}
     colours = []
     fonts = []
     includes = []
@@ -1314,7 +1376,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 notes.append(_parse_note(cmd, content, start, encoding))
                 if cmd != 0x06:                          # comments: never printed inline
-                    out.append(SENT_FNREF)
+                    marks[len(out)] = ('fnref',)
             elif cmd == 0x09:                                     # tab (and dot leaders)
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 cols, leader = _tab_columns(content)
@@ -1327,7 +1389,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 tab_at.add(len(out))
                 out += leader * cols
             elif cmd == 0x0B:                                     # end of page
-                out.append(SENT_SOFTPAGE)
+                marks[len(out)] = ('softpage',)
             elif cmd == 0x0D:                                     # paragraph number
                 # WordStar's AUTOMATIC outline/legal numbering (`.p#`) -- "2.1.3"
                 # and the like. Documented layout (WSFORMAT.TXT, "0Dh Paragraph
@@ -1518,7 +1580,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 # three known headings".
                 style_id = block[3]
                 level = {0x05: 1, 0x02: 2, 0x03: 3}.get(style_id, 0)
-                out += bytes([SENT_HEADING, 0x30 + level, 0x30 + (style_id & 0x3F)])
+                marks[len(out)] = ('heading', level, style_id)
             else:
                 unknown.append(UnknownBlock(cmd, bytes(block), start))
             i += jump + 3
@@ -1534,10 +1596,11 @@ def _symmetric_blocks(data: bytes, encoding: str):
         shift_runs.append((start, raw))
         out += b'[shift-jis: %d bytes]' % len(raw)
     return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
-            includes, driver[0], sorted(shift_runs))
+            includes, driver[0], sorted(shift_runs), marks)
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
+    marks = {}
     det = detect(data)
     doc.meta.update(det)
     era = era_for(det['variant'])
@@ -1550,7 +1613,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     tab_at = frozenset()
     if ws5:
         (data, notes, blobs, tab_at, graphics, colours, fonts,
-         includes, driver, shift_runs) = _symmetric_blocks(data, encoding)
+         includes, driver, shift_runs, marks) = _symmetric_blocks(data, encoding)
         doc.shift_runs = shift_runs
         doc.graphics = graphics
         doc.colours = colours
@@ -1573,7 +1636,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         doc.annotations = [[Span(n.text)] for n in notes if n.kind == 'annotation']
         doc.comments = [n for n in notes if n.kind == 'comment']
 
-    physical, margin = lines_pass(data, tab_at)
+    physical, margin = lines_pass(data, tab_at, marks)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
@@ -1610,7 +1673,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     columns=fmt.get('columns'),
                     column_gutter=fmt.get('column_gutter'))
 
-    for raw, sep in physical:
+    for raw, sep, line_marks in physical:
         stripped = bytes(b & 0x7F for b in raw)
         if stripped[:1] == b'.':                   # dot command line
             cmd = stripped.rstrip()
@@ -1680,21 +1743,27 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     for sp in spans:
                         cur_line.spans.append(sp)
             raw = b''
-        if ws5:                                    # sentinels from _symmetric_blocks
-            if raw.count(SENT_SOFTPAGE):
+        # Structural marks, carried as OFFSETS rather than injected bytes -- every
+        # byte the old sentinels used (0x00 ^@, 0x0B ^K, 0x11 ^Q) is a real
+        # WordStar control code that occurs in real documents, so a literal one
+        # was read as a page break, a heading or a note reference that the author
+        # never wrote. See `_symmetric_blocks`.
+        fnref_at = []
+        for rel, m in line_marks:
+            if m[0] == 'softpage':
                 close_block()
                 doc.blocks.append(Block('softpage'))
-                raw = raw.replace(bytes([SENT_SOFTPAGE]), b'')
-            if raw[:1] == bytes([SENT_HEADING]) and len(raw) > 2:
+            elif m[0] == 'heading':
                 close_block()
                 # Level 0 means "a style, but not one of the three this parser
                 # gives a heading meaning to" -- the block is still marked with
                 # WHICH style, so a consumer can act on it. Register C1.
-                cur.heading = raw[1] - 0x30
-                cur.style_id = raw[2] - 0x30
-                raw = raw[3:]
-            raw = raw.replace(bytes([SENT_HEADING]), b'')
-        spans = _decode_spans(raw, strip_hibit, encoding, active, unknown, fn_counter)
+                cur.heading = m[1]
+                cur.style_id = m[2]
+            elif m[0] == 'fnref':
+                fnref_at.append(rel)
+        spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
+                              fn_counter, fnref_at)
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
