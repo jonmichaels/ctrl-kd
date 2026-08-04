@@ -70,10 +70,12 @@ CONF="$WORK/harness.conf"
 {
   echo '[dosbox]'; echo 'memsize=32'
   echo '[sdl]';    echo 'autolock=false'
-  if [ "$MODE" = ws4 ]; then
-      echo '[parallel]'
-      echo "parallel1=file append:$WORK/CAP/OUT.PRN timeout:5000"
-  fi
+  # LPT capture in BOTH modes. WS4 always prints to LPT1. A WS7 install prints
+  # wherever its Redirect To field points -- often a file inside its own tree,
+  # but an install aimed at LPT1 would otherwise print into an unconfigured
+  # port, and DOSBox-X silently discards every byte sent there.
+  echo '[parallel]'
+  echo "parallel1=file append:$WORK/CAP/OUT.PRN timeout:5000"
   echo '[autoexec]'
   echo "mount c $WORK"
   echo 'c:'; echo 'cd \WS'
@@ -88,6 +90,15 @@ CONF="$WORK/harness.conf"
   echo 'exit'
 } > "$CONF"
 
+# Baseline for the snapshot diff below -- taken BEFORE the emulator exists, so
+# even instant output registers as new.
+candidates() {
+    find "$WORK/CAP" "$WORK/WS" -type f \
+         \( -iname "*.PRN" -o -iname "*.PCL" -o -iname "*.ASC" -o -iname "*.TXT" -o -iname "*.PS" \) \
+         -printf '%s\t%p\n' 2>/dev/null | sort
+}
+candidates > "$WORK/.pre"
+
 echo "running WordStar ($MODE) ..." >&2
 # `setsid` puts the emulator in its OWN process group, so cleanup below can
 # signal the whole tree with one negative PID. Without it there is nothing to
@@ -97,12 +108,18 @@ setsid env DISPLAY="${DISP:-}" dosbox-x -conf "$CONF" -nogui >/dev/null 2>&1 &
 DBX=$!
 
 # Wait for output to appear and stop growing, rather than guessing a duration.
+#
+# Output is detected by SNAPSHOT DIFF (path + size), never by mtime. DOSBox-X
+# stamps DOS-written files from the emulated DOS clock at DOS granularity, and
+# that timestamp can land fractionally BEFORE the conf written moments earlier
+# on the host -- measured: output at 07:12:10.000, conf at 07:12:10.340. A
+# `find -newer $CONF` therefore missed every WS7 print while the print itself
+# succeeded. (Limit: a reprint that exactly matches a pre-existing file's path
+# AND size is invisible; the per-run tree copy makes that effectively moot.)
 FOUND=""
 for _ in $(seq 1 100); do
     sleep 3
-    CAND=$(find "$WORK/CAP" "$WORK/WS" -newer "$CONF" -type f \
-             \( -iname "*.PRN" -o -iname "*.PCL" -o -iname "*.ASC" -o -iname "*.TXT" \) \
-             2>/dev/null | head -1)
+    CAND=$(candidates | comm -13 "$WORK/.pre" - | head -1 | cut -f2)
     if [ -n "$CAND" ] && [ -s "$CAND" ]; then
         A=$(stat -c%s "$CAND"); sleep 4; B=$(stat -c%s "$CAND")
         [ "$A" = "$B" ] && { FOUND="$CAND"; break; }
