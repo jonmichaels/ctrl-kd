@@ -1361,6 +1361,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
     colours = []
     fonts = []
     includes = []
+    header = {}
     shift_runs = []
     shift_open = []
     driver = [None]
@@ -1424,33 +1425,58 @@ def _symmetric_blocks(data: bytes, encoding: str):
                     if parts:
                         out += '.'.join(parts).encode(encoding, 'replace')
             elif cmd == 0x01:                                     # colour change
-                # Two bytes: foreground and background colour indices. Observed in
-                # the WS7 archive as 00/00, 04/00, 08/04, 0c/08 -- i.e. small
-                # values, an index into WordStar's own palette rather than RGB.
+                # WSFORMAT.TXT, type 1 Color:
+                #     Byte: Color number (see below).
+                #     Byte: Previous color in file.
                 #
-                # The TEXT was never at risk here (a colour block carries none),
-                # but the change was invisible: a document that coloured a passage
-                # rendered identically to one that did not, with nothing to say a
-                # colour had been set. Recorded, not rendered -- the printed page
-                # this project reproduces was monochrome. Register C2.
+                # CURRENT and PREVIOUS, not foreground and background -- which is
+                # what this recorded until 2026-08-04. The palette is named and
+                # fixed (0 Black ... 0Fh White on black), so the number resolves
+                # to a colour rather than being an opaque index.
+                #
+                # Recorded, not rendered: the printed page this project reproduces
+                # was monochrome. Register C2.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 if len(content) >= 2:
                     colours.append((len(out), content[0], content[1]))
             elif cmd in (0x02, 0x15):                             # font change
-                # Six 16-bit little-endian values. The first two are the type size
-                # in 1/20 point (0x00B4 = 180 = 9pt, 0x00F0 = 240 = 12pt in the
-                # archive's own blocks), which is the part a modern renderer can
-                # actually use; the rest identify the face to the printer driver
-                # and mean nothing without it.
+                # WSFORMAT.TXT, type 2 Font -- six little-endian words:
+                #     Word: Font width in HMIs  (1/1800ths of an inch)
+                #     Word: Font height in VMIs (1/1440ths of an inch)
+                #     Word: Typestyle
+                #     Word x3: the previous width, height and typestyle
                 #
-                # Deliberate for PDF, which is Courier by design -- but there is no
-                # excuse for RTF/HTML, where a size change is expressible. Recorded
-                # so those emitters CAN use it. Register C3.
+                # WIDTH COMES FIRST. Until 2026-08-04 this read word 1 as the
+                # height "in 1/20 point" and word 2 as the width -- swapped. The
+                # error survived because 1/1440in IS 1/20 point exactly (1440/72 =
+                # 20), so treating the WIDTH word as 20ths-of-a-point produced
+                # 9pt, 8pt, 11pt across 862 real blocks: sizes plausible enough
+                # that they were cited as confirming the reading. They were the
+                # right arithmetic on the wrong word.
+                #
+                # Register C3. Deliberate for PDF, which is Courier by design;
+                # RTF/HTML can express a size change and now have the figures.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
-                if len(content) >= 4:
-                    height = int.from_bytes(content[0:2], 'little')
-                    width = int.from_bytes(content[2:4], 'little')
-                    fonts.append((len(out), height, width, bytes(content[4:])))
+                if len(content) >= 6:
+                    w = int.from_bytes(content[0:2], 'little')     # HMI, 1/1800in
+                    h = int.from_bytes(content[2:4], 'little')     # VMI, 1/1440in
+                    style = int.from_bytes(content[4:6], 'little')
+                    fonts.append({
+                        'offset': len(out),
+                        'width_1800': w,
+                        'height_1440': h,
+                        'points': h / 20.0,           # 1/1440in == 1/20pt exactly
+                        'cpi': (1800.0 / w) if w else None,
+                        'typestyle': style,
+                        # High seven bits, per the spec's own bit table.
+                        'proportional': bool(style & 0x8000),
+                        'letter_quality': bool(style & 0x4000),
+                        'symbol_map': ('cp437', 'cp850', 'math',
+                                       'symbols')[(style >> 12) & 0x03],
+                        'generic_style': ('sans', 'serif', 'script',
+                                          'display')[(style >> 10) & 0x03],
+                        'typestyle_number': style & 0x01FF,
+                    })
             elif cmd == 0x0F:                                     # print-file inclusion
                 # A file the printer was told to pull in at this point -- the WS7
                 # archive carries `%F"PLEAD.PS"` and PostScript preambles ending in
@@ -1473,12 +1499,28 @@ def _symmetric_blocks(data: bytes, encoding: str):
                     # unreported one. They stay UnknownBlocks so --diagnose sees
                     # them.
                     unknown.append(UnknownBlock(cmd, bytes(block), start))
-            elif cmd == 0x00:                                     # printer/driver name
-                # The driver the document was last formatted for (`LASERJET` in most
-                # of the archive). Provenance, not content: it explains why a file's
-                # measurements look the way they do, and `--diagnose` should be able
-                # to say it rather than the block vanishing unremarked.
+            elif cmd == 0x00:                                     # HEADER sequence
+                # WSFORMAT.TXT, type 0 Header -- 128 bytes in total:
+                #     Byte:      version number in BCD (50h = Release 5.0,
+                #                55h = 5.5, 60h = 6.0)
+                #     9 bytes:   null-terminated driver name
+                #     2 bytes:   reserved
+                #     2 words:   32-bit pointer to the file's style library
+                #     107 bytes: reserved
+                #
+                # This was read as nothing but a driver name. The VERSION BYTE is
+                # the more valuable field by far: `detect` infers ws4-vs-ws5+ from
+                # byte statistics, and the file states its release outright.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
+                if content and content[0] in (0x50, 0x55, 0x60, 0x70):
+                    header['version_bcd'] = content[0]
+                    header['release'] = '%d.%d' % (content[0] >> 4, content[0] & 0x0F)
+                if len(content) >= 14:
+                    lo = int.from_bytes(content[12:14], 'little')
+                    hi = int.from_bytes(content[14:16], 'little') if len(content) >= 16 else 0
+                    ptr = (hi << 16) | lo
+                    if ptr:
+                        header['style_library_offset'] = ptr
                 # The name is the leading run of upper-case/digits; the byte before
                 # it is a record tag, not part of the name (`pLASERJET`).
                 name = bytearray()
@@ -1596,7 +1638,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
         shift_runs.append((start, raw))
         out += b'[shift-jis: %d bytes]' % len(raw)
     return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
-            includes, driver[0], sorted(shift_runs), marks)
+            includes, driver[0], sorted(shift_runs), marks, header)
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -1613,7 +1655,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     tab_at = frozenset()
     if ws5:
         (data, notes, blobs, tab_at, graphics, colours, fonts,
-         includes, driver, shift_runs, marks) = _symmetric_blocks(data, encoding)
+         includes, driver, shift_runs, marks, header) = _symmetric_blocks(data, encoding)
+        if header:
+            doc.meta['ws_header'] = header
         doc.shift_runs = shift_runs
         doc.graphics = graphics
         doc.colours = colours

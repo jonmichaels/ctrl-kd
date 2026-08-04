@@ -2043,13 +2043,24 @@ def test_colour_and_font_changes_are_recorded():
     document that coloured a passage or set 9pt type rendered identically to one
     that did not. Font height is 1/20 point -- 0x00B4 = 180 = 9pt, which is what
     the archive's own blocks carry."""
-    colour = _ws_block(0x01, bytes([0x08, 0x04]))
-    font = _ws_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
-                     + b'\x03F' + b'\x00' * 6)
+    colour = _ws_block(0x01, bytes([0x08, 0x04]))          # colour 8, previous 4
+    # WSFORMAT.TXT type 2: width HMI (1/1800in), height VMI (1/1440in), typestyle,
+    # then the previous triple. WIDTH FIRST -- this was read swapped until
+    # 2026-08-04, and survived because 1/1440in IS 1/20pt (1440/72 = 20), so the
+    # WIDTH word read as 20ths-of-a-point gave plausible sizes off the wrong field.
+    font = _ws_block(0x02,
+                     (180).to_bytes(2, 'little')            # width  180/1800in = 10 CPI
+                     + (240).to_bytes(2, 'little')          # height 240/1440in = 12pt
+                     + (0x8000 | 0x0400).to_bytes(2, 'little')   # proportional, serif
+                     + b'\x00' * 6)
     doc = core.parse_ws(b'Plain ' + colour + b'coloured ' + font + b'and sized.\r\n')
-    assert [(fg, bg) for _, fg, bg in doc.colours] == [(8, 4)]
-    assert [(h, w) for _, h, w, _ in doc.fonts] == [(180, 240)]
-    assert doc.fonts[0][1] / 20.0 == 9.0                    # 9pt
+    assert [(c, prev) for _, c, prev in doc.colours] == [(8, 4)]
+    f = doc.fonts[0]
+    assert f['points'] == 12.0
+    assert f['cpi'] == 10.0
+    assert f['proportional'] is True
+    assert f['generic_style'] == 'serif'
+    assert f['symbol_map'] == 'cp437'
 
 
 def test_print_file_includes_keep_their_filename():
@@ -2245,3 +2256,37 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
     assert [n.kind for n in doc.notes[:4]] == ['footnote', 'footnote', 'endnote', 'endnote']
     refs = sum(1 for l in doc.iter_lines() for s in l.spans if 'fnref' in s.styles)
     assert refs == 6, refs          # four kinds, comments never referenced inline
+
+
+def test_header_sequence_states_the_release_instead_of_guessing_it():
+    """WSFORMAT.TXT, type 0 Header: "Byte: version number in BCD (50h for Release
+    5.0, 55h for Release 5.5, 60h for Release 6.0)", then a 9-byte driver name,
+    2 reserved, and a 32-bit pointer to the file's style library.
+
+    This block was read as nothing but a driver name. The version byte is the
+    more valuable field: `detect` INFERS ws4-vs-ws5+ from byte statistics, and
+    the file says its release outright. 78 archive documents declare 7.0 and
+    3 declare 6.0. The style-library pointer is what C1 proper needs."""
+    body = bytes([0x70]) + b'LASERJET\x00' + b'\x00\x00' \
+        + (0x1234).to_bytes(2, 'little') + (0x0001).to_bytes(2, 'little')
+    doc = core.parse_ws(_ws_block(0x00, body)
+                        + b'Body text, with enough ordinary prose to detect.\r\n')
+    h = doc.meta['ws_header']
+    assert h['release'] == '7.0'
+    assert h['style_library_offset'] == 0x00011234
+
+
+def test_font_block_reads_width_before_height():
+    """The trap that hid a swapped field for a day: 1/1440in IS 1/20 point exactly
+    (1440/72 = 20), so reading the WIDTH word as 20ths-of-a-point yields sizes
+    that look like real type -- 9pt, 8pt, 11pt across 862 archive blocks. Those
+    numbers were cited as confirming the reading. They were the right arithmetic
+    on the wrong word.
+
+    Read correctly the same corpus gives 12pt for 749 of those blocks, with 10
+    CPI, which is what a 1992 document actually looks like."""
+    font = _ws_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                     + (0).to_bytes(2, 'little') + b'\x00' * 6)
+    f = core.parse_ws(b'Text ' + font + b' more text here for detection.\r\n').fonts[0]
+    assert f['width_1800'] == 180 and f['cpi'] == 10.0
+    assert f['height_1440'] == 240 and f['points'] == 12.0
