@@ -2025,3 +2025,45 @@ def test_printer_driver_name_is_reported_without_its_record_tag():
     The byte before the name is a record tag, not part of it (`pLASERJET`)."""
     doc = core.parse_ws(_ws_block(0x00, b'pLASERJET\x00\x00\x00\x80') + b'T.\r\n')
     assert doc.meta['printer_driver'] == 'LASERJET'
+
+
+def test_every_paragraph_style_survives_not_just_the_three_headings():
+    """C1. Three style IDs were mapped to heading levels and EVERY OTHER STYLE WAS
+    DROPPED -- silently, so a styled paragraph became an unstyled one with nothing
+    to say a style had been applied. The WS7 archive uses at least twelve distinct
+    IDs, and 0x06 alone appears 60 times: more often than two of the three that
+    were mapped."""
+    def styled(style_id):
+        blk = _ws_block(0x11, bytes([style_id, 2, 1, 2, 2, 3, 1, 2]))
+        return core.parse_ws(blk + b'Styled text.\r\n').blocks[0]
+
+    known = styled(0x05)
+    assert (known.heading, known.style_id) == (1, 5)
+    # the ones that used to vanish
+    for sid in (0x06, 0x0F, 0x19):
+        b = styled(sid)
+        assert b.heading == 0, 'not one of the three known headings'
+        assert b.style_id == sid, 'but WHICH style must still be known'
+        assert ''.join(s.text for s in b.lines[0].spans) == 'Styled text.'
+
+
+def test_note_numbering_mode_is_read_not_just_the_start_value():
+    """C12. A numeric argument sets the START value; the keyword forms say how
+    numbering RUNS. A document that restarts per page numbered straight through --
+    a visible difference on paper, not a diagnostic-only one."""
+    meta = core.parse_ws(b'.f# page\r\n.e# continuous\r\n.f# 7\r\nT.\r\n').meta
+    assert meta['footnote_number_mode'] == 'page'
+    assert meta['endnote_number_mode'] == 'continuous'
+    assert meta['footnote_number_start'] == 7          # start still read
+    assert 'footnote_number_mode' not in core.parse_ws(b'.f# 3\r\nT.\r\n').meta
+
+
+def test_shift_jis_runs_are_preserved_undecoded():
+    """C15. The bytes are double-byte Shift-JIS; running them through a cp437
+    decoder would produce confident mojibake, which is worse than an honest
+    placeholder because it LOOKS like text."""
+    raw = bytes([0x82, 0xA0, 0x82, 0xA2])
+    doc = core.parse_ws(b'Before ' + _ws_block(0x17, raw) + b' after.\r\n')
+    assert doc.shift_runs == [(7, raw)]
+    text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
+    assert text == 'Before [shift-jis: 4 bytes] after.'
