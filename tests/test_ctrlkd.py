@@ -43,7 +43,7 @@ def make_prose():
 
 def test_wrap_joins_prose():
     lines, margin = core.lines_pass(make_prose())
-    seps = [s for _, s in lines]
+    seps = [s for _, s, _m in lines]
     # 2026-08-03: blank lines are CONTENT now and are emitted with their own
     # terminator kind, after the line they follow. The text lines' own
     # classification is unchanged -- assert that separately from the blanks.
@@ -59,11 +59,11 @@ def test_poem_lines_kept():
             b'     Second stanza opens,' + SOFT +
             b'     and closes.' + HARD)
     lines, _ = core.lines_pass(poem)
-    assert [s for _, s in lines if not s.startswith('blank-')] == \
+    assert [s for _, s, _m in lines if not s.startswith('blank-')] == \
         ['line', 'para', 'line', 'eof']
     # the stanza gap is SOFT+HARD+SOFT = two real blank lines on paper, and
     # both survive with their own terminator kinds
-    assert [s for _, s in lines if s.startswith('blank-')] == \
+    assert [s for _, s, _m in lines if s.startswith('blank-')] == \
         ['blank-hard', 'blank-soft']
 
 def test_wrap_boundary_is_strict():
@@ -76,9 +76,9 @@ def test_wrap_boundary_is_strict():
 def test_single_hard_is_line_break():
     data = b'Jon Michaels' + SOFT + b'March 6, 1992' + SOFT + HARD + SOFT + b'Body text.' + HARD
     lines, _ = core.lines_pass(data)
-    assert [s for _, s in lines if not s.startswith('blank-')] == \
+    assert [s for _, s, _m in lines if not s.startswith('blank-')] == \
         ['line', 'para', 'eof']
-    assert [s for _, s in lines if s.startswith('blank-')] == \
+    assert [s for _, s, _m in lines if s.startswith('blank-')] == \
         ['blank-hard', 'blank-soft']
 
 def test_double_spaced_wrap_collapses():
@@ -2205,3 +2205,43 @@ def test_a_literal_form_feed_breaks_the_page_in_a_ws_document():
     ps = core.parse_printstream(b'Page one text here with plenty of ordinary prose.'
                                 b'\x0cPage two text here also with prose.\r\n')
     assert [b.kind for b in ps.blocks] == [b.kind for b in doc.blocks]
+
+
+def test_real_control_codes_are_not_mistaken_for_structure():
+    """The sentinels were IN-BAND BYTES, and every byte available for one is a
+    real WordStar control code:
+
+        SENT_FNREF    0x00 = ^@ fix print position   (2328 in 5 archive docs)
+        SENT_SOFTPAGE 0x0B = ^K index marker         (21 in 3)
+        SENT_HEADING  0x11 = ^Q custom print control (37 in 5)
+
+    A literal ^K produced a page break the author never wrote. The 0x00 choice
+    was made on 2026-08-03 with the reasoning "NUL is not text in a WordStar
+    body" -- the spec says otherwise, and it moved the clash from a rare byte
+    onto a common one.
+
+    Marks now travel as OFFSETS, the pattern `tab_at` already used and whose own
+    comment said "that lesson is cheap to apply here". It was not applied
+    backwards until now.
+    """
+    wrapper = _ws_block(0x00)
+    for byte in (0x00, 0x0B, 0x11):
+        doc = core.parse_ws(wrapper + b'Ordinary prose here, plenty of it. '
+                            + bytes([byte]) + b'More prose follows on.\r\n')
+        assert [b.kind for b in doc.blocks] == ['para'], f'{byte:#04x} invented a block'
+        assert doc.blocks[0].heading == 0, f'{byte:#04x} invented a heading'
+        assert not any('fnref' in s.styles for l in doc.iter_lines() for s in l.spans), \
+            f'{byte:#04x} invented a note reference'
+
+
+def test_real_structure_still_resolves_after_the_sentinel_removal():
+    """The other half: removing the sentinels must not lose the structure they
+    carried. NOTES.TST is real WordStar output with four known note kinds."""
+    import os
+    p = os.path.expanduser('~/vaults/claude_memory/workbench/chonky/fixtures-ws5/NOTES.TST')
+    if not os.path.exists(p):
+        return                      # fixture lives outside the repo; skip if absent
+    doc = core.parse_ws(open(p, 'rb').read())
+    assert [n.kind for n in doc.notes[:4]] == ['footnote', 'footnote', 'endnote', 'endnote']
+    refs = sum(1 for l in doc.iter_lines() for s in l.spans if 'fnref' in s.styles)
+    assert refs == 6, refs          # four kinds, comments never referenced inline
