@@ -908,9 +908,10 @@ def _align_now(state: dict) -> str:
 _L_HASH_RE = re.compile(rb'^\.L#\s*(.*)$', re.I)
 _TC_RE = re.compile(rb'^\.TC([1-9]?)\s?(.*)$', re.I)
 _IX_RE = re.compile(rb'^\.IX\s?(.*)$', re.I)
+_FI_RE = re.compile(rb'^\.FI\s+(.*)$', re.I)
 
 
-def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int) -> None:
+def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
     """Dot commands that COLLECT an entry rather than set state.
 
     `.tc` (table of contents) and `.ix` (index) name a heading or a term that
@@ -934,6 +935,28 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int) -> None
     if m:
         doc.index_entries.append((m.group(1).rstrip().decode(encoding, 'replace'),
                                   block_index))
+        return
+    m = _FI_RE.match(cmd)
+    if m:
+        # `.FI` -- "File insert.  Prints the specified file at that point in the
+        # document." A whole file the document composes itself from, and it was
+        # rendering as NOTHING: the filename sat in the dot_commands diagnostic
+        # and no emitter said a word about it.
+        #
+        # Exactly the class already fixed for inset graphics (type 0x10) and for
+        # the printer's own `%F"NAME"` includes (type 0x0F) -- this one was
+        # missed because it is a dot command rather than a block. Same rule
+        # applied: record the name, leave a visible placeholder.
+        #
+        # The file is NOT read. It may not exist, it may be a Lotus worksheet
+        # (the spec allows those), and following it would need the containing
+        # directory plus a nesting limit. Saying a file belongs here is the
+        # honest half we can do.
+        parts = m.group(1).split()
+        if parts:
+            name = parts[0].decode(encoding, 'replace')
+            doc.includes.append(name)
+            return name             # the CALLER places the marker, in document order
         return
     m = _L_HASH_RE.match(cmd)
     if m:
@@ -1593,8 +1616,16 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.
-            _parse_collect_dot(cmd, doc, encoding,
-                               len(doc.blocks) + (1 if cur.lines or cur_line.spans else 0))
+            inserted = _parse_collect_dot(
+                cmd, doc, encoding,
+                len(doc.blocks) + (1 if cur.lines or cur_line.spans else 0))
+            if inserted:
+                # `.fi` sits BETWEEN paragraphs in the printed result, so the text
+                # before it has to be closed out first or the marker jumps to the
+                # front of the document.
+                close_block()
+                doc.blocks.append(Block('para', lines=[
+                    Line([Span('[insert: %s]' % inserted, frozenset())])]))
             # A formatting change starts a NEW block: `.oc on` mid-paragraph means
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
