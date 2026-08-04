@@ -261,6 +261,14 @@ class Document:
     # so the run is the span BETWEEN two markers. Nothing is lost and no mojibake
     # is presented as text. Register C15.
     shift_runs: list = field(default_factory=list)
+    # Paragraph style library (WS5.5+): the styles the document carries at its
+    # end, reached via the header block's 32-bit pointer. Each entry is a dict:
+    # name, plus the 102-byte record's fields where present (margins/tabs in
+    # HMI 1/1800in, line height in VMI, attribute words) with each inheritable
+    # field None when its sentinel says "inherit". Register C1. A styled
+    # paragraph does not yet LOOK UP its entry -- that link is a separate,
+    # still-open item (the 0x11 block carries a style code, not an index).
+    styles: list = field(default_factory=list)
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
@@ -1684,6 +1692,101 @@ def _symmetric_blocks(data: bytes, encoding: str):
     return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
             includes, driver[0], sorted(shift_runs), marks, header)
 
+def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
+    """The paragraph style library at file-absolute offset `base`.
+
+    Layout per WSFORMAT.TXT ("Paragraph style library"), every field validated
+    corpus-wide 2026-08-04 (21 documents carrying a library: 194/194 index
+    entries, 59/59 style records, zero decode errors):
+
+      master index header (13 bytes at base):
+        1A 55, word next-512-block, byte n_objects, word n_alloc,
+        word entry_size (102), dword object-index ptr (base-relative, obs. 13)
+      object index blocks (chainable):
+        byte n_entries, dword next-block link (base-relative, 0 = none), items
+      index item, STRIDE 33 -- the spec's own field list sums to 24+1+2+2+4;
+      rounding it to 32 desyncs every entry after the first, which is exactly
+      the "some entries decode as garbage" symptom the first attempt hit:
+        24 bytes name (blank-filled; 24 x 0x3F = unused/deleted slot),
+        byte flag (observed 0x02 = has record, 0x00 = none, 194/194),
+        2 words internal, dword style-record ptr (base-relative, 0 = none)
+      style record (102 bytes): see field reads below.
+
+    Inheritance sentinels, AS OBSERVED against the spec's prose: margins -2
+    (0xFFFE); font word0, line height, justification, wrap, spacing, colour -1;
+    tab COUNTS are 0xFF when inherited (the spec says 0, the corpus says 0xFF,
+    56/118 fields) -- and when the count byte says inherited the 32-word tab
+    array holds STALE bytes from prior edit state and must not be read; gate
+    on the count byte only.
+
+    A pointer equal to the file length is WordStar's "next available offset"
+    default for documents that never defined a style -- not an error, just no
+    library (56 of 85 corpus documents)."""
+    styles = []
+    if not (0 < base <= len(raw) - 13) or raw[base] != 0x1A or raw[base+1] != 0x55:
+        return styles
+
+    def word(off, signed=False):
+        return int.from_bytes(raw[off:off+2], 'little', signed=signed)
+
+    def sword_none(off, sentinel):
+        v = word(off, signed=True)
+        return None if v == sentinel else v
+
+    n_alloc = word(base + 5)
+    entry_size = word(base + 7)
+    block_off = base + int.from_bytes(raw[base+9:base+13], 'little')
+    seen_blocks, walked = set(), 0
+    while block_off and base <= block_off <= len(raw) - 5 and block_off not in seen_blocks:
+        seen_blocks.add(block_off)
+        n_here = raw[block_off]
+        link = int.from_bytes(raw[block_off+1:block_off+5], 'little')
+        item = block_off + 5
+        for _ in range(n_here):
+            if walked >= n_alloc or item + 33 > len(raw):
+                break
+            name_raw = raw[item:item+24]
+            flag = raw[item+24]
+            sptr = int.from_bytes(raw[item+29:item+33], 'little')
+            item += 33
+            walked += 1
+            if name_raw == b'\x3f' * 24:          # unused/deleted slot
+                continue
+            name = name_raw.decode(encoding, 'replace').rstrip()
+            entry = {'name': name}
+            rec = base + sptr
+            if flag == 0x02 and sptr and rec + entry_size <= len(raw):
+                f0 = word(rec, signed=True)
+                entry['font'] = None if f0 == -1 else (
+                    word(rec), word(rec+2), word(rec+4))
+                entry['left_margin_hmi'] = sword_none(rec+10, -2)
+                entry['right_margin_hmi'] = sword_none(rec+12, -2)
+                entry['para_margin_hmi'] = sword_none(rec+14, -2)
+                n_reg, n_dec = raw[rec+18], raw[rec+19]
+                if n_reg == 0xFF or n_dec == 0xFF:
+                    entry['tabs_hmi'] = None       # inherited; array is stale
+                else:
+                    n_tabs = min(n_reg + n_dec, 32)
+                    entry['tabs_hmi'] = [word(rec+20 + 2*k) for k in range(n_tabs)]
+                    entry['decimal_tabs'] = n_dec
+                just = int.from_bytes(raw[rec+86:rec+87], signed=True)
+                entry['justification'] = None if just == -1 else {
+                    0: 'none', 1: 'right', -2: 'center', -3: 'flushright'
+                }.get(just, just)
+                wrap = int.from_bytes(raw[rec+87:rec+88], signed=True)
+                entry['word_wrap'] = None if wrap == -1 else bool(wrap)
+                entry['line_height_vmi'] = sword_none(rec+88, -1)
+                ls = int.from_bytes(raw[rec+90:rec+91], signed=True)
+                entry['line_spacing'] = None if ls == -1 else ls
+                entry['attrs_on'] = word(rec+91)
+                entry['attrs_off'] = word(rec+93)
+                col = int.from_bytes(raw[rec+95:rec+96], signed=True)
+                entry['colour'] = None if col == -1 else col
+            styles.append(entry)
+        block_off = base + link if link else 0
+    return styles
+
+
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
     marks = {}
@@ -1698,10 +1801,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # really was typed.
     tab_at = frozenset()
     if ws5:
+        raw_file = data           # the style-library pointer is file-absolute
         (data, notes, blobs, tab_at, graphics, colours, fonts,
          includes, driver, shift_runs, marks, header) = _symmetric_blocks(data, encoding)
         if header:
             doc.meta['ws_header'] = header
+            ptr = header.get('style_library_offset')
+            if ptr:
+                doc.styles = _parse_style_library(raw_file, ptr, encoding)
         doc.shift_runs = shift_runs
         doc.graphics = graphics
         doc.colours = colours

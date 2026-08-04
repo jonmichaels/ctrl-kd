@@ -236,6 +236,93 @@ def test_ws7_heading_and_softpage():
     h = emit.emit_html(doc, mode='modern')
     assert '<h2>Chapter One</h2>' in h
 
+def _style_record(left=1800, tabs=(900, 1800), n_dec=0, just=0, inherit_tabs=False):
+    # 102-byte style record per WSFORMAT's field list (validated corpus-wide
+    # 2026-08-04: 59/59 records). Inheritance sentinels: margins -2, most
+    # others -1 -- and tab COUNTS are 0xFF when inherited (the spec's prose
+    # says 0; the corpus says 0xFF, 56/118 fields), with the 32-word tab
+    # array then holding STALE bytes that must not be read.
+    rec = bytearray(102)
+    rec[0:2] = (0xFFFF).to_bytes(2, 'little')            # font: inherited
+    rec[10:12] = left.to_bytes(2, 'little')              # left margin HMI
+    rec[12:14] = (0xFFFE).to_bytes(2, 'little')          # right: inherited
+    rec[14:16] = (0xFFFE).to_bytes(2, 'little')          # para: inherited
+    if inherit_tabs:
+        rec[18] = rec[19] = 0xFF
+        for k in range(32):                               # stale junk on purpose
+            rec[20 + 2*k:22 + 2*k] = (0xBEEF).to_bytes(2, 'little')
+    else:
+        rec[18], rec[19] = len(tabs) - n_dec, n_dec
+        for k, t in enumerate(tabs):
+            rec[20 + 2*k:22 + 2*k] = t.to_bytes(2, 'little')
+    rec[86] = just % 256
+    rec[87] = 1                                           # wrap on
+    rec[88:90] = (0xFFFF).to_bytes(2, 'little')           # line height: inherit
+    rec[90] = 0xFF                                        # spacing: inherit
+    rec[91:93] = (0b1000000).to_bytes(2, 'little')        # attrs on: bold
+    rec[95] = 0xFF                                        # colour: inherit
+    return bytes(rec)
+
+def _style_library(entries):
+    # master index header (13 bytes) + one object-index block, stride-33 items
+    n = len(entries)
+    items = b''
+    records = b''
+    rec_base = 13 + 5 + 33 * n
+    for name, has_rec, rec in entries:
+        if name is None:
+            items += b'\x3f' * 24 + bytes(9)              # unused/deleted slot
+            continue
+        nm = name.encode('cp437').ljust(24)
+        if has_rec:
+            ptr = rec_base + len(records)
+            items += nm + b'\x02' + bytes(4) + ptr.to_bytes(4, 'little')
+            records += rec
+        else:
+            items += nm + b'\x00' + bytes(4) + bytes(4)
+    head = (b'\x1a\x55' + (1).to_bytes(2, 'little') + b'\x01'
+            + n.to_bytes(2, 'little') + (102).to_bytes(2, 'little')
+            + (13).to_bytes(4, 'little'))
+    block = bytes([n]) + bytes(4) + items
+    return head + block + records
+
+def test_style_library_parses_with_33_byte_stride():
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        (None, False, None),                              # deleted slot: skipped
+        ('MS Body Copy', True, _style_record(just=0)),
+        ('Old Tabs', True, _style_record(inherit_tabs=True)),
+    ])
+    body = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) + \
+        b'Some body text follows.' + HARD
+    base = ((len(body) + 127) // 128) * 128               # 128-byte boundary
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    # patch the header pointer (content offsets 12-15 inside the 0x00 block)
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    names = [s['name'] for s in doc.styles]
+    assert names == ['WordStar Defaults', 'WordStar Defaults',
+                     'MS Body Copy', 'Old Tabs']
+    body_style = doc.styles[2]
+    assert body_style['left_margin_hmi'] == 1800
+    assert body_style['right_margin_hmi'] is None         # -2 sentinel
+    assert body_style['tabs_hmi'] == [900, 1800]
+    assert body_style['justification'] == 'none'
+    assert body_style['attrs_on'] == 0b1000000
+    assert body_style['line_spacing'] is None
+    # tab counts 0xFF mean INHERITED and the array is stale -- never read it
+    assert doc.styles[3]['tabs_hmi'] is None
+
+def test_style_library_pointer_at_eof_means_no_library():
+    # 56 of 85 corpus documents: pointer == file length, WordStar's "next
+    # available offset" default when no style was ever defined. Not an error.
+    body = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) + b'Text.' + HARD
+    data = bytearray(body)
+    data[4 + 12:4 + 16] = len(body).to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    assert doc.styles == []
+
 def test_pl_zero_turns_page_breaks_off():
     # MicroPro bug 12284 (engineering note 649): '.pl0' at the start of PRVIEW
     # output exists so "displayed page breaks are thus avoided" -- .pl 0 means
