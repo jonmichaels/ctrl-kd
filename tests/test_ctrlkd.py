@@ -323,6 +323,21 @@ def test_style_library_pointer_at_eof_means_no_library():
     doc = core.parse_ws(bytes(data))
     assert doc.styles == []
 
+def test_p_hash_cc_tb_are_recorded_not_lost():
+    # All three have ZERO users in the archive, so they are RECORDED
+    # deliberately rather than modelled: .p# format alphabet documented in
+    # Sawyer's PARAGRAP.NUM ('1' numerals, 'Z'/'z' letters, 'I' roman);
+    # .cc is .cp's column partner (we don't simulate column filling);
+    # .tb sets ASCII-tab stops (spec default is modulus 8, unchanged).
+    data = (b'.p# Z.1\r\n.cc 5\r\n.tb 8 16 2.5"\r\n'
+            b'Ordinary body text follows the dot commands here.\r\n')
+    doc = core.parse_ws(data)
+    f = doc.meta['formatting']
+    assert f['paranum_format'] == 'Z.1'
+    assert f['cond_col'] == ['5']
+    assert f['tab_stops'][0:2] == [8, 16] and f['tab_stops'][2] == 25
+    assert 'Ordinary body text' in emit.emit_text(doc, mode='modern')
+
 def test_pl_zero_turns_page_breaks_off():
     # MicroPro bug 12284 (engineering note 649): '.pl0' at the start of PRVIEW
     # output exists so "displayed page breaks are thus avoided" -- .pl 0 means
