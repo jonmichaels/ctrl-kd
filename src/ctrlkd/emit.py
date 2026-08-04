@@ -505,7 +505,16 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_option
                 # every document that never touches `.oc`/`.oj` emits byte-identical
                 # HTML to before.
                 style = _HTML_ALIGN.get(b.align, '')
-                parts.append(f'<p{style}>{para}</p>')
+                # C5: newspaper columns. CSS does this properly, so HTML is the one
+                # format that can honour `.co` rather than merely record it. A gutter
+                # is print columns at 10 CPI -> tenths of an inch.
+                if b.columns and b.columns > 1:
+                    gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
+                           if b.column_gutter else '')
+                    col = f' style="column-count:{b.columns}{gap}"'
+                    parts.append(f'<div{col}><p{style}>{para}</p></div>')
+                else:
+                    parts.append(f'<p{style}>{para}</p>')
     sections = _html_notes_sections(pairs, keep)
     if sections:
         parts.append('<hr>')

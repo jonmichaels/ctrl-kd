@@ -1942,3 +1942,86 @@ def test_inset_graphics_are_recorded_and_placeheld():
 
 def test_a_document_with_no_graphics_reports_none():
     assert core.parse_ws(ws4_text('Plain.') + HARD).graphics == []
+
+
+# ------------------------------------------- Category C: pass 2
+
+def test_toc_and_index_entries_are_collected_with_a_position():
+    """C6/C7. A document that asked for a table of contents produced none and said
+    nothing about it. The block index is what lets a consumer resolve an entry to
+    a PAGE after pagination -- the text alone cannot, since two chapters can share
+    a title. It points FORWARD, at the block the entry describes."""
+    doc = core.parse_ws(b'.tc Chapter One\r\nBody.\r\n.tc2 A Section\r\nMore.\r\n'
+                        b'.ix wordstar\r\nEnd.\r\n')
+    assert doc.toc_entries == [(1, 'Chapter One', 0), (2, 'A Section', 1)]
+    assert doc.index_entries == [('wordstar', 1)]
+
+
+def test_line_numbering_interval_is_read_and_zero_turns_it_off():
+    """C11."""
+    assert core.parse_ws(b'.l# 5\r\nT.\r\n').meta['line_numbering'] == 5
+    assert core.parse_ws(b'.l# 0\r\nT.\r\n').meta['line_numbering'] is None
+
+
+def test_pe_and_cv_are_recorded_rather_than_silently_dropped():
+    """C4/C13. `.pe` asks for endnotes HERE, not at the document end; `.cv` retypes
+    notes mid-document. Acting on either is a further pass -- not pretending the
+    command was absent is this one."""
+    fmt = core.parse_ws(b'.pe\r\n.cv 3 4\r\nT.\r\n').meta['formatting']
+    assert fmt['endnotes_here'] is True
+    assert fmt['convert_notes'] == ['3 4']
+
+
+def test_columns_are_per_block_and_render_in_html():
+    """C5. The archive writes `.co2, 0.3"`, `.CO3,  .20"` and `.co1` (one column =
+    off). CSS does columns properly, so HTML is the one format that can honour
+    `.co` rather than merely record it."""
+    from ctrlkd.emit import emit_html
+    doc = core.parse_ws(b'.co2, 0.3"\r\nTwo columns.\r\n.co1\r\nBack to one.\r\n')
+    assert [(b.columns, b.column_gutter) for b in doc.blocks] == [(2, 3.0), (1, 3.0)]
+    doc.meta['variant'] = 'ws4'
+    html = emit_html(doc, mode='modern')
+    assert 'column-count:2' in html
+    assert 'column-gap:0.30in' in html
+    # one column is not a column layout
+    assert html.count('column-count') == 1
+
+
+def test_colour_and_font_changes_are_recorded():
+    """C2/C3. Neither was ever at risk of losing TEXT, but both were invisible: a
+    document that coloured a passage or set 9pt type rendered identically to one
+    that did not. Font height is 1/20 point -- 0x00B4 = 180 = 9pt, which is what
+    the archive's own blocks carry."""
+    colour = _ws_block(0x01, bytes([0x08, 0x04]))
+    font = _ws_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                     + b'\x03F' + b'\x00' * 6)
+    doc = core.parse_ws(b'Plain ' + colour + b'coloured ' + font + b'and sized.\r\n')
+    assert [(fg, bg) for _, fg, bg in doc.colours] == [(8, 4)]
+    assert [(h, w) for _, h, w, _ in doc.fonts] == [(180, 240)]
+    assert doc.fonts[0][1] / 20.0 == 9.0                    # 9pt
+
+
+def test_print_file_includes_keep_their_filename():
+    """The archive's `%F"PLEAD.PS"`: like an inset graphic, the block holds a
+    FILENAME and was dropped whole."""
+    from ctrlkd.emit import emit_text
+    doc = core.parse_ws(b'Before ' + _ws_block(0x0F, b'\x00\x00\x00%F"PLEAD.PS"')
+                        + b' after.\r\n')
+    assert doc.includes == ['PLEAD.PS']
+    assert '[include: PLEAD.PS]' in emit_text(doc, mode='printed')
+
+
+def test_a_print_block_with_no_filename_stays_a_reported_unknown():
+    """Consuming it silently would be WORSE than the bug being fixed: it turns a
+    reported unknown into an unreported one. Most 0x0F blocks are PostScript
+    preambles with no `%F` at all."""
+    doc = core.parse_ws(b'T ' + _ws_block(0x0F, b'\x00\x00\x00/bw 7 inch def') + b'.\r\n')
+    assert doc.includes == []
+    assert [u.cmd for u in doc.unknown_blocks] == [0x0F]
+
+
+def test_printer_driver_name_is_reported_without_its_record_tag():
+    """Provenance: it explains why a file's measurements look the way they do.
+    The byte before the name is a record tag, not part of it (`pLASERJET`)."""
+    doc = core.parse_ws(_ws_block(0x00, b'pLASERJET\x00\x00\x00\x80') + b'T.\r\n')
+    assert doc.meta['printer_driver'] == 'LASERJET'
