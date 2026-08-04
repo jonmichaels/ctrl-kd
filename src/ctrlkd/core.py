@@ -1338,11 +1338,15 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 # wrote down. Any other byte is a dot-leader character (spec: "Other
 # character such as '.' or '*' are used for dot leaders.").
 #
-# HMI -> columns: at 1440 units/inch and 10 CPI, one column is 1440/10 = 144
-# HMI -- the same derivation the project's footnote-VMI research already
-# used for VMI (1440/6 = 240 per line at 6 LPI); treated here as the matching
-# inference for the horizontal axis, not a spec-stated constant.
-TAB_HMI_PER_COL = 144
+# HMI -> columns. An HMI is 1/1800 inch (HORTAB.TXT: "an HMI is 1/1800
+# inch"; the font block's width word uses the same unit), so one 10-CPI
+# column is 1800/10 = 180 HMI. The old value here was 144, derived by
+# borrowing VMI's 1/1440in unit for the horizontal axis -- the same unit
+# confusion as the font-block word swap, and it made every tab 25% too
+# wide. MEASURED against every type-9 block in the archive (3,617 blocks):
+# the block's own final byte -- "Tab size in 1/10th" (of an inch, and
+# 0.1in IS 180 HMI) -- equals size//180 in all 3,617.
+TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
 def _tab_columns(content: bytes):
