@@ -76,6 +76,10 @@ against surviving period printouts of the same documents. Its rules are empirica
 * `--mode printed`: every line as laid out, fixed-width, `.pa`/form-feed page
   breaks honored — how it came off the printer.
 
+Version coverage, known limitations (WordStar 6's bare `.pl`, WordStar 3
+status), and how behaviour gets verified: **[FAQ.md](FAQ.md)**, with the
+technical account in **[ERAS.md](ERAS.md)**.
+
 ## Install
 
 ```console

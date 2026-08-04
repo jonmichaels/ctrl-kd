@@ -20,6 +20,8 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from .typestyles import TYPESTYLE_NAMES
+
 # ---------------------------------------------------------------- IR
 
 @dataclass
@@ -1569,6 +1571,9 @@ def _symmetric_blocks(data: bytes, encoding: str):
                         'generic_style': ('sans', 'serif', 'script',
                                           'display')[(style >> 10) & 0x03],
                         'typestyle_number': style & 0x01FF,
+                        # the spec's own 245-entry name table (typestyles.py);
+                        # None for numbers the table doesn't carry
+                        'typestyle_name': TYPESTYLE_NAMES.get(style & 0x01FF),
                     })
             elif cmd == 0x0F:                                     # user print control
                 # WSFORMAT.TXT, "0Fh User print control":
