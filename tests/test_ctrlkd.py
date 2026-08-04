@@ -2545,6 +2545,65 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
     assert refs == 6, refs          # four kinds, comments never referenced inline
 
 
+def _real_fixture(name):
+    import os
+    p = os.path.expanduser(
+        '~/vaults/claude_memory/workbench/chonky/fixtures-ws5/' + name)
+    return open(p, 'rb').read() if os.path.exists(p) else None
+
+
+def test_attrib_tst_known_answers():
+    """-ATTRIB.TST is MicroPro's own attribute demo: each label is set in the
+    attribute it names. A known-answer check of every toggle pair at once."""
+    raw = _real_fixture('-ATTRIB.TST')
+    if raw is None:
+        return                      # fixture lives outside the repo
+    doc = core.parse_ws(raw)
+    styled = {}
+    for ln in doc.iter_lines():
+        for s in ln.spans:
+            if s.text.strip():
+                styled.setdefault(s.text.strip(), set()).update(s.styles)
+    assert 'b' in styled['Bold']
+    assert 'i' in styled['Italics']
+    assert styled['Bold Italics'] >= {'b', 'i'}
+    assert styled['Bold Underline'] >= {'b', 'u'}
+    assert 'sup' in styled['Superscript']
+    assert 'sub' in styled['Subscript']
+    assert 'strike' in styled['strikeout']
+    assert styled['regular'] == set()
+
+
+def test_sub_supe_tst_known_answers():
+    """SUB-SUPE.TST: C22 sub/superscript demo -- and its prose carries real
+    accented characters as <1B xx 1C> wrapped extended chars, the corpus's
+    one known-answer for that path."""
+    raw = _real_fixture('SUB-SUPE.TST')
+    if raw is None:
+        return
+    doc = core.parse_ws(raw)
+    txt = emit.emit_text(doc, mode='printed')
+    for probe in ('Élisabeth', 'voilà', 'naïve', '¡Por favor!'):
+        assert probe in txt, probe
+    spans = [s for ln in doc.iter_lines() for s in ln.spans]
+    assert sum(1 for s in spans if 'sup' in s.styles) == 23
+    assert sum(1 for s in spans if 'sub' in s.styles) == 30
+
+
+def test_ps_tst_known_answers():
+    """PS.TST: the proportional-spacing font sampler (C19)."""
+    raw = _real_fixture('PS.TST')
+    if raw is None:
+        return
+    doc = core.parse_ws(raw)
+    txt = emit.emit_text(doc, mode='printed')
+    for face in ('Arial', 'Bookman', 'Courier'):
+        assert face in txt
+    spans = [s for ln in doc.iter_lines() for s in ln.spans]
+    assert sum(1 for s in spans if 'b' in s.styles) == 30
+    assert sum(1 for s in spans if 'i' in s.styles) == 30
+
+
 def test_header_sequence_states_the_release_instead_of_guessing_it():
     """WSFORMAT.TXT, type 0 Header: "Byte: version number in BCD (50h for Release
     5.0, 55h for Release 5.5, 60h for Release 6.0)", then a 9-byte driver name,
