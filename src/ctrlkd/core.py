@@ -782,6 +782,10 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         return
     name = m.group(1).upper()
     arg = m.group(2)
+    if name == b'P' and arg.startswith(b'#'):
+        # `.p#` -- '#' is not a letter, so the shared name regex splits it
+        # into name 'P', arg '#...'; rejoin before dispatch
+        name, arg = b'P#', arg[1:]
 
     if name == b'OC':                       # centering on/off
         v = _onoff(arg)
@@ -883,6 +887,42 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # author's placement -- previously endnotes always went to the end
         # regardless of what the file asked for. Register C4.
         state['endnotes_here'] = True
+    elif name == b'P#':                     # outline paragraph numbering format
+        # `.p#` sets the format and/or initial value for the 0x0D paragraph-
+        # number blocks. Format alphabet, from Sawyer's own PARAGRAP.NUM
+        # notes (a WS file, read with THIS converter): '1' numerals from 1,
+        # '9' numerals from 0, 'Z'/'z' upper/lowercase letters, 'I' roman.
+        # RECORDED, not rendered: zero documents in the archive use it, so a
+        # format engine would be code with no real input to check against --
+        # the 47 real 0x0D blocks all render with the default numeric form.
+        state['paranum_format'] = arg.strip().decode('cp437', 'replace')
+    elif name == b'CC':                     # conditional COLUMN break
+        # `.cc n` is `.cp`'s partner for newspaper columns (WSFORMAT: "Like
+        # the .CP command, but works with columnar breaks instead").
+        # RECORDED, deliberately inert: this converter does not simulate
+        # column filling (columns render as CSS column-count in HTML; the
+        # browser decides the breaks), so there is no column fill state to
+        # test n against. Zero archive documents use it.
+        state.setdefault('cond_col', []).append(
+            arg.strip().decode('cp437', 'replace'))
+    elif name == b'TB':                     # tab stops for ASCII ^I tabs
+        # `.tb` sets the stops a plain ASCII 0x09 tab expands to. RECORDED;
+        # ASCII-tab expansion stays at the spec's own default ("At print time
+        # the number of hard spaces required to reach a modulus 8 print
+        # position is generated" -- WSFORMAT control-code table; HORTAB
+        # concurs "as though tab stops were set every .8 inches"). Whether
+        # `.tb` overrides that at print time is UNMEASURED, and zero archive
+        # documents use `.tb` -- symseq tabs carry their own positions.
+        stops = []
+        for tok in arg.replace(b',', b' ').split():
+            m2 = _DOT_NUM_RE.match(tok)
+            if m2:
+                try:
+                    stops.append(_resolve_cols_arg(float(m2.group(1)), m2.group(2)))
+                except (TypeError, ValueError):
+                    pass
+        if stops:
+            state['tab_stops'] = stops
     elif name == b'CV':                     # convert note type
         # `.cv <from> <to>` retypes notes mid-document. Recorded verbatim: acting
         # on it means re-kinding notes already parsed, which is a separate pass;
