@@ -269,7 +269,8 @@ def _body_stream_printed(doc):
             spans = []
             refs = []
             for s in line.spans:
-                styles = s.styles | {'b'} if b.heading else s.styles
+                styles = (s.styles | ({'b'} if b.heading else frozenset())
+                          | b.style_attrs)
                 if 'fnref' in s.styles and s.text.isdigit():
                     k = int(s.text)
                     if 0 < k <= len(refs_all):
@@ -481,7 +482,8 @@ def _doc_to_pagelines(doc, printed):
         for line in (b.lines if printed else _merged_lines(b)):
             # the docstring's "headings bold" promise: heading blocks render in
             # Courier-Bold (found unimplemented by the Swift port, job-011)
-            spans = [(s.text, s.styles | {'b'} if b.heading else s.styles)
+            spans = [(s.text, s.styles | ({'b'} if b.heading else frozenset())
+                      | b.style_attrs)
                      for s in line.spans]
             if printed:
                 # verbatim, no wrap -- and carrying the line's own soft flag
