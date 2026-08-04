@@ -320,7 +320,9 @@ def detect(data: bytes) -> dict:
     # around ONE text character; its frame bytes counted as binary noise, so a
     # document whose body is box-drawing (BOX.WS: ~90 triples in 304 bytes)
     # read as "63% text but no structure" and was refused.
-    trips = len(re.findall(rb'\x1b.\x1c', core))
+    # DOTALL: the wrapped byte "can be any value in the range from 00h
+    # through FFh" (WSFORMAT) -- a bare `.` would skip 0x0A-middled triples
+    trips = len(re.findall(rb'\x1b.\x1c', core, re.S))
     txt = min(100, (sum(1 for x in core
                         if 0x20 <= (x & 0x7F) < 0x7F or x in (0x0D, 0x0A, 0x09))
                     + 2 * trips) * 100 // len(core))
