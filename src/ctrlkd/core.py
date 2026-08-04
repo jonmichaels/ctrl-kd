@@ -1944,13 +1944,21 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # (zero glyphs -- flagged ^J); an injected 0x94 toggled superscript
         # (flagged ^T, the font size and baseline visibly changed). Real
         # extended characters travel as <1B xx 1C> triples -- the corpus
-        # carries 10,000+ of them -- never as bare bytes. Masking is
-        # length-preserving, so every recorded offset (marks, tab_at) stays
-        # valid. 0x8D and 0x8A keep their flags: lines_pass reads them as
-        # the soft-return pair.
-        data = data.translate(bytes(
-            (b & 0x7F) if 0x80 <= b <= 0x9F and b not in (0x8D, 0x8A) else b
-            for b in range(256)))
+        # carries 10,000+ of them -- never as bare bytes.
+        #
+        # Masked by ALLOWLIST, not by range: a blanket 0x80-0x9F mask
+        # CREATES structural bytes -- 0x9A becomes 0x1A (EOF: lines_pass
+        # truncated a whole novel at its first occurrence), 0x9D becomes
+        # 0x1D (block framing). The list is every value observed in real
+        # BODY text (pre-EOF, outside blocks and 1B..1C wrappers) plus the
+        # oracle-measured 0x94; extend it as evidence arrives. 0x8D/0x8A
+        # stay flagged: lines_pass reads them as the soft-return pair.
+        # Translation is length-preserving, so recorded offsets (marks,
+        # tab_at) stay valid.
+        _FLAGGED = {0x82: 0x02,   # flagged ^B bold toggle   (27x in 4 docs)
+                    0x8C: 0x0C,   # flagged ^L form feed     (20x in 5 docs)
+                    0x94: 0x14}   # flagged ^T sup toggle    (oracle-measured)
+        data = data.translate(bytes(_FLAGGED.get(b, b) for b in range(256)))
 
     physical, margin = lines_pass(data, tab_at, marks)
     doc.meta['margin_estimate'] = margin
