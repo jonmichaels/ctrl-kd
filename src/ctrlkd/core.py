@@ -1329,14 +1329,38 @@ def _symmetric_blocks(data: bytes, encoding: str):
             elif cmd == 0x0B:                                     # end of page
                 out.append(SENT_SOFTPAGE)
             elif cmd == 0x0D:                                     # paragraph number
-                # WordStar's AUTOMATIC outline/legal numbering (.p#) -- "2.1.3"
-                # and the like. It used to fall through to UnknownBlock, which
-                # DELETES the computed number from the output entirely: not
-                # unstyled, gone. Outline-numbered essays, wills and structured
-                # reports lost every generated number with no trace.
+                # WordStar's AUTOMATIC outline/legal numbering (`.p#`) -- "2.1.3"
+                # and the like. Documented layout (WSFORMAT.TXT, "0Dh Paragraph
+                # number"):
+                #
+                #   Byte: level moves FORWARD from the previous number
+                #   Byte: level moves BACKWARD
+                #   Byte: level number of this paragraph number (1 based)
+                #   Word x8: the level counters, 0 BASED
+                #   31 bytes: the format string, zero-terminated
+                #
+                # It is BINARY. An earlier pass here scanned the block for
+                # printable-looking bytes and emitted those, on the assumption the
+                # number was stored as text -- it is not, and that both emitted
+                # nothing for real blocks (the counters are small, below 0x20) and
+                # would have injected stray characters for a counter that happened
+                # to land in the printable range. The commit that introduced it
+                # claimed to have recovered the numbers; it had not.
+                #
+                # The number is COMPUTED: take the first `level` counters, add one
+                # to each (they are 0-based) and join with dots.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
-                out += bytes(c & 0x7F for c in content
-                             if 0x20 <= (c & 0x7F) < 0x7F)
+                if len(content) >= 3 + 2:
+                    level = content[2]
+                    parts = []
+                    for k in range(min(level, 8)):
+                        off = 3 + k * 2
+                        if off + 2 > len(content):
+                            break
+                        parts.append(str(int.from_bytes(content[off:off + 2],
+                                                        'little') + 1))
+                    if parts:
+                        out += '.'.join(parts).encode(encoding, 'replace')
             elif cmd == 0x01:                                     # colour change
                 # Two bytes: foreground and background colour indices. Observed in
                 # the WS7 archive as 00/00, 04/00, 08/04, 0c/08 -- i.e. small
