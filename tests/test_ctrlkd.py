@@ -224,11 +224,27 @@ def test_ws7_footnote_extraction_and_ref():
     assert '[^1]' in md and '[^1]: See the 1868 accords.' in md
 
 def test_ws7_heading_and_softpage():
-    data = (ws7_block(0x00) + ws7_block(0x11, bytes([0x02])) + b'Chapter One' + HARD + HARD +
+    # Heading level comes from the NAME the style handle resolves to in the
+    # document's own library -- never from the slot number (the old mapping
+    # promoted NOVEL.WS's footer style to a heading while its real H1/H2/H3
+    # went unmapped). Slot 2 here resolves to 'H2'.
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('H2', True, _style_record()),
+    ])
+    style = ws7_block(0x11, (0x0202).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little')
+                      + (0x0300).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little'))
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) + style +
+            b'Chapter One' + HARD + HARD +
             b'Body text of the chapter.' + HARD + ws7_block(0x0B) + b'Next page text.' + HARD)
-    doc = core.parse_ws(data)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
     heads = [b for b in doc.blocks if b.heading]
     assert heads and heads[0].heading == 2
+    assert heads[0].style_name == 'H2' and heads[0].style_id == 2
     assert heads[0].lines[0].text().strip() == 'Chapter One'
     assert any(ln.softpage for b in doc.blocks for ln in b.lines)
     md = emit.emit_markdown(doc, mode='modern')
@@ -604,9 +620,19 @@ def test_md_multistyle_span_is_deterministic():
 def test_pdf_headings_render_bold():
     # the docstring promised it; the Swift port (job-011) found it unimplemented
     from ctrlkd.pdf import _doc_to_pagelines
-    data = (ws7_block(0x00) + ws7_block(0x11, bytes([0x02])) + b'Chapter One' + HARD + HARD +
-            b'Body text here.' + HARD)
-    pages = _doc_to_pagelines(core.parse_ws(data), False)
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('MS Chapter Title', True, _style_record()),
+    ])
+    style = ws7_block(0x11, (0x0202).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little')
+                      + (0x0300).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little'))
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) + style +
+            b'Chapter One' + HARD + HARD + b'Body text here.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    pages = _doc_to_pagelines(core.parse_ws(bytes(data)), False)
     segs = [seg for pg in pages for line in pg for seg in line]
     # wrapLine tokenizes into words: assert at segment granularity
     assert any(t == 'Chapter' and 'b' in st for t, st in segs)
@@ -2239,23 +2265,26 @@ def test_printer_driver_name_is_reported_without_its_record_tag():
 
 
 def test_every_paragraph_style_survives_not_just_the_three_headings():
-    """C1. Three style IDs were mapped to heading levels and EVERY OTHER STYLE WAS
-    DROPPED -- silently, so a styled paragraph became an unstyled one with nothing
-    to say a style had been applied. The WS7 archive uses at least twelve distinct
-    IDs, and 0x06 alone appears 60 times: more often than two of the three that
-    were mapped."""
-    def styled(style_id):
-        blk = _ws_block(0x11, bytes([style_id, 2, 1, 2, 2, 3, 1, 2]))
+    """C1. A 0x11 block is four LE16 handles; word 0's low byte is the 0-based
+    library SLOT (deleted slots counted), its high byte the 0x02 pool tag.
+    Slot numbers carry no heading semantics -- the corpus's own NOVEL.WS has
+    real H1/H2/H3 styles at slots 4/10/8 while the old {0x05,0x02,0x03} map
+    promoted its footer style to a heading. Without a resolvable library the
+    slot is still recorded; heading requires the resolved NAME."""
+    def styled(slot):
+        blk = _ws_block(0x11, bytes([slot, 2, 1, 2, 2, 3, 1, 2]))
         return core.parse_ws(blk + b'Styled text.\r\n').blocks[0]
 
-    known = styled(0x05)
-    assert (known.heading, known.style_id) == (1, 5)
-    # the ones that used to vanish
-    for sid in (0x06, 0x0F, 0x19):
+    for sid in (0x05, 0x06, 0x0F, 0x19):
         b = styled(sid)
-        assert b.heading == 0, 'not one of the three known headings'
-        assert b.style_id == sid, 'but WHICH style must still be known'
+        assert b.heading == 0, 'no library to resolve against => no heading'
+        assert b.style_id == sid, 'but WHICH slot must still be known'
         assert ''.join(s.text for s in b.lines[0].spans) == 'Styled text.'
+    # a 0x03xx handle names an editing-temp style that was never written to
+    # the file -- unresolvable BY DESIGN, must stay unstyled, never guessed
+    tmp = core.parse_ws(_ws_block(0x11, bytes([5, 3, 1, 2, 2, 3, 1, 2]))
+                        + b'Styled text.\r\n').blocks[0]
+    assert tmp.style_id is None and tmp.heading == 0
 
 
 def test_note_numbering_mode_is_read_not_just_the_start_value():
