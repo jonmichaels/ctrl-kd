@@ -2185,3 +2185,23 @@ def test_ig_and_double_dot_comments_never_print():
         text = emit_text(core.parse_ws(src), mode='printed')
         assert 'hidden' not in text, text
         assert 'One.' in text and 'Two.' in text
+
+
+def test_a_literal_form_feed_breaks_the_page_in_a_ws_document():
+    """WSFORMAT.TXT: "0Ch ^L  Form Feed.  At print time causes page to be ejected."
+
+    `parse_printstream` had always honoured it; `parse_ws` did not, so a WS
+    document carrying ^L had its two pages run together into ONE paragraph and the
+    only trace was an "unknown code 0x0c" line in --diagnose. The break was lost.
+
+    Found by diffing all 32 low-order control codes against the spec -- a surface
+    that had never been checked, one code at a time, against the document that
+    defines it."""
+    doc = core.parse_ws(b'Page one text here with plenty of ordinary prose.'
+                        b'\x0cPage two text here also with prose.\r\n')
+    assert [b.kind for b in doc.blocks] == ['para', 'pagebreak', 'para']
+    assert doc.meta['unknown_codes'] == {}, 'a handled code must not be reported unknown'
+    # and the two parse paths now agree, which they did not before
+    ps = core.parse_printstream(b'Page one text here with plenty of ordinary prose.'
+                                b'\x0cPage two text here also with prose.\r\n')
+    assert [b.kind for b in ps.blocks] == [b.kind for b in doc.blocks]

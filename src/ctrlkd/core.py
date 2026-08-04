@@ -1659,6 +1659,27 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 close_block()
             _parse_page_dot(cmd, page, meta_extra)
             continue
+        # A LITERAL form feed is a page break, in any variant. WSFORMAT.TXT:
+        # "0Ch ^L  Form Feed.  At print time causes page to be ejected.  No footer
+        # lines are printed."
+        #
+        # parse_printstream has always honoured it; parse_ws did not, so a WS
+        # document carrying ^L had its two pages run together into one paragraph
+        # and the only trace was an "unknown code 0x0c" line in --diagnose. The
+        # break was simply lost. Found by diffing all 32 low-order codes against
+        # the spec, 2026-08-04.
+        if 0x0C in raw:
+            parts = raw.split(b'\x0c')
+            for n, part in enumerate(parts):
+                if n:
+                    close_block()
+                    doc.blocks.append(Block('pagebreak'))
+                if part:
+                    spans = _decode_spans(part, strip_hibit, encoding, active,
+                                          unknown, fn_counter)
+                    for sp in spans:
+                        cur_line.spans.append(sp)
+            raw = b''
         if ws5:                                    # sentinels from _symmetric_blocks
             if raw.count(SENT_SOFTPAGE):
                 close_block()
