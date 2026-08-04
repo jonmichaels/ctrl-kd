@@ -585,8 +585,9 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     if not (doc.headers or doc.footers) or not printed:
         return []
     page = doc.meta.get('page') or {}
-    # `.op` does NOT suppress a `#` in a header or footer. WSFORMAT.TXT is
-    # explicit -- ".OP  Omit page number.  At print time no page numbers are
+    # `.op` does NOT suppress a `#` in a header or footer. MEASURED on WordStar 4
+    # (2026-08-03): a document carrying `.op` and `.fo Page #` printed "Page 1" on
+    # page 1 and "Page 2" on page 2. WSFORMAT.TXT says the same -- ".OP  Omit page number.  At print time no page numbers are
     # printed UNLESS THE '#' HAS BEEN USED IN FOOTERS OR HEADERS." It suppresses
     # the AUTOMATIC page number, the one `.pc` positions; a `#` the author put in
     # a running head is the exemption, not the target.
