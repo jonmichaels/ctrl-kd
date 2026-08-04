@@ -122,7 +122,12 @@ def main(argv=None):
             else:
                 with open(dest, 'w', encoding='utf-8', newline='\n') as f:
                     f.write(out)
-            print(f'{path} -> {dest}')
+            # Status goes to STDERR: with `-o /dev/stdout` (or a pipe) a
+            # status line on stdout lands INSIDE the converted document --
+            # found 2026-08-04 when a Python-vs-Swift archive comparison
+            # flagged all 81 convertible documents as differing by exactly
+            # this line. Both CLIs carried the defect; both fixed together.
+            print(f'{path} -> {dest}', file=sys.stderr)
     return status
 
 if __name__ == '__main__':
