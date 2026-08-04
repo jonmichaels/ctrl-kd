@@ -2123,3 +2123,34 @@ def test_the_escape_byte_cannot_fire_inside_a_japanese_run():
     text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
     assert '[shift-jis: 4 bytes]' in text
     assert text.endswith(' tail.'), text          # nothing swallowed past the run
+
+
+def test_fi_file_insert_leaves_a_trace():
+    """WSFORMAT.TXT: ".FI  File insert.  Prints the specified file at that point in
+    the document."
+
+    A whole file the document composes itself from, rendering as NOTHING -- the
+    filename sat in the dot_commands diagnostic and no emitter said a word. The
+    same class already fixed for inset graphics (type 0x10) and the printer's own
+    `%F"NAME"` includes (type 0x0F); this one was missed because it is a dot
+    command rather than a block.
+
+    The file is NOT read: it may not exist, and the spec allows it to be a Lotus
+    worksheet. Saying a file belongs here is the honest half."""
+    from ctrlkd.emit import emit_text
+    doc = core.parse_ws(b'Body one.\r\n.fi CHAPTER2.WS\r\nBody two.\r\n')
+    assert doc.includes == ['CHAPTER2.WS']
+    # and it lands BETWEEN the paragraphs, not at the front of the document
+    assert emit_text(doc, mode='printed') == 'Body one.\n[insert: CHAPTER2.WS]\nBody two.\n'
+
+
+def test_ig_and_double_dot_comments_never_print():
+    """WSFORMAT.TXT: ".IG or..  Ignore.  The text on the remainder of the line is
+    treated as an unprinted comment." Verified rather than assumed -- both forms
+    are dropped by the general dot-line rule, and this pins that they stay so."""
+    from ctrlkd.emit import emit_text
+    for src in (b'One.\r\n.ig hidden note\r\nTwo.\r\n',
+                b'One.\r\n.. hidden note\r\nTwo.\r\n'):
+        text = emit_text(core.parse_ws(src), mode='printed')
+        assert 'hidden' not in text, text
+        assert 'One.' in text and 'Two.' in text
