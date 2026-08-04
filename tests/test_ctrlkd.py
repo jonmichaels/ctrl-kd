@@ -230,11 +230,44 @@ def test_ws7_heading_and_softpage():
     heads = [b for b in doc.blocks if b.heading]
     assert heads and heads[0].heading == 2
     assert heads[0].lines[0].text().strip() == 'Chapter One'
-    assert any(b.kind == 'softpage' for b in doc.blocks)
+    assert any(ln.softpage for b in doc.blocks for ln in b.lines)
     md = emit.emit_markdown(doc, mode='modern')
     assert '## Chapter One' in md
     h = emit.emit_html(doc, mode='modern')
     assert '<h2>Chapter One</h2>' in h
+
+def test_softpage_never_breaks_a_page():
+    # WSFORMAT.TXT on 0Bh End of page: "This sequence should usually be
+    # ignored. It's used by the WordStar editor to keep track of page breaks.
+    # It is TRANSIENT, and moves around with the page break."
+    #
+    # MEASURED on WordStar 7 (2026-08-04): the same document printed with and
+    # without 0x0B marks produced BYTE-IDENTICAL output. The marks carry two
+    # words (VMIs on page, line # on page) and the print pipeline never reads
+    # them. Honouring them as breaks changed the page count of 43 archive
+    # documents. The block is still PARSED (real structure a viewer may want);
+    # no renderer may act on it.
+    prose = (b'First paragraph of perfectly plain prose.' + HARD +
+             b'Second paragraph, still plain.' + HARD +
+             b'Third paragraph closes the document.' + HARD)
+    mark = ws7_block(0x0B, (24).to_bytes(2, 'little') + (3).to_bytes(2, 'little'))
+    base = ws7_block(0x00) + prose
+    marked = (ws7_block(0x00) +
+              b'First paragraph of perfectly plain prose.' + HARD + mark +
+              b'Second paragraph, still plain.' + HARD + mark +
+              b'Third paragraph closes the document.' + HARD)
+    d_base, d_marked = core.parse_ws(base), core.parse_ws(marked)
+    assert sum(ln.softpage for b in d_marked.blocks for ln in b.lines) == 2
+    # and the mark must not sever the flow into extra blocks
+    assert [b.kind for b in d_marked.blocks] == [b.kind for b in d_base.blocks]
+    from ctrlkd.pdf import _doc_to_pagelines
+    for mode in ('printed', 'modern'):
+        assert emit.emit_text(d_base, mode=mode) == emit.emit_text(d_marked, mode=mode)
+        assert emit.emit_html(d_base, mode=mode) == emit.emit_html(d_marked, mode=mode)
+        assert emit.emit_rtf(d_base, mode=mode) == emit.emit_rtf(d_marked, mode=mode)
+    for printed in (True, False):
+        assert (len(_doc_to_pagelines(d_base, printed))
+                == len(_doc_to_pagelines(d_marked, printed)))
 
 def test_ws7_tab_block():
     data = ws7_block(0x00) + ws7_block(0x09) + b'Indented by tab block.' + HARD
