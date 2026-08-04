@@ -257,7 +257,7 @@ def _body_stream_printed(doc):
     refs_all = _ref_pairs(_annotated_notes(doc))
     stream = []
     for b in doc.blocks:
-        if b.kind in ('pagebreak', 'softpage'):
+        if b.kind == 'pagebreak':
             stream.append(None)
             continue
         for line in b.lines:
@@ -459,7 +459,7 @@ def _doc_to_pagelines(doc, printed):
 
     lines = []                                            # None = forced page break
     for b in doc.blocks:
-        if b.kind == 'pagebreak' or (b.kind == 'softpage' and printed):
+        if b.kind == 'pagebreak':
             lines.append(None)
             continue
         if b.kind == 'condpage':
@@ -469,8 +469,6 @@ def _doc_to_pagelines(doc, printed):
             # sentinel so the page-filling loop below, which is the only thing
             # that knows how full the page is, can decide.
             lines.append(('cond', b.heading or 1))
-            continue
-        if b.kind == 'softpage':
             continue
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
