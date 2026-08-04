@@ -463,8 +463,58 @@ _RTF_ALIGN = {'center': r'\qc ', 'right': r'\qr ', 'justify': r'\qj ',
               'left': r'\ql '}
 
 
-def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_options):
+def _style_slug(entry):
+    """A stable, readable CSS class for one library entry: slot + slugged
+    name (slot disambiguates same-named entries)."""
+    slug = re.sub(r'[^a-z0-9]+', '-', entry['name'].lower()).strip('-') or 'style'
+    return f"ws-{entry['slot']}-{slug}"
+
+
+def _style_css(doc):
+    """CSS rules derived from the style records themselves -- a PASS-THROUGH
+    of the file's own data (Jon, 2026-08-04: never hardwire a style name to
+    a font or size; expose the data so a consumer can attach its own). Every
+    property below comes from the entry's 102-byte record: alignment,
+    margins (HMI/1800 = inches), print attributes, and the font block's
+    height word (VMI/20 = points). Inherited fields emit nothing."""
+    rules = []
+    for entry in doc.styles:
+        if 'attrs_on' not in entry:            # recordless base entry
+            continue
+        props = []
+        if entry.get('justification') in ('left', 'center', 'right', 'justify'):
+            props.append(f"text-align:{entry['justification']}")
+        if entry.get('left_margin_hmi'):
+            props.append('margin-left:%.2fin' % (entry['left_margin_hmi'] / 1800.0))
+        if entry.get('right_margin_hmi'):
+            props.append('margin-right:%.2fin' % (entry['right_margin_hmi'] / 1800.0))
+        a = entry.get('attrs', frozenset())
+        if 'b' in a:
+            props.append('font-weight:bold')
+        if 'i' in a:
+            props.append('font-style:italic')
+        deco = [d for tag, d in (('u', 'underline'), ('strike', 'line-through'))
+                if tag in a]
+        if deco:
+            props.append('text-decoration:' + ' '.join(deco))
+        font = entry.get('font')
+        if font:
+            w, h, ts = font
+            if h:
+                props.append('font-size:%.4gpt' % (h / 20.0))
+            props.append(f'--ws-typestyle:{ts & 0x01FF}')
+        if props:
+            rules.append(f'.{_style_slug(entry)} {{ {"; ".join(props)} }}')
+    return '\n'.join(rules)
+
+
+def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
+              styles=True, **_options):
     keep = frozenset(notes)
+    style_class = {}
+    if styles:
+        style_class = {s['slot']: ' class="%s"' % _style_slug(s)
+                       for s in doc.styles}
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     parts = []
@@ -473,18 +523,19 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_option
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
             continue
+        cls = style_class.get(b.style_id, '')
         if b.heading:
             # merged either mode: a heading is a logical unit, and joining its
             # logical lines with a space is what this always rendered
             txt = ' '.join(_html_line(line, refs, keep) for line in merged_lines(b)).strip()
             if txt:
-                parts.append(f'<h{b.heading}>{txt}</h{b.heading}>')
+                parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
             continue
         if printed:
             # PHYSICAL lines: inside <pre>, a soft return is a real line break
             body = '\n'.join(_html_line(line, refs, keep, keep_ws=True) for line in b.lines)
             if body.strip():
-                parts.append(f'<pre>{body}</pre>')
+                parts.append(f'<pre{cls}>{body}</pre>')
         else:
             lines = [_html_line(line, refs, keep) for line in merged_lines(b)]
             para = '<br>\n'.join(lines)
@@ -502,16 +553,21 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_option
                     gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
                            if b.column_gutter else '')
                     col = f' style="column-count:{b.columns}{gap}"'
-                    parts.append(f'<div{col}><p{style}>{para}</p></div>')
+                    parts.append(f'<div{col}><p{cls}{style}>{para}</p></div>')
                 else:
-                    parts.append(f'<p{style}>{para}</p>')
+                    parts.append(f'<p{cls}{style}>{para}</p>')
     sections = _html_notes_sections(pairs, keep)
     if sections:
         parts.append('<hr>')
         parts.extend(sections)
+    css = _CSS
+    if styles:
+        extra = _style_css(doc)
+        if extra:
+            css = css + '\n' + extra
     return ('<!doctype html><html><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{_html.escape(title)}</title><style>{_CSS}</style></head>\n'
+            f'<title>{_html.escape(title)}</title><style>{css}</style></head>\n'
             f'<body>\n' + '\n'.join(parts) + '\n</body></html>\n')
 
 # ---------------------------------------------------------------- rtf
@@ -599,12 +655,45 @@ def _rtf_span(sp, refs, keep):
     styles = sorted(st for st in sp.styles if st != 'fnref')
     return '{' + ''.join(_RTF_ON.get(st, '') for st in styles) + _rtf_escape(sp.text) + '}'
 
-def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
+def _rtf_stylesheet(doc):
+    """An RTF \\stylesheet group derived from the style records -- the same
+    pass-through rule as the HTML CSS: properties come from the file's own
+    data, names are carried verbatim, nothing is hardwired. \\sN numbers are
+    slot+1 (RTF style 0 is reserved for Normal)."""
+    entries = []
+    for entry in doc.styles:
+        if 'attrs_on' not in entry:
+            continue
+        props = ''
+        props += {'center': r'\qc', 'right': r'\qr',
+                  'justify': r'\qj'}.get(entry.get('justification'), '')
+        if entry.get('left_margin_hmi'):
+            props += r'\li%d' % round(entry['left_margin_hmi'] / 1800.0 * 1440)
+        if entry.get('right_margin_hmi'):
+            props += r'\ri%d' % round(entry['right_margin_hmi'] / 1800.0 * 1440)
+        a = entry.get('attrs', frozenset())
+        for tag, ctl in (('b', r'\b'), ('i', r'\i'), ('u', r'\ul'),
+                         ('strike', r'\strike')):
+            if tag in a:
+                props += ctl
+        font = entry.get('font')
+        if font and font[1]:
+            props += r'\fs%d' % round(font[1] / 20.0 * 2)     # half-points
+        name = entry['name'].replace('\\', '').replace('{', '').replace('}', '')
+        entries.append(r'{\s%d%s %s;}' % (entry['slot'] + 1, props, name))
+    return (r'{\stylesheet{\s0 Normal;}' + ''.join(entries) + '}') if entries else ''
+
+
+def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
+             **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
     font = r'\f1' if printed else r'\f0'
+    stylesheet = _rtf_stylesheet(doc) if styles else ''
+    styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
+                    if styles else set())
     parts = []
     rtf_align = 'left'          # RTF alignment persists across \par
     for b in doc.blocks:
@@ -629,6 +718,11 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             if b.align != rtf_align:
                 parts.append(_RTF_ALIGN[b.align])
                 rtf_align = b.align
+            if b.style_id in styled_slots:
+                # style pass-through: tag the paragraph with its \sN so a
+                # consumer can act on the named style (the visible formatting
+                # is still carried inline, as RTF readers expect)
+                parts.append(r'\s%d ' % (b.style_id + 1))
             parts.append(para + r'\par ')
         if not printed:
             parts.append(r'\par ')                    # blank line between paragraphs
@@ -638,6 +732,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             parts.append(comments)
     body = '\n'.join(parts)
     return (r'{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}}'
+            + stylesheet
             + '\n' + font + r'\fs24 ' + '\n' + body + '\n}\n')
 
 # built-ins register through the same door plugins use
