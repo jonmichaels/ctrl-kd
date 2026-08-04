@@ -1605,15 +1605,46 @@ def test_default_mode_is_printed():
     assert md.lstrip().startswith('```'), 'library default is not printed'
 
 
-def test_paragraph_number_text_is_not_deleted():
-    """Type 0x0D is WordStar's AUTOMATIC outline/legal numbering (.p#). It used
-    to fall to UnknownBlock, which deletes the computed number outright -- not
-    unstyled, GONE. Outline-numbered essays, wills and structured reports lost
-    every generated number with no trace."""
-    data = (ws7_block(0x00) + ws7_block(0x0D, b'\x00\x00' + b'2.1.3') +
-            b' body text here' + HARD)
+def _paranum(level, *counters):
+    """A 0x0D block body per WSFORMAT.TXT: two level-move bytes, a 1-BASED level
+    byte, then eight 0-BASED level counters as words, then a 31-byte format
+    string. Binary throughout -- there is no text in it."""
+    body = bytes([0, 0, level])
+    for n in range(8):
+        body += (counters[n] if n < len(counters) else 0).to_bytes(2, 'little')
+    return body + bytes(31)
+
+
+def test_paragraph_number_is_computed_from_its_level_counters():
+    """Type 0x0D is WordStar's AUTOMATIC outline/legal numbering (`.p#`), and the
+    block is BINARY: level counters, 0 based, not a rendered string.
+
+    This test used to feed the block `b'2.1.3'` as literal text and assert that
+    text came back -- the same misunderstanding the code had, so it passed against
+    an implementation that scanned for printable bytes. That implementation
+    emitted NOTHING for real archive blocks (the counters are below 0x20) while
+    its commit claimed to have recovered the numbers, and would fabricate a number
+    from any counter that landed in the printable range: a level byte of '2'
+    (0x32 = 50) yields "12591.13103".
+
+    Level 3 with counters 1, 0, 2 renders "2.1.3"."""
+    # Enough ordinary text that `detect` calls this ws5+ rather than binary -- the
+    # 31-byte format field is all NULs, and a short fixture is mostly zeroes.
+    data = ws7_block(0x00) + ws7_block(0x0D, _paranum(3, 1, 0, 2)) \
+        + b' body text here, with enough ordinary prose that detection is not in doubt.' \
+        + HARD
     txt = emit.emit_text(core.parse_ws(data), 'printed')
-    assert '2.1.3' in txt, 'the generated paragraph number was deleted'
+    assert '2.1.3' in txt, txt
+
+
+def test_a_paragraph_number_never_fabricates_digits_from_binary():
+    """The failure mode the printable-byte scan had: counters that happen to sit
+    in the ASCII range must not become characters."""
+    txt = emit.emit_text(core.parse_ws(
+        ws7_block(0x00) + ws7_block(0x0D, _paranum(1, 0))
+        + b' text, with enough ordinary prose that detection is not in doubt.'
+        + HARD), 'printed')
+    assert '1 text' in txt, txt          # level 1, counter 0 -> "1"
 
 
 def test_index_item_phrase_survives():
