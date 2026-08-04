@@ -78,12 +78,13 @@ class Block:
     # which is not the same as asking for one column. Register C5.
     columns: int = None
     column_gutter: float = None
-    # WordStar's paragraph-style ID (symmetric type 0x11), when one was applied.
-    # `heading` is the subset of these this parser gives a heading meaning to
-    # (1-3); every OTHER style used to be dropped silently, so a styled paragraph
-    # became an unstyled one with no trace. The WS7 archive uses at least twelve
-    # distinct IDs. Register C1.
+    # WordStar's paragraph style (symmetric type 0x11), when one was applied:
+    # the 0-based library slot the block's style HANDLE resolves to, and the
+    # resolved entry's name. `heading` derives from the NAME (see
+    # _style_heading_level) -- the corpus proved slot numbers carry no
+    # semantics. Full entry: doc.styles, matched on 'slot'. Register C1.
     style_id: int = None
+    style_name: str = None
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -1704,21 +1705,30 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 out += bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F)
-            elif cmd == 0x11 and len(block) > 3:                  # paragraph style
-                # WordStar's paragraph-style mechanism. Three IDs were mapped to
-                # heading levels and EVERY OTHER STYLE WAS DROPPED -- silently, so
-                # a styled paragraph became an unstyled one with nothing to say a
-                # style had been applied. The WS7 archive uses at least twelve
-                # distinct IDs; 0x06 alone appears 60 times, more often than two of
-                # the three that were mapped. Register C1.
+            elif cmd == 0x11 and len(block) >= 6:                 # paragraph style
+                # Four LE16 style HANDLES (WSFORMAT: new / previously selected /
+                # previous 'modified' temp / previous-previous). All 1,727 blocks
+                # across the archive are exactly 8 content bytes. Only word 0 --
+                # the newly selected style -- is joinable: high byte 0x02 tags
+                # this file's own library, low byte is the 0-BASED index-item
+                # slot in allocation order, DELETED SLOTS COUNTED (validated
+                # 60/60 distinct references, 22/22 documents). The 0x03xx pool
+                # in word 2 names editing-temp styles that were never written to
+                # the file: unresolvable by design, reject rather than mask.
                 #
-                # The sentinel now carries the style ID as well as the level, so a
-                # consumer can see WHICH style even where this parser has no
-                # heading meaning for it. Level 0 = "a style, but not one of the
-                # three known headings".
-                style_id = block[3]
-                level = {0x05: 1, 0x02: 2, 0x03: 3}.get(style_id, 0)
-                marks[len(out)] = ('heading', level, style_id)
+                # The old reading took content[0] alone -- the LOW BYTE of w0 --
+                # and mapped three slot numbers to heading levels. Slot numbers
+                # carry no semantics: 0x05 resolves to 'Bulleted List' in one
+                # document and 'Body copy font' in another, and NOVEL.WS's real
+                # H1/H2/H3 styles sat unmapped while its footer style rendered
+                # as a heading. Heading meaning now comes from the RESOLVED
+                # entry (see parse_ws), never from the slot.
+                content = block[3:-3]
+                if len(content) == 8:
+                    w0 = int.from_bytes(content[0:2], 'little')
+                    marks[len(out)] = ('style', w0)
+                else:
+                    unknown.append(UnknownBlock(cmd, bytes(block), start))
             else:
                 unknown.append(UnknownBlock(cmd, bytes(block), start))
             i += jump + 3
@@ -1797,7 +1807,9 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
             if name_raw == b'\x3f' * 24:          # unused/deleted slot
                 continue
             name = name_raw.decode(encoding, 'replace').rstrip()
-            entry = {'name': name}
+            # slot = 0-based position in ALLOCATION ORDER, deleted slots
+            # counted -- exactly what a 0x11 handle's low byte indexes
+            entry = {'name': name, 'slot': walked - 1}
             rec = base + sptr
             if flag == 0x02 and sptr and rec + entry_size <= len(raw):
                 f0 = word(rec, signed=True)
@@ -1831,6 +1843,25 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
     return styles
 
 
+def _style_heading_level(name: str) -> int:
+    """Heading level from a RESOLVED style name -- never from the handle's
+    slot number, which the corpus proved carries no semantics (NOVEL.WS's
+    real H1/H2/H3 styles sat at arbitrary slots while its footer style was
+    being rendered as a heading). HEURISTIC tiers, drawn from the archive's
+    own style names: exact H1/H2/H3; 'chapter title' / trailing 'Title' ->
+    1 (MS Chapter Title); 'subhead' / 'section heading' -> 2 (MS Subhead,
+    Section Heading Font). Everything else is a non-heading style: the
+    block still carries style_name for consumers with better taxonomy."""
+    n = name.strip().lower()
+    if n in ('h1', 'h2', 'h3'):
+        return int(n[1])
+    if 'chapter title' in n or n.endswith(' title') or n == 'title':
+        return 1
+    if 'subhead' in n or 'section heading' in n:
+        return 2
+    return 0
+
+
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
     marks = {}
@@ -1844,6 +1875,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # symmetric blocks, so a WS4 file has none and every leading space in one
     # really was typed.
     tab_at = frozenset()
+    style_slots = {}
     if ws5:
         raw_file = data           # the style-library pointer is file-absolute
         (data, notes, blobs, tab_at, graphics, colours, fonts,
@@ -1853,6 +1885,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             ptr = header.get('style_library_offset')
             if ptr:
                 doc.styles = _parse_style_library(raw_file, ptr, encoding)
+                style_slots = {s['slot']: s for s in doc.styles}
         doc.shift_runs = shift_runs
         doc.graphics = graphics
         doc.colours = colours
@@ -1995,13 +2028,21 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 # block here severed real paragraphs. See the 0x0B parse site
                 # for the measurement.
                 cur_line.softpage = True
-            elif m[0] == 'heading':
+            elif m[0] == 'style':
                 close_block()
-                # Level 0 means "a style, but not one of the three this parser
-                # gives a heading meaning to" -- the block is still marked with
-                # WHICH style, so a consumer can act on it. Register C1.
-                cur.heading = m[1]
-                cur.style_id = m[2]
+                # Resolve the handle against the file's own library. Pool tag
+                # 0x02 = this file; anything else (0x03xx editing temps) is
+                # unresolvable BY DESIGN and left unstyled rather than guessed.
+                # Heading level comes from the RESOLVED NAME -- the corpus
+                # proved slot numbers carry none (see the 0x11 parse site).
+                w0 = m[1]
+                if (w0 >> 8) == 0x02:
+                    slot = w0 & 0xFF
+                    entry = style_slots.get(slot)
+                    cur.style_id = slot
+                    if entry is not None:
+                        cur.style_name = entry['name']
+                        cur.heading = _style_heading_level(entry['name'])
             elif m[0] == 'fnref':
                 fnref_at.append(rel)
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
