@@ -66,6 +66,9 @@ def main(argv=None):
                     help='override detection')
     ap.add_argument('--encoding', default='cp437',
                     help='byte encoding of the source (default: cp437)')
+    ap.add_argument('--no-styles', action='store_true',
+                    help='omit paragraph-style pass-through (HTML classes + '
+                         'generated CSS, RTF stylesheet) from the output')
     ap.add_argument('--no-notes', action='store_true',
                     help='omit footnotes, endnotes and annotations from the output')
     ap.add_argument('--comments', action='store_true',
@@ -104,7 +107,8 @@ def main(argv=None):
         base = os.path.splitext(os.path.basename(path))[0]
         for fmt in formats:
             reg = emit.get_emitter(fmt)
-            out = reg['fn'](doc, a.mode, title=base, notes=notes)
+            out = reg['fn'](doc, a.mode, title=base, notes=notes,
+                            styles=not a.no_styles)
             if a.output:
                 dest = a.output
             else:

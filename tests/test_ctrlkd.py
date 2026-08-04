@@ -4,6 +4,7 @@ They encode real WordStar behaviors verified against a 1987-92 corpus during
 development (that corpus is personal and is not shipped).
 """
 import pytest
+import re
 from ctrlkd import core, emit, convert
 
 SOFT = b'\x8d\x0a'
@@ -250,7 +251,7 @@ def test_ws7_heading_and_softpage():
     md = emit.emit_markdown(doc, mode='modern')
     assert '## Chapter One' in md
     h = emit.emit_html(doc, mode='modern')
-    assert '<h2>Chapter One</h2>' in h
+    assert re.search(r'<h2[^>]*>Chapter One</h2>', h)
 
 def _style_record(left=1800, tabs=(900, 1800), n_dec=0, just=0, inherit_tabs=False):
     # 102-byte style record per WSFORMAT's field list (validated corpus-wide
@@ -403,6 +404,36 @@ def test_style_record_formatting_applies_and_persists():
     segs = [seg for pg in _doc_to_pagelines(doc, False) for ln in pg for seg in ln]
     assert any(t == 'Styled' and 'b' in st for t, st in segs)
     assert any(t == 'Plain' and 'b' not in st for t, st in segs)
+
+def test_style_pass_through_html_css_and_rtf_stylesheet():
+    # Jon's ruling 2026-08-04: styles are a PASS-THROUGH -- no hardwiring a
+    # name to a font; expose the record's own data as CSS/RTF so a consumer
+    # can attach font/size. Properties below all come from the fixture's
+    # 102-byte record, none from the name.
+    rec = _style_record(left=1800, just=(-2) % 256)
+    rec = rec[:91] + (0x40).to_bytes(2, 'little') + rec[93:]      # bold
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Callout', True, rec),
+    ])
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            b'Plain opening paragraph with plenty of ordinary prose.' + HARD +
+            _style_handle(2) + b'Styled paragraph in the Callout style.' + HARD +
+            _style_handle(1) + b'Back to defaults for the closing prose.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    h = emit.emit_html(doc, mode='modern')
+    assert '.ws-2-callout { ' in h                    # generated CSS rule
+    assert 'text-align:center' in h and 'margin-left:1.00in' in h
+    assert 'font-weight:bold' in h
+    assert 'class="ws-2-callout"' in h.split('<body>')[1]
+    assert emit.emit_html(doc, mode='modern', styles=False).count('ws-2-callout') == 0
+    r = emit.emit_rtf(doc, mode='modern')
+    assert r'{\stylesheet{\s0 Normal;}{\s3\qc\li1440\b Callout;}' in r
+    assert r'\s3 ' in r.split(r'\stylesheet')[1]
 
 def test_flagged_control_bytes_are_controls_not_cp437_glyphs():
     # MEASURED on WordStar 7 (2026-08-04): a real document's bare 0x8A
