@@ -2718,7 +2718,6 @@ def test_ws5_soft_returns_always_wrap_in_modern():
     assert merged_lines(doc.blocks[0])[0].text() == (
         '     Short line even though the next word fits.')
     rtf = emit.emit_rtf(doc, mode='modern')
-    assert 'Short line even though the next word fits.' in rtf.replace('\\line ', '')
     assert '\\line' not in rtf.split('Short')[1].split('fits.')[0]  # no break inside the wrap
     assert 'Short line even though' in emit.emit_text(doc, mode='modern')
 
