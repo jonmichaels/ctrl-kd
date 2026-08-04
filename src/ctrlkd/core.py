@@ -69,6 +69,12 @@ class Block:
     # which is not the same as asking for one column. Register C5.
     columns: int = None
     column_gutter: float = None
+    # WordStar's paragraph-style ID (symmetric type 0x11), when one was applied.
+    # `heading` is the subset of these this parser gives a heading meaning to
+    # (1-3); every OTHER style used to be dropped silently, so a styled paragraph
+    # became an unstyled one with no trace. The WS7 archive uses at least twelve
+    # distinct IDs. Register C1.
+    style_id: int = None
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -239,6 +245,11 @@ class Document:
     # `[include: NAME]` placeholder in the text. Same class as `graphics`: the
     # block holds a filename and used to be dropped whole.
     includes: list = field(default_factory=list)
+    # Japanese Shift-In/Out runs: (byte_offset, raw_bytes). NOT decoded -- these
+    # are double-byte Shift-JIS and a cp437 decoder would produce confident
+    # mojibake, which is worse than an honest placeholder because it looks like
+    # text. Register C15.
+    shift_runs: list = field(default_factory=list)
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
@@ -986,11 +997,26 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
     per-page state at PARSE time, before pagination exists."""
     head = cmd[1:3].upper()
     if head in (b'F#', b'E#'):
-        key = 'footnote_number_start' if head == b'F#' else 'endnote_number_start'
+        which = 'footnote' if head == b'F#' else 'endnote'
+        key = which + '_number_start'
+        rest = cmd[3:]
         if key not in meta_extra:
-            num = _DOT_NUM_RE.match(cmd[3:])
+            num = _DOT_NUM_RE.match(rest)
             if num and num.group(1):
                 meta_extra[key] = int(float(num.group(1)))
+        # C12: the MODE, which was read past and dropped. A numeric argument sets
+        # the START value (handled above); the keyword forms say how numbering
+        # RUNS -- `page` restarts on every page, `continuous`/`consecutive` does
+        # not. A document that restarts per page numbered straight through, which
+        # is a visible difference on paper and not a diagnostic-only one.
+        #
+        # Recorded rather than acted on: restarting per page needs pagination,
+        # which does not exist at parse time. This is what pagination would read.
+        low = rest.strip().lower()
+        if low.startswith(b'page'):
+            meta_extra[which + '_number_mode'] = 'page'
+        elif low.startswith((b'cont', b'consec')):
+            meta_extra[which + '_number_mode'] = 'continuous'
         return
     m = _DOT_CMD_RE.match(cmd)
     if not m:
@@ -1240,6 +1266,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
     colours = []
     fonts = []
     includes = []
+    shift_runs = []
     driver = [None]
     tab_at = set()
     i = 0
@@ -1343,6 +1370,19 @@ def _symmetric_blocks(data: bytes, encoding: str):
                         break
                 if name and driver[0] is None:
                     driver[0] = bytes(name).decode(encoding, 'replace')
+            elif cmd == 0x17:                                     # Shift-In/Shift-Out
+                # Japanese double-byte text. Nothing in the WS7 archive contains
+                # one, so this is implemented FROM THE SPEC and has never been
+                # checked against a file that really has it.
+                #
+                # The bytes are NOT decoded: they are double-byte Shift-JIS, and
+                # running them through a cp437 decoder would produce confident
+                # mojibake -- which is worse than an honest placeholder, because it
+                # looks like text. Recorded so a consumer with a Shift-JIS decoder
+                # can do the job properly. Register C15.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                shift_runs.append((len(out), bytes(content)))
+                out += b'[shift-jis: %d bytes]' % len(content)
             elif cmd == 0x16:                                     # truncation marker
                 # The spec says a truncated line shows a literal marker. Nothing in
                 # the WS7 archive contains one, so this is implemented FROM THE SPEC
@@ -1373,9 +1413,20 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 out += bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F)
             elif cmd == 0x11 and len(block) > 3:                  # paragraph style
-                level = {0x05: 1, 0x02: 2, 0x03: 3}.get(block[3], 0)
-                if level:
-                    out += bytes([SENT_HEADING, 0x30 + level])
+                # WordStar's paragraph-style mechanism. Three IDs were mapped to
+                # heading levels and EVERY OTHER STYLE WAS DROPPED -- silently, so
+                # a styled paragraph became an unstyled one with nothing to say a
+                # style had been applied. The WS7 archive uses at least twelve
+                # distinct IDs; 0x06 alone appears 60 times, more often than two of
+                # the three that were mapped. Register C1.
+                #
+                # The sentinel now carries the style ID as well as the level, so a
+                # consumer can see WHICH style even where this parser has no
+                # heading meaning for it. Level 0 = "a style, but not one of the
+                # three known headings".
+                style_id = block[3]
+                level = {0x05: 1, 0x02: 2, 0x03: 3}.get(style_id, 0)
+                out += bytes([SENT_HEADING, 0x30 + level, 0x30 + (style_id & 0x3F)])
             else:
                 unknown.append(UnknownBlock(cmd, bytes(block), start))
             i += jump + 3
@@ -1383,7 +1434,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
             out.append(data[i])
             i += 1
     return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
-            includes, driver[0])
+            includes, driver[0], shift_runs)
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -1399,7 +1450,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     tab_at = frozenset()
     if ws5:
         (data, notes, blobs, tab_at, graphics, colours, fonts,
-         includes, driver) = _symmetric_blocks(data, encoding)
+         includes, driver, shift_runs) = _symmetric_blocks(data, encoding)
+        doc.shift_runs = shift_runs
         doc.graphics = graphics
         doc.colours = colours
         doc.fonts = fonts
@@ -1504,10 +1556,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 close_block()
                 doc.blocks.append(Block('softpage'))
                 raw = raw.replace(bytes([SENT_SOFTPAGE]), b'')
-            if raw[:1] == bytes([SENT_HEADING]) and len(raw) > 1:
+            if raw[:1] == bytes([SENT_HEADING]) and len(raw) > 2:
                 close_block()
+                # Level 0 means "a style, but not one of the three this parser
+                # gives a heading meaning to" -- the block is still marked with
+                # WHICH style, so a consumer can act on it. Register C1.
                 cur.heading = raw[1] - 0x30
-                raw = raw[2:]
+                cur.style_id = raw[2] - 0x30
+                raw = raw[3:]
             raw = raw.replace(bytes([SENT_HEADING]), b'')
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown, fn_counter)
         for s in spans:
