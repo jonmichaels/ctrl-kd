@@ -324,7 +324,7 @@ def test_style_library_parses_with_33_byte_stride():
     assert body_style['left_margin_hmi'] == 1800
     assert body_style['right_margin_hmi'] is None         # -2 sentinel
     assert body_style['tabs_hmi'] == [900, 1800]
-    assert body_style['justification'] == 'none'
+    assert body_style['justification'] == 'left'
     assert body_style['attrs_on'] == 0b1000000
     assert body_style['line_spacing'] is None
     # tab counts 0xFF mean INHERITED and the array is stale -- never read it
@@ -353,6 +353,56 @@ def test_p_hash_cc_tb_are_recorded_not_lost():
     assert f['cond_col'] == ['5']
     assert f['tab_stops'][0:2] == [8, 16] and f['tab_stops'][2] == 25
     assert 'Ordinary body text' in emit.emit_text(doc, mode='modern')
+
+def _style_handle(slot):
+    return ws7_block(0x11, (0x0200 | slot).to_bytes(2, 'little')
+                     + (0x0201).to_bytes(2, 'little')
+                     + (0x0300).to_bytes(2, 'little')
+                     + (0x0201).to_bytes(2, 'little'))
+
+def test_style_record_formatting_applies_and_persists():
+    # A 0x11 selection applies its record's formatting from that paragraph ON,
+    # until the next selection (real documents switch back explicitly --
+    # NOVEL.WS re-selects 'MS Body Copy' after every heading). Inherited
+    # fields fall back to the running dot-command state; selecting the
+    # recordless base entry resets everything.
+    rec = _style_record(left=900, just=(-2) % 256)         # centered, lm 5 cols
+    rec = rec[:91] + (0x40).to_bytes(2, 'little') + rec[93:]   # attrs_on: bold
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Callout', True, rec),
+    ])
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            b'Plain opening paragraph.' + HARD +
+            _style_handle(2) + b'Styled paragraph one.' + HARD +
+            b'Still styled, no new selection.' + HARD +
+            _style_handle(1) + b'Back to defaults.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    texts = [b.lines[0].text() for b in doc.blocks]
+    # consecutive hard-return lines share a block, so the two styled lines
+    # arrive as ONE two-line block -- persistence shows in its second line
+    assert texts == ['Plain opening paragraph.', 'Styled paragraph one.',
+                     'Back to defaults.']
+    plain, styled, reset = doc.blocks
+    assert [ln.text() for ln in styled.lines] == [
+        'Styled paragraph one.', 'Still styled, no new selection.']
+    assert plain.align == 'left' and plain.style_attrs == frozenset()
+    assert styled.style_name == 'Callout'
+    assert styled.align == 'center'
+    assert styled.left_margin == 5                   # 900 HMI / 180
+    assert styled.right_margin is None               # -2 sentinel: inherited
+    assert styled.style_attrs == frozenset({'b'})
+    assert reset.style_name == 'WordStar Defaults'   # recordless base entry
+    assert reset.align == 'left' and reset.style_attrs == frozenset()
+    # the PDF path merges style attrs into every span, like heading bold
+    from ctrlkd.pdf import _doc_to_pagelines
+    segs = [seg for pg in _doc_to_pagelines(doc, False) for ln in pg for seg in ln]
+    assert any(t == 'Styled' and 'b' in st for t, st in segs)
+    assert any(t == 'Plain' and 'b' not in st for t, st in segs)
 
 def test_pl_zero_turns_page_breaks_off():
     # MicroPro bug 12284 (engineering note 649): '.pl0' at the start of PRVIEW
@@ -627,8 +677,16 @@ def test_pdf_headings_render_bold():
     ])
     style = ws7_block(0x11, (0x0202).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little')
                       + (0x0300).to_bytes(2, 'little') + (0x0201).to_bytes(2, 'little'))
+    # a style selection PERSISTS until the next one, so the fixture switches
+    # back to the recordless base before the body -- exactly what real
+    # documents do (NOVEL.WS re-selects 'MS Body Copy' after every heading).
+    # Prose padding keeps the block-heavy fixture detecting as ws5+, not
+    # binary (the documented small-fixture trap).
     body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) + style +
-            b'Chapter One' + HARD + HARD + b'Body text here.' + HARD)
+            b'Chapter One' + HARD + HARD +
+            _style_handle(1) + b'Body text here, at a perfectly ordinary '
+            b'length for a paragraph of running prose in a real document.' + HARD +
+            b'A second sentence keeps the prose-to-binary ratio realistic.' + HARD)
     base = ((len(body) + 127) // 128) * 128
     data = bytearray(body.ljust(base, b'\x1a')) + lib
     data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
