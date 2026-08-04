@@ -1140,11 +1140,14 @@ def _ws7_tab(size_hmi, tab_type_byte, tenths=0):
 def test_ws7_tab_undocumented_right_align_type():
     # ']' is an undocumented right-align tab variant WordTsar's author found
     # testing MicroPro's own PRINT.TST; a real type-9 block there carries
-    # tab type ']' with size 4500 HMI (4500/144 = 31.25 -> 31 columns).
+    # tab type ']' with size 4500 HMI. An HMI is 1/1800in (HORTAB.TXT), so
+    # 4500 HMI = 2.5in = 25 ten-CPI columns. (The old expectation of 31 came
+    # from dividing by 144 -- VMI's 1/1440in unit misapplied to the
+    # horizontal axis; every archive tab block's own tenths-byte says /180.)
     data = ws7_block(0x00) + _ws7_tab(4500, ord(']')) + b'Indented.' + HARD
     doc = core.parse_ws(data)
     text = doc.blocks[0].lines[0].text()
-    assert text.startswith(' ' * 31)
+    assert text.startswith(' ' * 25)
     assert text.strip() == 'Indented.'
 
 def test_ws7_tab_dot_leader_repeats_leader_character():
@@ -1152,10 +1155,10 @@ def test_ws7_tab_dot_leader_repeats_leader_character():
     # A leading "Row" keeps the expanded leader dots from starting the
     # physical line -- a line literally starting with '.' is (correctly,
     # pre-existing behaviour, unrelated to this fix) read as a dot command.
-    data = ws7_block(0x00) + b'Row' + _ws7_tab(720, ord('.')) + b'Contents' + HARD  # 720/144=5
+    data = ws7_block(0x00) + b'Row' + _ws7_tab(720, ord('.')) + b'Contents' + HARD  # 720 HMI = 0.4in = 4 cols
     doc = core.parse_ws(data)
     text = doc.blocks[0].lines[0].text()
-    assert '.' * 5 in text
+    assert '.' * 4 in text
     assert text.startswith('Row') and text.endswith('Contents')
 
 def test_ws7_tab_malformed_block_does_not_crash():
