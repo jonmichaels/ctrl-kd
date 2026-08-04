@@ -22,6 +22,22 @@ from dataclasses import dataclass, field
 
 from .typestyles import TYPESTYLE_NAMES
 
+# The cp437 GLYPHS at control-code positions (and 0x7F). Python's cp437 codec
+# maps 0x00-0x1F to the control characters themselves; the DISPLAY glyphs IBM
+# put there need their own table. Used for <1B x 1C> wrapped characters, whose
+# middle byte is "a character to display" for any value 00h-FFh (WSFORMAT).
+CP437_GRAPHICS = {
+    0x00: ' ',  0x01: '☺', 0x02: '☻', 0x03: '♥',
+    0x04: '♦', 0x05: '♣', 0x06: '♠', 0x07: '•',
+    0x08: '◘', 0x09: '○', 0x0A: '◙', 0x0B: '♂',
+    0x0C: '♀', 0x0D: '♪', 0x0E: '♫', 0x0F: '☼',
+    0x10: '►', 0x11: '◄', 0x12: '↕', 0x13: '‼',
+    0x14: '¶', 0x15: '§', 0x16: '▬', 0x17: '↨',
+    0x18: '↑', 0x19: '↓', 0x1A: '→', 0x1B: '←',
+    0x1C: '∟', 0x1D: '↔', 0x1E: '▲', 0x1F: '▼',
+    0x7F: '⌂',
+}
+
 # ---------------------------------------------------------------- IR
 
 @dataclass
@@ -355,6 +371,36 @@ def detect(data: bytes) -> dict:
 def _visible(text: bytes) -> bytes:
     return bytes(b & 0x7F for b in text if 0x20 <= (b & 0x7F) < 0x7F)
 
+def _split_bare_ff(raw: bytes) -> list:
+    """raw.split(b'\\x0c'), except a 0x0C that is the middle byte of a
+    <1B x 1C> wrapped extended character stays in its part -- it is the cp437
+    glyph at that position, not a page eject."""
+    parts, seg = [], 0
+    for m in re.finditer(rb'\x1b.\x1c|\x0c', raw, re.S):
+        if m.group(0) == b'\x0c':
+            parts.append(raw[seg:m.start()])
+            seg = m.end()
+    parts.append(raw[seg:])
+    return parts
+
+
+def _bare_eof(data: bytes) -> int:
+    """Offset of the first 0x1A that actually MEANS end-of-file -- i.e. one
+    that is not the middle byte of a <1B x 1C> wrapped extended character.
+    ASCIITAB.WS wraps every control code to print its chart, including
+    <1B 1A 1C>, and cutting at that middle byte amputated 86% of the file.
+    Returns -1 when no bare 0x1A exists."""
+    at = -1
+    while True:
+        at = data.find(b'\x1a', at + 1)
+        if at == -1:
+            return -1
+        if at >= 1 and data[at - 1] == 0x1B and at + 1 < len(data) \
+                and data[at + 1] == 0x1C:
+            continue
+        return at
+
+
 def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
     """Split into physical lines and classify every break.
 
@@ -376,7 +422,7 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
     does, and each emitted line carries the marks that fall inside it, rebased
     to that line.
     """
-    cut = data.find(b'\x1a')
+    cut = _bare_eof(data)
     if cut != -1:
         data = data[:cut]
     # The LF of a return pair may carry the high bit too: MEASURED on a real
@@ -386,21 +432,33 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
     # masks the flag and performs the line advance (traced in PCL: a
     # vertical-move escape, zero glyphs); decoding 0x8A as text invented an
     # 'e-grave' at 14 page boundaries in one document.
-    parts = re.split(rb'(\x8d\x8a|\x8d\x0a|\x0d\x8a|\x0d\x0a|\x8d|\x8a|\x0d|\x0a)',
-                     data)
+    #
+    # A <1B x 1C> wrapped extended character is matched FIRST and treated as
+    # TEXT: its middle byte can be any value 00h-FFh, and a wrapped 0x0A or
+    # 0x0D is a chart glyph, not a line break -- ASCIITAB.WS's table rows
+    # broke apart at those cells. The triple alternative wins the alternation
+    # so a break inside one is never seen; only group(1) matches split.
     lines = []
     starts = []                              # (offset, length, index) per emitted line
-    at = 0                                   # offset of parts[i] in `data`
-    for i in range(0, len(parts), 2):
-        text = parts[i]
-        brk = parts[i + 1] if i + 1 < len(parts) else b''
+
+    def _emit(text_start, text_end, brk):
         kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
+        text = data[text_start:text_end]
         if text or kind != 'eof':
             # `machine_indent`: this line's leading whitespace was emitted by
             # WordStar from a TAB, not typed by the author. See the wrap test.
-            starts.append((at, len(text), len(lines)))
-            lines.append([text, kind, at in tab_at, []])
-        at += len(text) + len(brk)
+            starts.append((text_start, len(text), len(lines)))
+            lines.append([text, kind, text_start in tab_at, []])
+
+    seg = 0
+    for m in re.finditer(
+            rb'\x1b.\x1c|(\x8d\x8a|\x8d\x0a|\x0d\x8a|\x0d\x0a|\x8d|\x8a|\x0d|\x0a)',
+            data, re.S):
+        if m.group(1) is None:
+            continue                          # wrapped triple: text, not a break
+        _emit(seg, m.start(1), m.group(1))
+        seg = m.end(1)
+    _emit(seg, len(data), b'')
 
     # Attach each mark to the line that contains it. A mark landing INSIDE a
     # break (a soft page break sits between two lines, not within one) belongs
@@ -1264,7 +1322,20 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
         # or high-bit toggles leak into text and styles never close.
         b = raw[i] & 0x7F if strip_hibit and raw[i] >= 0x80 else raw[i]
         if b == 0x1B and i + 1 < len(raw):        # extended char escape
-            buf.append(raw[i + 1]); i += 2; continue
+            # <1B x 1C>: x is a CHARACTER TO DISPLAY, any value 00h-FFh
+            # (WSFORMAT). For x in the control range that means the cp437
+            # GLYPH at that position -- the smiley/arrow/music graphics --
+            # never the control action: ASCIITAB.WS wraps every control
+            # code to PRINT the chart, and emitting the raw byte put
+            # literal tabs and CRs inside its table rows.
+            x = raw[i + 1]
+            if x < 0x20 or x == 0x7F:
+                flush()
+                spans.append(Span(CP437_GRAPHICS[x], frozenset(active)))
+            else:
+                buf.append(x)
+            i += 2
+            continue
         if b in WS_TOGGLES:
             flush()
             style = WS_TOGGLES[b]
@@ -1481,9 +1552,30 @@ def _symmetric_blocks(data: bytes, encoding: str):
     tab_at = set()
     i = 0
     while i < len(data):
+        if data[i] == 0x1B and i + 1 < len(data):
+            # <1B x> extended-character escape (usually <1B x 1C>): x is DATA,
+            # never a block start. Without this, ASCIITAB.WS's wrapped
+            # <1B 1D 1C> chart cell read as a block whose overrunning "jump"
+            # (the next two chart bytes) swallowed 3.5 KB to end of file.
+            # Both bytes pass through for _decode_spans to render.
+            out.append(data[i])
+            out.append(data[i + 1])
+            i += 2
+            continue
         if data[i] == 0x1D and i + 3 <= len(data):
             start = i
             jump = int.from_bytes(data[i + 1:i + 3], 'little')
+            end = i + 2 + jump
+            if not (jump >= 4 and end < len(data) and data[end] == 0x1D
+                    and int.from_bytes(data[end - 2:end], 'little') == jump):
+                # A 0x1D whose framing does not close is NOT a block -- the
+                # count must echo and the bracket must be there. The spec says
+                # a bare 0x1D "should not appear in files"; WordStar itself
+                # TRUNCATES the file when fooled by one (engineering note
+                # 650, "false symmetrical sequences"). Skipping the byte
+                # keeps the document.
+                i += 1
+                continue
             block = data[i + 1:i + 3 + jump]
             cmd = block[2] if len(block) > 2 else -1
             if cmd in NOTE_KINDS:
@@ -1988,10 +2080,20 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # stay flagged: lines_pass reads them as the soft-return pair.
         # Translation is length-preserving, so recorded offsets (marks,
         # tab_at) stay valid.
-        _FLAGGED = {0x82: 0x02,   # flagged ^B bold toggle   (27x in 4 docs)
-                    0x8C: 0x0C,   # flagged ^L form feed     (20x in 5 docs)
-                    0x94: 0x14}   # flagged ^T sup toggle    (oracle-measured)
-        data = data.translate(bytes(_FLAGGED.get(b, b) for b in range(256)))
+        # ... and applied OUTSIDE <1B x 1C> wrapped extended characters: the
+        # middle byte is a character to display (any value 00h-FFh), so
+        # translating it would corrupt wrapped chars that happen to share a
+        # flagged value. Triples are opaque three-byte units everywhere
+        # between the block walk and span decode. Segment-wise translation
+        # preserves length, so offsets stay valid.
+        _FLAGGED = bytes((
+            {0x82: 0x02,          # flagged ^B bold toggle   (27x in 4 docs)
+             0x8C: 0x0C,          # flagged ^L form feed     (20x in 5 docs)
+             0x94: 0x14}          # flagged ^T sup toggle    (oracle-measured)
+        ).get(b, b) for b in range(256))
+        data = b''.join(
+            seg if k % 2 else seg.translate(_FLAGGED)   # odd = captured triples
+            for k, seg in enumerate(re.split(rb'(\x1b.\x1c)', data, flags=re.S)))
 
     physical, margin = lines_pass(data, tab_at, marks)
     doc.meta['margin_estimate'] = margin
@@ -2101,7 +2203,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # break was simply lost. Found by diffing all 32 low-order codes against
         # the spec, 2026-08-04.
         if 0x0C in raw:
-            parts = raw.split(b'\x0c')
+            # split on BARE form feeds only -- a wrapped <1B 0C 1C> is the
+            # cp437 glyph at 0x0C (the chart cell in ASCIITAB.WS), never a
+            # page eject
+            parts = _split_bare_ff(raw)
             for n, part in enumerate(parts):
                 if n:
                     close_block()

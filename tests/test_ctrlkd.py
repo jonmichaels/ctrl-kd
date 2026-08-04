@@ -1737,12 +1737,18 @@ def test_binary_variant_does_not_get_symmetric_block_parsing():
 
     Found by the Swift port's extended-escape test, which had no counterpart
     here. All five escaped control bytes must survive identically."""
+    from ctrlkd.core import CP437_GRAPHICS
     for b in (0x01, 0x1C, 0x1D, 0x1E, 0x1F):
         data = b'A' + bytes([0x1B, b]) + b'B' + HARD
         doc = core.parse_ws(data)
         assert doc.meta['variant'] == 'binary'
         text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
-        assert text == 'A' + chr(b) + 'B', f'escaped {b:#04x} was not passed through'
+        # the escaped byte survives as its cp437 GLYPH (☺∟↔▲▼) -- WSFORMAT:
+        # the wrapped byte is "a character to display", and for the control
+        # range that display is IBM's graphics, never the control action.
+        # Nothing is swallowed either way.
+        assert text == 'A' + CP437_GRAPHICS[b] + 'B', \
+            f'escaped {b:#04x} was not passed through'
 
 
 def test_parse_records_the_era_it_used():
