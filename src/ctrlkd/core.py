@@ -349,14 +349,22 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
     cut = data.find(b'\x1a')
     if cut != -1:
         data = data[:cut]
-    parts = re.split(rb'(\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a)', data)
+    # The LF of a return pair may carry the high bit too: MEASURED on a real
+    # WS7 document (2026-08-04), the soft return written after every
+    # end-of-page block is <8D 8A> -- both bytes flagged -- and a hard CR
+    # can be followed by a flagged LF (<0D 8A>). WordStar's own printer
+    # masks the flag and performs the line advance (traced in PCL: a
+    # vertical-move escape, zero glyphs); decoding 0x8A as text invented an
+    # 'e-grave' at 14 page boundaries in one document.
+    parts = re.split(rb'(\x8d\x8a|\x8d\x0a|\x0d\x8a|\x0d\x0a|\x8d|\x8a|\x0d|\x0a)',
+                     data)
     lines = []
     starts = []                              # (offset, length, index) per emitted line
     at = 0                                   # offset of parts[i] in `data`
     for i in range(0, len(parts), 2):
         text = parts[i]
         brk = parts[i + 1] if i + 1 < len(parts) else b''
-        kind = 'eof' if not brk else ('soft' if brk[0] == 0x8D else 'hard')
+        kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
         if text or kind != 'eof':
             # `machine_indent`: this line's leading whitespace was emitted by
             # WordStar from a TAB, not typed by the author. See the wrap test.
@@ -1929,6 +1937,20 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         doc.endnotes = [[Span(n.text)] for n in notes if n.kind == 'endnote']
         doc.annotations = [[Span(n.text)] for n in notes if n.kind == 'annotation']
         doc.comments = [n for n in notes if n.kind == 'comment']
+        # A bare high-bit byte whose low 7 bits are a CONTROL CODE is that
+        # control with WordStar's soft/flag bit set, NOT a cp437 glyph.
+        # MEASURED on WordStar 7 (2026-08-04, two independent traces): a
+        # real document's 0x8A performed a line advance in the printed PCL
+        # (zero glyphs -- flagged ^J); an injected 0x94 toggled superscript
+        # (flagged ^T, the font size and baseline visibly changed). Real
+        # extended characters travel as <1B xx 1C> triples -- the corpus
+        # carries 10,000+ of them -- never as bare bytes. Masking is
+        # length-preserving, so every recorded offset (marks, tab_at) stays
+        # valid. 0x8D and 0x8A keep their flags: lines_pass reads them as
+        # the soft-return pair.
+        data = data.translate(bytes(
+            (b & 0x7F) if 0x80 <= b <= 0x9F and b not in (0x8D, 0x8A) else b
+            for b in range(256)))
 
     physical, margin = lines_pass(data, tab_at, marks)
     doc.meta['margin_estimate'] = margin

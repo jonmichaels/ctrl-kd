@@ -404,6 +404,26 @@ def test_style_record_formatting_applies_and_persists():
     assert any(t == 'Styled' and 'b' in st for t, st in segs)
     assert any(t == 'Plain' and 'b' not in st for t, st in segs)
 
+def test_flagged_control_bytes_are_controls_not_cp437_glyphs():
+    # MEASURED on WordStar 7 (2026-08-04): a real document's bare 0x8A
+    # (flagged ^J) performed a line advance in the printed PCL -- zero
+    # glyphs -- and an injected 0x94 (flagged ^T) toggled superscript with
+    # a visible font-size/baseline change. Real extended characters travel
+    # as <1B xx 1C> triples. Decoding these bytes as cp437 invented an
+    # e-grave at 14 page boundaries of one document.
+    data = (ws7_block(0x00) +
+            b'the dirt underfoot\x8d\x8aash gray.\r\n' +      # WS7's soft pair
+            b'wa\x94s\x94 raised text here.\r\n')             # flagged ^T pair
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert 'è' not in txt and 'ö' not in txt
+    assert 'underfoot' in txt and 'ash gray.' in txt
+    spans = [s for b in doc.blocks for ln in b.lines for s in ln.spans]
+    sup = [s.text for s in spans if 'sup' in s.styles]
+    assert sup == ['s']                                        # ^T...^T span
+    # (wrap-vs-line classification of the soft pair is the margin
+    # heuristic's call, same as any 0x8D return -- not asserted here)
+
 def test_pl_zero_turns_page_breaks_off():
     # MicroPro bug 12284 (engineering note 649): '.pl0' at the start of PRVIEW
     # output exists so "displayed page breaks are thus avoided" -- .pl 0 means
