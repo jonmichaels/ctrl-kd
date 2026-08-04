@@ -1556,13 +1556,33 @@ def test_hash_becomes_the_page_number():
     assert sorted(set(re.findall(rb'HEADER-TEXT PAGE (\d)', pdf))) == [b'1', b'2', b'3']
 
 
-def test_op_suppresses_the_page_number():
-    """`.op` -- 'omit page number ... unless the # has been used in footers or
-    headers'."""
+def test_op_does_not_suppress_a_hash_in_a_header_or_footer():
+    """WSFORMAT.TXT: ".OP  Omit page number.  At print time no page numbers are
+    printed UNLESS THE '#' HAS BEEN USED IN FOOTERS OR HEADERS."
+
+    `.op` suppresses the AUTOMATIC page number -- the one `.pc` positions. A `#`
+    the author put in a running head is the spec's explicit EXEMPTION, not the
+    target.
+
+    This test asserted the opposite until 2026-08-03, and its own docstring quoted
+    the exempting clause while doing so. It therefore PASSED against a backwards
+    implementation and confirmed it -- a test written from the same misreading as
+    the code cannot catch the misreading. The spec caught it; the test could not.
+    """
     import re
     from ctrlkd.pdf import emit_pdf
     doc = core.parse_ws(b'.op\r\n' + _hf_doc(10))
-    assert not re.search(rb'HEADER-TEXT PAGE \d', emit_pdf(doc, 'printed'))
+    assert re.search(rb'HEADER-TEXT PAGE \d', emit_pdf(doc, 'printed'))
+
+
+def test_op_and_pg_are_a_stateful_pair():
+    """".PG  Number pages ... Usually used to restore page numbering after being
+    turned off with .OP." Front matter turns it off, the body turns it back on --
+    so a one-way flag is wrong. Only the AUTOMATIC number is affected."""
+    assert core.parse_ws(b'.op\r\nT.\r\n').meta['formatting']['auto_page_numbers'] is False
+    assert core.parse_ws(b'.op\r\n.pg\r\nT.\r\n').meta['formatting']['auto_page_numbers'] is True
+    # never mentioned -> not recorded at all, same provenance rule as the rest
+    assert 'auto_page_numbers' not in core.parse_ws(b'T.\r\n').meta['formatting']
 
 
 def test_default_mode_is_printed():
@@ -2085,3 +2105,21 @@ def test_an_unterminated_shift_in_runs_to_the_end():
                         + _ws_block(0x17, b'\x01') + bytes([0x82, 0xA0]) + b'\r\n')
     assert len(doc.shift_runs) == 1
     assert doc.shift_runs[0][1].startswith(bytes([0x82, 0xA0]))
+
+
+def test_the_escape_byte_cannot_fire_inside_a_japanese_run():
+    """WSFORMAT.TXT on 17h: "When shifted in, WordStar no longer uses the 1Bh/1Ch
+    wrap characters and interprets characters using the Asian Character Standard".
+
+    `_decode_spans` treats 1Bh as the extended-character escape UNCONDITIONALLY,
+    so a 1Bh inside a Japanese run would be read as an escape and would swallow
+    the byte after it. Lifting the run out before decoding is what makes that
+    impossible -- a correctness property, not tidiness."""
+    jp = bytes([0x1B, 0x41, 0x82, 0xA0])          # a 1Bh that must NOT act as an escape
+    doc = core.parse_ws(b'Some ordinary English text here. '
+                        + _ws_block(0x17, b'\x01') + jp
+                        + _ws_block(0x17, b'\x00') + b' tail.\r\n')
+    assert doc.shift_runs == [(33, jp)], doc.shift_runs
+    text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
+    assert '[shift-jis: 4 bytes]' in text
+    assert text.endswith(' tail.'), text          # nothing swallowed past the run

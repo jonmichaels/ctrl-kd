@@ -813,6 +813,14 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 # A bare gutter is columns, like `.po`; the archive's own values
                 # carry an inch mark (`0.3"`), which converts.
                 state['column_gutter'] = _resolve_cols_arg(value, g.group(2))
+    elif name in (b'OP', b'PG'):            # automatic page numbering off / on
+        # WSFORMAT.TXT: ".OP  Omit page number" / ".PG  Number pages ... Usually
+        # used to restore page numbering after being turned off with .OP." A
+        # STATEFUL pair -- front matter often turns it off and the body turns it
+        # back on -- and only the AUTOMATIC number is affected. A `#` the author
+        # placed in a header or footer prints either way; the spec names that as
+        # the explicit exemption.
+        state['auto_page_numbers'] = (name == b'PG')
     elif name == b'PE':                     # print endnotes HERE
         # `.pe` marks the point at which endnotes should print instead of the
         # document end. Recorded as a position so a consumer can honour the
@@ -1394,9 +1402,17 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 # cp437 decoder. Corrected against the spec, which was sitting in
                 # the archive the whole time. Register C15.
                 #
-                # The marker itself emits nothing. What is recorded is the RANGE of
-                # the cleaned stream that is Shift-JIS, so a consumer with a real
-                # Shift-JIS decoder can decode exactly those bytes and nothing else.
+                # The marker itself emits nothing. The run BETWEEN two markers is
+                # lifted out and kept raw.
+                #
+                # Lifting it is CORRECTNESS, not tidiness. The spec continues:
+                # "When shifted in, WordStar no longer uses the 1Bh/1Ch wrap
+                # characters and interprets characters using the Asian Character
+                # Standard which uses 81h-9Fh and E0h-FEh for a prefix followed by
+                # 20-7Fh". _decode_spans treats 1Bh as the extended-character escape
+                # UNCONDITIONALLY, so a 1Bh inside a Japanese run would be read as an
+                # escape and would swallow the byte after it. Because the run never
+                # reaches _decode_spans, that cannot happen.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 shift_in = bool(content and content[0])
                 if shift_in:

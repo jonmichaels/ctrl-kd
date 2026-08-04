@@ -585,14 +585,23 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     if not (doc.headers or doc.footers) or not printed:
         return []
     page = doc.meta.get('page') or {}
-    omit = 'op' in {d.split()[0].lstrip('.').lower()
-                    for d in doc.meta.get('dot_commands', []) if d.strip()}
+    # `.op` does NOT suppress a `#` in a header or footer. WSFORMAT.TXT is
+    # explicit -- ".OP  Omit page number.  At print time no page numbers are
+    # printed UNLESS THE '#' HAS BEEN USED IN FOOTERS OR HEADERS." It suppresses
+    # the AUTOMATIC page number, the one `.pc` positions; a `#` the author put in
+    # a running head is the exemption, not the target.
+    #
+    # This was implemented backwards: `.op` blanked the `#`, so a document that
+    # turned off the automatic number ALSO lost the page number it had explicitly
+    # asked for. The spec sentence was quoted in this very docstring while the code
+    # did the opposite of it. `.pg` (which restores numbering after `.op`) was not
+    # handled at all, so the state was one-way as well.
     pl = int(page.get('pl_lines', 66))
     mb = int(page.get('mb_lines', 8))
     fm = int(page.get('fm_lines', 2))
 
     def render(txt):
-        return txt.replace('#', '' if omit else str(page_no))
+        return txt.replace('#', str(page_no))
 
     ops = []
     for n, txt in sorted(doc.headers.items()):
