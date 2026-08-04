@@ -64,6 +64,11 @@ class Block:
     left_margin: float = None
     right_margin: float = None
     para_margin: float = None
+    # `.co <n>, <gutter>` -- newspaper columns in force when this block opened, and
+    # the gutter between them in print columns. None means the file never asked,
+    # which is not the same as asking for one column. Register C5.
+    columns: int = None
+    column_gutter: float = None
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -216,6 +221,24 @@ class Document:
     # means a consumer can find the file, and the placeholder means the reader can
     # see that a figure belongs there. Register C10.
     graphics: list = field(default_factory=list)       # list[str]
+    # `.tc` table-of-contents entries: (level, text, block_index). The block index
+    # is what lets a consumer resolve an entry to a PAGE after pagination -- the
+    # text alone cannot, since two chapters can share a title. Register C7.
+    toc_entries: list = field(default_factory=list)
+    # `.ix` index entries: (text, block_index). Register C6.
+    index_entries: list = field(default_factory=list)
+    # Colour changes: (byte_offset, foreground, background) -- indices into
+    # WordStar's palette, not RGB. Recorded, not rendered: the printed page this
+    # project reproduces was monochrome. Register C2.
+    colours: list = field(default_factory=list)
+    # Font changes: (byte_offset, height_20th_pt, width_20th_pt, driver_bytes).
+    # The size is usable by any renderer; the driver bytes identify the face to a
+    # 1987 printer and mean nothing without it. Register C3.
+    fonts: list = field(default_factory=list)
+    # Files the printer was told to pull in (`%F"PLEAD.PS"`), one per
+    # `[include: NAME]` placeholder in the text. Same class as `graphics`: the
+    # block holds a filename and used to be dropped whole.
+    includes: list = field(default_factory=list)
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
@@ -752,6 +775,44 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 key = {b'LM': 'left_margin', b'RM': 'right_margin',
                        b'PM': 'para_margin'}[name]
                 state[key] = _resolve_cols_arg(value, m.group(2))
+    elif name == b'CO':                     # newspaper columns
+        # `.co <n>, <gutter>` -- the archive writes `.co2, 0.3"`, `.CO3,  .20"`
+        # and `.co1` (one column = columns off). Stateful like the margins: a
+        # document turns columns on for a section and off again after.
+        # Register C5.
+        body = arg.strip()
+        m = _DOT_NUM_RE.match(body)
+        if not m:
+            return
+        try:
+            cols = int(float(m.group(1)))
+        except (TypeError, ValueError):
+            return
+        state['columns'] = max(1, cols)
+        rest = body[m.end():].lstrip(b' \t,')
+        g = _DOT_NUM_RE.match(rest)
+        if g:
+            try:
+                value = float(g.group(1))
+            except (TypeError, ValueError):
+                value = None
+            if value is not None and math.isfinite(value):
+                # A bare gutter is columns, like `.po`; the archive's own values
+                # carry an inch mark (`0.3"`), which converts.
+                state['column_gutter'] = _resolve_cols_arg(value, g.group(2))
+    elif name == b'PE':                     # print endnotes HERE
+        # `.pe` marks the point at which endnotes should print instead of the
+        # document end. Recorded as a position so a consumer can honour the
+        # author's placement -- previously endnotes always went to the end
+        # regardless of what the file asked for. Register C4.
+        state['endnotes_here'] = True
+    elif name == b'CV':                     # convert note type
+        # `.cv <from> <to>` retypes notes mid-document. Recorded verbatim: acting
+        # on it means re-kinding notes already parsed, which is a separate pass;
+        # what matters first is not silently pretending the command was absent.
+        # Register C13.
+        state.setdefault('convert_notes', []).append(
+            arg.strip().decode('cp437', 'replace'))
     elif name == b'SR':                     # sub/superscript roll
         # Numeric with an optional unit, and the archive really does use `3/48"`
         # and `4/48i` as well as `5pt` and a bare `3`. Register C22.
@@ -807,7 +868,8 @@ def _block_format(state: dict) -> tuple:
     """
     return (_align_now(state), state.get('wrap', True),
             state.get('left_margin'), state.get('right_margin'),
-            state.get('para_margin'))
+            state.get('para_margin'), state.get('columns'),
+            state.get('column_gutter'))
 
 
 def _align_now(state: dict) -> str:
@@ -820,6 +882,48 @@ def _align_now(state: dict) -> str:
     if state.get('centering'):
         return 'center'
     return state.get('justify') or 'left'
+
+
+_L_HASH_RE = re.compile(rb'^\.L#\s*(.*)$', re.I)
+_TC_RE = re.compile(rb'^\.TC([1-9]?)\s?(.*)$', re.I)
+_IX_RE = re.compile(rb'^\.IX\s?(.*)$', re.I)
+
+
+def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int) -> None:
+    """Dot commands that COLLECT an entry rather than set state.
+
+    `.tc` (table of contents) and `.ix` (index) name a heading or a term that
+    belongs in a generated list; `.l#` turns line numbering on and sets its
+    interval. All three were parsed as text and discarded, so a document that
+    asked for a table of contents produced none and said nothing about it.
+
+    Entries are recorded WITH the block index they sat at, which is what lets a
+    consumer resolve them to page numbers after pagination -- the entry's own
+    text is not enough, because two chapters can share a title. Compiling the
+    finished list is the consumer's job; not losing the entries is this one's.
+    Register C6, C7, C11.
+    """
+    m = _TC_RE.match(cmd)
+    if m:
+        level = int(m.group(1)) if m.group(1) else 1
+        doc.toc_entries.append((level, m.group(2).rstrip().decode(encoding, 'replace'),
+                                block_index))
+        return
+    m = _IX_RE.match(cmd)
+    if m:
+        doc.index_entries.append((m.group(1).rstrip().decode(encoding, 'replace'),
+                                  block_index))
+        return
+    m = _L_HASH_RE.match(cmd)
+    if m:
+        # `.l# 0` turns line numbering OFF; any other number is the interval.
+        n = _DOT_NUM_RE.match(m.group(1))
+        if n:
+            try:
+                value = int(float(n.group(1)))
+            except (TypeError, ValueError):
+                return
+            doc.meta['line_numbering'] = value if value > 0 else None
 
 
 def _parse_head_foot(cmd: bytes, doc, encoding: str):
@@ -1133,6 +1237,10 @@ def _symmetric_blocks(data: bytes, encoding: str):
     notes = []
     unknown = []
     graphics = []
+    colours = []
+    fonts = []
+    includes = []
+    driver = [None]
     tab_at = set()
     i = 0
     while i < len(data):
@@ -1168,6 +1276,79 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 out += bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F)
+            elif cmd == 0x01:                                     # colour change
+                # Two bytes: foreground and background colour indices. Observed in
+                # the WS7 archive as 00/00, 04/00, 08/04, 0c/08 -- i.e. small
+                # values, an index into WordStar's own palette rather than RGB.
+                #
+                # The TEXT was never at risk here (a colour block carries none),
+                # but the change was invisible: a document that coloured a passage
+                # rendered identically to one that did not, with nothing to say a
+                # colour had been set. Recorded, not rendered -- the printed page
+                # this project reproduces was monochrome. Register C2.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                if len(content) >= 2:
+                    colours.append((len(out), content[0], content[1]))
+            elif cmd in (0x02, 0x15):                             # font change
+                # Six 16-bit little-endian values. The first two are the type size
+                # in 1/20 point (0x00B4 = 180 = 9pt, 0x00F0 = 240 = 12pt in the
+                # archive's own blocks), which is the part a modern renderer can
+                # actually use; the rest identify the face to the printer driver
+                # and mean nothing without it.
+                #
+                # Deliberate for PDF, which is Courier by design -- but there is no
+                # excuse for RTF/HTML, where a size change is expressible. Recorded
+                # so those emitters CAN use it. Register C3.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                if len(content) >= 4:
+                    height = int.from_bytes(content[0:2], 'little')
+                    width = int.from_bytes(content[2:4], 'little')
+                    fonts.append((len(out), height, width, bytes(content[4:])))
+            elif cmd == 0x0F:                                     # print-file inclusion
+                # A file the printer was told to pull in at this point -- the WS7
+                # archive carries `%F"PLEAD.PS"` and PostScript preambles ending in
+                # `%F"box.ps"`. Like an inset graphic, the block holds a FILENAME
+                # and was being dropped whole, so a document that composed part of
+                # its page from an external file said nothing about it.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                printable = bytes(c & 0x7F for c in content
+                                  if 0x20 <= (c & 0x7F) < 0x7F)
+                text = printable.decode(encoding, 'replace')
+                mark = text.find('%F')
+                name = text[mark + 2:].strip().strip('"') if mark >= 0 else ''
+                if name:
+                    includes.append(name)
+                    out += b'[include: ' + name.encode(encoding, 'replace') + b']'
+                else:
+                    # No `%F` filename in it -- most of these are PostScript
+                    # preambles. Consuming them silently would be WORSE than the
+                    # bug being fixed: it turns a reported unknown into an
+                    # unreported one. They stay UnknownBlocks so --diagnose sees
+                    # them.
+                    unknown.append(UnknownBlock(cmd, bytes(block), start))
+            elif cmd == 0x00:                                     # printer/driver name
+                # The driver the document was last formatted for (`LASERJET` in most
+                # of the archive). Provenance, not content: it explains why a file's
+                # measurements look the way they do, and `--diagnose` should be able
+                # to say it rather than the block vanishing unremarked.
+                content = block[3:-3] if len(block) >= 6 else block[3:]
+                # The name is the leading run of upper-case/digits; the byte before
+                # it is a record tag, not part of the name (`pLASERJET`).
+                name = bytearray()
+                for c in content:
+                    ch = c & 0x7F
+                    if 0x41 <= ch <= 0x5A or 0x30 <= ch <= 0x39:
+                        name.append(ch)
+                    elif name:
+                        break
+                if name and driver[0] is None:
+                    driver[0] = bytes(name).decode(encoding, 'replace')
+            elif cmd == 0x16:                                     # truncation marker
+                # The spec says a truncated line shows a literal marker. Nothing in
+                # the WS7 archive contains one, so this is implemented FROM THE SPEC
+                # and has never been checked against a file that really has it --
+                # recorded here rather than claimed as verified. Register C14.
+                out += b'<TRUNCATED>'
             elif cmd == 0x10:                                     # inset graphic
                 # An INSET picture placed in the text. The block's content is the
                 # image's path, and it was being dropped whole -- filename and all
@@ -1201,7 +1382,8 @@ def _symmetric_blocks(data: bytes, encoding: str):
         else:
             out.append(data[i])
             i += 1
-    return bytes(out), notes, unknown, tab_at, graphics
+    return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
+            includes, driver[0])
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
@@ -1216,8 +1398,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # really was typed.
     tab_at = frozenset()
     if ws5:
-        data, notes, blobs, tab_at, graphics = _symmetric_blocks(data, encoding)
+        (data, notes, blobs, tab_at, graphics, colours, fonts,
+         includes, driver) = _symmetric_blocks(data, encoding)
         doc.graphics = graphics
+        doc.colours = colours
+        doc.fonts = fonts
+        doc.includes = includes
+        if driver:
+            doc.meta['printer_driver'] = driver
         doc.notes = notes
         doc.unknown_blocks = blobs
         # footnotes/endnotes/annotations are all rendered the same way (a
@@ -1245,7 +1433,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
                 left_margin=fmt.get('left_margin'),
                 right_margin=fmt.get('right_margin'),
-                para_margin=fmt.get('para_margin'))
+                para_margin=fmt.get('para_margin'),
+                columns=fmt.get('columns'),
+                column_gutter=fmt.get('column_gutter'))
     cur_line = Line()
     ruler = False
     page, meta_extra = {}, {}
@@ -1264,7 +1454,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
                     left_margin=fmt.get('left_margin'),
                     right_margin=fmt.get('right_margin'),
-                    para_margin=fmt.get('para_margin'))
+                    para_margin=fmt.get('para_margin'),
+                    columns=fmt.get('columns'),
+                    column_gutter=fmt.get('column_gutter'))
 
     for raw, sep in physical:
         stripped = bytes(b & 0x7F for b in raw)
@@ -1293,6 +1485,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
             _parse_head_foot(cmd, doc, encoding)
+            # The index of the block this entry POINTS AT -- the one that follows it,
+            # which is the block still open (if it has content) or the next to open.
+            # "This heading is in the table of contents" refers forward, not back.
+            _parse_collect_dot(cmd, doc, encoding,
+                               len(doc.blocks) + (1 if cur.lines or cur_line.spans else 0))
             # A formatting change starts a NEW block: `.oc on` mid-paragraph means
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
@@ -1358,7 +1555,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['formatting'] = {
         k: v for k, v in fmt.items()
         if k not in ('centering', 'justify', 'wrap',
-                     'left_margin', 'right_margin', 'para_margin')}
+                     'left_margin', 'right_margin', 'para_margin',
+                     'columns', 'column_gutter')}
     # (block, line, text) for each dot command, so a caller can render one in
     # place instead of only knowing that it existed somewhere.
     doc.meta['dot_positions'] = dot_at
