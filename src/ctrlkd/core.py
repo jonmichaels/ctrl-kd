@@ -245,10 +245,12 @@ class Document:
     # `[include: NAME]` placeholder in the text. Same class as `graphics`: the
     # block holds a filename and used to be dropped whole.
     includes: list = field(default_factory=list)
-    # Japanese Shift-In/Out runs: (byte_offset, raw_bytes). NOT decoded -- these
-    # are double-byte Shift-JIS and a cp437 decoder would produce confident
-    # mojibake, which is worse than an honest placeholder because it looks like
-    # text. Register C15.
+    # Japanese runs: (offset, raw_bytes) -- the UNDECODED Shift-JIS that sat
+    # between a shift-in and its shift-out, lifted out of the text stream and
+    # replaced there by a placeholder. Per WSFORMAT.TXT the 0x17 block is a
+    # one-byte MODE TOGGLE (1 = into Japanese, 0 = back), not a container of text,
+    # so the run is the span BETWEEN two markers. Nothing is lost and no mojibake
+    # is presented as text. Register C15.
     shift_runs: list = field(default_factory=list)
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
@@ -1267,6 +1269,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
     fonts = []
     includes = []
     shift_runs = []
+    shift_open = []
     driver = [None]
     tab_at = set()
     i = 0
@@ -1376,18 +1379,39 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 elif driver[0] is None:
                     driver[0] = bytes(name).decode(encoding, 'replace')
             elif cmd == 0x17:                                     # Shift-In/Shift-Out
-                # Japanese double-byte text. Nothing in the WS7 archive contains
-                # one, so this is implemented FROM THE SPEC and has never been
-                # checked against a file that really has it.
+                # WSFORMAT.TXT, "17h Japanese Font Shift-In/Shift-Out":
+                #     "Byte: Shift-In (to Japanese) = 1, Shift-Out (Back to
+                #      Normal) = 0."
                 #
-                # The bytes are NOT decoded: they are double-byte Shift-JIS, and
-                # running them through a cp437 decoder would produce confident
-                # mojibake -- which is worse than an honest placeholder, because it
-                # looks like text. Recorded so a consumer with a Shift-JIS decoder
-                # can do the job properly. Register C15.
+                # A ONE-BYTE MODE TOGGLE, not a container of text. The Japanese
+                # bytes live in the ordinary stream BETWEEN a shift-in and the
+                # matching shift-out, as double-byte Shift-JIS.
+                #
+                # This was first implemented as if the block held the text itself,
+                # emitting a `[shift-jis: N bytes]` placeholder for the marker --
+                # which would have injected a bogus placeholder where a mode marker
+                # belongs AND left the real Japanese text to be mangled by the
+                # cp437 decoder. Corrected against the spec, which was sitting in
+                # the archive the whole time. Register C15.
+                #
+                # The marker itself emits nothing. What is recorded is the RANGE of
+                # the cleaned stream that is Shift-JIS, so a consumer with a real
+                # Shift-JIS decoder can decode exactly those bytes and nothing else.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
-                shift_runs.append((len(out), bytes(content)))
-                out += b'[shift-jis: %d bytes]' % len(content)
+                shift_in = bool(content and content[0])
+                if shift_in:
+                    shift_open.append(len(out))
+                elif shift_open:
+                    start = shift_open.pop()
+                    raw = bytes(out[start:])
+                    # The bytes are kept, and the STREAM gets a placeholder in their
+                    # place. Leaving them in would hand the cp437 decoder double-byte
+                    # Shift-JIS and print confident mojibake -- garbage that LOOKS
+                    # like text, which is worse than saying plainly that there is
+                    # Japanese here this converter cannot render.
+                    del out[start:]
+                    shift_runs.append((start, raw))
+                    out += b'[shift-jis: %d bytes]' % len(raw)
             elif cmd == 0x16:                                     # truncation marker
                 # The spec says a truncated line shows a literal marker. Nothing in
                 # the WS7 archive contains one, so this is implemented FROM THE SPEC
@@ -1438,8 +1462,16 @@ def _symmetric_blocks(data: bytes, encoding: str):
         else:
             out.append(data[i])
             i += 1
+    # An unterminated shift-in runs to the end of the document: the text is
+    # Japanese from there on, and dropping the run would lose that fact entirely.
+    while shift_open:
+        start = shift_open.pop()
+        raw = bytes(out[start:])
+        del out[start:]
+        shift_runs.append((start, raw))
+        out += b'[shift-jis: %d bytes]' % len(raw)
     return (bytes(out), notes, unknown, tab_at, graphics, colours, fonts,
-            includes, driver[0], shift_runs)
+            includes, driver[0], sorted(shift_runs))
 
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
