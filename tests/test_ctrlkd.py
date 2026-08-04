@@ -2559,19 +2559,17 @@ def test_attrib_tst_known_answers():
     if raw is None:
         return                      # fixture lives outside the repo
     doc = core.parse_ws(raw)
-    styled = {}
-    for ln in doc.iter_lines():
-        for s in ln.spans:
-            if s.text.strip():
-                styled.setdefault(s.text.strip(), set()).update(s.styles)
-    assert 'b' in styled['Bold']
-    assert 'i' in styled['Italics']
-    assert styled['Bold Italics'] >= {'b', 'i'}
-    assert styled['Bold Underline'] >= {'b', 'u'}
-    assert 'sup' in styled['Superscript']
-    assert 'sub' in styled['Subscript']
-    assert 'strike' in styled['strikeout']
-    assert styled['regular'] == set()
+    # first span of each demo line, in the file's own order (labels carry
+    # trailing hex annotations inside the same styled span)
+    first = [(ln.spans[0].text, ln.spans[0].styles)
+             for ln in doc.iter_lines() if ln.spans]
+    expect = [('regular', set()), ('Bold', {'b'}), ('Italics', {'i'}),
+              ('Bold Italics', {'b', 'i'}), ('Bold Underline', {'b', 'u'}),
+              ('Superscript', {'sup'}), ('Subscript', {'sub'}),
+              ('strikeout', {'strike'})]
+    for (text, styles), (label, want) in zip(first, expect):
+        assert text.startswith(label), (text, label)
+        assert set(styles) == want, (label, styles)
 
 
 def test_sub_supe_tst_known_answers():
