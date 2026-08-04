@@ -1368,7 +1368,12 @@ def _symmetric_blocks(data: bytes, encoding: str):
                         name.append(ch)
                     elif name:
                         break
-                if name and driver[0] is None:
+                if not name:
+                    # An EMPTY 0x00 block is a plain wrapper, not a driver record --
+                    # same rule as an 0x0F with no `%F`: consuming it silently would
+                    # turn a reported unknown into an unreported one.
+                    unknown.append(UnknownBlock(cmd, bytes(block), start))
+                elif driver[0] is None:
                     driver[0] = bytes(name).decode(encoding, 'replace')
             elif cmd == 0x17:                                     # Shift-In/Shift-Out
                 # Japanese double-byte text. Nothing in the WS7 archive contains
