@@ -85,6 +85,10 @@ class Block:
     # semantics. Full entry: doc.styles, matched on 'slot'. Register C1.
     style_id: int = None
     style_name: str = None
+    style_attrs: frozenset = frozenset()   # print attributes the style turns ON
+                                            # (span-style tags); emitters merge
+                                            # them into every span, like heading
+                                            # bold
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -1826,8 +1830,14 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
                     entry['tabs_hmi'] = [word(rec+20 + 2*k) for k in range(n_tabs)]
                     entry['decimal_tabs'] = n_dec
                 just = int.from_bytes(raw[rec+86:rec+87], signed=True)
+                # Spec: "0 means no justification, -1 inherit, 1 right
+                # justified, -2 centered, -3 flush right". In WordStar's own
+                # vocabulary "right justified" is a JUSTIFIED right edge --
+                # i.e. full justification (same term the .oj/.uj docs use);
+                # "flush right" is what today reads as right-ALIGNED. Values
+                # emitted in this parser's align vocabulary directly.
                 entry['justification'] = None if just == -1 else {
-                    0: 'none', 1: 'right', -2: 'center', -3: 'flushright'
+                    0: 'left', 1: 'justify', -2: 'center', -3: 'right'
                 }.get(just, just)
                 wrap = int.from_bytes(raw[rec+87:rec+88], signed=True)
                 entry['word_wrap'] = None if wrap == -1 else bool(wrap)
@@ -1836,6 +1846,18 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
                 entry['line_spacing'] = None if ls == -1 else ls
                 entry['attrs_on'] = word(rec+91)
                 entry['attrs_off'] = word(rec+93)
+                # The ON word as span styles (spec bit values, given in
+                # binary: strikeout=1, doublestrike=10, underline=1000,
+                # sub=10000, super=100000, bold=1000000, italic=10000000).
+                # Doublestrike -- printing each character twice -- renders
+                # as bold, the same degradation every emitter here uses.
+                a = entry['attrs_on']
+                entry['attrs'] = frozenset(
+                    tag for bit, tag in ((0x01, 'strike'), (0x02, 'b'),
+                                         (0x08, 'u'), (0x10, 'sub'),
+                                         (0x20, 'sup'), (0x40, 'b'),
+                                         (0x80, 'i'))
+                    if a & bit)
                 col = int.from_bytes(raw[rec+95:rec+96], signed=True)
                 entry['colour'] = None if col == -1 else col
             styles.append(entry)
@@ -1917,12 +1939,29 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # onto each block as it opens. Stateful, unlike page geometry -- see
     # `_parse_format_dot`.
     fmt = {}
-    cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
-                left_margin=fmt.get('left_margin'),
-                right_margin=fmt.get('right_margin'),
-                para_margin=fmt.get('para_margin'),
-                columns=fmt.get('columns'),
-                column_gutter=fmt.get('column_gutter'))
+    # Formatting from the ACTIVE paragraph style. A 0x11 selection applies
+    # from its paragraph ON, until the next selection -- WordStar keeps the
+    # selected style in force, and real documents switch back explicitly
+    # (NOVEL.WS re-selects 'MS Body Copy' after every heading). Only fields
+    # the style's record sets non-inherited appear here; everything else
+    # falls back to the running dot-command state.
+    style_fmt = {}
+
+    def _new_block():
+        return Block('para',
+                     align=style_fmt.get('align') or _align_now(fmt),
+                     wrap=style_fmt.get('wrap', fmt.get('wrap', True)),
+                     left_margin=style_fmt.get('left_margin', fmt.get('left_margin')),
+                     right_margin=style_fmt.get('right_margin', fmt.get('right_margin')),
+                     para_margin=style_fmt.get('para_margin', fmt.get('para_margin')),
+                     columns=fmt.get('columns'),
+                     column_gutter=fmt.get('column_gutter'),
+                     heading=style_fmt.get('heading', 0),
+                     style_id=style_fmt.get('style_id'),
+                     style_name=style_fmt.get('style_name'),
+                     style_attrs=style_fmt.get('attrs', frozenset()))
+
+    cur = _new_block()
     cur_line = Line()
     ruler = False
     page, meta_extra = {}, {}
@@ -1938,12 +1977,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         close_line()
         if cur.lines:
             doc.blocks.append(cur)
-        cur = Block('para', align=_align_now(fmt), wrap=fmt.get('wrap', True),
-                    left_margin=fmt.get('left_margin'),
-                    right_margin=fmt.get('right_margin'),
-                    para_margin=fmt.get('para_margin'),
-                    columns=fmt.get('columns'),
-                    column_gutter=fmt.get('column_gutter'))
+        cur = _new_block()
 
     for raw, sep, line_marks in physical:
         stripped = bytes(b & 0x7F for b in raw)
@@ -2029,20 +2063,51 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 # for the measurement.
                 cur_line.softpage = True
             elif m[0] == 'style':
-                close_block()
                 # Resolve the handle against the file's own library. Pool tag
                 # 0x02 = this file; anything else (0x03xx editing temps) is
                 # unresolvable BY DESIGN and left unstyled rather than guessed.
                 # Heading level comes from the RESOLVED NAME -- the corpus
                 # proved slot numbers carry none (see the 0x11 parse site).
+                # The selection PERSISTS: style_fmt stays in force for every
+                # following block until the next 0x11. A recordless entry
+                # (the inherit-everything base, e.g. 'WordStar Defaults')
+                # resets formatting to the dot-command state by construction,
+                # since it contributes no record fields.
                 w0 = m[1]
                 if (w0 >> 8) == 0x02:
                     slot = w0 & 0xFF
                     entry = style_slots.get(slot)
-                    cur.style_id = slot
+                    style_fmt.clear()
+                    style_fmt['style_id'] = slot
                     if entry is not None:
-                        cur.style_name = entry['name']
-                        cur.heading = _style_heading_level(entry['name'])
+                        style_fmt['style_name'] = entry['name']
+                        style_fmt['heading'] = _style_heading_level(entry['name'])
+                        if entry.get('justification') in ('left', 'justify',
+                                                          'center', 'right'):
+                            # 'left' means EXPLICIT no-justification -- it
+                            # overrides a running .oj, so it must occupy the
+                            # align slot rather than fall through
+                            style_fmt['align'] = entry['justification']
+                        if entry.get('word_wrap') is not None:
+                            style_fmt['wrap'] = entry['word_wrap']
+                        for src_k, dst_k in (('left_margin_hmi', 'left_margin'),
+                                             ('right_margin_hmi', 'right_margin'),
+                                             ('para_margin_hmi', 'para_margin')):
+                            hmi = entry.get(src_k)
+                            if hmi is not None:
+                                # HMI 1/1800in -> print columns at 10 CPI,
+                                # the unit .lm/.rm already use (180 = 1 col)
+                                style_fmt[dst_k] = round(hmi / 180)
+                        if entry.get('attrs'):
+                            style_fmt['attrs'] = entry['attrs']
+                    # style_fmt is updated BEFORE this close: the previous
+                    # block keeps its old style, the fresh block picks the
+                    # new one up from _new_block()
+                    close_block()
+                else:
+                    # 0x03xx temp-pool handle: unresolvable by design, but a
+                    # selection is still a block boundary in the file
+                    close_block()
             elif m[0] == 'fnref':
                 fnref_at.append(rel)
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
