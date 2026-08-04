@@ -2290,3 +2290,36 @@ def test_font_block_reads_width_before_height():
     f = core.parse_ws(b'Text ' + font + b' more text here for detection.\r\n').fonts[0]
     assert f['width_1800'] == 180 and f['cpi'] == 10.0
     assert f['height_1440'] == 240 and f['points'] == 12.0
+
+
+def test_user_print_control_is_parsed_not_scanned():
+    """WSFORMAT.TXT, "0Fh User print control":
+
+        Word:  number of hmis this sequence uses on the printed page
+        Byte:  number of characters used for screen display
+        Text:  the display string itself
+        "The remaining bytes ... will be sent directly to the printer."
+
+    This block used to be scanned for printable bytes looking for `%F"NAME"`,
+    ignoring the structure. The DISPLAY STRING is real content -- what WordStar
+    shows on screen where the control sits -- and three archive blocks carry 70
+    characters of it. The file reference is one thing INSIDE the printer payload,
+    not the payload itself."""
+    from ctrlkd.emit import emit_text
+
+    # a display string, no file reference
+    body = (0).to_bytes(2, 'little') + bytes([7]) + b'[LOGO] ' + b'\x1b*p0002x'
+    doc = core.parse_ws(b'Before ' + _ws_block(0x0F, body) + b' after.\r\n')
+    assert '[LOGO]' in emit_text(doc, mode='printed')
+    assert doc.includes == []
+
+    # a file reference inside the printer payload
+    body = (0).to_bytes(2, 'little') + bytes([0]) + b'%F"PLEAD.PS"'
+    doc = core.parse_ws(b'Before ' + _ws_block(0x0F, body) + b' after.\r\n')
+    assert doc.includes == ['PLEAD.PS']
+    assert '[include: PLEAD.PS]' in emit_text(doc, mode='printed')
+
+    # neither: pure printer bytes stay a REPORTED unknown
+    body = (0).to_bytes(2, 'little') + bytes([0]) + b'\x1b*c2370a'
+    doc = core.parse_ws(b'T ' + _ws_block(0x0F, body) + b' more text here.\r\n')
+    assert [u.cmd for u in doc.unknown_blocks] == [0x0F]
