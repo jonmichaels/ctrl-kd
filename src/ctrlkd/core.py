@@ -710,6 +710,15 @@ def _text_lines_per_page(pl_lines: float, mt_lines: float, mb_lines: float,
     Unit-less .mt/.mb are lines at the fixed 6 LPI baseline (the module-note
     assumption); .lh at parse time is resolved once per document (first
     occurrence wins), not tracked per-line."""
+    if pl_lines == 0:
+        # `.pl 0` turns page breaks OFF entirely in 7.0 document mode --
+        # MicroPro bug 12284 (note 649): DRIVERA.OVR inserts ".pl0" at the
+        # start of PRVIEW output precisely so "displayed page breaks are thus
+        # avoided" (bare ".pl" stopped meaning this in 7.0). Modelled as a
+        # page too tall to fill rather than a zero-height page -- the old
+        # arithmetic produced text_lines=1, i.e. MAXIMAL breakage, the exact
+        # opposite of what the command asks.
+        return 10**9
     usable = pl_lines - mt_lines - mb_lines            # lines at 6 LPI
     if not math.isfinite(usable) or not math.isfinite(lh_48) or lh_48 <= 0:
         return 1
