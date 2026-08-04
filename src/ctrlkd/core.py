@@ -292,6 +292,23 @@ def detect(data: bytes) -> dict:
     Returns dict with 'variant': ws4 | ws5+ | printstream | text | binary
     plus the evidence, suitable for --diagnose output.
     """
+    # The file may DECLARE itself before any statistics: a WS5+ document opens
+    # with a type-0 header block (version BCD + driver + style pointer), and
+    # WordStar writes it at offset 0. Check the full framing, not just the
+    # marker byte, so a random 0x1D can't impersonate one. This must run
+    # BEFORE the 0x1A truncation below: the header's own content can contain
+    # 0x1A (SAWYER.WS does), and truncating there judged a 6.6 KB document on
+    # its first 17 bytes -- "58% text but no structure" said the wreckage.
+    if len(data) >= 8 and data[0] == 0x1D and data[3] == 0x00:
+        jump = int.from_bytes(data[1:3], 'little')
+        end = 2 + jump
+        if (8 <= jump < 0x400 and end < len(data) and data[end] == 0x1D
+                and int.from_bytes(data[end-2:end], 'little') == jump
+                and data[4] in (0x50, 0x55, 0x60, 0x70)):
+            return {'variant': 'ws5+',
+                    'reason': 'opens with a valid header block (declared '
+                              f'release {data[4] >> 4}.{data[4] & 0x0F})',
+                    'size': len(data)}
     core = data[:data.index(0x1A)] if 0x1A in data else data
     if not core:
         return {'variant': 'binary', 'reason': 'empty (or ^Z at start)'}
@@ -299,13 +316,22 @@ def detect(data: bytes) -> dict:
     hard = core.count(b'\x0d\x0a')
     hi = sum(1 for x in core if x >= 0x80)
     blocks_1d = core.count(b'\x1d')
-    txt = sum(1 for x in core if 0x20 <= (x & 0x7F) < 0x7F or x in (0x0D, 0x0A, 0x09)) * 100 // len(core)
+    # A wrapped extended character <1B x 1C> is three bytes of WS5+ machinery
+    # around ONE text character; its frame bytes counted as binary noise, so a
+    # document whose body is box-drawing (BOX.WS: ~90 triples in 304 bytes)
+    # read as "63% text but no structure" and was refused.
+    trips = len(re.findall(rb'\x1b.\x1c', core))
+    txt = min(100, (sum(1 for x in core
+                        if 0x20 <= (x & 0x7F) < 0x7F or x in (0x0D, 0x0A, 0x09))
+                    + 2 * trips) * 100 // len(core))
     ev = {'soft_returns': soft, 'hard_returns': hard, 'high_bit_bytes': hi,
-          'text_pct': txt, 'symmetric_blocks_1d': blocks_1d, 'size': len(core)}
+          'text_pct': txt, 'symmetric_blocks_1d': blocks_1d,
+          'wrapped_extended': trips, 'size': len(core)}
     if txt < 40:
         return {'variant': 'binary', 'reason': f'only {txt}% text-like', **ev}
-    if blocks_1d >= 2:
-        # 1D symmetric blocks are WS5+ machinery regardless of anything else
+    if blocks_1d >= 2 or trips >= 3:
+        # 1D symmetric blocks and 1B..1C wrapped extended characters are WS5+
+        # machinery regardless of anything else
         return {'variant': 'ws5+', **ev}
     # soft returns are strong WS evidence on their own; high-bit density alone is
     # not — binaries are full of high bytes — unless the file is mostly text
