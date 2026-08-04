@@ -108,6 +108,17 @@ for _ in $(seq 1 100); do
         [ "$A" = "$B" ] && { FOUND="$CAND"; break; }
     fi
 done
+# SCREENSHOT BEFORE KILLING. WordStar reports its errors on screen and nowhere
+# else, so the screenshot IS the diagnostic -- and a dead X server photographs
+# black. This used to sit after the kill and worked only by accident: DOSBox-X
+# ignores SIGTERM, so the emulator was still up when the camera clicked. Making
+# the kill actually work (below) turned every failure screenshot black, which is
+# how the ordering bug surfaced at all.
+if [ -z "$FOUND" ] && [ -n "${DISP:-}" ] && command -v import >/dev/null; then
+    DISPLAY="$DISP" import -window root "${OUT%.*}-screen.png" 2>/dev/null \
+      && echo "screen saved to ${OUT%.*}-screen.png -- WordStar puts its errors there" >&2
+fi
+
 # Kill ONLY the emulator this run started -- and make sure it actually DIES.
 #
 # `pkill -x dosbox-x` would kill every dosbox on the machine, including a
@@ -138,10 +149,7 @@ fi
 
 if [ -z "$FOUND" ]; then
     echo "no print output produced." >&2
-    if [ -n "${DISP:-}" ] && command -v import >/dev/null; then
-        DISPLAY="$DISP" import -window root "${OUT%.*}-screen.png" 2>/dev/null \
-          && echo "screen saved to ${OUT%.*}-screen.png -- WordStar puts its errors there" >&2
-    fi
+    echo "(the screen was captured above, BEFORE the emulator was killed)" >&2
     exit 1
 fi
 
