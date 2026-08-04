@@ -400,6 +400,11 @@ def _html_span(s, keep_ws=False):
         t = _TAG.get(st)                              # e.g. 'fnref' has no tag of its own
         if t:
             text = f'<{t}>{text}</{t}>'
+    font = next((st for st in s.styles if st.startswith('font')), None)
+    if font:
+        # class only -- the matching .ws-font-N rule comes from _style_css,
+        # so --no-styles leaves the class inert
+        text = f'<span class="ws-{font.replace("font", "font-")}">{text}</span>'
     return text
 
 def _html_ids(kind, label):
@@ -463,6 +468,37 @@ _RTF_ALIGN = {'center': r'\qc ', 'right': r'\qr ', 'justify': r'\qj ',
               'left': r'\ql '}
 
 
+def _font_family(name):
+    """The renderable family from a spec typestyle name: 'Helv (also
+    Helvetica, CG Triumvirate, and Swiss)' -> 'Helv'. The verbatim name
+    stays in doc.fonts (pass-through); this is presentation only."""
+    return (name or '').split(' (')[0].strip()
+
+
+def _font_ctl_rtf(doc):
+    """(fonttbl_extra, {'fontN': control}) for RTF: one \fK per DISTINCT
+    named family (starting at \f2), plus \fs from the block's own height
+    word. Unnamed typestyles still carry their size."""
+    extra, ctl, fam_to_k = [], {}, {}
+    next_k = 2
+    for idx, f in enumerate(doc.fonts):
+        parts = ''
+        fam = _font_family(f.get('typestyle_name'))
+        if fam:
+            if fam not in fam_to_k:
+                fam_to_k[fam] = next_k
+                safe = fam.replace('\\', '').replace('{', '').replace('}', '')
+                extra.append('{\\f%d %s;}' % (next_k, safe))
+                next_k += 1
+            parts += '\\f%d' % fam_to_k[fam]
+        pts = f.get('points')
+        if pts:
+            parts += '\\fs%d' % round(pts * 2)
+        if parts:
+            ctl['font%d' % idx] = parts + ' '
+    return ''.join(extra), ctl
+
+
 def _style_slug(entry):
     """A stable, readable CSS class for one library entry: slot + slugged
     name (slot disambiguates same-named entries)."""
@@ -505,6 +541,15 @@ def _style_css(doc):
             props.append(f'--ws-typestyle:{ts & 0x01FF}')
         if props:
             rules.append(f'.{_style_slug(entry)} {{ {"; ".join(props)} }}')
+    for idx, f in enumerate(doc.fonts):
+        props = []
+        fam = _font_family(f.get('typestyle_name'))
+        if fam:
+            props.append(f"font-family:'{fam}'")
+        if f.get('points'):
+            props.append('font-size:%.4gpt' % f['points'])
+        if props:
+            rules.append(f'.ws-font-{idx} {{ {"; ".join(props)} }}')
     return '\n'.join(rules)
 
 
@@ -647,13 +692,16 @@ def _rtf_comment_dest(note):
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
-def _rtf_span(sp, refs, keep):
+def _rtf_span(sp, refs, keep, fontctl=None):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
             return _rtf_note_dest(note, label) if note.kind in keep else ''
     styles = sorted(st for st in sp.styles if st != 'fnref')
-    return '{' + ''.join(_RTF_ON.get(st, '') for st in styles) + _rtf_escape(sp.text) + '}'
+    ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
+    if fontctl:
+        ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
+    return '{' + ctl + _rtf_escape(sp.text) + '}'
 
 def _rtf_stylesheet(doc):
     """An RTF \\stylesheet group derived from the style records -- the same
@@ -692,6 +740,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     printed = mode == 'printed' or _printed(doc)
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc) if styles else ''
+    fonttbl_extra, fontctl = _font_ctl_rtf(doc) if styles else ('', {})
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
     parts = []
@@ -704,7 +753,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # printed: physical lines (\line at every printed break, soft or hard);
         # modern: logical lines only
         for line in (b.lines if printed else merged_lines(b)):
-            seg = ''.join(_rtf_span(sp, refs, keep) for sp in line.spans)
+            seg = ''.join(_rtf_span(sp, refs, keep, fontctl) for sp in line.spans)
             lines.append(seg)
         if b.heading:
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
@@ -731,7 +780,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         if comments:
             parts.append(comments)
     body = '\n'.join(parts)
-    return (r'{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}}'
+    return (r'{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}'
+            + fonttbl_extra + '}'
             + stylesheet
             + '\n' + font + r'\fs24 ' + '\n' + body + '\n}\n')
 

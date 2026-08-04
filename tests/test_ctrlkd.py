@@ -2700,3 +2700,49 @@ def test_user_print_control_is_parsed_not_scanned():
     body = (0).to_bytes(2, 'little') + bytes([0]) + b'\x1b*c2370a'
     doc = core.parse_ws(b'T ' + _ws_block(0x0F, body) + b' more text here.\r\n')
     assert [u.cmd for u in doc.unknown_blocks] == [0x0F]
+
+
+def test_ws5_soft_returns_always_wrap_in_modern():
+    # The would-it-have-fit heuristic is a WS4 fixed-pitch inference; WS5+
+    # documents use proportional fonts where byte length says nothing about
+    # printed width, and a real story's modern RTF carried 204 spurious
+    # \line breaks (found by Jon reading the export). In WS5+, a surviving
+    # soft return IS wrap by construction.
+    SOFT = b'\x8d\x0a'
+    data = (ws7_block(0x00) +
+            b'     Short line' + SOFT + b'even though the next word fits.' + HARD +
+            b'     Second paragraph here.' + HARD)
+    doc = core.parse_ws(data)
+    from ctrlkd.core import merged_lines
+    assert [len(merged_lines(b)) for b in doc.blocks] == [2]
+    assert merged_lines(doc.blocks[0])[0].text() == (
+        '     Short line even though the next word fits.')
+    rtf = emit.emit_rtf(doc, mode='modern')
+    assert 'Short line even though the next word fits.' in rtf.replace('\\line ', '')
+    assert '\\line' not in rtf.split('Short')[1].split('fits.')[0]  # no break inside the wrap
+    assert 'Short line even though' in emit.emit_text(doc, mode='modern')
+
+
+def test_font_changes_render_as_runs():
+    # Jon's export review: every RTF was Times New Roman -- doc.fonts was
+    # recorded and never rendered. A font block is a run boundary: following
+    # spans carry fontN, RTF gets a real fonttbl entry + \fN\fs, HTML gets
+    # a class + generated CSS from the block's own words. Typestyle 3 is
+    # 'Courier' in the spec's table; height 280 VMI = 14pt.
+    font = ws7_block(0x02, (180).to_bytes(2, 'little') + (280).to_bytes(2, 'little')
+                     + (3).to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) + b'Before the change. ' + font +
+            b'After the change.' + HARD)
+    doc = core.parse_ws(data)
+    spans = [s for b in doc.blocks for ln in b.lines for s in ln.spans]
+    tagged = [s for s in spans if any(t.startswith('font') for t in s.styles)]
+    assert tagged and 'After the change.' in ''.join(s.text for s in tagged)
+    assert not any(t.startswith('font') for s in spans for t in s.styles
+                   if 'Before' in s.text)
+    rtf = emit.emit_rtf(doc, mode='modern')
+    assert '{\\f2 Courier;}' in rtf
+    assert '\\f2\\fs28 ' in rtf                       # 14pt = \fs28
+    h = emit.emit_html(doc, mode='modern')
+    assert "class=\"ws-font-0\"" in h
+    assert ".ws-font-0 { font-family:'Courier'; font-size:14pt }" in h
+    assert 'ws-font-0' not in emit.emit_html(doc, mode='modern', styles=False).split('<body>')[0]

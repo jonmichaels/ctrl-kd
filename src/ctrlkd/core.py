@@ -401,7 +401,8 @@ def _bare_eof(data: bytes) -> int:
         return at
 
 
-def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
+def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
+               soft_is_wrap=False):
     """Split into physical lines and classify every break.
 
     Yields (line_bytes, sep) with sep in {'wrap','line','para','eof'}:
@@ -413,6 +414,15 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
       wrap  a soft return that is just word wrap: join with a space
     Margin is the 90th percentile of soft-wrapped line lengths (outliers from
     hanging punctuation sit 1-2 past the true margin), floor 65 (WS4 default).
+
+    `soft_is_wrap=True` (WS5+): a soft return is ALWAYS wrap, no heuristic.
+    The would-it-have-fit test is a WS4-era inference over FIXED-PITCH byte
+    lengths; WS5+ documents use proportional fonts, where byte length says
+    nothing about printed width, and the archive's own documents misread as
+    ~5 "deliberate" breaks per paragraph (204 spurious \line breaks in one
+    story's RTF -- found by Jon reading the export, 2026-08-04). In WS5+ the
+    editor re-wraps paragraphs dynamically, so a surviving soft return IS
+    wrap by construction; deliberate breaks are hard returns.
 
     `marks` maps an offset in `data` to a structural event that used to be an
     in-band SENTINEL BYTE -- a note reference, a soft page break, a paragraph
@@ -541,6 +551,13 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None):
                 # paragraphs from ever reflowing in Modern -- they rendered as
                 # physical lines with the wrong margins. Diagnosed 2026-08-03.
                 sep = 'line'                      # indented continuation = deliberate
+            elif soft_is_wrap:
+                # WS5+: a surviving soft return IS wrap by construction (the
+                # editor re-wraps dynamically; deliberate breaks are hard
+                # returns). The fit heuristic below is a WS4 fixed-pitch
+                # inference that misfires on proportional text -- 204 spurious
+                # breaks in one story's RTF (Jon's export review, 2026-08-04).
+                sep = 'wrap'
             else:
                 L = len(_visible(text).rstrip())
                 W = len(nxt_vis.split(b' ', 1)[0])
@@ -1285,7 +1302,8 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
             meta_extra['pt_raw'] = arg.decode('latin-1', 'replace').strip()
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
-                  unknown: dict, fn_counter: list = None, fnref_at=()) -> list:
+                  unknown: dict, fn_counter: list = None, fnref_at=(),
+                  font_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -1304,8 +1322,18 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             buf.clear()
 
     pending = sorted(fnref_at)
+    # font changes, as (rel_offset, doc.fonts index): a change flushes the
+    # current span and swaps the active fontN tag, so every following span
+    # carries its font until the next change (active persists across lines)
+    pending_fonts = sorted(font_at)
     i = 0
-    while i < len(raw) or pending:
+    while i < len(raw) or pending or pending_fonts:
+        while pending_fonts and pending_fonts[0][0] <= i:
+            _, fidx = pending_fonts.pop(0)
+            flush()
+            for t in [t for t in active if t.startswith('font')]:
+                active.discard(t)
+            active.add(f'font{fidx}')
         # A note reference sits BETWEEN bytes, so emit any that fall here before
         # decoding the byte at this offset.
         while pending and pending[0] <= i:
@@ -1695,6 +1723,11 @@ def _symmetric_blocks(data: bytes, encoding: str):
                         # None for numbers the table doesn't carry
                         'typestyle_name': TYPESTYLE_NAMES.get(style & 0x01FF),
                     })
+                    # A font change is a RUN BOUNDARY in the text, not only
+                    # metadata: Jon's export review (2026-08-04) found every
+                    # RTF in Times because doc.fonts was recorded and never
+                    # rendered. Same offset mechanism as every other mark.
+                    marks[len(out)] = ('font', len(fonts) - 1)
             elif cmd == 0x0F:                                     # user print control
                 # WSFORMAT.TXT, "0Fh User print control":
                 #     Word:  number of hmis this sequence uses on the printed page
@@ -2095,7 +2128,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             seg if k % 2 else seg.translate(_FLAGGED)   # odd = captured triples
             for k, seg in enumerate(re.split(rb'(\x1b.\x1c)', data, flags=re.S)))
 
-    physical, margin = lines_pass(data, tab_at, marks)
+    physical, margin = lines_pass(data, tab_at, marks, soft_is_wrap=ws5)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
@@ -2223,6 +2256,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # was read as a page break, a heading or a note reference that the author
         # never wrote. See `_symmetric_blocks`.
         fnref_at = []
+        font_at = []
         for rel, m in line_marks:
             if m[0] == 'softpage':
                 # NOT a block, NOT a break: the editor drops these wherever the
@@ -2278,8 +2312,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     close_block()
             elif m[0] == 'fnref':
                 fnref_at.append(rel)
+            elif m[0] == 'font':
+                font_at.append((rel, m[1]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
-                              fn_counter, fnref_at)
+                              fn_counter, fnref_at, font_at)
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
