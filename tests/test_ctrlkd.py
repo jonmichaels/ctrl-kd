@@ -2058,12 +2058,30 @@ def test_note_numbering_mode_is_read_not_just_the_start_value():
     assert 'footnote_number_mode' not in core.parse_ws(b'.f# 3\r\nT.\r\n').meta
 
 
-def test_shift_jis_runs_are_preserved_undecoded():
-    """C15. The bytes are double-byte Shift-JIS; running them through a cp437
-    decoder would produce confident mojibake, which is worse than an honest
-    placeholder because it LOOKS like text."""
-    raw = bytes([0x82, 0xA0, 0x82, 0xA2])
-    doc = core.parse_ws(b'Before ' + _ws_block(0x17, raw) + b' after.\r\n')
-    assert doc.shift_runs == [(7, raw)]
+def test_shift_jis_is_a_mode_toggle_not_a_text_container():
+    """C15, corrected against WSFORMAT.TXT:
+
+        "17h Japanese Font Shift-In/Shift-Out
+         Byte: Shift-In (to Japanese) = 1, Shift-Out (Back to Normal) = 0."
+
+    A ONE-BYTE MODE TOGGLE. The Japanese bytes live in the ordinary stream
+    BETWEEN a shift-in and its shift-out. This was first implemented as if the
+    block held the text itself, which would have injected a placeholder where a
+    marker belongs and left the real Japanese to be mangled by the cp437 decoder.
+
+    The run is lifted out and replaced by a placeholder: nothing is lost, and no
+    mojibake is presented as text."""
+    jp = bytes([0x82, 0xA0, 0x82, 0xA2])
+    doc = core.parse_ws(b'Before ' + _ws_block(0x17, b'\x01') + jp
+                        + _ws_block(0x17, b'\x00') + b' after.\r\n')
+    assert doc.shift_runs == [(7, jp)], doc.shift_runs
     text = ''.join(s.text for s in doc.blocks[0].lines[0].spans)
-    assert text == 'Before [shift-jis: 4 bytes] after.'
+    assert text == 'Before [shift-jis: 4 bytes] after.', text
+
+
+def test_an_unterminated_shift_in_runs_to_the_end():
+    """The text is Japanese from there on; dropping the run would lose that."""
+    doc = core.parse_ws(b'Some ordinary English text here. '
+                        + _ws_block(0x17, b'\x01') + bytes([0x82, 0xA0]) + b'\r\n')
+    assert len(doc.shift_runs) == 1
+    assert doc.shift_runs[0][1].startswith(bytes([0x82, 0xA0]))
