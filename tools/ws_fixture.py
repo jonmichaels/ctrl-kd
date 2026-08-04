@@ -68,9 +68,16 @@ def note(kind, text, number=1, line_count=1, numfmt=NUMFMT_NUMERIC, encoding='cp
     return block(kind, content)
 
 
-def heading(level):
-    """A paragraph-style block the parser turns into a heading of `level` (1-3)."""
-    return block(STYLE, bytes([{1: 0x05, 2: 0x02, 3: 0x03}[level]]))
+def style_ref(slot):
+    """A paragraph-style selection: four LE16 handles per WSFORMAT (new /
+    prev / prev-modified-temp / prev-prev). Word 0 is the joinable one --
+    0x02 pool tag in the high byte, 0-based library slot in the low byte.
+    Whether it renders as a heading depends on the NAME the slot resolves
+    to in the document's style library, not on the slot number (the old
+    1-byte `heading(level)` here encoded an invented format: real WordStar
+    always writes 8 content bytes, and slot numbers carry no semantics)."""
+    w = lambda v: v.to_bytes(2, 'little')
+    return block(STYLE, w(0x0200 | slot) + w(0x0201) + w(0x0300) + w(0x0201))
 
 
 def softpage():
