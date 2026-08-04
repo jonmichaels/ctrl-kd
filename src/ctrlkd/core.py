@@ -1477,27 +1477,43 @@ def _symmetric_blocks(data: bytes, encoding: str):
                                           'display')[(style >> 10) & 0x03],
                         'typestyle_number': style & 0x01FF,
                     })
-            elif cmd == 0x0F:                                     # print-file inclusion
-                # A file the printer was told to pull in at this point -- the WS7
-                # archive carries `%F"PLEAD.PS"` and PostScript preambles ending in
-                # `%F"box.ps"`. Like an inset graphic, the block holds a FILENAME
-                # and was being dropped whole, so a document that composed part of
-                # its page from an external file said nothing about it.
+            elif cmd == 0x0F:                                     # user print control
+                # WSFORMAT.TXT, "0Fh User print control":
+                #     Word:  number of hmis this sequence uses on the printed page
+                #     Byte:  number of characters used for screen display
+                #     Text:  the display string itself
+                #     "The remaining bytes ... will be sent directly to the printer."
+                #
+                # This used to scan the whole block for printable bytes and look for
+                # a `%F"NAME"` file reference, ignoring the structure entirely. The
+                # DISPLAY STRING is real content -- it is what WordStar shows on
+                # screen where the control sits, and three archive blocks carry 70
+                # characters of it. Dropping it lost text; the file reference is one
+                # thing inside the printer payload, not the whole payload.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
-                printable = bytes(c & 0x7F for c in content
-                                  if 0x20 <= (c & 0x7F) < 0x7F)
-                text = printable.decode(encoding, 'replace')
-                mark = text.find('%F')
-                name = text[mark + 2:].strip().strip('"') if mark >= 0 else ''
-                if name:
-                    includes.append(name)
-                    out += b'[include: ' + name.encode(encoding, 'replace') + b']'
+                if len(content) >= 3:
+                    nch = content[2]
+                    display = bytes(content[3:3 + nch])
+                    printer = bytes(content[3 + nch:])
+                    shown = bytes(c & 0x7F for c in display
+                                  if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                    # `%F"NAME"` inside the printer payload names a file the printer
+                    # is told to pull in -- same class as an inset graphic.
+                    ptext = bytes(c & 0x7F for c in printer
+                                  if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                    mark = ptext.find('%F')
+                    name = ptext[mark + 2:].strip().strip('"') if mark >= 0 else ''
+                    if name:
+                        includes.append(name)
+                        out += b'[include: ' + name.encode(encoding, 'replace') + b']'
+                    elif shown.strip():
+                        # No file reference, but a display string the editor shows.
+                        out += shown.encode(encoding, 'replace')
+                    else:
+                        # Neither: pure printer bytes. Consuming them silently would
+                        # turn a reported unknown into an unreported one.
+                        unknown.append(UnknownBlock(cmd, bytes(block), start))
                 else:
-                    # No `%F` filename in it -- most of these are PostScript
-                    # preambles. Consuming them silently would be WORSE than the
-                    # bug being fixed: it turns a reported unknown into an
-                    # unreported one. They stay UnknownBlocks so --diagnose sees
-                    # them.
                     unknown.append(UnknownBlock(cmd, bytes(block), start))
             elif cmd == 0x00:                                     # HEADER sequence
                 # WSFORMAT.TXT, type 0 Header -- 128 bytes in total:
