@@ -33,13 +33,22 @@ class Line:
     soft: bool = False                   # ends in WordStar's own word wrap (8D soft
                                           # return): ON PAPER this was a real line break;
                                           # for reflow it joins the next line (merged_lines)
+    softpage: bool = False               # a 0x0B end-of-page mark fell at this line --
+                                          # the EDITOR's last-seen pagination, transient
+                                          # per WSFORMAT and ignored by WordStar's own
+                                          # print pipeline (measured byte-identical,
+                                          # 2026-08-04). Recorded for viewers; never a
+                                          # page break, and never splits a block
 
     def text(self):
         return ''.join(s.text for s in self.spans)
 
 @dataclass
 class Block:
-    kind: str            # 'para' | 'pagebreak' | 'softpage' | 'condpage'
+    kind: str            # 'para' | 'pagebreak' | 'condpage'
+                         # ('softpage' RETIRED 2026-08-04: a 0x0B mark is
+                         #  transient editor state, now Line.softpage -- it
+                         #  never breaks a page and never splits a block)
     lines: list = field(default_factory=list)
     heading: int = 0     # 0 = body text; 1-3 = WS5+ title/header/subheading
                          # (for 'condpage' it carries `.cp`'s requested line count)
@@ -1390,6 +1399,16 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 tab_at.add(len(out))
                 out += leader * cols
             elif cmd == 0x0B:                                     # end of page
+                # WSFORMAT.TXT: "This sequence should usually be ignored. It's
+                # used by the WordStar editor to keep track of page breaks. It
+                # is transient, and moves around with the page break." MEASURED
+                # on WordStar 7 (2026-08-04): a document printed with and
+                # without 0x0B marks produced BYTE-IDENTICAL output -- the
+                # print pipeline never looks at them. The block is still parsed
+                # (it is real structure, and a viewer may want the editor's
+                # last-seen pagination), but NO renderer may treat it as a page
+                # break: honouring them changed the page count of 43 archive
+                # documents.
                 marks[len(out)] = ('softpage',)
             elif cmd == 0x0D:                                     # paragraph number
                 # WordStar's AUTOMATIC outline/legal numbering (`.p#`) -- "2.1.3"
@@ -1811,8 +1830,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         fnref_at = []
         for rel, m in line_marks:
             if m[0] == 'softpage':
-                close_block()
-                doc.blocks.append(Block('softpage'))
+                # NOT a block, NOT a break: the editor drops these wherever the
+                # page currently ends, including mid-paragraph, so closing the
+                # block here severed real paragraphs. See the 0x0B parse site
+                # for the measurement.
+                cur_line.softpage = True
             elif m[0] == 'heading':
                 close_block()
                 # Level 0 means "a style, but not one of the three this parser

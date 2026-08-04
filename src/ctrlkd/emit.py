@@ -219,10 +219,6 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     printed = mode == 'printed' or _printed(doc)
     out = []
     for b in doc.blocks:
-        if b.kind == 'softpage':                 # WordStar's own pagination:
-            if mode == 'printed':                # meaningful only line-for-line
-                out.append('\f')
-            continue
         if b.kind == 'pagebreak':
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
@@ -326,8 +322,6 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     refs = _ref_pairs(pairs)
     out = []
     for b in doc.blocks:
-        if b.kind == 'softpage':
-            continue
         if b.kind == 'pagebreak':
             out.append('---')
             continue
@@ -476,10 +470,6 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS, **_option
     parts = []
     printed = mode == 'printed' or _printed(doc)
     for b in doc.blocks:
-        if b.kind == 'softpage':
-            if printed:
-                parts.append('<hr class="pb">')
-            continue
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
             continue
@@ -618,10 +608,6 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     parts = []
     rtf_align = 'left'          # RTF alignment persists across \par
     for b in doc.blocks:
-        if b.kind == 'softpage':
-            if printed:
-                parts.append(r'\page ')
-            continue
         if b.kind == 'pagebreak':
             parts.append(r'\page ')
             continue
