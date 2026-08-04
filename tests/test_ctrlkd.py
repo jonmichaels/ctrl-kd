@@ -435,6 +435,33 @@ def test_style_pass_through_html_css_and_rtf_stylesheet():
     assert r'{\stylesheet{\s0 Normal;}{\s3\qc\li1440\b Callout;}' in r
     assert r'\s3 ' in r.split(r'\stylesheet')[1]
 
+def test_detect_honours_the_header_blocks_declaration():
+    # A WS5+ file DECLARES itself: a valid type-0 header block at offset 0.
+    # Detection must believe it before running byte statistics -- and before
+    # the 0x1A truncation, because the header's own content can contain 0x1A:
+    # a real 6.6 KB document was judged on its first 17 bytes ("58% text but
+    # no structure") and refused, styles, prose and all.
+    content = bytes([0x70]) + b'LASERJET\x00' + bytes([0x00, 0x1A]) + bytes(4)
+    data = ws7_block(0x00, content) + b'\x00' * 40   # nothing text-like after
+    det = core.detect(data)
+    assert det['variant'] == 'ws5+'
+    assert 'declared release 7.0' in det['reason']
+    # a random 0x1D start with broken framing must NOT impersonate a header
+    det2 = core.detect(b'\x1d\x10\x00\x00' + b'\x00' * 40)
+    assert det2['variant'] == 'binary'
+
+def test_detect_counts_wrapped_extended_chars_as_ws5_machinery():
+    # A document whose body is <1B x 1C>-wrapped box-drawing (BOX.WS) read as
+    # "63% text but no structure": each triple is three bytes of WS5+
+    # machinery around ONE character. Triples are structure.
+    row = b'\x1b\xda\x1c' + b'\x1b\xc4\x1c' * 8 + b'\x1b\xbf\x1c'
+    data = b'.aw off\r\n' + row + b'\r\n' + row + b'\r\n'
+    det = core.detect(data)
+    assert det['variant'] == 'ws5+'
+    assert det['wrapped_extended'] >= 3
+    txt = emit.emit_text(core.parse_ws(data), mode='printed')
+    assert '─' in txt and '┌' in txt
+
 def test_flagged_control_bytes_are_controls_not_cp437_glyphs():
     # MEASURED on WordStar 7 (2026-08-04): a real document's bare 0x8A
     # (flagged ^J) performed a line advance in the printed PCL -- zero
