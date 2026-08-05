@@ -490,10 +490,19 @@ def _font_ctl_rtf(doc):
                 fam_to_k[fam] = next_k
                 safe = fam.replace('\\', '').replace('{', '').replace('}', '')
                 alt = rtf_alternate(fam)
-                # {\*\falt X} is RTF's native fallback -- the era name
-                # travels first (pass-through), Word substitutes when absent
-                falt = ('{\\*\\falt %s}' % alt) if alt and alt != fam else ''
-                extra.append('{\\f%d %s%s;}' % (next_k, safe, falt))
+                # PRIMARY is the modern equivalent, the era name rides in
+                # {\*\falt}: TextEdit (and every Cocoa RTF importer,
+                # including the future Soft Return.app) ignores \falt
+                # entirely and silently substitutes Helvetica for an unknown
+                # primary -- Jon's PS.TST render, 2026-08-04. Word honours
+                # whichever name it finds first, so a machine with the era
+                # font still reaches it via the falt. The VERBATIM era name
+                # always remains in doc.fonts and leads the HTML stacks,
+                # where CSS fallback works properly.
+                if alt and alt != fam:
+                    extra.append('{\\f%d %s{\\*\\falt %s};}' % (next_k, alt, safe))
+                else:
+                    extra.append('{\\f%d %s;}' % (next_k, safe))
                 next_k += 1
             parts += '\\f%d' % fam_to_k[fam]
         pts = f.get('points')
