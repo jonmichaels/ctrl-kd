@@ -68,9 +68,18 @@ _GENERIC_CSS = {'sans': 'sans-serif', 'serif': 'serif',
 # ---- render targets (Jon's ruling, 2026-08-04 night) -----------------------
 # One RTF file cannot serve every importer (Office-private fonts, Cocoa's
 # falt-blindness, Docs' web catalog), so the CALLER picks a target:
-#   office  Word-first (default): Microsoft names, resolved by Word AND Docs
+#   office  Word-first (default): fonts DISTRIBUTED WITH MS OFFICE (Century
+#           Gothic etc. are Office-only -- bare Windows has just the web-core
+#           set plus Palatino Linotype), resolved by Word AND Google Docs;
+#           LibreOffice substitutes them decently via its own tables
 #   mac     Cocoa-native names -- TextEdit/Pages/Soft Return.app world
 #   google  Docs' own catalog where it has something Office lacks (chancery)
+#   linux   the URW base-35 clones (Ghostscript heritage, packaged everywhere
+#           as fonts-urw-base35): free metric-compatible copies of EXACTLY
+#           this era's set -- URW Gothic IS Avant Garde, URW Bookman IS
+#           Bookman, C059 IS New Century Schoolbook, P052 IS Palatino, Z003
+#           IS Zapf Chancery, Nimbus Sans/Roman/Mono PS are Helvetica/Times/
+#           Courier. The most faithful target of all, and libre.
 # Coverage rule: a family with no entry in FONT_ALTS still gets a USEFUL face
 # from its font block's own generic-style bits -- never nothing.
 
@@ -81,6 +90,8 @@ GENERIC_PRIMARY = {
                'script': 'Apple Chancery', 'display': 'Futura'},
     'google': {'sans': 'Arial', 'serif': 'Times New Roman',
                'script': 'Dancing Script', 'display': 'Impact'},
+    'linux':  {'sans': 'DejaVu Sans', 'serif': 'DejaVu Serif',
+               'script': 'Z003', 'display': 'DejaVu Sans'},
 }
 
 TARGET_OVERRIDES = {
@@ -99,6 +110,36 @@ TARGET_OVERRIDES = {
         'helv': 'Helvetica',
         'helvetica': 'Helvetica',
         'univers': 'Helvetica Neue',
+    },
+    # URW base-35 canonical family names (the C059/P052/Z003 codes ARE the
+    # modern fontconfig names; older aliases 'Century SchoolBook L' /
+    # 'URW Palladio L' / 'URW Chancery L' still resolve on most distros).
+    'linux': {
+        'avant garde': 'URW Gothic',
+        'bookman': 'URW Bookman',
+        'cntry schlbk': 'C059',
+        'newcntschlbk': 'C059',
+        'new century schoolbook': 'C059',
+        'century': 'C059',
+        'american classic': 'C059',
+        'palatino': 'P052',
+        'zapfchancery': 'Z003',
+        'zapf chancery': 'Z003',
+        'coronet': 'Z003',
+        'helv': 'Nimbus Sans',
+        'helvetica': 'Nimbus Sans',
+        'helv narrow': 'Nimbus Sans Narrow',
+        'helv cond.': 'Nimbus Sans Narrow',
+        'helvetica narrow': 'Nimbus Sans Narrow',
+        'univers': 'Nimbus Sans',
+        'times': 'Nimbus Roman',
+        'tms rmn': 'Nimbus Roman',
+        'cg times': 'Nimbus Roman',
+        'courier': 'Nimbus Mono PS',
+        'pica': 'Nimbus Mono PS',
+        'elite': 'Nimbus Mono PS',
+        'lineprinter': 'Nimbus Mono PS',
+        'symbol': 'Standard Symbols PS',
     },
     # Docs resolves the Microsoft names natively; its one real gap is a
     # chancery script -- Dancing Script is the stock calligraphic answer.
