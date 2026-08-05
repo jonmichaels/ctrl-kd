@@ -60,3 +60,23 @@ question, the code says so rather than guessing quietly.
 
 That is a bug we want. Open an issue with the file (or a trimmed sample) and, if
 you have it, the original printout or a description of what WordStar itself did.
+
+## Why does `--encoding` only accept cp437? What about international WordStar?
+
+The high-bit bytes in a WordStar file are glyphs from the PC's OEM code page,
+and every file this project has ever been tested against uses **code page 437**
+(the US IBM PC set — which Anglophone machines everywhere ran, Canada included).
+WordStar 5+ itself acknowledged other code pages — its font blocks carry
+symbol-map bits that distinguish cp437 from cp850, the DOS "multilingual"
+Western European set — so files written on French, German, or Spanish machines
+plausibly exist with accented text in cp850 (or cp860/863/865) byte positions.
+
+We have **zero such files**. Implementing another code page is easy — it is a
+byte table — but *validating* one is not: without a real document written on
+such a machine, a synthetic test only proves our table matches our table,
+and this project ships evidence-driven behavior, not assumptions. So the CLI
+refuses what it cannot verify. The Python library API (`ctrlkd.core.parse`)
+still accepts any codec name, so an experimenter holding real international
+WordStar material can try it today — and if you have such files, please open
+an issue: a genuine known-answer document is exactly what would turn this
+limitation into a feature.
