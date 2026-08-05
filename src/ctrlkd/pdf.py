@@ -255,6 +255,117 @@ HMI_PER_POINT = 1800.0 / 72.0                 # = 25
 TZ_MIN, TZ_MAX = 40.0, 250.0
 TZ_DEFAULT = 100.0                            # PDF's own initial text state
 
+# LJ6DTP's colour palette as PDF fill grays (`g`: 0 black, 1 white). The
+# indices are DRIVER-DEFINED -- this table was recovered from the LJ6DTP
+# printer description file's own string table and confirmed against the
+# document's sample rows (deep-read 2026-08-05): 1-7 are 85/75/50/25/15/5/2%
+# ink, 9-14 are HP fill patterns (approximated mid-gray -- texture is not
+# expressible without pattern objects), 15 is White, the knockout. Index 8
+# is ambiguous in the source and left black. Applied ONLY when the document
+# declares driver LJ6DTP; any other driver's indices stay opaque, unrendered.
+_COLOUR_GRAY_LJ6DTP = {
+    1: 0.15, 2: 0.25, 3: 0.50, 4: 0.75, 5: 0.85, 6: 0.95, 7: 0.98,
+    9: 0.5, 10: 0.5, 11: 0.5, 12: 0.5, 13: 0.5, 14: 0.5,
+    15: 1.0,
+}
+
+# ------------------------------------------------- cp437 graphics as vectors
+#
+# Latin-1 has none of cp437's line-drawing repertoire, so the text path
+# degrades every box/shade/block glyph to '?'. But these glyphs ARE geometry:
+# a full block is a filled cell, a shade is a lighter fill, and each
+# box-drawing character is up to four half-arms (up/down/left/right), single
+# or double, meeting at the cell's center. Drawing them as rectangles is not
+# an approximation of the printed page -- it is what the printer's own glyphs
+# put on paper, minus the dot pitch. Only spans WITH a font block take this
+# path (a fontless byte is never changed -- same rule as every other printed
+# exception).
+#
+# Arms per glyph: (up, down, left, right); 0 none, 1 single, 2 double.
+BOX_ARMS = {
+    '─': (0, 0, 1, 1), '│': (1, 1, 0, 0), '┌': (0, 1, 0, 1), '┐': (0, 1, 1, 0),
+    '└': (1, 0, 0, 1), '┘': (1, 0, 1, 0), '├': (1, 1, 0, 1), '┤': (1, 1, 1, 0),
+    '┬': (0, 1, 1, 1), '┴': (1, 0, 1, 1), '┼': (1, 1, 1, 1),
+    '═': (0, 0, 2, 2), '║': (2, 2, 0, 0), '╔': (0, 2, 0, 2), '╗': (0, 2, 2, 0),
+    '╚': (2, 0, 0, 2), '╝': (2, 0, 2, 0), '╠': (2, 2, 0, 2), '╣': (2, 2, 2, 0),
+    '╦': (0, 2, 2, 2), '╩': (2, 0, 2, 2), '╬': (2, 2, 2, 2),
+    '╒': (0, 1, 0, 2), '╓': (0, 2, 0, 1), '╕': (0, 1, 2, 0), '╖': (0, 2, 1, 0),
+    '╘': (1, 0, 0, 2), '╙': (2, 0, 0, 1), '╛': (1, 0, 2, 0), '╜': (2, 0, 1, 0),
+    '╞': (1, 1, 0, 2), '╟': (2, 2, 0, 1), '╡': (1, 1, 2, 0), '╢': (2, 2, 1, 0),
+    '╤': (0, 1, 2, 2), '╥': (0, 2, 1, 1), '╧': (1, 0, 2, 2), '╨': (2, 0, 1, 1),
+    '╪': (1, 1, 2, 2), '╫': (2, 2, 1, 1),
+}
+# Shades: ink coverage -> PDF fill gray (1 = white paper).
+SHADE_GRAY = {'░': 0.75, '▒': 0.50, '▓': 0.25}
+# Partial blocks: (x-frac, y-frac, w-frac, h-frac) of the cell.
+PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
+               '▌': (0, 0, 0.5, 1), '▐': (0.5, 0, 0.5, 1)}
+GRAPHIC_CHARS = frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY) | set(PART_BLOCKS)
+_GRAPHIC_RUN = _re.compile('[%s](?:[%s ]*[%s])?' % tuple(
+    _re.escape(''.join(GRAPHIC_CHARS)) for _ in range(3)))
+
+
+def _graphic_ops(text, x, y, pitch, pt):
+    """Vector ops for one all-graphics span (spaces advance, draw nothing)."""
+    ops = []
+    yb, h = y - 0.25 * pt, 1.1 * pt
+    my = yb + h / 2.0
+    t = max(0.5, pt / 12.0)                  # line weight
+    d = pt / 10.0                            # double-line half-gap
+    def rect(rx, ry, rw, rh):
+        ops.append(b'%.1f %.1f %.1f %.1f re f' % (rx, ry, rw, rh))
+    for n, ch in enumerate(text):
+        x0 = x + n * pitch
+        if ch == ' ':
+            continue
+        if ch == '█':
+            rect(x0, yb, pitch, h)
+        elif ch in SHADE_GRAY:
+            ops.append(b'q %.2f g' % SHADE_GRAY[ch])
+            rect(x0, yb, pitch, h)
+            ops.append(b'Q')
+        elif ch in PART_BLOCKS:
+            fx, fy, fw, fh = PART_BLOCKS[ch]
+            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
+        else:
+            u, dn, l, r = BOX_ARMS[ch]
+            mx = x0 + pitch / 2.0
+            for weight, xa, xb in ((l, x0, mx), (r, mx, x0 + pitch)):
+                if weight == 1:
+                    rect(xa, my - t / 2, xb - xa, t)
+                elif weight == 2:
+                    rect(xa, my + d - t / 2, xb - xa, t)
+                    rect(xa, my - d - t / 2, xb - xa, t)
+            for weight, ya, yc in ((u, my, yb + h), (dn, yb, my)):
+                if weight == 1:
+                    rect(mx - t / 2, ya, t, yc - ya)
+                elif weight == 2:
+                    rect(mx - d - t / 2, ya, t, yc - ya)
+                    rect(mx + d - t / 2, ya, t, yc - ya)
+    return ops
+
+
+def _split_graphics(segs):
+    """Break mixed text/graphics spans so each piece is all-one-kind. Spans
+    without a font block pass through whole (they never take the vector
+    path), as do spans with no graphic character at all."""
+    out = []
+    for seg in segs:
+        text, styles, family, size_here, entry = seg
+        if entry is None or not (set(text) & GRAPHIC_CHARS):
+            out.append(seg)
+            continue
+        pos = 0
+        for m in _GRAPHIC_RUN.finditer(text):
+            if m.start() > pos:
+                out.append((text[pos:m.start()], styles, family, size_here,
+                            entry))
+            out.append((m.group(0), styles, family, size_here, entry))
+            pos = m.end()
+        if pos < len(text):
+            out.append((text[pos:], styles, family, size_here, entry))
+    return out
+
 
 def _pdf_family(entry):
     """The base-14 family for one doc.fonts entry.
@@ -471,7 +582,8 @@ def _body_stream_printed(doc):
             # footnote paginator too -- body lines keep their lead whether or
             # not the document has notes.
             stream.append((PageLine(spans, soft=line.soft,
-                                    lead=_lead_pt(line.lead_48)), refs))
+                                    lead=_lead_pt(line.lead_48),
+                                    overprint=line.overprint), refs))
     return stream
 
 def _area_size(entries):
@@ -644,11 +756,13 @@ class PageLine(list):
     None by construction: they are the emitter's own furniture and belong on
     the document's default lead."""
 
-    __slots__ = ('soft', 'lead')
+    __slots__ = ('soft', 'lead', 'overprint')
 
-    def __init__(self, segments=(), soft=False, lead=None):
+    def __init__(self, segments=(), soft=False, lead=None, overprint=False):
         super().__init__(segments)
         self.soft = soft
+        self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
+                                        # at THIS line's baseline
         self.lead = lead
 
 
@@ -688,7 +802,8 @@ def _doc_to_pagelines(doc, printed):
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
                 lines.append(PageLine(spans, soft=line.soft,
-                                      lead=_lead_pt(line.lead_48)))
+                                      lead=_lead_pt(line.lead_48),
+                                      overprint=line.overprint))
             else:
                 lines.extend(PageLine(w, soft=line.soft)
                              for w in _wrap_line(spans, MAX_COLS))
@@ -948,7 +1063,8 @@ def _split_indent(segs):
     return out
 
 
-def _line_ops_printed(segs, left, y, size, res, tz_state):
+def _line_ops_printed(segs, left, y, size, res, tz_state,
+                      col_state=None, colour_map=None):
     """One laid-out line, on the document's own horizontal grid.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -989,15 +1105,62 @@ def _line_ops_printed(segs, left, y, size, res, tz_state):
     the run's pitch already IS the document's, so it cannot change a fontless
     byte.)"""
     ops, x = [], left
-    for text, styles, family, size_here, entry, indent in _split_indent(segs):
+    for text, styles, family, size_here, entry, indent in _split_indent(
+            _split_graphics(segs)):
+        # A 0x0F user print control's display string is SCREEN-ONLY: on paper
+        # WordStar sent the raw printer payload and advanced by the block's
+        # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
+        # draws with no character advance at all). The facsimile does the
+        # same: no text, the declared width of empty space.
+        pctl = next((t for t in styles if t.startswith('pctl')), None)
+        if pctl:
+            x += int(pctl[4:]) / HMI_PER_POINT
+            continue
         pt, rise = _sized(styles, size_here)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         if indent:
             scale, w = None, len(text) * size * 0.6      # document print columns
+        elif entry is not None and entry.get('proportional'):
+            # A PROPORTIONAL font's nominal HMI is not its average width, and
+            # WordStar knew it: WS5+ wraps proportional text by summing the
+            # driver's per-character widths, which is how LJ6DTP carries
+            # 93-character soft-wrapped lines inside a 6.5in measure. The
+            # document's own layout math here IS per-character metrics, and
+            # afm.py's widths for the substituted face are our closest model
+            # of them -- so the span advances at its natural width, unscaled.
+            # Tz onto the nominal grid (right for fixed pitch, where nominal
+            # IS the advance) stretched these runs ~40% past the paper edge.
+            natural = _natural_width_pt(text, basefont, pt)
+            if natural > 0:
+                scale, w = None, natural
+            else:                                # face afm.py cannot measure
+                target = len(text) * _span_pitch(entry, pt)
+                scale, w = _tz_scale(text, basefont, pt, target)
         else:
             target = len(text) * _span_pitch(entry, pt)
             scale, w = _tz_scale(text, basefont, pt, target)
+        # Driver-aware colour: a span tagged colourN under a driver whose
+        # palette we know renders at that palette's gray. Emitted only when
+        # the value CHANGES (fill gray is graphics state, like Tz), so every
+        # all-black document -- and every driver we cannot read -- writes not
+        # one extra byte. This is what makes LJ6DTP's knockouts work: white
+        # (15) text overprinted onto a black bar punches out of it exactly
+        # as the LaserJet printed it.
+        if col_state is not None and colour_map:
+            ctag = next((t for t in styles if t.startswith('colour')), None)
+            gray = colour_map.get(int(ctag[6:]), 0.0) if ctag else 0.0
+            if gray != col_state[0]:
+                ops.append(b'%.2f g' % gray)
+                col_state[0] = gray
+        # cp437 graphics (blocks, shades, box-drawing) draw as vectors at the
+        # span's own advance -- see BOX_ARMS/_graphic_ops. _split_graphics
+        # guarantees a span reaching here is either all-graphics or has none.
+        if entry is not None and (set(text) & GRAPHIC_CHARS):
+            pitch = _span_pitch(entry, pt)
+            ops += _graphic_ops(text, x, y, pitch, pt)
+            x += len(text) * pitch
+            continue
         want = TZ_DEFAULT if scale is None else round(scale, 2)
         if want == tz_state[0]:
             ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
@@ -1012,7 +1175,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state):
 
 
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
-                 left=float(MARGIN), running=(), fonts=(), res=None):
+                 left=float(MARGIN), running=(), fonts=(), res=None,
+                 colour_map=None):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -1039,9 +1203,13 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     # Horizontal scaling persists across text objects within a content stream;
     # it starts at PDF's own default on every page. See _line_ops_printed.
     tz_state = [TZ_DEFAULT]
+    # Fill gray likewise: graphics state, reset per page. [gray, driver-aware]
+    col_state = [0.0]
+    prev_overprint = False
     for n, line in enumerate(pagelines):
-        if n:
+        if n and not prev_overprint:
             y -= getattr(line, 'lead', None) or lead
+        prev_overprint = getattr(line, 'overprint', False)
         segs = []
         for text, styles in _coalesce(line):
             if not text:
@@ -1049,7 +1217,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
             written, family, size_here, entry = _span_render(
                 text, styles, fonts, size)
             segs.append((written, styles, family, size_here, entry))
-        ops += _line_ops_printed(segs, left, y, size, res, tz_state)
+        ops += _line_ops_printed(segs, left, y, size, res, tz_state,
+                                 col_state, colour_map or {})
     return b'\n'.join(ops)
 
 @emitter('pdf')
@@ -1075,6 +1244,14 @@ def emit_pdf(doc, mode='printed', **options):
     # fixed-pitch path. WS4 documents and print streams have no font blocks, so
     # doc.fonts is empty for them and this is a no-op.
     fonts = doc.fonts if printed else ()
+    # Colour is DRIVER-DEFINED: the palette indices a document records mean
+    # whatever its printer description file says. LJ6DTP's table is known
+    # (recovered from the PDF file's own string table and confirmed against
+    # the document's sample rows, 2026-08-05): 0 Black, 1-7 grays of
+    # decreasing ink, 15 White -- the knockout that lets white text punch out
+    # of a black bar. Any other driver: indices stay opaque, nothing rendered.
+    colour_map = _COLOUR_GRAY_LJ6DTP if (
+        printed and doc.meta.get('printer_driver') == 'LJ6DTP') else {}
     objs = []                                             # (obj_number, bytes)
 
     n_pages = len(pages)
@@ -1089,7 +1266,7 @@ def emit_pdf(doc, mode='printed', **options):
         running = _running_ops(doc, start_no + page_index, page_h, lead,
                                size, left, printed)
         streams.append(_page_stream(pl, top, page_h, lead, size, left,
-                                    running, fonts, res))
+                                    running, fonts, res, colour_map))
 
     font_objs = {}                                        # F1..Fn -> obj num
     next_num = 3

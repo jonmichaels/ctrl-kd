@@ -710,11 +710,21 @@ def _rtf_comment_dest(note):
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
-def _rtf_span(sp, refs, keep, fontctl=None):
+def _rtf_span(sp, refs, keep, fontctl=None, printed=False):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
             return _rtf_note_dest(note, label) if note.kind in keep else ''
+    if printed:
+        # A 0x0F print control's display string is SCREEN-ONLY: on paper
+        # WordStar sent the raw printer payload and advanced by the block's
+        # HMI word. The printed facsimile does the same -- the declared
+        # width of blank space (0 for LJ6DTP's rule-drawing controls), in
+        # the 10-CPI print columns the rest of printed layout uses.
+        pctl = next((t for t in sp.styles if t.startswith('pctl')), None)
+        if pctl is not None:
+            pad = ' ' * round(int(pctl[4:]) / 180)
+            return '{' + pad + '}' if pad else ''
     styles = sorted(st for st in sp.styles if st != 'fnref')
     ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
     if fontctl:
@@ -772,7 +782,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # printed: physical lines (\line at every printed break, soft or hard);
         # modern: logical lines only
         for line in (b.lines if printed else merged_lines(b)):
-            seg = ''.join(_rtf_span(sp, refs, keep, fontctl) for sp in line.spans)
+            seg = ''.join(_rtf_span(sp, refs, keep, fontctl, printed)
+                          for sp in line.spans)
             lines.append(seg)
         if b.heading:
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
