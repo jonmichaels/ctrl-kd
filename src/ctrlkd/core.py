@@ -58,6 +58,11 @@ class Line:
                                           # print pipeline (measured byte-identical,
                                           # 2026-08-04). Recorded for viewers; never a
                                           # page break, and never splits a block
+    overprint: bool = False              # ends in a BARE CR -- ^PM Overprint Line: the
+                                          # NEXT line prints at this line's own baseline
+                                          # (LJ6DTP's white-on-black knockouts; strikeover
+                                          # composites). Printed renderers re-use the y;
+                                          # reflow modes treat it as a plain break
     # The line height IN FORCE ON THIS LINE, in `.lh`'s own 1/48in units --
     # None meaning "the document's own default" (doc.meta['page']['lh_48']),
     # which is the overwhelmingly common case and keeps the field free for
@@ -416,7 +421,7 @@ def _bare_eof(data: bytes) -> int:
 
 
 def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
-               soft_is_wrap=False):
+               soft_is_wrap=False, overprint_cr=False):
     """Split into physical lines and classify every break.
 
     Yields (line_bytes, sep) with sep in {'wrap','line','para','eof'}:
@@ -433,7 +438,7 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     The would-it-have-fit test is a WS4-era inference over FIXED-PITCH byte
     lengths; WS5+ documents use proportional fonts, where byte length says
     nothing about printed width, and the archive's own documents misread as
-    ~5 "deliberate" breaks per paragraph (204 spurious \line breaks in one
+    ~5 "deliberate" breaks per paragraph (204 spurious RTF line breaks in one
     story's RTF -- found by Jon reading the export, 2026-08-04). In WS5+ the
     editor re-wraps paragraphs dynamically, so a surviving soft return IS
     wrap by construction; deliberate breaks are hard returns.
@@ -466,7 +471,14 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     starts = []                              # (offset, length, index) per emitted line
 
     def _emit(text_start, text_end, brk):
-        kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
+        # A BARE CR is ^PM Overprint Line (WSFORMAT and the WS4 manual
+        # agree): the next line prints at THIS line's baseline. Only WS
+        # documents opt in (`overprint_cr`) -- a CR-only text file (classic
+        # Mac line endings) must never have its every line overprint.
+        if brk == b'\x0d' and overprint_cr:
+            kind = 'over'
+        else:
+            kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
         text = data[text_start:text_end]
         if text or kind != 'eof':
             # `machine_indent`: this line's leading whitespace was emitted by
@@ -488,19 +500,23 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     # break (a soft page break sits between two lines, not within one) belongs
     # to the line that FOLLOWS it, at relative offset 0 -- otherwise it would be
     # silently dropped, which is the failure the sentinels were replaced to end.
-    for off, m in sorted((marks or {}).items()):
-        placed = False
-        for a, ln, idx in starts:
-            if a <= off < a + ln:
-                lines[idx][3].append((off - a, m))
-                placed = True
-                break
-        if not placed:
-            nxt = next((idx for a, ln, idx in starts if a >= off), None)
-            if nxt is not None:
-                lines[nxt][3].append((0, m))
-            elif lines:
-                lines[-1][3].append((len(lines[-1][0]), m))
+    # Each offset carries a LIST of marks: adjacent 0x1D blocks add no text
+    # between them, so a colour change and a font block (LJ6DTP, offset 178)
+    # or a style and a font legitimately mark the same offset.
+    for off, mlist in sorted((marks or {}).items()):
+        for m in mlist:
+            placed = False
+            for a, ln, idx in starts:
+                if a <= off < a + ln:
+                    lines[idx][3].append((off - a, m))
+                    placed = True
+                    break
+            if not placed:
+                nxt = next((idx for a, ln, idx in starts if a >= off), None)
+                if nxt is not None:
+                    lines[nxt][3].append((0, m))
+                elif lines:
+                    lines[-1][3].append((len(lines[-1][0]), m))
     for _t, _k, _mi, mk in lines:
         mk.sort()
 
@@ -530,6 +546,12 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             # consumer decodes spans as usual; they simply render to nothing.
             if kind != 'eof':
                 out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard', _mk))
+            i += 1
+            continue
+        if kind == 'over':
+            # An overprint separator is its own thing: no blank-counting, no
+            # wrap inference -- the next physical line shares this baseline.
+            out.append((text, 'over', _mk))
             i += 1
             continue
         n_hard = 1 if kind == 'hard' else 0
@@ -1340,9 +1362,35 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
             # hardcode a mapping nobody has verified against Qt's own enum.
             meta_extra['pt_raw'] = arg.decode('latin-1', 'replace').strip()
 
+def _font_entry(w, h, style, offset):
+    """One doc.fonts entry from the three words every WordStar font carries
+    (width in 1/1800in, height in 1/1440in, typestyle). Two producers: the
+    inline type-2 Font block, and a paragraph style record's own font field --
+    the SAME three words in the same order, so the same decode."""
+    return {
+        'offset': offset,
+        'width_1800': w,
+        'height_1440': h,
+        'points': h / 20.0,           # 1/1440in == 1/20pt exactly
+        'cpi': (1800.0 / w) if w else None,
+        'typestyle': style,
+        # High seven bits, per the spec's own bit table.
+        'proportional': bool(style & 0x8000),
+        'letter_quality': bool(style & 0x4000),
+        'symbol_map': ('cp437', 'cp850', 'math',
+                       'symbols')[(style >> 12) & 0x03],
+        'generic_style': ('sans', 'serif', 'script',
+                          'display')[(style >> 10) & 0x03],
+        'typestyle_number': style & 0x01FF,
+        # the spec's own 245-entry name table (typestyles.py);
+        # None for numbers the table doesn't carry
+        'typestyle_name': TYPESTYLE_NAMES.get(style & 0x01FF),
+    }
+
+
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
-                  font_at=(), fonts=()) -> list:
+                  font_at=(), fonts=(), pctl_at=(), colour_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -1374,14 +1422,36 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     # current span and swaps the active fontN tag, so every following span
     # carries its font until the next change (active persists across lines)
     pending_fonts = sorted(font_at)
+    # colour changes, same mechanism as fonts: swap the active colourN tag
+    pending_colours = sorted(colour_at)
+    # 0x0F user print controls, as (rel_offset, hmi_1800, byte_count): the
+    # display string is decoded as ONE span tagged 'pctl<hmi>', so printed
+    # renderers can replace it with the width the control declares while
+    # reading modes show it verbatim.
+    pending_pctl = sorted(pctl_at)
     i = 0
-    while i < len(raw) or pending or pending_fonts:
+    while i < len(raw) or pending or pending_fonts or pending_colours:
+        while pending_pctl and pending_pctl[0][0] <= i < len(raw):
+            _, hmi, count = pending_pctl.pop(0)
+            flush()
+            text = raw[i:i + count].decode(encoding, 'replace')
+            spans.append(Span(text, frozenset(active | {'pctl%d' % hmi})))
+            i += count
         while pending_fonts and pending_fonts[0][0] <= i:
             _, fidx = pending_fonts.pop(0)
             flush()
             for t in [t for t in active if t.startswith('font')]:
                 active.discard(t)
             active.add(f'font{fidx}')
+        while pending_colours and pending_colours[0][0] <= i:
+            _, cnum = pending_colours.pop(0)
+            flush()
+            for t in [t for t in active if t.startswith('colour')]:
+                active.discard(t)
+            if cnum:                        # colour 0 = Black, the default:
+                active.add(f'colour{cnum}')  # no tag, so fontless output and
+                                             # every all-black document is
+                                             # byte-identical to before
         # A note reference sits BETWEEN bytes, so emit any that fall here before
         # decoding the byte at this offset.
         while pending and pending[0] <= i:
@@ -1430,6 +1500,15 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             buf.append(0x2D)                      # active soft hyphen
         elif b == 0x09:
             buf.append(b)
+        elif b == 0xA0 and not strip_hibit:
+            # WS5+ soft space: justification/alignment padding WordStar
+            # re-stamps at print time (615 bare A0s across the corpus, all
+            # in layout contexts -- BOOKLET.WS alone has 296 rendering as
+            # 'á'). A REAL á is carried as the wrapped triple <1B A0 1C>,
+            # which the escape branch above already decodes through cp437.
+            # WS4 needs nothing: its soft spaces are 0x20|0x80 and the bit-7
+            # mask restores them.
+            buf.append(0x20)
         elif b < 0x20 or b == 0x7F:
             if b not in WS_DROP:
                 unknown[b] = unknown.get(b, 0) + 1
@@ -1664,7 +1743,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 notes.append(_parse_note(cmd, content, start, encoding))
                 if cmd != 0x06:                          # comments: never printed inline
-                    marks[len(out)] = ('fnref',)
+                    marks.setdefault(len(out), []).append(('fnref',))
             elif cmd == 0x09:                                     # tab (and dot leaders)
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 cols, leader = _tab_columns(content)
@@ -1687,7 +1766,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 # last-seen pagination), but NO renderer may treat it as a page
                 # break: honouring them changed the page count of 43 archive
                 # documents.
-                marks[len(out)] = ('softpage',)
+                marks.setdefault(len(out), []).append(('softpage',))
             elif cmd == 0x0D:                                     # paragraph number
                 # WordStar's AUTOMATIC outline/legal numbering (`.p#`) -- "2.1.3"
                 # and the like. Documented layout (WSFORMAT.TXT, "0Dh Paragraph
@@ -1736,6 +1815,11 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 if len(content) >= 2:
                     colours.append((len(out), content[0], content[1]))
+                    # A colour change is a RUN BOUNDARY too: spans carry the
+                    # active colour so a driver-aware renderer can honour it
+                    # (LJ6DTP maps the palette to grayscale/white knockouts).
+                    marks.setdefault(len(out), []).append(
+                        ('colour', content[0]))
             elif cmd in (0x02, 0x15):                             # font change
                 # WSFORMAT.TXT, type 2 Font -- six little-endian words:
                 #     Word: Font width in HMIs  (1/1800ths of an inch)
@@ -1758,30 +1842,12 @@ def _symmetric_blocks(data: bytes, encoding: str):
                     w = int.from_bytes(content[0:2], 'little')     # HMI, 1/1800in
                     h = int.from_bytes(content[2:4], 'little')     # VMI, 1/1440in
                     style = int.from_bytes(content[4:6], 'little')
-                    fonts.append({
-                        'offset': len(out),
-                        'width_1800': w,
-                        'height_1440': h,
-                        'points': h / 20.0,           # 1/1440in == 1/20pt exactly
-                        'cpi': (1800.0 / w) if w else None,
-                        'typestyle': style,
-                        # High seven bits, per the spec's own bit table.
-                        'proportional': bool(style & 0x8000),
-                        'letter_quality': bool(style & 0x4000),
-                        'symbol_map': ('cp437', 'cp850', 'math',
-                                       'symbols')[(style >> 12) & 0x03],
-                        'generic_style': ('sans', 'serif', 'script',
-                                          'display')[(style >> 10) & 0x03],
-                        'typestyle_number': style & 0x01FF,
-                        # the spec's own 245-entry name table (typestyles.py);
-                        # None for numbers the table doesn't carry
-                        'typestyle_name': TYPESTYLE_NAMES.get(style & 0x01FF),
-                    })
+                    fonts.append(_font_entry(w, h, style, len(out)))
                     # A font change is a RUN BOUNDARY in the text, not only
                     # metadata: Jon's export review (2026-08-04) found every
                     # RTF in Times because doc.fonts was recorded and never
                     # rendered. Same offset mechanism as every other mark.
-                    marks[len(out)] = ('font', len(fonts) - 1)
+                    marks.setdefault(len(out), []).append(('font', len(fonts) - 1))
             elif cmd == 0x0F:                                     # user print control
                 # WSFORMAT.TXT, "0Fh User print control":
                 #     Word:  number of hmis this sequence uses on the printed page
@@ -1800,8 +1866,14 @@ def _symmetric_blocks(data: bytes, encoding: str):
                     nch = content[2]
                     display = bytes(content[3:3 + nch])
                     printer = bytes(content[3 + nch:])
-                    shown = bytes(c & 0x7F for c in display
-                                  if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                    # The display string is CP437 SCREEN TEXT -- LJ6DTP's
+                    # rule-drawing controls label themselves with box-drawing
+                    # art («Empty ┌00.300"hx...»). Masking bit 7 turned that
+                    # into ASCII noise, and worse: a leading « (0xAE) masked
+                    # to '.' (0x2E), so the whole line was later swallowed as
+                    # a dot command -- 33 of LJ6DTP's 41 controls vanished.
+                    shown = bytes(c for c in display
+                                  if c >= 0x20 and c != 0x7F).decode(encoding, 'replace')
                     # `%F"NAME"` inside the printer payload names a file the printer
                     # is told to pull in -- same class as an inset graphic.
                     ptext = bytes(c & 0x7F for c in printer
@@ -1812,8 +1884,20 @@ def _symmetric_blocks(data: bytes, encoding: str):
                         includes.append(name)
                         out += b'[include: ' + name.encode(encoding, 'replace') + b']'
                     elif shown.strip():
-                        # No file reference, but a display string the editor shows.
-                        out += shown.encode(encoding, 'replace')
+                        # No file reference, but a display string the editor
+                        # shows. SCREEN-ONLY: on paper WordStar sends the raw
+                        # printer payload instead and advances by the block's
+                        # own HMI word ("number of hmis this sequence uses on
+                        # the printed page" -- 0 for LJ6DTP's rule-drawing
+                        # controls). The mark carries (hmi, char count) so
+                        # printed renderers can swap the string for its
+                        # declared width; reading modes keep the string, the
+                        # only human-visible trace of what the control does.
+                        shown_b = shown.encode(encoding, 'replace')
+                        marks.setdefault(len(out), []).append((
+                            'pctl', int.from_bytes(content[0:2], 'little'),
+                            len(shown_b)))
+                        out += shown_b
                     else:
                         # Neither: pure printer bytes. Consuming them silently would
                         # turn a reported unknown into an unreported one.
@@ -1950,7 +2034,7 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 content = block[3:-3]
                 if len(content) == 8:
                     w0 = int.from_bytes(content[0:2], 'little')
-                    marks[len(out)] = ('style', w0)
+                    marks.setdefault(len(out), []).append(('style', w0))
                 else:
                     unknown.append(UnknownBlock(cmd, bytes(block), start))
             else:
@@ -2182,7 +2266,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             seg if k % 2 else seg.translate(_FLAGGED)   # odd = captured triples
             for k, seg in enumerate(re.split(rb'(\x1b.\x1c)', data, flags=re.S)))
 
-    physical, margin = lines_pass(data, tab_at, marks, soft_is_wrap=ws5)
+    physical, margin = lines_pass(data, tab_at, marks, soft_is_wrap=ws5,
+                                  overprint_cr=True)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
@@ -2198,6 +2283,30 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # the style's record sets non-inherited appear here; everything else
     # falls back to the running dot-command state.
     style_fmt = {}
+
+    # A style record's font field is a full (width, height, typestyle) triple
+    # -- the same three words as an inline type-2 Font block, and WordStar
+    # applies it the same way: selecting the style CHANGES THE ACTIVE FONT.
+    # Left unapplied, the last inline font block bleeds across every
+    # style-governed paragraph that follows -- LJ6DTP's Univers body copy
+    # rendered at Courier's 7.2pt fixed pitch, pushing its 93-character
+    # proportional lines 10 inches wide (Jon's page-width finding,
+    # 2026-08-05). Styles that carry no font (recordless, or the record's
+    # inherited -1) change nothing: 'inherit' means keep what is in force.
+    style_font_cache = {}
+
+    def _style_font(fs):
+        idx = style_font_cache.get(fs)
+        if idx is None:
+            for j, f in enumerate(doc.fonts):
+                if (f['width_1800'], f['height_1440'], f['typestyle']) == fs:
+                    idx = j
+                    break
+            else:
+                doc.fonts.append(_font_entry(fs[0], fs[1], fs[2], None))
+                idx = len(doc.fonts) - 1
+            style_font_cache[fs] = idx
+        return idx
 
     def _new_block():
         return Block('para',
@@ -2238,7 +2347,13 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
 
     for raw, sep, line_marks in physical:
         stripped = bytes(b & 0x7F for b in raw)
-        if stripped[:1] == b'.':                   # dot command line
+        # A line that BEGINS with a 0x0F print control's display string is
+        # content, not a dot command -- but its first character is often «
+        # (0xAE), which the WS4 bit-7 masking above turns into '.' (0x2E).
+        # 33 of LJ6DTP's 41 rule-drawing controls sat line-initial and were
+        # swallowed whole as unknown dot commands.
+        pctl_leads = any(r == 0 and m[0] == 'pctl' for r, m in line_marks)
+        if stripped[:1] == b'.' and not pctl_leads:  # dot command line
             cmd = stripped.rstrip()
             dots.append(cmd.decode(encoding, 'replace'))
             # Where in the document this command sat. `dot_commands` is a flat
@@ -2316,6 +2431,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # never wrote. See `_symmetric_blocks`.
         fnref_at = []
         font_at = []
+        pctl_at = []
+        colour_at = []
         for rel, m in line_marks:
             if m[0] == 'softpage':
                 # NOT a block, NOT a break: the editor drops these wherever the
@@ -2361,6 +2478,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                 style_fmt[dst_k] = round(hmi / 180)
                         if entry.get('attrs'):
                             style_fmt['attrs'] = entry['attrs']
+                        # an all-zero triple records NO font (OLDTIMES's
+                        # 'Double-Indented Quote'), distinct from the -1
+                        # inherit sentinel only in never having been set
+                        if entry.get('font') and any(entry['font']):
+                            font_at.append((rel, _style_font(entry['font'])))
                     # style_fmt is updated BEFORE this close: the previous
                     # block keeps its old style, the fresh block picks the
                     # new one up from _new_block()
@@ -2373,8 +2495,13 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 fnref_at.append(rel)
             elif m[0] == 'font':
                 font_at.append((rel, m[1]))
+            elif m[0] == 'pctl':
+                pctl_at.append((rel, m[1], m[2]))
+            elif m[0] == 'colour':
+                colour_at.append((rel, m[1]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
-                              fn_counter, fnref_at, font_at, doc.fonts)
+                              fn_counter, fnref_at, font_at, doc.fonts,
+                              pctl_at, colour_at)
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
@@ -2390,6 +2517,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                                     # its softness binds the previous
                                                     # printed line, as the old merge did
         elif sep == 'line':
+            close_line()
+        elif sep == 'over':
+            cur_line.overprint = True
             close_line()
         elif sep.startswith('blank-'):
             # A blank physical line. It is CONTENT in printed mode (it occupied
