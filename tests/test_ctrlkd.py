@@ -435,6 +435,83 @@ def test_style_pass_through_html_css_and_rtf_stylesheet():
     assert r'{\stylesheet{\s0 Normal;}{\s3\qc\li1440\b Callout;}' in r
     assert r'\s3 ' in r.split(r'\stylesheet')[1]
 
+def test_style_font_field_changes_the_active_font():
+    # A style record's font field is the SAME (width, height, typestyle)
+    # triple as an inline type-2 Font block, and selecting the style changes
+    # the active font. Left unapplied, the last inline block bled across
+    # every style-governed paragraph: LJ6DTP's proportional body copy
+    # rendered at Courier's 7.2pt fixed pitch, pushing its 93-character
+    # soft-wrapped lines 10 inches wide (Jon's page-width finding,
+    # 2026-08-05).
+    rec = _style_record()
+    rec = ((155).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+           + (49710).to_bytes(2, 'little') + rec[6:])    # 12pt Univers
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Univers copy font', True, rec),
+    ])
+    courier = ws7_block(0x02, (180).to_bytes(2, 'little')
+                        + (240).to_bytes(2, 'little')
+                        + (17411).to_bytes(2, 'little') + bytes(6))
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            courier + b'Fixed pitch opening paragraph of prose.' + HARD +
+            _style_handle(2) + b'Styled proportional paragraph.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    # the style's font joined doc.fonts, decoded like any inline block
+    assert any(f['width_1800'] == 155 and f['typestyle_name'] and
+               f['typestyle_name'].startswith('Univers') for f in doc.fonts)
+    spans = [sp for b in doc.blocks for ln in b.lines for sp in ln.spans]
+    def _font_of(sp):
+        idx = next((int(t[4:]) for t in sp.styles
+                    if t.startswith('font') and t[4:].isdigit()), None)
+        return None if idx is None else doc.fonts[idx]
+    opening = next(sp for sp in spans if sp.text.startswith('Fixed'))
+    styled = next(sp for sp in spans if sp.text.startswith('Styled'))
+    assert _font_of(opening)['typestyle_name'] == 'Courier'
+    assert _font_of(styled)['width_1800'] == 155
+    assert _font_of(styled)['proportional'] is True
+
+def test_print_control_display_string_is_screen_only_in_printed_pdf():
+    # 0x0F user print control: the display string is what WordStar SHOWS on
+    # screen; on paper it sends the raw printer payload and advances by the
+    # block's own HMI word (0 for LJ6DTP's rule-drawing controls). Reading
+    # modes keep the string -- it is the only human-visible trace of what
+    # the control does -- but the printed facsimile drops it, exactly as the
+    # printout did.
+    note = b'EMPTY 3-dot rule'
+    ctl = ws7_block(0x0F, (0).to_bytes(2, 'little') + bytes([len(note)])
+                    + note + b'\x1b*c2370a0003b0P')
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            b'Heading before the control' + ctl + HARD +
+            b'Plain paragraph of ordinary prose padding for detection.' + HARD)
+    doc = core.parse_ws(body)
+    assert 'EMPTY 3-dot rule' in emit.emit_text(doc, mode='modern')
+    assert 'EMPTY 3-dot rule' in emit.emit_rtf(doc, mode='modern')
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(doc, 'printed')
+    assert b'EMPTY 3-dot rule' not in pdf
+    assert b'Heading before the control' in pdf
+
+def test_proportional_font_advances_at_natural_width_not_nominal_grid():
+    # WS5+ wraps proportional text by summing the driver's per-character
+    # widths -- the nominal HMI is not the average advance. Tz-stretching
+    # every span onto the nominal grid is right for fixed pitch only; a
+    # proportional span sets at the substituted face's own AFM widths,
+    # unscaled, so no Tz operator ever appears.
+    univers = ws7_block(0x02, (155).to_bytes(2, 'little')
+                        + (240).to_bytes(2, 'little')
+                        + (49710).to_bytes(2, 'little') + bytes(6))
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            univers + b'iiii mmmm a proportional line of prose.' + HARD)
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(core.parse_ws(body), 'printed')
+    assert b' Tz ' not in pdf
+    assert b'proportional line' in pdf
+
 def test_detect_honours_the_header_blocks_declaration():
     # A WS5+ file DECLARES itself: a valid type-0 header block at offset 0.
     # Detection must believe it before running byte statistics -- and before
