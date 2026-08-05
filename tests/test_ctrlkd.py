@@ -2739,9 +2739,12 @@ def test_font_changes_render_as_runs():
     assert not any(t.startswith('font') for s in spans for t in s.styles
                    if 'Before' in s.text)
     rtf = emit.emit_rtf(doc, mode='modern')
-    assert '{\\f2 Courier;}' in rtf
+    assert '{\\f2 Courier{\\*\\falt Courier New};}' in rtf   # era name + RTF fallback
     assert '\\f2\\fs28 ' in rtf                       # 14pt = \fs28
     h = emit.emit_html(doc, mode='modern')
     assert "class=\"ws-font-0\"" in h
-    assert ".ws-font-0 { font-family:'Courier'; font-size:14pt }" in h
+    # CSS stack: original first (pass-through), modern alternate, then the
+    # generic from the font block's own style bits
+    assert "font-family:'Courier', 'Courier New', sans-serif" in h
+    assert 'font-size:14pt' in h
     assert 'ws-font-0' not in emit.emit_html(doc, mode='modern', styles=False).split('<body>')[0]

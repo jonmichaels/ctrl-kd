@@ -11,6 +11,7 @@ import html as _html
 import re
 
 from .core import merged_lines
+from .fontmap import font_stack, rtf_alternate
 
 # ---------------------------------------------------------------- registry
 #
@@ -488,7 +489,11 @@ def _font_ctl_rtf(doc):
             if fam not in fam_to_k:
                 fam_to_k[fam] = next_k
                 safe = fam.replace('\\', '').replace('{', '').replace('}', '')
-                extra.append('{\\f%d %s;}' % (next_k, safe))
+                alt = rtf_alternate(fam)
+                # {\*\falt X} is RTF's native fallback -- the era name
+                # travels first (pass-through), Word substitutes when absent
+                falt = ('{\\*\\falt %s}' % alt) if alt and alt != fam else ''
+                extra.append('{\\f%d %s%s;}' % (next_k, safe, falt))
                 next_k += 1
             parts += '\\f%d' % fam_to_k[fam]
         pts = f.get('points')
@@ -545,7 +550,10 @@ def _style_css(doc):
         props = []
         fam = _font_family(f.get('typestyle_name'))
         if fam:
-            props.append(f"font-family:'{fam}'")
+            stack = font_stack(fam, f.get('generic_style'))
+            css = ', '.join(n if ' ' not in n and n.islower() else f"'{n}'"
+                            for n in stack)
+            props.append(f'font-family:{css}')
         if f.get('points'):
             props.append('font-size:%.4gpt' % f['points'])
         if props:
