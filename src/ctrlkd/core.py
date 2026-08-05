@@ -1260,7 +1260,21 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str):
     if not m:
         return
     tag = m.group(1).upper()
-    text = m.group(2).decode(encoding, 'replace').rstrip()
+    # Wrapped extended characters <1B x 1C> appear in header text exactly as
+    # in the body (LJ6DTP separates its title from the `#` page number with
+    # a wrapped middle dot): decode them through the same cp437 rule the
+    # body uses -- control-range middles are chart glyphs, the rest are the
+    # byte's own cp437 character.
+    raw_txt = m.group(2)
+    parts, pos = [], 0
+    for t in re.finditer(rb'\x1b(.)\x1c', raw_txt, re.S):
+        parts.append(raw_txt[pos:t.start()].decode(encoding, 'replace'))
+        x = t.group(1)[0]
+        parts.append(CP437_GRAPHICS[x] if x < 0x20 or x == 0x7F
+                     else bytes([x]).decode(encoding, 'replace'))
+        pos = t.end()
+    parts.append(raw_txt[pos:].decode(encoding, 'replace'))
+    text = ''.join(parts).rstrip()
     which = doc.headers if tag.startswith(b'H') else doc.footers
     second = tag[1:2]
     line = 1 if second in (b'E', b'O') else int(second)
@@ -2377,7 +2391,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks.append(blk)
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
-            _parse_head_foot(cmd, doc, encoding)
+            # Header/footer TEXT is content, not command syntax: hand it the
+            # UNMASKED line. The bit-7 mask that protects WS4 command letters
+            # corrupts 8-bit argument text -- LJ6DTP's `.h1` carries a wrapped
+            # <1B F9 1C> middle dot whose F9 masked to 0x79, printing a 'y'
+            # beside every page number. WS4 (strip_hibit) keeps the mask: its
+            # flag bits really do ride on argument letters.
+            _parse_head_foot(cmd if strip_hibit else raw.rstrip(), doc,
+                             encoding)
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.
