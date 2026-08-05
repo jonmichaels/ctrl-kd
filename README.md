@@ -1,5 +1,13 @@
 # ctrl-kd
 
+```
+        __       __      __       __
+  _____/ /______/ /     / /______/ /
+ / ___/ __/ ___/ /_____/ //_/ __  /
+/ /__/ /_/ /  / /_____/ ,< / /_/ /
+\___/\__/_/  /_/     /_/|_|\__,_/
+```
+
 Convert WordStar-era files to modern formats. **^KD: save and done.**
 
 `ctrl-kd` reads WordStar 4 documents, WordStar 5–7 documents, and WordStar
