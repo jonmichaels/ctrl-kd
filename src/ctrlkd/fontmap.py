@@ -18,7 +18,7 @@ through to the generic.
 
 FONT_ALTS = {
     # PostScript base-35 and friends
-    'avant garde':            ['ITC Avant Garde Gothic', 'Century Gothic'],
+    'avant garde':            ['Century Gothic', 'ITC Avant Garde Gothic'],
     'bookman':                ['Bookman Old Style'],
     'cntry schlbk':           ['Century Schoolbook', 'New Century Schoolbook'],
     'newcntschlbk':           ['Century Schoolbook', 'New Century Schoolbook'],
