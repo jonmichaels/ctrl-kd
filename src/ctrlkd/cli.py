@@ -7,6 +7,18 @@
     ctrl-kd -t text -t html -d out/ *.WS   # batch, multiple formats
 """
 import argparse, json, os, sys
+
+BANNER = r"""        __       __      __       __
+  _____/ /______/ /     / /______/ /
+ / ___/ __/ ___/ /_____/ //_/ __  /
+/ /__/ /_/ /  / /_____/ ,< / /_/ /
+\___/\__/_/  /_/     /_/|_|\__,_/"""
+# FIGlet "Slant" by Glenn Chappell (1993) -- FIGlet's own co-creator, the
+# WordStar 7 release window. Jon's ruling: --version, --help, and the README
+# carry it; conversion output and stderr status never do. A static constant
+# because the name never changes; no .flf machinery needed.
+
+
 from . import core, emit
 from .convert import DEFAULT_NOTE_KINDS   # module attr, not the re-exported convert()
 
@@ -49,9 +61,13 @@ def main(argv=None):
     emit.load_plugins()          # third-party emitters (ctrlkd.emitters entry points)
     ap = argparse.ArgumentParser(
         prog='ctrl-kd',
-        description='Convert WordStar 4-7 documents and print-to-disk files to '
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=BANNER + '\n\n' + 'Convert WordStar 4-7 documents and print-to-disk files to '
                     'text, Markdown, HTML, RTF, or PDF (extensible: see '
                     'EXTENDING.md). ^KD: save and done.')
+    from . import __version__
+    ap.add_argument('--version', action='version',
+                    version=BANNER + f'\nctrl-kd {__version__}')
     ap.add_argument('files', nargs='+', help='input file(s)')
     ap.add_argument('-t', '--to', action='append', choices=emit.formats(),
                     help='output format (repeatable; default: markdown)')
