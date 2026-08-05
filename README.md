@@ -14,7 +14,9 @@ Convert WordStar-era files to modern formats. **^KD: save and done.**
 **print-to-disk files** (the printer byte stream, captured to a file — a distinct
 format most converters mangle), and writes plain text, Markdown, HTML, RTF, or PDF (set on a
 viewer's built-in base-14 fonts — no dependencies, nothing embedded, the page as it would have
-printed: printed mode follows the document's own font blocks, modern mode stays Courier).
+printed: printed mode follows the document's own font blocks *and its own layout
+arithmetic* — the `.lh` in force on each line, and each span placed at the
+per-character advance the file's font blocks declare — while modern mode stays Courier).
 
 ```console
 $ ctrl-kd ESSAY.WS                      # -> ESSAY.md
@@ -74,6 +76,13 @@ against surviving period printouts of the same documents. Its rules are empirica
   breaks — a soft return is where the line broke on paper, so printed output
   keeps it (and reflowed Modern output still joins it). `--diagnose` says
   whether each figure came from the file or from the default.
+  `.lh` is **stateful**: it applies from where it appears, so a document that
+  changes leading around its headings gets each line's own lead (page capacity
+  still uses the document default — see `pdf._printed_cap`). Horizontally,
+  printed mode places every span at the per-character advance (HMI, 1/1800in)
+  the document's own font blocks declare, scaling a proportional face onto
+  that grid with the Adobe Core 14 glyph metrics (`ctrlkd.afm`) — still no
+  dependencies, still nothing embedded.
   In `printed` mode footnotes are laid out the way WordStar laid them out: at
   the foot of the page that references them, behind a twenty-dash separator,
   split across pages with `...Continued...` when they do not fit.

@@ -2844,19 +2844,40 @@ def test_ws4_alternate_font_flag_is_stored_not_lost():
 # Modern mode stays Courier-only typewriter setting. WS4 files and print
 # streams carry no font blocks and are therefore Courier automatically.
 
-def _font_block(number, points=12.0, style_bits=0):
-    """One WS5+ font block: width word (HMI), height word (VMI = points*20),
-    typestyle word. Style bits ride in the typestyle word's high half."""
+def _font_block(number, points=12.0, style_bits=0, width=180):
+    """One WS5+ font block: width word (HMI, 1/1800in -- the per-character
+    advance WordStar laid the document out on; 180 = 10 CPI, the default
+    pica), height word (VMI = points*20), typestyle word. Style bits ride in
+    the typestyle word's high half."""
     ts = (number & 0x01FF) | style_bits
-    return ws7_block(0x02, (180).to_bytes(2, 'little')
+    return ws7_block(0x02, round(width).to_bytes(2, 'little')
                      + round(points * 20).to_bytes(2, 'little')
                      + ts.to_bytes(2, 'little') + bytes(6))
 
 
+def _helv_typestyle():
+    """A typestyle number the base-14 mapping resolves to Helvetica."""
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    return next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
+
+
+_SHOW_RE = (rb'/(F\d+) (\d+) Tf -?\d+ Ts (?:([\d.]+) Tz )?'
+            rb'(-?[\d.]+) (-?[\d.]+) Td \(((?:\\.|[^)\\])*)\) Tj')
+
+
 def _content_text(pdf):
-    """The content streams' text-showing operators as (font, size, text)."""
-    return [(m[0].decode(), int(m[1]), m[2])
-            for m in re.findall(rb'/(F\d+) (\d+) Tf \d+ Ts \(([^)]*)\) Tj', pdf)]
+    """The content streams' text-showing operators as (font, size, text).
+    Every span is its own text object at an absolute x since printed mode
+    started positioning on WordStar's own HMI grid; the Tz operator between
+    Ts and Td is optional (it is written only when the scaling CHANGES)."""
+    return [(m[0].decode(), int(m[1]), m[5]) for m in re.findall(_SHOW_RE, pdf)]
+
+
+def _content_spans(pdf):
+    """(font, size, tz-or-None, x, y, text) for every span shown."""
+    return [(m[0].decode(), int(m[1]),
+             float(m[2]) if m[2] else None, float(m[3]), float(m[4]), m[5])
+            for m in re.findall(_SHOW_RE, pdf)]
 
 
 def _basefonts(pdf):
@@ -2991,3 +3012,209 @@ def test_symbol_untransliteration_round_trips():
     assert untransliterate('α', 'math') == 'a'          # back to 0x61
     assert untransliterate('♣', 'symbols') == '\xa8'    # the cross-block four
     assert untransliterate('é', 'math') == '?'          # no such glyph there
+
+
+# ------------------------------------- printed mode on the document's own grid
+#
+# Jon's ruling, 2026-08-05: "Printed that ignores fonts can't call itself
+# Printed." A WS5+ printed PDF must honour the file's own layout arithmetic --
+# `.lh` as running state (vertical), the font blocks' HMI advances (horizontal),
+# and Tz width-matching so a proportional face lands on that horizontal grid.
+
+def test_lh_is_stateful_each_line_keeps_the_lead_it_was_set_at():
+    """`.lh` applies from where it appears, like `.oc` and `.lm` -- it is not a
+    once-per-document page property. The page dict still resolves the FIRST
+    occurrence (that is the document default, and what capacity is computed
+    at); every line additionally carries the lead in force where IT sat.
+
+    Before this, a document that switched leading around its headings had all
+    of it collapsed onto one value, which is how 72pt banners came to be
+    stacked on a 14pt lead."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'.lh 8' + HARD +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            b'.lh 16' + HARD +
+            b'A tall line that must sit on its own sixteen forty-eighths lead.' + HARD +
+            b'.lh 8' + HARD +
+            b'Back to six lines per inch for the rest of this small document.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['variant'] == 'ws5+'
+    lines = [ln for b in doc.blocks for ln in b.lines]
+    # first-wins page default is 8; only the line set at 16 carries a lead
+    assert doc.meta['page']['lh_48'] == 8.0
+    assert doc.meta['page']['lh_varies'] is True
+    assert [ln.lead_48 for ln in lines] == [None, 16.0, None]
+
+    # ...and the PDF advances by it. `.lh 16` = 16/48in = 24pt; the default
+    # `.lh 8` = 12pt. A lead is the space ABOVE its own line (it is a printer
+    # VMI: the feed onto the line uses the value set before it), so the gap
+    # from line 1 to line 2 is the TALL line's 24pt and the gap from 2 to 3 is
+    # the 12pt the file went back to.
+    ys = [y for _f, _sz, _tz, _x, y, _t in _content_spans(emit_pdf(doc, 'printed'))]
+    assert ys[0] - ys[1] == 24.0
+    assert ys[1] - ys[2] == 12.0
+
+    # PAGE CAPACITY deliberately stays on the document default -- 66-3-8 lines
+    # at .lh 8 = 55. Whether WordStar recomputed lines-per-page as `.lh`
+    # changed is UNMEASURED (register open question #15), and every way of
+    # guessing repaginates real documents on an assumption. See pdf._printed_cap.
+    assert doc.meta['page']['text_lines'] == 55
+
+
+def test_lh_before_the_first_one_is_wordstars_own_default_not_the_files():
+    """The document default is the FIRST `.lh`, so a file that sets `.lh 16`
+    after some text does not back-date it: those earlier lines really printed
+    at WordStar's own 8/48, and they say so explicitly."""
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            b'.lh 16' + HARD +
+            b'A second line, now at sixteen forty-eighths of an inch of lead.' + HARD)
+    doc = core.parse_ws(data)
+    lines = [ln for b in doc.blocks for ln in b.lines]
+    assert doc.meta['page']['lh_48'] == 16.0            # first occurrence wins
+    assert [ln.lead_48 for ln in lines] == [8.0, None]  # 8.0 is stated, not assumed
+
+
+def test_printed_x_comes_from_wordstars_own_hmi_arithmetic():
+    """Each span starts where WordStar's own per-character advance puts it:
+    the characters before it, each at its run's HMI width (1/1800in). 1800 HMI
+    is one inch is 72 points, so a run declaring 1800 advances 72pt per
+    character and the span after two of them starts 144pt along."""
+    from ctrlkd.pdf import emit_pdf, _printed_left, _printed_size
+    helv = _helv_typestyle()
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(helv, 72.0, width=1800) + b'AA' +
+            _font_block(helv, 12.0, width=180) + b'B' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    doc = core.parse_ws(data)
+    left = _printed_left(doc, _printed_size(doc))
+    spans = _content_spans(emit_pdf(doc, 'printed'))
+    aa = next(s for s in spans if s[5] == b'AA')
+    b = next(s for s in spans if s[5] == b'B')
+    assert aa[3] == round(left, 1)                       # first span at the margin
+    assert b[3] == round(left + 2 * 72.0, 1)             # 2 chars x 1800 HMI
+
+
+def test_tz_matches_a_proportional_span_to_the_hmi_grid():
+    """Times/Helvetica do not set a word in the width WordStar reserved for
+    it, so each span is scaled horizontally (Tz) until it does. The percentage
+    is the ratio of WordStar's own reserved width to the face's natural width
+    from the AFM tables -- computed, never tabulated here."""
+    from ctrlkd.pdf import emit_pdf, _printed_left
+    from ctrlkd.afm import string_width_pt
+    helv = _helv_typestyle()
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(helv, 12.0, width=180) + b'AAAA' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    doc = core.parse_ws(data)
+    span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
+    target = 4 * 180 / 25.0                              # 180 HMI = 7.2pt per char
+    natural = string_width_pt('AAAA', 'Helvetica', 12)   # 4 x 667/1000 em
+    assert span[2] == round(target / natural * 100.0, 2)
+    assert 80.0 < span[2] < 100.0        # Helvetica's cap A (667/1000 em) is WIDER
+                                          # than WordStar's 10-CPI cell, so it is
+                                          # squeezed onto the grid, not stretched
+
+
+def test_tz_is_100_for_courier_by_arithmetic_not_by_special_case():
+    """Courier is 600/1000 em and the fontless pitch is 0.6 em by derivation
+    from `.cw`, so the ratio comes out exactly 100 and NO Tz operator is
+    written at all. Nothing in the emitter tests for Courier to make this
+    happen -- it falls out of the same arithmetic every other face goes
+    through, which is the point: if the metrics and the grid ever disagreed
+    for Courier we would want to see it, not hide it."""
+    from ctrlkd.pdf import emit_pdf, _tz_scale
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    cour = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('courier'))
+    assert _tz_scale('Hello', 'Courier', 12, 5 * 180 / 25.0) == (None, 5 * 7.2)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(cour, 12.0, width=180) + b'Typescript.' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    pdf = emit_pdf(core.parse_ws(data), 'printed')
+    assert b' Tz' not in pdf
+
+
+def test_tz_clamp_falls_back_to_the_natural_advance():
+    """A ratio outside [40, 250] means the file's HMI and the substituted
+    base-14 face disagree pathologically -- a typestyle we can only
+    approximate, a printer pitch with nothing to do with Helvetica. Scaling to
+    obey it would produce glyphs stretched past legibility in the name of
+    fidelity, so the span keeps its natural advance instead and the following
+    span moves with it."""
+    from ctrlkd.pdf import emit_pdf, _tz_scale, _printed_left, TZ_MIN, TZ_MAX
+    from ctrlkd.afm import string_width_pt
+    helv = _helv_typestyle()
+    # in range -> scaled to the grid; out of range -> natural, no operator
+    assert _tz_scale('AA', 'Helvetica', 12, 40.0)[0] is not None
+    assert _tz_scale('AA', 'Helvetica', 12, 400.0) == (
+        None, string_width_pt('AA', 'Helvetica', 12))
+    assert _tz_scale('AA', 'Helvetica', 12, 0.1) == (
+        None, string_width_pt('AA', 'Helvetica', 12))
+    assert TZ_MIN == 40.0 and TZ_MAX == 250.0
+
+    # 1800 HMI at 12pt asks for 72pt per character where Helvetica sets 8 --
+    # a 900% stretch. The span is left alone and the next one follows it at
+    # its NATURAL width, not on the abandoned grid.
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(helv, 12.0, width=1800) + b'AA' +
+            _font_block(helv, 12.0, width=180) + b'B' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    doc = core.parse_ws(data)
+    left = _printed_left(doc, 12)
+    spans = _content_spans(emit_pdf(doc, 'printed'))
+    aa = next(s for s in spans if s[5] == b'AA')
+    b = next(s for s in spans if s[5] == b'B')
+    assert aa[2] is None                                  # no scaling written
+    assert b[3] == round(left + string_width_pt('AA', 'Helvetica', 12), 1)
+
+
+def test_tz_is_written_only_when_it_changes_because_it_is_text_state():
+    """Tz survives ET: it is text state, not a property of one text object. An
+    85 set on a banner would silently scale every following span in the same
+    content stream, so the operator is written on CHANGE only -- which is also
+    why a document that never needs it emits none (see the byte-identity
+    digests)."""
+    from ctrlkd.pdf import emit_pdf
+    helv = _helv_typestyle()
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(helv, 12.0, width=180) + b'Wide' +
+            _font_block(helv, 12.0, width=180) + b'Wide' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    spans = _content_spans(emit_pdf(core.parse_ws(data), 'printed'))
+    scaled = [s for s in spans if s[5] == b'Wide']
+    assert len(scaled) == 2
+    assert scaled[0][2] is not None                       # first sets the scaling
+    assert scaled[1][2] is None                           # same value: nothing to say
+    # ...and the next span that needs a DIFFERENT scaling states it again --
+    # lowercase Helvetica is narrower than caps, so the closing line's ratio
+    # is not the banner's and is written out rather than inherited.
+    closing = next(s for s in spans if s[5].startswith(b'A closing'))
+    assert closing[2] is not None and closing[2] != scaled[0][2]
+
+
+def test_leading_tab_indent_measures_in_print_columns_not_the_font():
+    """WordStar expands a tab to its stop in 10-CPI PRINT COLUMNS (`.tb` and
+    `.lm` are specified there, and core._tab_columns converts the tab's HMI
+    size to columns before emitting the padding). Run that padding at a 72pt
+    display font's own advance instead and a one-column offset becomes a
+    six-inch one -- which is exactly how the archive's banner document, which
+    tabs to 1.39in and then 1.4in to print a word twice with a 0.1in shadow,
+    threw its second copy off the right edge of the paper."""
+    from ctrlkd.pdf import emit_pdf, _printed_left
+    helv = _helv_typestyle()
+    tab = ws7_block(0x09, (2502).to_bytes(2, 'little') * 2 + b' \r')   # 1.39in
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.' + HARD +
+            _font_block(helv, 72.0, width=1064) + tab + b'X' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+    doc = core.parse_ws(data)
+    left = _printed_left(doc, 12)
+    x = next(s[3] for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'X')
+    assert x == round(left + 14 * 12 * 0.6, 1)     # 14 columns at 10 CPI, not
+                                                    # 14 x the 72pt font's 42.6pt
