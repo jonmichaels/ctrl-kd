@@ -20,6 +20,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from .symbolmap import transliterate, font_translit_kind
 from .typestyles import TYPESTYLE_NAMES
 
 # The cp437 GLYPHS at control-code positions (and 0x7F). Python's cp437 codec
@@ -1303,7 +1304,7 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict):
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
-                  font_at=()) -> list:
+                  font_at=(), fonts=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -1318,7 +1319,16 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
 
     def flush():
         if buf:
-            spans.append(Span(buf.decode(encoding, 'replace'), frozenset(active)))
+            text = buf.decode(encoding, 'replace')
+            # A byte set in Symbol/ZapfDingbats is a GLYPH INDEX, not styled
+            # text: transliterate through the font's own encoding into real
+            # Unicode (symbolmap.py), after which no font is required at all.
+            fidx = next((int(t[4:]) for t in active if t.startswith('font')), None)
+            if fidx is not None and fidx < len(fonts):
+                kind = font_translit_kind(fonts[fidx])
+                if kind:
+                    text = transliterate(text, kind)
+            spans.append(Span(text, frozenset(active)))
             buf.clear()
 
     pending = sorted(fnref_at)
@@ -2315,7 +2325,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             elif m[0] == 'font':
                 font_at.append((rel, m[1]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
-                              fn_counter, fnref_at, font_at)
+                              fn_counter, fnref_at, font_at, doc.fonts)
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':

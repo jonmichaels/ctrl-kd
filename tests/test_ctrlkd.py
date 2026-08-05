@@ -2748,3 +2748,24 @@ def test_font_changes_render_as_runs():
     assert "font-family:'Courier', 'Courier New', sans-serif" in h
     assert 'font-size:14pt' in h
     assert 'ws-font-0' not in emit.emit_html(doc, mode='modern', styles=False).split('<body>')[0]
+
+
+def test_symbol_and_dingbat_fonts_transliterate_to_unicode():
+    # A byte in Symbol/ZapfDingbats is a GLYPH INDEX, not styled text:
+    # 'a' in Symbol IS alpha; '!' in Dingbats IS U+2701 (Unicode's 2700
+    # block is ITC Zapf Dingbats by name and order). Transliterated at
+    # decode time, the output needs no font at all. Typestyle 41=Symbol,
+    # 34... use names via table: Symbol=41? -- built from the real table:
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    sym_n = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('symbol'))
+    ding_n = next(k for k, v in TYPESTYLE_NAMES.items() if 'dingbat' in v.lower())
+    def font(n):
+        return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                         + n.to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) + b'Plain. ' + font(sym_n) + b'abG ' +
+            font(ding_n) + b'!"#' + HARD)
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert 'αβΓ' in txt                    # Symbol run -> Greek
+    assert '✁✂✃' in txt     # Dingbats run -> U+2701..
+    assert 'Plain. ' in txt                # untouched outside the runs
