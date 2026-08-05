@@ -2798,3 +2798,23 @@ def test_fonts_target_selects_primaries_and_generic_coverage():
     assert '{\\f2 Futura{\\*\\falt Century Gothic};}' in mac
     goog = emit.emit_rtf(doc, mode='modern', fonts_target='google')
     assert 'Dancing Script' in goog
+
+
+def test_linux_target_uses_urw_base35_clones():
+    # The URW base-35 set (fonts-urw-base35, Ghostscript heritage) is free
+    # metric-compatible clones of EXACTLY this era's faces: URW Gothic IS
+    # Avant Garde, Z003 IS Zapf Chancery. The most faithful target, libre.
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    ag = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('avant garde'))
+    zc = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('zapfchancery'))
+    def font(n):
+        return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                         + (n & 0x01FF).to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) +
+            b'Prose padding for detection, a perfectly ordinary sentence.\r\n' +
+            font(ag) + b'Geometric. ' + font(zc) + b'Scripted.' + HARD +
+            b'Closing prose line keeps the byte ratio looking like text.\r\n')
+    doc = core.parse_ws(data)
+    rtf = emit.emit_rtf(doc, mode='modern', fonts_target='linux')
+    assert '{\\f2 URW Gothic{\\*\\falt Century Gothic};}' in rtf
+    assert 'Z003' in rtf

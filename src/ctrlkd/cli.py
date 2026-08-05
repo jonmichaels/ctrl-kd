@@ -66,11 +66,14 @@ def main(argv=None):
                     help='override detection')
     ap.add_argument('--encoding', default='cp437',
                     help='byte encoding of the source (default: cp437)')
-    ap.add_argument('--fonts', choices=('office', 'mac', 'google'),
+    ap.add_argument('--fonts', choices=('office', 'mac', 'google', 'linux'),
                     default='office',
-                    help='RTF font-name target: office (Word/Docs, default), '
+                    help='RTF font-name target: office (Word/Docs, default; '
+                         'these fonts ship with MS Office, not bare Windows), '
                          'mac (Cocoa-native: TextEdit/Pages), google (Docs '
-                         'catalog incl. its chancery script)')
+                         'catalog incl. its chancery script), linux (URW '
+                         'base-35 -- free clones of exactly this era\'s '
+                         'faces)')
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
