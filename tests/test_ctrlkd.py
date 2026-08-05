@@ -2836,6 +2836,147 @@ def test_ws4_alternate_font_flag_is_stored_not_lost():
     assert '0x01' not in d2.meta['unknown_codes']    # no longer noise
 
 
+# ------------------------------------------------- printed-mode base-14 fonts
+#
+# Jon's ruling, 2026-08-04: a PRINTED-mode PDF of a WS5+ document renders
+# WordStar's exact line breaks (it always did) PLUS the fonts the document
+# chose, through the PDF base-14 built-ins -- no embedding, no dependencies.
+# Modern mode stays Courier-only typewriter setting. WS4 files and print
+# streams carry no font blocks and are therefore Courier automatically.
+
+def _font_block(number, points=12.0, style_bits=0):
+    """One WS5+ font block: width word (HMI), height word (VMI = points*20),
+    typestyle word. Style bits ride in the typestyle word's high half."""
+    ts = (number & 0x01FF) | style_bits
+    return ws7_block(0x02, (180).to_bytes(2, 'little')
+                     + round(points * 20).to_bytes(2, 'little')
+                     + ts.to_bytes(2, 'little') + bytes(6))
+
+
+def _content_text(pdf):
+    """The content streams' text-showing operators as (font, size, text)."""
+    return [(m[0].decode(), int(m[1]), m[2])
+            for m in re.findall(rb'/(F\d+) (\d+) Tf \d+ Ts \(([^)]*)\) Tj', pdf)]
+
+
+def _basefonts(pdf):
+    """{'F1': b'Courier', ...} -- resolving the resource dict's indirect
+    references to the font objects they point at."""
+    objs = dict(re.findall(rb'(\d+) 0 obj\n<< /Type /Font /Subtype /Type1 '
+                           rb'/BaseFont /(\S+) >>', pdf))
+    return {n.decode(): objs[num]
+            for n, num in re.findall(rb'/(F\d+) (\d+) 0 R', pdf)}
+
+
+def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
+    """THE regression that guards the whole feature: a document with no font
+    runs -- every WS4 file, every print stream, and most WS5+ documents -- must
+    come out of emit_pdf byte for byte as it did before base-14 fonts existed
+    here. These digests were taken from the emitter as it stood at a2cad03,
+    the commit before the font work, and are the proof, not a description of
+    it: nothing about the new path may perturb a Courier page, including the
+    object numbering (which is why the Courier four are always emitted, used
+    or not -- see pdf.FontRes)."""
+    import hashlib
+    from ctrlkd.pdf import emit_pdf
+
+    def digest(doc, mode):
+        return hashlib.sha256(emit_pdf(doc, mode)).hexdigest()
+
+    styled = (b'Plain ' + b'\x02bold\x02 ' + b'\x13under\x13 '
+              + b'and (word) here.' + HARD
+              + b'More ordinary prose for the detector to chew on.' + HARD)
+    stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
+    assert digest(core.parse_ws(make_prose()), 'printed') == \
+        'ca74410ce6cdf27def1cc293b860b695b1745025505bf8af29c84acd322a08b8'
+    assert digest(core.parse_ws(make_prose()), 'modern') == \
+        '1e97def80007bd6578a0ab0910eeabcd883d7115b3369fb0660729280c18f69a'
+    assert digest(core.parse_ws(styled), 'printed') == \
+        '734aca69d48ddb539dcbd3699f9f3ddf9f46e8039508b7692a1680787fa7408f'
+    assert digest(core.parse_printstream(stream), 'printed') == \
+        'cd63c39b705acff2d8b2df84fde2f0a6ac28f9e2bcfed01ac75cfd9de9a98717'
+
+
+def test_pdf_printed_renders_the_documents_own_font_and_size():
+    """Typestyle 4 is 'Helv' with the block's own generic bits saying sans, at
+    14pt (height word 280 VMI = 14 points). Printed mode is a facsimile: it
+    sets that run in Helvetica at 14, from the file's own words. Modern mode
+    is Courier by ruling and must show neither."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'Before. ' + _font_block(4, 14.0) + b'After.' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['variant'] == 'ws5+' and doc.fonts
+
+    pdf = emit_pdf(doc, mode='printed')
+    assert b'/Filter' not in pdf                  # streams are uncompressed:
+                                                  # the text below is readable
+    fonts = _basefonts(pdf)
+    assert b'Helvetica' in fonts.values()
+    helv = next(n for n, b in fonts.items() if b == b'Helvetica')
+    assert fonts['F1'] == b'Courier'              # the four are still F1..F4
+    shown = _content_text(pdf)
+    assert (helv, 14, b'After.') in shown         # the block's own points
+    assert any(f == 'F1' and sz == 12 and b'Before.' in t for f, sz, t in shown)
+
+    modern = emit_pdf(doc, mode='modern')
+    assert b'Helvetica' not in modern and b'/Courier' in modern
+
+
+def test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes():
+    """A Symbol/ZapfDingbats byte is a glyph index, transliterated to Unicode
+    at parse time so text formats need no font. PDF is the one consumer that
+    HAS the font -- Symbol and ZapfDingbats are in the base-14 set -- so the
+    transliteration is undone and the original codes go back on the page:
+    'a' with /Symbol selected IS alpha, in any viewer, with nothing embedded."""
+    from ctrlkd.pdf import emit_pdf
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    sym_n = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('symbol'))
+    ding_n = next(k for k, v in TYPESTYLE_NAMES.items() if 'dingbat' in v.lower())
+    data = (ws7_block(0x00) +
+            b'Plain prose padding so the detector reads this as a document.'
+            + HARD + b'Greek: ' + _font_block(sym_n) + b'abG' +
+            _font_block(ding_n) + b'!"#' + HARD +
+            b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert 'αβΓ' in txt and '✁✂✃' in txt          # text output: still Unicode
+
+    pdf = emit_pdf(doc, mode='printed')
+    fonts = _basefonts(pdf)
+    assert b'Symbol' in fonts.values() and b'ZapfDingbats' in fonts.values()
+    sym = next(n for n, b in fonts.items() if b == b'Symbol')
+    ding = next(n for n, b in fonts.items() if b == b'ZapfDingbats')
+    shown = _content_text(pdf)
+    assert (sym, 12, b'abG') in shown             # alpha is back to 0x61 'a'
+    assert (ding, 12, b'!\\"#') in shown or (ding, 12, b'!"#') in shown
+
+
+def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
+    """The trap this ordering exists for: the spec's own font block for
+    Courier declares generic_style 'serif' -- honest typography (it is a slab
+    serif) and true of 48 of the 121 font blocks in the reference corpus.
+    Reading the generic bits before the fixed-pitch names would have set every
+    Courier run in Times, the one substitution a typescript facsimile must
+    never make. Pica/Elite/LinePrinter go the same way."""
+    from ctrlkd.pdf import _pdf_family
+    assert _pdf_family({'typestyle_name': 'Courier', 'generic_style': 'serif'}) == 'Courier'
+    assert _pdf_family({'typestyle_name': 'Pica', 'generic_style': 'serif'}) == 'Courier'
+    assert _pdf_family({'typestyle_name': 'LinePrinter', 'generic_style': 'sans'}) == 'Courier'
+    # everything else resolves by the strict serif/sans/mono split (Jon's
+    # amendment: no special flavouring for faces we cannot truly represent)
+    assert _pdf_family({'typestyle_name': 'Garamond', 'generic_style': 'serif'}) == 'Times'
+    assert _pdf_family({'typestyle_name': 'Univers', 'generic_style': 'sans'}) == 'Helvetica'
+    assert _pdf_family({'typestyle_name': 'ZapfChancery', 'generic_style': 'script'}) == 'Times'
+    assert _pdf_family({'typestyle_name': 'Univ. Roman', 'generic_style': 'display'}) == 'Helvetica'
+    assert _pdf_family({'typestyle_name': None, 'generic_style': None}) == 'Courier'
+    assert _pdf_family(None) == 'Courier'
+
+
 def test_symbol_untransliteration_round_trips():
     """The reverse maps are the forward maps read backwards, and the pair has
     to survive the trip: transliterate then untransliterate is identity for

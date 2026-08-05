@@ -4,8 +4,9 @@ Convert WordStar-era files to modern formats. **^KD: save and done.**
 
 `ctrl-kd` reads WordStar 4 documents, WordStar 5–7 documents, and WordStar
 **print-to-disk files** (the printer byte stream, captured to a file — a distinct
-format most converters mangle), and writes plain text, Markdown, HTML, RTF, or PDF (typewriter-set on the
-built-in Courier fonts — no dependencies, the page as it would have printed).
+format most converters mangle), and writes plain text, Markdown, HTML, RTF, or PDF (set on a
+viewer's built-in base-14 fonts — no dependencies, nothing embedded, the page as it would have
+printed: printed mode follows the document's own font blocks, modern mode stays Courier).
 
 ```console
 $ ctrl-kd ESSAY.WS                      # -> ESSAY.md
