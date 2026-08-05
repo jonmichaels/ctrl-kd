@@ -58,6 +58,19 @@ class Line:
                                           # print pipeline (measured byte-identical,
                                           # 2026-08-04). Recorded for viewers; never a
                                           # page break, and never splits a block
+    # The line height IN FORCE ON THIS LINE, in `.lh`'s own 1/48in units --
+    # None meaning "the document's own default" (doc.meta['page']['lh_48']),
+    # which is the overwhelmingly common case and keeps the field free for
+    # every file that never changes leading.
+    #
+    # `.lh` is STATEFUL: it applies from where it appears onward, exactly like
+    # `.oc`/`.lm`, and real documents switch it constantly (one archive file
+    # alternates `.lh10pt` and `.lh16pt` around its banner headings). The page
+    # dict's `lh_48` is the FIRST occurrence -- one resolved answer per
+    # document, which is what a consumer needs for a default and for
+    # --diagnose -- and resolving ONLY that stacked 72pt banners on a single
+    # 14pt lead, which is the bug this field exists to fix. Register C24.
+    lead_48: float = None
 
     def text(self):
         return ''.join(s.text for s in self.spans)
@@ -959,6 +972,26 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 state['orientation'] = 'landscape'
             elif o == b'p':
                 state['orientation'] = 'portrait'
+    elif name == b'LH':                     # line height, 1/48in units
+        # Also read (first occurrence only) by `_parse_page_dot` into the page
+        # dict, which is the DOCUMENT-LEVEL default -- page capacity, the
+        # emitters' baseline lead, --diagnose. That reading is not wrong; it is
+        # incomplete. `.lh` is stateful like every other command in this
+        # function, and a document that sets `.lh10pt` before its body and
+        # `.lh16pt` before each banner heading means both, in order. Carried
+        # per LINE (Line.lead_48) because that is the granularity it acts at --
+        # a lead is the distance to the next baseline, not a property of a
+        # paragraph. Register C24.
+        m = _DOT_NUM_RE.match(arg)
+        if m:
+            try:
+                value = float(m.group(1))
+            except (TypeError, ValueError):
+                return
+            if math.isfinite(value):
+                resolved = _resolve_lh_arg(value, m.group(2))
+                if resolved is not None:     # junk/non-positive: state stands
+                    state['lead_48'] = resolved
     elif name in (b'LM', b'RM', b'PM'):     # left / right / paragraph margin
         # Print columns at 10 CPI, matching `.po`; a unit suffix converts. The
         # archive writes both (`.rm 65` and `.rm 6.5"`).
@@ -2188,6 +2221,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     def close_line():
         nonlocal cur_line
         if cur_line.spans:
+            # The `.lh` in force AS THIS LINE ENDS -- a dot command sits on its
+            # own line, so `fmt` cannot change part-way through a text line.
+            # Absolute here (WordStar's own 8/48 until the file says otherwise);
+            # normalised against the document default once that is known, below.
+            cur_line.lead_48 = fmt.get('lead_48', DEFAULT_LH_48)
             cur.lines.append(cur_line)
         cur_line = Line()
 
@@ -2360,7 +2398,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # paragraph boundary. `soft` records which kind it was: `.ls` filler
             # (soft) versus the author's own return (hard).
             close_line()
-            blank = Line(spans=[], soft=(sep == 'blank-soft'))
+            blank = Line(spans=[], soft=(sep == 'blank-soft'),
+                         lead_48=fmt.get('lead_48', DEFAULT_LH_48))
             if not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para':
                 # The text line before this one carried 'para' and already
                 # closed its block, so `cur` is empty. On paper this blank
@@ -2383,7 +2422,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         k: v for k, v in fmt.items()
         if k not in ('centering', 'justify', 'wrap',
                      'left_margin', 'right_margin', 'para_margin',
-                     'columns', 'column_gutter')}
+                     'columns', 'column_gutter',
+                     # per-LINE state, and already published twice: as the
+                     # document default in meta['page']['lh_48'] and per line
+                     # in Line.lead_48. A third copy here would be the LAST
+                     # value the file happened to set, which means nothing.
+                     'lead_48')}
     # (block, line, text) for each dot command, so a caller can render one in
     # place instead of only knowing that it existed somewhere.
     doc.meta['dot_positions'] = dot_at
@@ -2452,6 +2496,27 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['page']['text_lines'] = _text_lines_per_page(
         doc.meta['page']['pl_lines'], doc.meta['page']['mt_lines'],
         doc.meta['page']['mb_lines'], doc.meta['page']['lh_48'])
+    # Line.lead_48 was recorded absolutely; now that the document default is
+    # known, every line that simply agrees with it goes back to None. The field
+    # then means what it says -- "this line's lead DIFFERS" -- so the common
+    # case (one `.lh`, or none) leaves the whole document clean and an emitter
+    # can test one attribute instead of comparing floats on every line.
+    #
+    # Note the asymmetry this deliberately preserves: the default is the FIRST
+    # `.lh` in the file, so lines BEFORE it keep an explicit 8.0 (WordStar's
+    # own 6 LPI, which is what they really printed at) rather than being
+    # back-dated to a setting that had not happened yet.
+    default_lead = doc.meta['page']['lh_48']
+    varying = False
+    for blk in doc.blocks:
+        for ln in blk.lines:
+            if ln.lead_48 == default_lead:
+                ln.lead_48 = None
+            elif ln.lead_48 is not None:
+                varying = True
+    # One flag so a consumer (and the diagnostics) can say "this document
+    # changes its leading" without walking every line.
+    doc.meta['page']['lh_varies'] = varying
     if meta_extra:
         doc.meta.update(meta_extra)
     return doc

@@ -62,6 +62,11 @@ Line
   .spans      list[Span]
   .soft       bool           # True: ends in WordStar's own word wrap (a real line
                              # break on paper; just a join point for reflow)
+  .lead_48    float | None   # the `.lh` line height in force ON THIS LINE, in
+                             # 1/48in units. None = the document default,
+                             # doc.meta['page']['lh_48'] — the common case.
+                             # `.lh` is stateful, so a document that changes
+                             # leading around its headings says so here.
   .text()     -> str        # convenience: all span text joined
 Span
   .text       str
@@ -87,6 +92,10 @@ Semantics worth knowing:
 * Leading spaces in line text are the author's indentation. Keep them if your
   format can.
 * Blank-line geometry inside `printed`-mode documents is page layout — preserve it.
+* A line's `lead_48` is the space **above** it, not below: `.lh` is a printer VMI,
+  set before the feed that lands on the line it was typed for. `doc.meta['page']
+  ['lh_48']` remains the document default (and what page capacity is computed at);
+  `doc.meta['page']['lh_varies']` is True when any line differs from it.
 
 ## Worked example: a BBCode emitter
 
