@@ -90,6 +90,15 @@ def main(argv=None):
                          'catalog incl. its chancery script), linux (URW '
                          'base-35 -- free clones of exactly this era\'s '
                          'faces)')
+    ap.add_argument('--page-defaults', metavar='mt=0.83in,mb=1in,po=0.7in',
+                    help='replacement DEFAULTS for page geometry the document '
+                         'does not declare (its own dot commands always win). '
+                         'Keys: mt, mb (top/bottom margin), po (page offset), '
+                         'hm, fm (header/footer margin). Values take an "in" '
+                         'suffix for inches, else native units (lines at 6 '
+                         'LPI; po in 10-CPI columns). Use when the printing '
+                         "machine's WSCHANGE-patched defaults are known -- "
+                         'stock WordStar is not what every printer produced')
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
@@ -109,6 +118,26 @@ def main(argv=None):
         notes = set(DEFAULT_NOTE_KINDS) | ({'comment'} if a.comments else set())
     if a.output and (len(a.files) > 1 or len(formats) > 1):
         ap.error('-o works with a single input and a single format; use -d for batch')
+
+    page_defaults = None
+    if a.page_defaults:
+        # mt/mb/hm/fm -> lines at 6 LPI, po -> 10-CPI columns; an "in" suffix
+        # converts from inches, a bare number is already native units
+        keymap = {'mt': ('mt_lines', 6.0), 'mb': ('mb_lines', 6.0),
+                  'hm': ('hm_lines', 6.0), 'fm': ('fm_lines', 6.0),
+                  'po': ('po_cols', 10.0)}
+        page_defaults = {}
+        for part in a.page_defaults.split(','):
+            k, _, v = part.partition('=')
+            k, v = k.strip().lower(), v.strip().lower()
+            if k not in keymap or not v:
+                ap.error(f'--page-defaults: unknown or empty entry {part!r}')
+            dest, per_inch = keymap[k]
+            try:
+                page_defaults[dest] = (float(v[:-2]) * per_inch
+                                       if v.endswith('in') else float(v))
+            except ValueError:
+                ap.error(f'--page-defaults: bad value in {part!r}')
 
     status = 0
     for path in a.files:
@@ -132,7 +161,8 @@ def main(argv=None):
         for fmt in formats:
             reg = emit.get_emitter(fmt)
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
-                            styles=not a.no_styles, fonts_target=a.fonts)
+                            styles=not a.no_styles, fonts_target=a.fonts,
+                            page_defaults=page_defaults)
             if a.output:
                 dest = a.output
             else:

@@ -35,14 +35,11 @@ OWN encoding -- the codes pdf.py deliberately writes back via
 symbolmap.untransliterate, so a Symbol 'a' really is alpha and really is
 631/1000 wide.
 
-Known and deliberate limit: the font objects this emitter writes carry no
-/Encoding, so a viewer draws the faces' built-in StandardEncoding. Over
-0x20-0x7E that agrees with Latin-1 for every code but 0x27 and 0x60 (quote
-forms); above 0x7E it does not. Widths for accented Latin-1 are therefore
-what the AUTHOR's bytes mean, not what an un-re-encoded viewer draws. Fixing
-that means adding /Encoding to every font object, which would change every
-PDF this project has ever produced -- a separate decision, recorded here
-rather than made in passing.
+(Since 2026-08-05 the text font objects declare /Encoding /WinAnsiEncoding
+and pdf._esc writes cp1252, so bytes, glyphs and these widths agree over the
+whole range -- including the 0x80-0x9F typographic row, overlaid onto the
+Latin-1-named base tables below. The decision this paragraph used to defer
+was made, and the digest pins re-taken with it.)
 
 A code with no glyph in a face gets 0. Callers must treat a zero-width string
 as "no metric available" rather than dividing by it (pdf.py does).
@@ -246,19 +243,75 @@ COURIER_WIDTH = 600
 _COURIER = (COURIER_WIDTH,) * 256
 
 # basefont name (the PDF /BaseFont, i.e. pdf.BASE14's own values) -> widths
+# WinAnsiEncoding's 0x80-0x9F row -- the typographic range cp1252 adds over
+# Latin-1 (curly quotes, en/em dashes, ellipsis, bullet, dagger, trademark,
+# ligatures). The Latin-1-named base tables above carry 0 there; since
+# pdf._esc writes cp1252 and the font objects declare /WinAnsiEncoding,
+# these slots are real glyphs with real Adobe AFM widths. Slots WinAnsi
+# leaves undefined (0x80 euro on the era's faces, 0x8D, 0x8F, 0x90, 0x9D)
+# stay 0. Applied as an overlay so the hand-transcribed literals above stay
+# exactly as the AFM files list them.
+_WINANSI_HI = {
+    #        sb₁  flo  db₂  ell  dag  ddg  cir  pm   Scn  gsl  OE       ql   qr   dl   dr   bul  en   em   til  tm   scn  gsr  oe        Zcn zcn  Ydi
+    'Helvetica':            {0x82: 222, 0x83: 556, 0x84: 333, 0x85: 1000,
+        0x86: 556, 0x87: 556, 0x88: 333, 0x89: 1000, 0x8A: 667, 0x8B: 333,
+        0x8C: 1000, 0x8E: 611, 0x91: 222, 0x92: 222, 0x93: 333, 0x94: 333,
+        0x95: 350, 0x96: 556, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 500,
+        0x9B: 333, 0x9C: 944, 0x9E: 500, 0x9F: 667},
+    'Helvetica-Bold':       {0x82: 278, 0x83: 556, 0x84: 500, 0x85: 1000,
+        0x86: 556, 0x87: 556, 0x88: 333, 0x89: 1000, 0x8A: 667, 0x8B: 333,
+        0x8C: 1000, 0x8E: 611, 0x91: 278, 0x92: 278, 0x93: 500, 0x94: 500,
+        0x95: 350, 0x96: 556, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 556,
+        0x9B: 333, 0x9C: 944, 0x9E: 500, 0x9F: 667},
+    'Times-Roman':          {0x82: 333, 0x83: 500, 0x84: 444, 0x85: 1000,
+        0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
+        0x8C: 889, 0x8E: 611, 0x91: 333, 0x92: 333, 0x93: 444, 0x94: 444,
+        0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 980, 0x9A: 389,
+        0x9B: 333, 0x9C: 722, 0x9E: 444, 0x9F: 722},
+    'Times-Bold':           {0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
+        0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
+        0x8C: 1000, 0x8E: 667, 0x91: 333, 0x92: 333, 0x93: 500, 0x94: 500,
+        0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 389,
+        0x9B: 333, 0x9C: 722, 0x9E: 444, 0x9F: 722},
+    'Times-Italic':         {0x82: 333, 0x83: 500, 0x84: 556, 0x85: 889,
+        0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 500, 0x8B: 333,
+        0x8C: 944, 0x8E: 556, 0x91: 333, 0x92: 333, 0x93: 556, 0x94: 556,
+        0x95: 350, 0x96: 500, 0x97: 889, 0x98: 333, 0x99: 980, 0x9A: 389,
+        0x9B: 333, 0x9C: 667, 0x9E: 389, 0x9F: 556},
+    'Times-BoldItalic':     {0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
+        0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
+        0x8C: 944, 0x8E: 611, 0x91: 333, 0x92: 333, 0x93: 500, 0x94: 500,
+        0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 389,
+        0x9B: 333, 0x9C: 722, 0x9E: 389, 0x9F: 611},
+}
+_WINANSI_HI['Helvetica-Oblique'] = _WINANSI_HI['Helvetica']
+_WINANSI_HI['Helvetica-BoldOblique'] = _WINANSI_HI['Helvetica-Bold']
+_COURIER_HI = {k: 600 for k in _WINANSI_HI['Helvetica']}
+
+
+def _overlay(base, hi):
+    t = list(base)
+    for k, v in hi.items():
+        t[k] = v
+    return tuple(t)
+
+
 WIDTHS = {
-    'Courier': _COURIER,
-    'Courier-Bold': _COURIER,
-    'Courier-Oblique': _COURIER,
-    'Courier-BoldOblique': _COURIER,
-    'Helvetica': _HELVETICA,
-    'Helvetica-Bold': _HELVETICA_BOLD,
-    'Helvetica-Oblique': _HELVETICA_OBLIQUE,
-    'Helvetica-BoldOblique': _HELVETICA_BOLDOBLIQUE,
-    'Times-Roman': _TIMES_ROMAN,
-    'Times-Bold': _TIMES_BOLD,
-    'Times-Italic': _TIMES_ITALIC,
-    'Times-BoldItalic': _TIMES_BOLDITALIC,
+    'Courier': _overlay(_COURIER, _COURIER_HI),
+    'Courier-Bold': _overlay(_COURIER, _COURIER_HI),
+    'Courier-Oblique': _overlay(_COURIER, _COURIER_HI),
+    'Courier-BoldOblique': _overlay(_COURIER, _COURIER_HI),
+    'Helvetica': _overlay(_HELVETICA, _WINANSI_HI['Helvetica']),
+    'Helvetica-Bold': _overlay(_HELVETICA_BOLD, _WINANSI_HI['Helvetica-Bold']),
+    'Helvetica-Oblique': _overlay(_HELVETICA_OBLIQUE,
+                                  _WINANSI_HI['Helvetica-Oblique']),
+    'Helvetica-BoldOblique': _overlay(_HELVETICA_BOLDOBLIQUE,
+                                      _WINANSI_HI['Helvetica-BoldOblique']),
+    'Times-Roman': _overlay(_TIMES_ROMAN, _WINANSI_HI['Times-Roman']),
+    'Times-Bold': _overlay(_TIMES_BOLD, _WINANSI_HI['Times-Bold']),
+    'Times-Italic': _overlay(_TIMES_ITALIC, _WINANSI_HI['Times-Italic']),
+    'Times-BoldItalic': _overlay(_TIMES_BOLDITALIC,
+                                 _WINANSI_HI['Times-BoldItalic']),
     'Symbol': _SYMBOL,
     'ZapfDingbats': _ZAPFDINGBATS,
 }
@@ -267,16 +320,16 @@ WIDTHS = {
 def string_width_1000(text, basefont):
     """Natural width of `text` set in `basefont`, in 1/1000 em.
 
-    `text` is measured as pdf.py will WRITE it -- encoded Latin-1, with
-    anything outside that repertoire replaced by '?', which is exactly what
-    `pdf._esc` does. Measuring the str directly would count a character the
-    PDF never receives.
+    `text` is measured as pdf.py will WRITE it -- encoded cp1252 (the
+    declared /WinAnsiEncoding), with anything outside that repertoire
+    replaced by '?', which is exactly what `pdf._esc` does. Measuring the
+    str directly would count a character the PDF never receives.
 
     An unknown basefont falls back to Courier's fixed 600: a face this table
     does not carry cannot be measured, and 600 is this emitter's own default
     pitch, not a guess at the missing face."""
     table = WIDTHS.get(basefont, _COURIER)
-    return sum(table[b] for b in text.encode('latin-1', 'replace'))
+    return sum(table[b] for b in text.encode('cp1252', 'replace'))
 
 
 def string_width_pt(text, basefont, size):
