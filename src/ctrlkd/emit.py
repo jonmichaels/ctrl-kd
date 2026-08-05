@@ -11,7 +11,7 @@ import html as _html
 import re
 
 from .core import merged_lines
-from .fontmap import font_stack, rtf_alternate
+from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
 #
@@ -476,35 +476,35 @@ def _font_family(name):
     return (name or '').split(' (')[0].strip()
 
 
-def _font_ctl_rtf(doc):
+def _font_ctl_rtf(doc, target='office'):
     """(fonttbl_extra, {'fontN': control}) for RTF: one \fK per DISTINCT
-    named family (starting at \f2), plus \fs from the block's own height
-    word. Unnamed typestyles still carry their size."""
-    extra, ctl, fam_to_k = [], {}, {}
+    resolved primary (starting at \f2), plus \fs from the block's own height
+    word.
+
+    Primary + falt come from fontmap.rtf_fonts for the chosen render TARGET
+    (office/mac/google -- Jon's ruling, 2026-08-04 night): the primary is
+    the target's best available name, the falt the next-best MODERN name --
+    never the era name, which nothing modern resolves ('PS SansSer Qual').
+    Unmapped and even UNNAMED fonts land on the target's generic primary
+    from the font block's own style bits, so every run gets a usable face.
+    The verbatim era name stays first-class in doc.fonts and leads the HTML
+    stacks, where CSS fallback works properly."""
+    extra, ctl, prim_to_k = [], {}, {}
     next_k = 2
     for idx, f in enumerate(doc.fonts):
         parts = ''
         fam = _font_family(f.get('typestyle_name'))
-        if fam:
-            if fam not in fam_to_k:
-                fam_to_k[fam] = next_k
-                safe = fam.replace('\\', '').replace('{', '').replace('}', '')
-                alt = rtf_alternate(fam)
-                # PRIMARY is the modern equivalent, the era name rides in
-                # {\*\falt}: TextEdit (and every Cocoa RTF importer,
-                # including the future Soft Return.app) ignores \falt
-                # entirely and silently substitutes Helvetica for an unknown
-                # primary -- Jon's PS.TST render, 2026-08-04. Word honours
-                # whichever name it finds first, so a machine with the era
-                # font still reaches it via the falt. The VERBATIM era name
-                # always remains in doc.fonts and leads the HTML stacks,
-                # where CSS fallback works properly.
-                if alt and alt != fam:
-                    extra.append('{\\f%d %s{\\*\\falt %s};}' % (next_k, alt, safe))
+        primary, falt = rtf_fonts(fam, f.get('generic_style'), target)
+        if primary:
+            if primary not in prim_to_k:
+                prim_to_k[primary] = next_k
+                safe = primary.replace('\\', '').replace('{', '').replace('}', '')
+                if falt and falt != primary:
+                    extra.append('{\\f%d %s{\\*\\falt %s};}' % (next_k, safe, falt))
                 else:
                     extra.append('{\\f%d %s;}' % (next_k, safe))
                 next_k += 1
-            parts += '\\f%d' % fam_to_k[fam]
+            parts += '\\f%d' % prim_to_k[primary]
         pts = f.get('points')
         if pts:
             parts += '\\fs%d' % round(pts * 2)
@@ -750,14 +750,15 @@ def _rtf_stylesheet(doc):
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             **_options):
+             fonts_target='office', **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc) if styles else ''
-    fonttbl_extra, fontctl = _font_ctl_rtf(doc) if styles else ('', {})
+    fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target)
+                              if styles else ('', {}))
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
     parts = []
