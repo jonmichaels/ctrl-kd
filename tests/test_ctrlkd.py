@@ -2762,9 +2762,12 @@ def test_symbol_and_dingbat_fonts_transliterate_to_unicode():
     def font(n):
         return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
                          + n.to_bytes(2, 'little') + bytes(6))
-    data = (ws7_block(0x00) + b'Plain. ' + font(sym_n) + b'abG ' +
-            font(ding_n) + b'!"#' + HARD)
+    data = (ws7_block(0x00) +
+            b'Plain prose padding so the detector reads this as a document.\r\n' +
+            b'Plain. ' + font(sym_n) + b'abG ' + font(ding_n) + b'!"#' + HARD +
+            b'And a closing line of ordinary prose keeps the ratio honest.\r\n')
     doc = core.parse_ws(data)
+    assert doc.meta['variant'] == 'ws5+'
     txt = emit.emit_text(doc, mode='printed')
     assert 'αβΓ' in txt                    # Symbol run -> Greek
     assert '✁✂✃' in txt     # Dingbats run -> U+2701..
