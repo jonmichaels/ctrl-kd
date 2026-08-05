@@ -496,12 +496,14 @@ def test_print_control_display_string_is_screen_only_in_printed_pdf():
     assert b'EMPTY 3-dot rule' not in pdf
     assert b'Heading before the control' in pdf
 
-def test_proportional_font_advances_at_natural_width_not_nominal_grid():
-    # WS5+ wraps proportional text by summing the driver's per-character
-    # widths -- the nominal HMI is not the average advance. Tz-stretching
-    # every span onto the nominal grid is right for fixed pitch only; a
-    # proportional span sets at the substituted face's own AFM widths,
-    # unscaled, so no Tz operator ever appears.
+def test_proportional_font_keeps_its_own_hmi_grid_via_tz():
+    # Every font run is width-matched onto ITS OWN font block's HMI grid
+    # with Tz -- proportional faces included. PS.TST's faces declare
+    # distinct per-character HMIs (Helv Narrow 4.80pt, Univ. Roman
+    # 10.08pt): the grid is what preserves each face's true measure and
+    # keeps text registered with tabs, rules and vector graphics (Jon's
+    # review, 2026-08-05, after a natural-width detour flattened them all
+    # to the substitute's uniform average).
     univers = ws7_block(0x02, (155).to_bytes(2, 'little')
                         + (240).to_bytes(2, 'little')
                         + (49710).to_bytes(2, 'little') + bytes(6))
@@ -509,7 +511,7 @@ def test_proportional_font_advances_at_natural_width_not_nominal_grid():
             univers + b'iiii mmmm a proportional line of prose.' + HARD)
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(body), 'printed')
-    assert b' Tz ' not in pdf
+    assert b' Tz ' in pdf                       # scaled onto the 6.2pt grid
     assert b'proportional line' in pdf
 
 def test_detect_honours_the_header_blocks_declaration():
@@ -2961,7 +2963,8 @@ def _basefonts(pdf):
     """{'F1': b'Courier', ...} -- resolving the resource dict's indirect
     references to the font objects they point at."""
     objs = dict(re.findall(rb'(\d+) 0 obj\n<< /Type /Font /Subtype /Type1 '
-                           rb'/BaseFont /(\S+) >>', pdf))
+                           rb'/BaseFont /([^\s/>]+)(?: /Encoding'
+                           rb' /WinAnsiEncoding)? >>', pdf))
     return {n.decode(): objs[num]
             for n, num in re.findall(rb'/(F\d+) (\d+) 0 R', pdf)}
 
@@ -2969,12 +2972,15 @@ def _basefonts(pdf):
 def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     """THE regression that guards the whole feature: a document with no font
     runs -- every WS4 file, every print stream, and most WS5+ documents -- must
-    come out of emit_pdf byte for byte as it did before base-14 fonts existed
-    here. These digests were taken from the emitter as it stood at a2cad03,
-    the commit before the font work, and are the proof, not a description of
-    it: nothing about the new path may perturb a Courier page, including the
-    object numbering (which is why the Courier four are always emitted, used
-    or not -- see pdf.FontRes)."""
+    come out of emit_pdf byte for byte across unrelated feature work. First
+    pinned at a2cad03 (pre-font emitter); re-pinned ONCE on 2026-08-05 when
+    /Encoding /WinAnsiEncoding was added to every text font object -- a
+    deliberate, global, single-line change to the font dictionaries (cp1252
+    strings need the declared encoding; without it the base-14 built-in
+    StandardEncoding renders curly quotes and dashes as the wrong glyphs).
+    Nothing else about the fonts/colour/graphics work may perturb a Courier
+    page, including the object numbering (which is why the Courier four are
+    always emitted, used or not -- see pdf.FontRes)."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -2986,13 +2992,13 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        'ca74410ce6cdf27def1cc293b860b695b1745025505bf8af29c84acd322a08b8'
+        'd8f6c993a645c735df77a78f58e4dd44464219685e49403e69359d5ff0641e3b'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
-        '1e97def80007bd6578a0ab0910eeabcd883d7115b3369fb0660729280c18f69a'
+        'a78b6655ab04698ed1b1b3b550a0d734aa4c713ab74e9c41cf8304b0881c05d8'
     assert digest(core.parse_ws(styled), 'printed') == \
-        '734aca69d48ddb539dcbd3699f9f3ddf9f46e8039508b7692a1680787fa7408f'
+        'a9ffc0cb6a78d7c145306d3a22c1b210d04f1b87b6d38ff7fb7936c969908d39'
     assert digest(core.parse_printstream(stream), 'printed') == \
-        'cd63c39b705acff2d8b2df84fde2f0a6ac28f9e2bcfed01ac75cfd9de9a98717'
+        '6d6555d63a003a276e67c8291ab31b653cc526e4ec47bf6f6cc5da50849d7e98'
 
 
 def test_pdf_printed_renders_the_documents_own_font_and_size():
