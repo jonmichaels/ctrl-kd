@@ -12,7 +12,9 @@ One IR, many emitters: `core.py` (detection + parsing → Document/Block/Line/Sp
 Changing Block/Line/Span, `convert()`, or CLI flags is a **major version bump**, period.
 
 - **Zero runtime dependencies is a design constraint**, not an accident. PDF is
-  hand-written on the base-14 Courier fonts for exactly this reason. Don't add deps.
+  hand-written on the base-14 fonts (Courier/Times/Helvetica/Symbol/ZapfDingbats —
+  every viewer has them, so nothing is ever embedded) for exactly this reason.
+  Don't add deps.
 - New output formats go through the registry (`@emitter(...)` in emit.py, or the
   `ctrlkd.emitters` entry-point group) — never special-cased in cli.py.
 - Detection is **content-based, never extension-based**. Names lie.

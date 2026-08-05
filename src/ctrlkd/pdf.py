@@ -5,16 +5,20 @@ embedding and its fixed metrics make layout exact. That fits the tool's soul —
 WordStar document rendered as the typescript it was, on Letter pages:
 
   printed mode   line-for-line, form feeds / .pa / WordStar's own page breaks
-                 honored — a facsimile of the 1990 printout
+                 honored — a facsimile of the 1990 printout, in the fonts and
+                 sizes the document's own font blocks chose (base-14: Times,
+                 Helvetica, Courier, Symbol, ZapfDingbats — still nothing
+                 embedded, still zero dependencies)
   modern mode    reflowed paragraphs wrapped to the text column, headings bold,
                  footnotes at the end — still typewriter-set, still Courier
 
-Styles: bold/italic map to the Courier variants, underline is drawn, superscript
-is raised and reduced. Non-Latin-1 characters degrade to '?'.
+Styles: bold/italic map to the family's variants, underline is drawn,
+superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
 from .core import merged_lines as _merged_lines
-from .emit import emitter, _printed, _annotated_notes, _ref_pairs
+from .emit import emitter, _printed, _annotated_notes, _ref_pairs, _font_family
+from .symbolmap import font_translit_kind, untransliterate
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
@@ -161,6 +165,142 @@ FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}
 FONT_NAMES = {'F1': 'Courier', 'F2': 'Courier-Bold',
               'F3': 'Courier-Oblique', 'F4': 'Courier-BoldOblique'}
+
+# ---------------------------------------------------------- the base-14 fonts
+#
+# Jon's ruling, 2026-08-04: a PRINTED-mode PDF of a WS5+ document renders
+# WordStar's exact line breaks (it always has) PLUS the fonts the document
+# chose -- through the PDF base-14 built-ins, so still zero dependencies and
+# still nothing embedded. MODERN mode is unchanged: Courier-only typewriter
+# setting, deliberately. WS4 and print streams carry no font blocks at all, so
+# they stay Courier automatically -- there is nothing to look up.
+#
+# The base-14 set is what every PDF viewer must provide: Times x4, Helvetica
+# x4, Courier x4, Symbol, ZapfDingbats. A WordStar typestyle is mapped to one
+# of those five families by a strict three-way split -- serif, sans, mono --
+# plus the two symbol faces (Jon's amendment: "every face we can't truly
+# represent resolves by serif/sans/mono, no special flavoring"). Univers
+# becomes Helvetica, Garamond becomes Times, Pica becomes Courier. The era
+# name itself is never lost: it stays verbatim in doc.fonts and rides into the
+# RTF/HTML exports, which CAN name a real face.
+BASE14 = {
+    'Courier':      ('Courier', 'Courier-Bold',
+                     'Courier-Oblique', 'Courier-BoldOblique'),
+    'Times':        ('Times-Roman', 'Times-Bold',
+                     'Times-Italic', 'Times-BoldItalic'),
+    'Helvetica':    ('Helvetica', 'Helvetica-Bold',
+                     'Helvetica-Oblique', 'Helvetica-BoldOblique'),
+    # neither symbol face has variants in the base-14 set: bold/italic on a
+    # Symbol run has no face to go to, so the roman is used for all four.
+    'Symbol':       ('Symbol',) * 4,
+    'ZapfDingbats': ('ZapfDingbats',) * 4,
+}
+
+# Fixed-pitch era faces, matched on the typestyle NAME. This test must run
+# BEFORE the generic-style bits, and the archive says why: the spec's own font
+# block for `Courier` declares generic_style 'serif' (a slab serif, which is
+# honest typography), and 48 of the 121 font blocks in the Sawyer corpus are
+# exactly that. Reading the bits first would have set every Courier run in
+# Times -- the one substitution a typescript facsimile must never make.
+MONO_FAMILIES = ('courier', 'pica', 'elite', 'lineprinter')
+
+# Average advance per em, used ONLY to place underline/strikethrough rules and
+# never to position text (see _line_ops_proportional). Courier's 0.6 is exact;
+# the others are approximations, because exact placement would need the full
+# AFM width tables and this emitter carries no font metrics at all.
+ADVANCE = {'Courier': 0.6, 'Times': 0.5, 'Helvetica': 0.55,
+           'Symbol': 0.55, 'ZapfDingbats': 0.75}
+
+
+def _pdf_family(entry):
+    """The base-14 family for one doc.fonts entry.
+
+    Order is deliberate:
+      1. the font's own symbol-map/name verdict (symbolmap.font_translit_kind)
+         -- 'math' IS Symbol, 'symbols' IS ZapfDingbats, and those two we can
+         reproduce exactly rather than approximate;
+      2. fixed-pitch names -> Courier (see MONO_FAMILIES for why this beats
+         the bits);
+      3. the font block's own generic-style bits: serif -> Times, sans ->
+         Helvetica. 'script' also lands on Times and 'display' on Helvetica
+         (Jon: "I don't think we have any option for script... maybe just
+         Times"); the base-14 set has no chancery and no poster face, and the
+         era's display typestyles are overwhelmingly sans-shaped, so those are
+         the honest neighbours rather than an italic/bold pretence;
+      4. anything unresolvable -> Courier, the emitter's own default.
+
+    Bold and italic are NEVER decided here -- they come from the span's own
+    b/i styles, exactly as they always have."""
+    if not entry:
+        return 'Courier'
+    kind = font_translit_kind(entry)
+    if kind == 'math':
+        return 'Symbol'
+    if kind == 'symbols':
+        return 'ZapfDingbats'
+    fam = _font_family(entry.get('typestyle_name')).lower()
+    if any(fam.startswith(m) for m in MONO_FAMILIES):
+        return 'Courier'
+    return {'serif': 'Times', 'sans': 'Helvetica',
+            'script': 'Times', 'display': 'Helvetica'}.get(
+                entry.get('generic_style'), 'Courier')
+
+
+class FontRes:
+    """The page-resource font table, built as the content streams are written.
+
+    The Courier four are ALWAYS /F1../F4 and always emitted, used or not. That
+    is not laziness: it is what keeps a document with no font runs -- every WS4
+    file, every print stream, and most WS5+ documents -- byte-for-byte
+    identical to what this emitter produced before fonts existed here. Emitting
+    only the fonts a page really touches would renumber the object table for
+    those files and change every PDF the project has ever made. Fonts BEYOND
+    the Courier four are added on demand, in first-use order, so a Courier
+    document still ships exactly four font objects."""
+
+    def __init__(self):
+        self.names = dict(FONT_NAMES)                       # 'F1' -> basefont
+        self._by_base = {b: f for f, b in FONT_NAMES.items()}
+
+    def ref(self, basefont):
+        """The /Fn name for a base-14 font, registering it if new."""
+        key = self._by_base.get(basefont)
+        if key is None:
+            key = 'F%d' % (len(self.names) + 1)
+            self.names[key] = basefont
+            self._by_base[basefont] = key
+        return key
+
+
+def _span_font(styles, fonts):
+    """The doc.fonts entry a span's active 'fontN' tag points at, or None.
+    (The 'altfont' tag -- WS4's ^PA printer-alternate flag -- is deliberately
+    not consulted: it names no font, it only says "the other wheel".)"""
+    if not fonts:
+        return None
+    idx = min((int(t[4:]) for t in styles
+               if t.startswith('font') and t[4:].isdigit()), default=None)
+    if idx is None or idx >= len(fonts):
+        return None
+    return fonts[idx]
+
+
+def _span_render(text, styles, fonts, size):
+    """(text-as-written, family, size) for one span.
+
+    Symbol/ZapfDingbats runs were transliterated to real Unicode at parse time
+    (symbolmap.py) so that every text format renders without a font. Here we
+    have the font, so the transliteration is undone: the original byte codes go
+    back on the page with the real face selected, and a viewer draws the actual
+    glyph -- alpha, not the letter 'a', with nothing embedded."""
+    entry = _span_font(styles, fonts)
+    family = _pdf_family(entry)
+    if family in ('Symbol', 'ZapfDingbats'):
+        text = untransliterate(text, font_translit_kind(entry))
+    pts = (entry or {}).get('points')
+    # Tf has always been written as an integer here; the span's own size comes
+    # from the font block's height word, falling back to the document's size.
+    return text, family, (max(1, round(pts)) if pts else size)
 
 def _esc(text):
     raw = text.encode('latin-1', 'replace')
@@ -630,36 +770,105 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     return ops
 
 
+def _sized(styles, size):
+    """(point size, baseline rise) for a span set at `size`. Superscript is
+    raised and reduced to 2/3 -- 8pt at the default 12, the ratio this emitter
+    has always used."""
+    if 'sup' in styles:
+        return max(1, round(size * 2 / 3)), 3
+    if 'sub' in styles:
+        return max(1, round(size * 2 / 3)), -2
+    return size, 0
+
+
+def _rules(styles, text, x, y, w):
+    """Underline / strikethrough as stroked paths (PDF has no text attribute
+    for either), for a span occupying `w` points from `x`."""
+    ops = []
+    if not text.strip():
+        return ops
+    if 'u' in styles:
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
+    if 'strike' in styles:
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
+    return ops
+
+
+def _line_ops_courier(segs, left, y, size, res):
+    """One line of the typewriter: every span Courier at the document's own
+    size, so 0.6em per character positions each span EXACTLY and each gets its
+    own text object at an absolute x. This is the path this emitter has always
+    taken and its bytes are unchanged -- see FontRes for why that matters."""
+    ops, x = [], left
+    for text, styles, _family, _size_here in segs:
+        pt, rise = _sized(styles, size)
+        font = res.ref(BASE14['Courier'][('b' in styles) + 2 * ('i' in styles)])
+        ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
+                   (font.encode(), pt, rise, x, y, _esc(text)))
+        w = len(text) * pt * 0.6
+        ops += _rules(styles, text, x, y, w)
+        x += w
+    return ops
+
+
+def _line_ops_proportional(segs, left, y, size, res):
+    """One line carrying fonts that are not the document's Courier.
+
+    Character-count arithmetic is meaningless the moment a span is set in
+    Times or Helvetica, so this path does NOT compute an x for each span. The
+    whole line goes into ONE text object, positioned once, and each span is
+    written with Tj: PDF's own natural advance then carries the pen, which is
+    the only exact answer available without font metrics. Jon's ruling: "don't
+    do per-column x math -- draw the span and let natural advance carry."
+
+    The one thing that still needs a coordinate is a decoration rule, which is
+    a path and cannot live inside a text object. Those are placed from the
+    ADVANCE estimate and drawn after the text -- an underline may run a little
+    long or short under a proportional face. Approximating the rule beats
+    dropping it, and it is the only approximation on this path."""
+    text_ops = [b'BT %.1f %.1f Td' % (left, y)]
+    rules, x = [], left
+    for text, styles, family, size_here in segs:
+        pt, rise = _sized(styles, size_here)
+        font = res.ref(BASE14[family][('b' in styles) + 2 * ('i' in styles)])
+        text_ops.append(b'/%s %d Tf %d Ts (%s) Tj' %
+                        (font.encode(), pt, rise, _esc(text)))
+        w = len(text) * pt * ADVANCE[family]
+        rules += _rules(styles, text, x, y, w)
+        x += w
+    text_ops.append(b'ET')
+    return text_ops + rules
+
+
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
-                 left=float(MARGIN), running=()):
+                 left=float(MARGIN), running=(), fonts=(), res=None):
+    """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
+    empty everywhere else (Modern is Courier by design), so a line only leaves
+    the fixed-pitch path when the document itself asked for another face or
+    another size."""
+    res = FontRes() if res is None else res
     ops = list(running)
-    sup_size = max(1, round(size * 2 / 3))       # 8 at the default 12 -- the
-                                                  # ratio this emitter always used
     y = page_h - top - size
     for line in pagelines:
-        x = left
+        segs = []
         for text, styles in _coalesce(line):
             if not text:
                 continue
-            sup = 'sup' in styles or 'sub' in styles
-            size_here = sup_size if sup else size
-            rise = 3 if 'sup' in styles else (-2 if 'sub' in styles else 0)
-            font = FONTS[('b' in styles, 'i' in styles)]
-            ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                       (font.encode(), size_here, rise, x, y, _esc(text)))
-            w = len(text) * size_here * 0.6
-            if 'u' in styles and text.strip():
-                ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
-            if 'strike' in styles and text.strip():
-                ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
-            x += w
+            written, family, size_here = _span_render(text, styles, fonts, size)
+            segs.append((written, styles, family, size_here))
+        if all(fam == 'Courier' and sz == size for _, _, fam, sz in segs):
+            ops += _line_ops_courier(segs, left, y, size, res)
+        else:
+            ops += _line_ops_proportional(segs, left, y, size, res)
         y -= lead
     return b'\n'.join(ops)
 
 @emitter('pdf')
 def emit_pdf(doc, mode='printed', **options):
-    """Assemble the PDF: catalog, page tree, four Courier fonts, one content
-    stream per page, xref. Returns bytes — PDF is a binary format."""
+    """Assemble the PDF: catalog, page tree, the font table (the Courier four
+    always, plus whatever base-14 faces a WS5+ document's own font runs
+    reached for in printed mode), one content stream per page, xref. Returns
+    bytes — PDF is a binary format."""
     printed = mode == 'printed' or _printed(doc)
     pages = _doc_to_pagelines(doc, printed)
     top = _printed_top(doc) if printed else TOP_MODERN    # .mt-derived for WS docs;
@@ -672,16 +881,34 @@ def emit_pdf(doc, mode='printed', **options):
     page_h = _resolved_page_height(doc, printed)          # file geometry wins in
                                                            # printed mode (Task: .pl);
                                                            # modern stays fixed Letter
+    # Font runs are a PRINTED-mode facsimile feature: Modern mode is Courier by
+    # ruling, so it is handed no fonts at all and every span stays on the
+    # fixed-pitch path. WS4 documents and print streams have no font blocks, so
+    # doc.fonts is empty for them and this is a no-op.
+    fonts = doc.fonts if printed else ()
     objs = []                                             # (obj_number, bytes)
 
     n_pages = len(pages)
-    font_objs = {}                                        # F1..F4 -> obj num
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+
+    # The streams are written FIRST: which base-14 fonts the document actually
+    # uses is only known once every span has been laid out, and the resource
+    # table has to name them all.
+    res = FontRes()
+    streams = []
+    for page_index, pl in enumerate(pages):
+        running = _running_ops(doc, start_no + page_index, page_h, lead,
+                               size, left, printed)
+        streams.append(_page_stream(pl, top, page_h, lead, size, left,
+                                    running, fonts, res))
+
+    font_objs = {}                                        # F1..Fn -> obj num
     next_num = 3
-    for f in ('F1', 'F2', 'F3', 'F4'):
+    for f, basefont in res.names.items():
         font_objs[f] = next_num
         objs.append((next_num,
                      b'<< /Type /Font /Subtype /Type1 /BaseFont /%s >>'
-                     % FONT_NAMES[f].encode()))
+                     % basefont.encode()))
         next_num += 1
     font_dict = b' '.join(b'/%s %d 0 R' % (f.encode(), n) for f, n in font_objs.items())
 
@@ -694,16 +921,11 @@ def emit_pdf(doc, mode='printed', **options):
     objs.insert(0, (1, b'<< /Type /Catalog /Pages 2 0 R >>'))
     objs.insert(1, (2, b'<< /Type /Pages /Kids [%s] /Count %d >>' % (kids, n_pages)))
 
-    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
-    for page_index, (pnum, cnum, pl) in enumerate(
-            zip(page_nums, content_nums, pages)):
+    for pnum, cnum, stream in zip(page_nums, content_nums, streams):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
                      % (PAGE_W, page_h, font_dict, cnum)))
-        running = _running_ops(doc, start_no + page_index, page_h, lead,
-                               size, left, printed)
-        stream = _page_stream(pl, top, page_h, lead, size, left, running)
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 
