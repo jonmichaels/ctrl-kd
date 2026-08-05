@@ -512,7 +512,9 @@ def test_proportional_font_keeps_its_own_hmi_grid_via_tz():
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(body), 'printed')
     assert b' Tz ' in pdf                       # scaled onto the 6.2pt grid
-    assert b'proportional line' in pdf
+    # words are placed one op each (word-anchored grid layout), so the text
+    # appears word by word, never as a phrase
+    assert b'(proportional)' in pdf and b'(prose.)' in pdf
 
 def test_detect_honours_the_header_blocks_declaration():
     # A WS5+ file DECLARES itself: a valid type-0 header block at offset 0.
@@ -3292,9 +3294,13 @@ def test_leading_tab_indent_measures_in_print_columns_not_the_font():
     from ctrlkd.pdf import emit_pdf, _printed_left
     helv = _helv_typestyle()
     tab = ws7_block(0x09, (2502).to_bytes(2, 'little') * 2 + b' \r')   # 1.39in
+    # 0x8000: the proportional bit -- the evidence font (the archive banner's
+    # Antique Olive) is proportional, and the document-column indent rule is
+    # scoped to proportional runs (a fixed-pitch font's spaces advance at its
+    # own pitch: LJ6DTP's PC-8 chart border, 2026-08-05)
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
-            _font_block(helv, 72.0, width=1064) + tab + b'X' + HARD +
+            _font_block(helv, 72.0, width=1064, style_bits=0x8000) + tab + b'X' + HARD +
             b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
     doc = core.parse_ws(data)
     left = _printed_left(doc, 12)

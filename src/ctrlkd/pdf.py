@@ -255,6 +255,29 @@ HMI_PER_POINT = 1800.0 / 72.0                 # = 25
 TZ_MIN, TZ_MAX = 40.0, 250.0
 TZ_DEFAULT = 100.0                            # PDF's own initial text state
 
+# Face-constant Tz: one horizontal scale per (face, HMI pitch, size), chosen
+# so the face's AVERAGE character lands on the document's grid. Per-SPAN
+# scaling (the earlier model) forced every span to end exactly on the grid,
+# which crushed any short span whose glyphs are wider than average -- a lone
+# (c) squeezed to 70% is "not a circle" (Jon, 2026-08-05) -- and let a PDF
+# viewer's substitute metrics accumulate error over a whole span before the
+# next absolutely-placed span collided with it. A constant per-face scale
+# keeps every glyph's true proportions (the driver printed real widths; the
+# patched PS tables made WordStar's arithmetic use them too) while words are
+# re-anchored to the grid at every space run (see _line_ops_printed).
+_TZ_REF = 'abcdefghijklmnopqrstuvwxyz '
+_FACE_TZ_CACHE = {}
+
+def _face_tz(basefont, pitch, pt):
+    key = (basefont, pitch, pt)
+    tz = _FACE_TZ_CACHE.get(key)
+    if tz is None:
+        avg = _natural_width_pt(_TZ_REF, basefont, pt) / len(_TZ_REF)
+        tz = round(pitch / avg * 100.0, 2) if avg > 0 else TZ_DEFAULT
+        tz = min(TZ_MAX, max(TZ_MIN, tz))
+        _FACE_TZ_CACHE[key] = tz
+    return tz
+
 # LJ6DTP's colour palette as PDF fill grays (`g`: 0 black, 1 white). The
 # indices are DRIVER-DEFINED -- this table was recovered from the LJ6DTP
 # printer description file's own string table and confirmed against the
@@ -1100,7 +1123,15 @@ def _split_indent(segs):
     A span with NO font block is never flagged: the run's own pitch already IS
     the document's there, so the flag would change nothing -- and not raising
     it keeps every fontless line's arithmetic, and therefore its bytes,
-    untouched."""
+    untouched. A FIXED-PITCH font block is never flagged either: its space
+    advances at its own pitch on the printer, full stop -- LJ6DTP's PC-8
+    chart draws its box in the 11.9-CPI COURIER PC 12, and measuring its
+    border's leading spaces in 10-CPI document columns shoved the box top
+    16pt right of the box sides. (For 10-CPI Courier the two measures are
+    the same number, so nothing else moves.) The document-column rule is for
+    PROPORTIONAL runs, where WordStar re-stamps tab/margin positioning as
+    10-CPI machine spaces: the reference archive's 72pt shadow banner and
+    LJ6DTP's own flush-right bar segment both land exactly on that measure."""
     out, leading = [], True
     for seg in segs:
         text, styles, family, size_here, entry = seg
@@ -1108,7 +1139,7 @@ def _split_indent(segs):
             out.append(seg + (False,))
             continue
         pad = len(text) - len(text.lstrip(' '))
-        if entry is not None and pad:
+        if entry is not None and entry.get('proportional') and pad:
             if pad < len(text):
                 out.append((text[:pad], styles, family, size_here, entry, True))
                 out.append((text[pad:], styles, family, size_here, entry, False))
@@ -1182,24 +1213,6 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         pt, rise = _sized(styles, size_here)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
-        if indent:
-            scale, w = None, len(text) * size * 0.6      # document print columns
-        else:
-            # EVERY span -- fixed or proportional -- is width-matched onto
-            # the font block's own HMI grid with Tz. A 2026-08-05 detour
-            # rendered proportional spans at the substituted face's natural
-            # AFM width instead, on the theory that nominal HMI overstates a
-            # proportional average; measurement disproved it (Jon's review,
-            # same day): PS.TST's faces declare DISTINCT per-character HMIs
-            # (Helv Narrow 4.80pt, Palatino 6.12, Univ. Roman 10.08 -- the
-            # widths of the real faces), so the grid is what preserves each
-            # face's true measure, and it is also what keeps text registered
-            # with tabs, rules and the cp437 vector graphics, which all
-            # advance on the same grid. The page-width overflow that
-            # motivated the detour was the style-font bleed, fixed at the
-            # source.
-            target = len(text) * _span_pitch(entry, pt)
-            scale, w = _tz_scale(text, basefont, pt, target)
         # Driver-aware colour: a span tagged colourN under a driver whose
         # palette we know renders at that palette's gray. Emitted only when
         # the value CHANGES (fill gray is graphics state, like Tz), so every
@@ -1216,11 +1229,63 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         # cp437 graphics (blocks, shades, box-drawing) draw as vectors at the
         # span's own advance -- see BOX_ARMS/_graphic_ops. _split_graphics
         # guarantees a span reaching here is either all-graphics or has none.
+        #
+        # In a PROPORTIONAL face a block advances at the EM, not the face's
+        # nominal average width. The document proves it in its own prose:
+        # LJ6DTP's "full line of black ... precisely the length of your ruler
+        # line" is two 24-block segments, one left-anchored and one
+        # flush-right, that "overlap" -- at 13pt Univers that arithmetic only
+        # closes at 24 x 13pt per segment (312 + 312 over a 468pt measure,
+        # overlapping exactly as described); at the nominal 6.72pt the
+        # segments cannot even meet. Fixed-pitch blocks stay on the pitch --
+        # the same document's COURIER PC bars are correct there.
         if entry is not None and (set(text) & GRAPHIC_CHARS):
-            pitch = _span_pitch(entry, pt)
+            pitch = pt if entry.get('proportional') else _span_pitch(entry, pt)
             ops += _graphic_ops(text, x, y, pitch, pt)
             x += len(text) * pitch
             continue
+        if entry is not None and entry.get('proportional') and not indent:
+            # WORD-ANCHORED grid layout for proportional runs. Each word is
+            # placed at its own character-count grid position (the author's
+            # measure: the face's HMI per character -- PS.TST's faces declare
+            # DISTINCT per-char HMIs, Helv Narrow 4.80pt ... Univ. Roman
+            # 10.08pt, so the grid preserves each face's true width) and set
+            # at the FACE-constant Tz, so glyphs keep their real proportions
+            # inside the word. Space runs advance pure grid and re-anchor
+            # everything after them: space-aligned tables register column for
+            # column, and a viewer's substitute-font metric drift can never
+            # accumulate past one word before the next absolute x corrects
+            # it (the "WordStar/invented" collision was a whole-span drift).
+            pitch = _span_pitch(entry, pt)
+            want = _face_tz(basefont, pitch, pt)
+            for m in _re.finditer(r' +|[^ ]+', text):
+                piece = m.group(0)
+                px = x + m.start() * pitch
+                pw = len(piece) * pitch
+                if piece[0] != ' ':
+                    if want == tz_state[0]:
+                        ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
+                                   b' Tj ET' %
+                                   (font.encode(), pt, rise, px, y,
+                                    _esc(piece)))
+                    else:
+                        ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f'
+                                   b' Td (%s) Tj ET' %
+                                   (font.encode(), pt, rise, want, px, y,
+                                    _esc(piece)))
+                        tz_state[0] = want
+                ops += _rules(styles, piece, px, y, pw)
+            x += len(text) * pitch
+            continue
+        if indent:
+            scale, w = None, len(text) * size * 0.6      # document print columns
+        else:
+            # Fixed-pitch (and metric-less) runs: width-matched onto the font
+            # block's own HMI grid with Tz -- for Courier the ratio is 100 by
+            # construction and no operator is ever written, which is what
+            # keeps every fontless PDF byte-identical.
+            target = len(text) * _span_pitch(entry, pt)
+            scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
         if want == tz_state[0]:
             ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
