@@ -2739,7 +2739,7 @@ def test_font_changes_render_as_runs():
     assert not any(t.startswith('font') for s in spans for t in s.styles
                    if 'Before' in s.text)
     rtf = emit.emit_rtf(doc, mode='modern')
-    assert '{\\f2 Courier{\\*\\falt Courier New};}' in rtf   # era name + RTF fallback
+    assert '{\\f2 Courier New{\\*\\falt Courier};}' in rtf   # modern primary (TextEdit ignores falt), era name preserved in falt
     assert '\\f2\\fs28 ' in rtf                       # 14pt = \fs28
     h = emit.emit_html(doc, mode='modern')
     assert "class=\"ws-font-0\"" in h
