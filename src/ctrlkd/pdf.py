@@ -8,7 +8,10 @@ WordStar document rendered as the typescript it was, on Letter pages:
                  honored — a facsimile of the 1990 printout, in the fonts and
                  sizes the document's own font blocks chose (base-14: Times,
                  Helvetica, Courier, Symbol, ZapfDingbats — still nothing
-                 embedded, still zero dependencies)
+                 embedded, still zero dependencies), ON THE DOCUMENT'S OWN
+                 LAYOUT GRID: each line advances by the `.lh` in force where it
+                 appears, and each span starts at the x WordStar's own
+                 per-character HMI advance puts it at (see _line_ops_printed)
   modern mode    reflowed paragraphs wrapped to the text column, headings bold,
                  footnotes at the end — still typewriter-set, still Courier
 
@@ -19,6 +22,7 @@ import re as _re
 from .core import merged_lines as _merged_lines
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, _font_family
 from .symbolmap import font_translit_kind, untransliterate
+from .afm import string_width_pt as _natural_width_pt
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
@@ -94,7 +98,20 @@ def _printed_cap(doc):
     KNOWN LIMIT, recorded rather than papered over: a print stream that DOES
     carry its margins in band (WordStar 4's live output does) will now get
     margin on top of margin. Distinguishing the two cases needs evidence we do
-    not have, and inventing a detector is exactly what this change undoes."""
+    not have, and inventing a detector is exactly what this change undoes.
+
+    SECOND KNOWN LIMIT, added with stateful `.lh` (2026-08-05). Capacity is
+    computed at the DOCUMENT-DEFAULT line height -- core._text_lines_per_page
+    on meta['page']['lh_48'], the file's first `.lh`. A document that changes
+    leading mid-page therefore paginates at a fixed lines-per-page while its
+    lines advance at their own leads, so a page of tightly-led text ends
+    early and a page of banners can run long. Whether WordStar RECOMPUTED
+    lines-per-page as `.lh` changed is UNMEASURED -- register open question
+    #15 -- and the honest options (recompute per line, or accumulate points
+    until the text height is used up) are different answers to a question no
+    manual page settles. Guessing here would silently repaginate every
+    multi-`.lh` document on an assumption; leaving capacity where the
+    evidence is keeps the change to what was ruled: leads, not pagination."""
     page = doc.meta.get('page')
     if page is not None:
         return max(FOOTNOTE_FLOOR + 1, page.get('text_lines', 55))
@@ -119,16 +136,29 @@ def _printed_top(doc):
     page_h = _resolved_page_height(doc, True)
     return max(0, min(round(page.get('mt_lines', 3.0) * 12), page_h - LEAD))
 
+def _lead_pt(lh_48):
+    """One `.lh` value (1/48in units) as points: a point is 1/72in, so
+    lh * 1.5. None/non-positive -> None, meaning "no answer here, use the
+    document's default"."""
+    if not lh_48 or lh_48 <= 0:
+        return None
+    return lh_48 * 1.5
+
+
 def _printed_lead(doc):
-    """Baseline-to-baseline distance in points for printed mode: .lh is
-    1/48in units, a point is 1/72in -> lh * 1.5. Default .lh 8 IS the 12pt
-    lead this emitter always used. Print streams (no 'page' meta) keep the
-    fixed LEAD."""
+    """The DOCUMENT-DEFAULT baseline-to-baseline distance in points for
+    printed mode, from the file's first `.lh`. Default .lh 8 IS the 12pt lead
+    this emitter always used. Print streams (no 'page' meta) keep the fixed
+    LEAD.
+
+    Only the default: `.lh` is stateful and a line that was set at a different
+    leading carries its own (core.Line.lead_48 -> PageLine.lead), which
+    _page_stream honours per line. This is what a line WITHOUT one falls back
+    to, and what page CAPACITY is still computed at (see _printed_cap)."""
     page = doc.meta.get('page')
     if page is None:
         return LEAD
-    lh = page.get('lh_48', 8.0)
-    return lh * 1.5 if lh > 0 else LEAD
+    return _lead_pt(page.get('lh_48', 8.0)) or LEAD
 
 def _printed_size(doc):
     """Type size in points for printed mode, from .cw: character width in
@@ -204,12 +234,26 @@ BASE14 = {
 # Times -- the one substitution a typescript facsimile must never make.
 MONO_FAMILIES = ('courier', 'pica', 'elite', 'lineprinter')
 
-# Average advance per em, used ONLY to place underline/strikethrough rules and
-# never to position text (see _line_ops_proportional). Courier's 0.6 is exact;
-# the others are approximations, because exact placement would need the full
-# AFM width tables and this emitter carries no font metrics at all.
-ADVANCE = {'Courier': 0.6, 'Times': 0.5, 'Helvetica': 0.55,
-           'Symbol': 0.55, 'ZapfDingbats': 0.75}
+# WordStar measures horizontal advance in HMIs -- 1/1800 inch -- and every
+# font block in a WS5+ file carries the per-character width it laid the
+# document out on. A PDF point is 1/72 inch, so 1800 HMI = 72 pt and the
+# conversion is a division by 25. (The old per-family ADVANCE guesses --
+# Times 0.5, Helvetica 0.55 -- are gone: afm.py carries the real per-glyph
+# tables now, so nothing here has to approximate a width.)
+HMI_PER_POINT = 1800.0 / 72.0                 # = 25
+
+# Tz (horizontal scaling, percent) clamp. A span is scaled to land exactly on
+# WordStar's grid; a ratio outside this range does not mean the author wanted
+# glyphs at a quarter width, it means the file's HMI and the substituted
+# face's metrics disagree -- a typestyle we can only approximate, a font block
+# from a printer whose pitch had nothing to do with the base-14. Stretching to
+# obey it would produce unreadable text in the name of fidelity, so outside
+# the clamp the span keeps its natural advance and the grid loses that one
+# argument. 40/250 is wide enough to cover every real substitution in the
+# reference corpus (the worst honest case there is ~0.85) and narrow enough
+# that a genuinely absurd ratio is caught.
+TZ_MIN, TZ_MAX = 40.0, 250.0
+TZ_DEFAULT = 100.0                            # PDF's own initial text state
 
 
 def _pdf_family(entry):
@@ -286,7 +330,7 @@ def _span_font(styles, fonts):
 
 
 def _span_render(text, styles, fonts, size):
-    """(text-as-written, family, size) for one span.
+    """(text-as-written, family, size, font-entry) for one span.
 
     Symbol/ZapfDingbats runs were transliterated to real Unicode at parse time
     (symbolmap.py) so that every text format renders without a font. Here we
@@ -300,7 +344,9 @@ def _span_render(text, styles, fonts, size):
     pts = (entry or {}).get('points')
     # Tf has always been written as an integer here; the span's own size comes
     # from the font block's height word, falling back to the document's size.
-    return text, family, (max(1, round(pts)) if pts else size)
+    # The entry itself rides along because the LAYOUT needs its width word --
+    # `width_1800`, the per-character advance WordStar used (_span_pitch).
+    return text, family, (max(1, round(pts)) if pts else size), entry
 
 def _esc(text):
     raw = text.encode('latin-1', 'replace')
@@ -421,7 +467,11 @@ def _body_stream_printed(doc):
                             refs.append((label, note))
                         continue
                 spans.append((s.text, styles))
-            stream.append((spans, refs))
+            # A PageLine, not a bare list, so the line's own `.lh` survives the
+            # footnote paginator too -- body lines keep their lead whether or
+            # not the document has notes.
+            stream.append((PageLine(spans, soft=line.soft,
+                                    lead=_lead_pt(line.lead_48)), refs))
     return stream
 
 def _area_size(entries):
@@ -569,7 +619,8 @@ def _has_placeable_notes(doc):
     return any(n.kind in ('footnote', 'endnote', 'annotation') for n in doc.notes)
 
 class PageLine(list):
-    """One laid-out line: a list of (text, styles) segments, plus the SOFT flag.
+    """One laid-out line: a list of (text, styles) segments, plus the SOFT flag
+    and the line's own LEAD.
 
     Added 2026-08-03. A paginated line used to be a bare list, so `Line.soft` --
     which the IR has carried since 2.0.0 -- never reached the paginated
@@ -584,13 +635,21 @@ class PageLine(list):
     new code can ask for `.soft`. Changing the contract outright would have
     touched the emitters, the footnote paginator and both geometry oracles at
     once, for no behavioural gain.
-    """
 
-    __slots__ = ('soft',)
+    `lead` (added 2026-08-05) is this line's baseline-to-baseline advance in
+    POINTS, or None for "the document's default". It is core.Line.lead_48 --
+    the `.lh` in force where the line sat -- converted once here, so the
+    layout loop never has to know about 48ths. Lines this emitter MAKES rather
+    than reads (footnote areas, wrapped Modern text, blank fillers) leave it
+    None by construction: they are the emitter's own furniture and belong on
+    the document's default lead."""
 
-    def __init__(self, segments=(), soft=False):
+    __slots__ = ('soft', 'lead')
+
+    def __init__(self, segments=(), soft=False, lead=None):
         super().__init__(segments)
         self.soft = soft
+        self.lead = lead
 
 
 def _doc_to_pagelines(doc, printed):
@@ -626,8 +685,10 @@ def _doc_to_pagelines(doc, printed):
                       | b.style_attrs)
                      for s in line.spans]
             if printed:
-                # verbatim, no wrap -- and carrying the line's own soft flag
-                lines.append(PageLine(spans, soft=line.soft))
+                # verbatim, no wrap -- carrying the line's own soft flag and
+                # the `.lh` that was in force where it sat
+                lines.append(PageLine(spans, soft=line.soft,
+                                      lead=_lead_pt(line.lead_48)))
             else:
                 lines.extend(PageLine(w, soft=line.soft)
                              for w in _wrap_line(spans, MAX_COLS))
@@ -794,73 +855,201 @@ def _rules(styles, text, x, y, w):
     return ops
 
 
-def _line_ops_courier(segs, left, y, size, res):
-    """One line of the typewriter: every span Courier at the document's own
-    size, so 0.6em per character positions each span EXACTLY and each gets its
-    own text object at an absolute x. This is the path this emitter has always
-    taken and its bytes are unchanged -- see FontRes for why that matters."""
+def _span_pitch(entry, pt):
+    """Per-character advance in POINTS for one span -- WordStar's own number.
+
+    A WS5+ font block's FIRST word is the font width in HMIs (1/1800in): the
+    pitch WordStar itself laid the document out on, and the pitch it sent the
+    printer. 1800 HMI = 1 inch = 72 pt, so the conversion is /25.
+
+    A span with no font block -- every WS4 file, every print stream, and every
+    run before a WS5+ document's first font change -- gets the document's own
+    `.cw`-derived pitch instead. `.cw` is character width in 1/120in, which
+    _printed_size already resolved into the point size for exactly this
+    reason (a Courier em advances 0.6, so cw/120in per character IS a cw-point
+    font), so the pitch here is that size's 0.6em. Written in POINTS rather
+    than converted through HMI on purpose: it is arithmetically the same
+    number and it is the same float this emitter has always produced, which is
+    what keeps a fontless PDF byte-identical."""
+    w = (entry or {}).get('width_1800')
+    if w:
+        return w / HMI_PER_POINT
+    return pt * 0.6
+
+
+def _tz_scale(text, basefont, pt, target_w):
+    """(Tz percentage or None, width actually occupied) for one span asked to
+    fill `target_w` points.
+
+    Courier lands on WordStar's grid by construction -- 600/1000 em is exactly
+    the 0.6 the pitch was derived from -- so the ratio comes out 100 and no Tz
+    is emitted at all. Nothing else does: Times at 12pt sets a word in
+    whatever width Times wants, which is not the width WordStar reserved for
+    it, and by the end of a line the accumulated error is a word or more.
+    afm.py gives the natural width; Tz (horizontal scaling, percent) closes
+    the gap, so the span occupies the grid slot the file asked for and the
+    NEXT span starts where WordStar put it.
+
+    None means "emit no scaling" and comes from three different places, all of
+    which want the same operator (or the absence of one) but not the same
+    width:
+      * the ratio is 100 -- Courier, or any face whose metrics happen to agree.
+        Occupies the target; nothing to say.
+      * the ratio is outside [TZ_MIN, TZ_MAX] -- the metrics disagree
+        pathologically (see the clamp's own note). The span keeps its NATURAL
+        width and the rest of the line shifts with it, because overprinting
+        the next span is worse than losing the grid.
+      * there is no metric at all (a face afm.py cannot measure, or a string
+        of glyphs it has no widths for). Nothing to compute a ratio from."""
+    natural = _natural_width_pt(text, basefont, pt)
+    if natural <= 0 or target_w <= 0:
+        return None, natural
+    scale = target_w / natural * 100.0
+    if round(scale, 2) == TZ_DEFAULT:
+        return None, target_w
+    if not TZ_MIN <= scale <= TZ_MAX:
+        return None, natural
+    return scale, target_w
+
+
+def _split_indent(segs):
+    """`segs` with each entry gaining an INDENT flag, and the first span split
+    where a line's leading whitespace ends.
+
+    The indent is rarely a span of its own: a tab's padding and the text after
+    it carry the same styles and the same font, so _coalesce has already
+    merged them into one run by the time layout sees it. Peeling it off here
+    is what lets the indent be measured in the document's own print columns
+    while the text keeps the font's advance (see _line_ops_printed for why
+    those are different measures).
+
+    A span with NO font block is never flagged: the run's own pitch already IS
+    the document's there, so the flag would change nothing -- and not raising
+    it keeps every fontless line's arithmetic, and therefore its bytes,
+    untouched."""
+    out, leading = [], True
+    for seg in segs:
+        text, styles, family, size_here, entry = seg
+        if not leading:
+            out.append(seg + (False,))
+            continue
+        pad = len(text) - len(text.lstrip(' '))
+        if entry is not None and pad:
+            if pad < len(text):
+                out.append((text[:pad], styles, family, size_here, entry, True))
+                out.append((text[pad:], styles, family, size_here, entry, False))
+                leading = False
+            else:
+                out.append(seg + (True,))       # the whole span is indent
+            continue
+        out.append(seg + (False,))
+        if text.strip():
+            leading = False
+    return out
+
+
+def _line_ops_printed(segs, left, y, size, res, tz_state):
+    """One laid-out line, on the document's own horizontal grid.
+
+    Every span gets its own text object at an ABSOLUTE x, and that x is
+    WordStar's: the characters before it, each at its own run's HMI advance
+    (_span_pitch). This replaced two paths -- a Courier one that did exactly
+    this arithmetic with a hardcoded 0.6, and a proportional one that put the
+    whole line in a single text object and let PDF's natural advance carry the
+    pen. The second was the right call while this emitter had no font metrics:
+    with no way to know how wide Times actually set a word, a computed x was a
+    guess and natural advance at least never overlapped. afm.py removes that
+    limitation, and Jon's ruling followed it: "Printed that ignores fonts
+    can't call itself Printed" -- the document's own layout math governs, so
+    the grid is computed and each span is width-matched onto it with Tz.
+
+    `tz_state` is a one-element list carrying the CURRENT horizontal scaling
+    across calls. Tz is text state, and text state survives ET -- an 85 Tz set
+    on one span would silently scale every span after it, on every following
+    line of the same content stream. So the operator is written only when the
+    value CHANGES, which also means a document that never needs scaling (every
+    fontless file, and Modern mode entirely) never emits one and its bytes are
+    exactly what they were before any of this existed.
+
+    THE ONE EXCEPTION to the HMI grid, and it is the document's own math too:
+    a line's LEADING WHITESPACE is positioning, measured in the document's
+    print columns rather than in the font. WordStar re-stamps a left indent
+    from `.tb`/`.lm`/`.po` as machine spaces, and every one of those commands
+    is specified in 10-CPI print columns -- core._tab_columns literally
+    converts the tab's HMI size to columns before emitting the padding. Run
+    that padding at a 72pt display font's own advance and a one-column shadow
+    offset becomes a six-inch one: the reference archive's own banner document
+    tabs to 1.39in on one line and 1.4in on the next, an offset of exactly one
+    print column (7.2pt at 10 CPI), to print a display face twice with a
+    shadow. On the font's advance the second copy landed off the right edge of
+    the paper. Interior spaces -- inside a run, after real text -- are the
+    author's own characters and stay on the font's advance.
+
+    (The exception only fires for a span that HAS a font block: without one
+    the run's pitch already IS the document's, so it cannot change a fontless
+    byte.)"""
     ops, x = [], left
-    for text, styles, _family, _size_here in segs:
-        pt, rise = _sized(styles, size)
-        font = res.ref(BASE14['Courier'][('b' in styles) + 2 * ('i' in styles)])
-        ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                   (font.encode(), pt, rise, x, y, _esc(text)))
-        w = len(text) * pt * 0.6
+    for text, styles, family, size_here, entry, indent in _split_indent(segs):
+        pt, rise = _sized(styles, size_here)
+        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        font = res.ref(basefont)
+        if indent:
+            scale, w = None, len(text) * size * 0.6      # document print columns
+        else:
+            target = len(text) * _span_pitch(entry, pt)
+            scale, w = _tz_scale(text, basefont, pt, target)
+        want = TZ_DEFAULT if scale is None else round(scale, 2)
+        if want == tz_state[0]:
+            ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
+                       (font.encode(), pt, rise, x, y, _esc(text)))
+        else:
+            ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
+                       (font.encode(), pt, rise, want, x, y, _esc(text)))
+            tz_state[0] = want
         ops += _rules(styles, text, x, y, w)
         x += w
     return ops
 
 
-def _line_ops_proportional(segs, left, y, size, res):
-    """One line carrying fonts that are not the document's Courier.
-
-    Character-count arithmetic is meaningless the moment a span is set in
-    Times or Helvetica, so this path does NOT compute an x for each span. The
-    whole line goes into ONE text object, positioned once, and each span is
-    written with Tj: PDF's own natural advance then carries the pen, which is
-    the only exact answer available without font metrics. Jon's ruling: "don't
-    do per-column x math -- draw the span and let natural advance carry."
-
-    The one thing that still needs a coordinate is a decoration rule, which is
-    a path and cannot live inside a text object. Those are placed from the
-    ADVANCE estimate and drawn after the text -- an underline may run a little
-    long or short under a proportional face. Approximating the rule beats
-    dropping it, and it is the only approximation on this path."""
-    text_ops = [b'BT %.1f %.1f Td' % (left, y)]
-    rules, x = [], left
-    for text, styles, family, size_here in segs:
-        pt, rise = _sized(styles, size_here)
-        font = res.ref(BASE14[family][('b' in styles) + 2 * ('i' in styles)])
-        text_ops.append(b'/%s %d Tf %d Ts (%s) Tj' %
-                        (font.encode(), pt, rise, _esc(text)))
-        w = len(text) * pt * ADVANCE[family]
-        rules += _rules(styles, text, x, y, w)
-        x += w
-    text_ops.append(b'ET')
-    return text_ops + rules
-
-
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
-    empty everywhere else (Modern is Courier by design), so a line only leaves
-    the fixed-pitch path when the document itself asked for another face or
-    another size."""
+    empty everywhere else (Modern is Courier by design), so a span only leaves
+    the document's own fixed pitch when the file itself asked for another face,
+    another size or another advance.
+
+    `lead` is the DOCUMENT DEFAULT. A line that carries its own (PageLine.lead,
+    from the `.lh` in force where it sat) advances by that instead -- the
+    stateful-`.lh` half of the same ruling.
+
+    A LINE'S LEAD IS THE SPACE ABOVE IT, not below it, and that is measured
+    rather than assumed. `.lh` is a printer VMI: WordStar sets the vertical
+    motion index and the line feeds that follow use it, so the command --
+    which sits in the file before the line it was typed for -- governs the
+    feed that arrives ON that line. The reference archive's banner document
+    proves it: it prints one 72pt word, sets `.lh.05"`, and prints the same
+    word again, to overprint a shadow 0.05in (3.6pt) below the first. Read the
+    other way round -- each lead spending itself below its own line -- the two
+    copies land 14pt apart and the shadow is just a second, blurry banner.
+    The first line of a page takes its position from `top` and no lead at
+    all."""
     res = FontRes() if res is None else res
     ops = list(running)
     y = page_h - top - size
-    for line in pagelines:
+    # Horizontal scaling persists across text objects within a content stream;
+    # it starts at PDF's own default on every page. See _line_ops_printed.
+    tz_state = [TZ_DEFAULT]
+    for n, line in enumerate(pagelines):
+        if n:
+            y -= getattr(line, 'lead', None) or lead
         segs = []
         for text, styles in _coalesce(line):
             if not text:
                 continue
-            written, family, size_here = _span_render(text, styles, fonts, size)
-            segs.append((written, styles, family, size_here))
-        if all(fam == 'Courier' and sz == size for _, _, fam, sz in segs):
-            ops += _line_ops_courier(segs, left, y, size, res)
-        else:
-            ops += _line_ops_proportional(segs, left, y, size, res)
-        y -= lead
+            written, family, size_here, entry = _span_render(
+                text, styles, fonts, size)
+            segs.append((written, styles, family, size_here, entry))
+        ops += _line_ops_printed(segs, left, y, size, res, tz_state)
     return b'\n'.join(ops)
 
 @emitter('pdf')
