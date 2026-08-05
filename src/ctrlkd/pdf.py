@@ -1007,11 +1007,24 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     def render(txt):
         return txt.replace('#', str(page_no))
 
+    # The header block is anchored to the BODY, not the paper edge: its last
+    # line sits `.hm` lines above the first body line, inside `.mt` (".MT ...
+    # The header is printed within this margin"; ".HM ... the distance between
+    # the header and the text"). At WordStar's defaults (.mt 3, .hm 2, one
+    # header line) that IS paper line 0 -- which is why rendering headers at
+    # the literal top of the sheet looked right for years -- but a document
+    # that widens .mt (LJ6DTP's .mt 1.1") moves its header DOWN with the
+    # body, where a laser printer can physically print it (Jon's finding,
+    # 2026-08-05: no printer lays ink at y = 0).
+    mt = float(page.get('mt_lines', 3))
+    hm = float(page.get('hm_lines', 2))
+    top_head = max(doc.headers, default=1)
+    head_base = max(0.0, mt - hm - top_head)
     ops = []
     for n, txt in sorted(doc.headers.items()):
         if not txt:
             continue
-        y = page_h - (n - 1) * lead - size
+        y = page_h - (head_base + n - 1) * lead - size
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
                     _esc(render(txt))))
@@ -1245,37 +1258,44 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             x += len(text) * pitch
             continue
         if entry is not None and entry.get('proportional') and not indent:
-            # WORD-ANCHORED grid layout for proportional runs. Each word is
-            # placed at its own character-count grid position (the author's
-            # measure: the face's HMI per character -- PS.TST's faces declare
-            # DISTINCT per-char HMIs, Helv Narrow 4.80pt ... Univ. Roman
-            # 10.08pt, so the grid preserves each face's true width) and set
-            # at the FACE-constant Tz, so glyphs keep their real proportions
-            # inside the word. Space runs advance pure grid and re-anchor
-            # everything after them: space-aligned tables register column for
-            # column, and a viewer's substitute-font metric drift can never
-            # accumulate past one word before the next absolute x corrects
-            # it (the "WordStar/invented" collision was a whole-span drift).
+            # PROPORTIONAL runs advance at NATURAL widths, face-scaled. Every
+            # piece (word or space run) occupies its own AFM width times the
+            # FACE-constant Tz -- the scale that lands the face's AVERAGE
+            # character on its HMI grid, so a line's total comes out on the
+            # author's measure while every glyph and every space keeps its
+            # true proportion. This is what the printer did: the driver
+            # advanced real per-character widths, and the patched PS tables
+            # made WordStar's own arithmetic use them too -- LJ6DTP's
+            # space-count-tuned tables were designed against real widths, so
+            # real widths are what reproduce them. One op per word bounds a
+            # viewer's substitute-metric drift to a single word.
+            #
+            # (A one-day detour anchored each word to its CHARACTER-COUNT
+            # grid position instead: any caps-heavy word overran its
+            # count-based slot into the next word, and grid-width spaces --
+            # an average CHARACTER wide, ~0.46em -- read as gaping and
+            # uneven. Word overlaps everywhere; Jon's review, 2026-08-05.)
             pitch = _span_pitch(entry, pt)
             want = _face_tz(basefont, pitch, pt)
+            factor = want / 100.0
             for m in _re.finditer(r' +|[^ ]+', text):
                 piece = m.group(0)
-                px = x + m.start() * pitch
-                pw = len(piece) * pitch
+                nat = _natural_width_pt(piece, basefont, pt)
+                pw = nat * factor if nat > 0 else len(piece) * pitch
                 if piece[0] != ' ':
                     if want == tz_state[0]:
                         ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
                                    b' Tj ET' %
-                                   (font.encode(), pt, rise, px, y,
+                                   (font.encode(), pt, rise, x, y,
                                     _esc(piece)))
                     else:
                         ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f'
                                    b' Td (%s) Tj ET' %
-                                   (font.encode(), pt, rise, want, px, y,
+                                   (font.encode(), pt, rise, want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
-                ops += _rules(styles, piece, px, y, pw)
-            x += len(text) * pitch
+                ops += _rules(styles, piece, x, y, pw)
+                x += pw
             continue
         if indent:
             scale, w = None, len(text) * size * 0.6      # document print columns
