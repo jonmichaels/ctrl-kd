@@ -29,7 +29,7 @@ FONT_ALTS = {
     'helv cond.':             ['Arial Narrow', 'Helvetica Neue Condensed'],
     'helv narrow':            ['Arial Narrow', 'Helvetica Neue Condensed'],
     'helvetica narrow':       ['Arial Narrow', 'Helvetica Neue Condensed'],
-    'palatino':               ['Palatino Linotype', 'Book Antiqua'],
+    'palatino':               ['Palatino', 'Palatino Linotype', 'Book Antiqua'],
     'tms rmn':                ['Times New Roman', 'Times'],
     'times':                  ['Times New Roman'],
     'zapfchancery':           ['Apple Chancery', 'Monotype Corsiva'],
