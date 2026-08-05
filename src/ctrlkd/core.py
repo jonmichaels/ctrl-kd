@@ -2367,7 +2367,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # place instead of only knowing that it existed somewhere.
     doc.meta['dot_positions'] = dot_at
     doc.meta['unknown_codes'] = {f'0x{k:02x}': v for k, v in sorted(unknown.items())}
-    doc.meta['columnar'] = ruler
+    # Ruler lines mean "fixed-width table" only in the pre-symseq eras: a WS4
+    # tab table's alignment exists solely in monospace. In WS5+ a `.rr` ruler
+    # is just the editor's tab settings and rides along in practically every
+    # styled document -- treating it as columnar forced NOVEL.WS and LJ6DTP.WS
+    # (both fully reflowable prose) into physical-line rendering in EVERY
+    # modern emitter, which is where Jon's "line wrapping isn't working"
+    # screenshots actually came from (the wrap classifier itself was correct).
+    doc.meta['columnar'] = ruler and not ws5
 
     pl_lines = page.get('pl_lines')
     height_in, size_name = _resolve_page_size(pl_lines if pl_lines is not None
