@@ -2834,3 +2834,19 @@ def test_ws4_alternate_font_flag_is_stored_not_lost():
     assert not any('altfont' in s.styles for s in spans if 'pica' in s.text)
     d2 = core.parse_ws(data)
     assert '0x01' not in d2.meta['unknown_codes']    # no longer noise
+
+
+def test_symbol_untransliteration_round_trips():
+    """The reverse maps are the forward maps read backwards, and the pair has
+    to survive the trip: transliterate then untransliterate is identity for
+    every byte the faces carry. Characters neither face has degrade to '?',
+    the same way the rest of the PDF emitter degrades what it cannot write."""
+    from ctrlkd.symbolmap import transliterate, untransliterate
+    greek = 'ABCDE abcde 12345 !@#$%'
+    assert untransliterate(transliterate(greek, 'math'), 'math') == greek
+    dings = '!"#$% ABCDE abcde'
+    assert untransliterate(transliterate(dings, 'symbols'), 'symbols') == dings
+    assert transliterate('a', 'math') == 'α'
+    assert untransliterate('α', 'math') == 'a'          # back to 0x61
+    assert untransliterate('♣', 'symbols') == '\xa8'    # the cross-block four
+    assert untransliterate('é', 'math') == '?'          # no such glyph there

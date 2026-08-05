@@ -53,6 +53,51 @@ def _dingbat(ch):
         return chr(0x2700 + (b - 0x20))
     return ch                                   # pass through, never guess
 
+# ---- the way back: Unicode -> the font's own byte codes --------------------
+#
+# Transliteration is the right answer for text formats, which have no font at
+# all. The PDF emitter is the one consumer that CAN show the real glyph: the
+# PDF base-14 set includes Symbol and ZapfDingbats themselves, so selecting
+# that font and writing the ORIGINAL byte gives the true face with nothing
+# embedded. That needs the inverse of the map above.
+#
+# Round-trip rule, symmetric with `transliterate`: a character the forward map
+# never touched (digits, space, punctuation -- all of which sit at their ASCII
+# positions in both faces) passes back through as itself. Anything else has no
+# code point in the face at all and becomes '?', the same degradation the rest
+# of the PDF emitter uses for characters it cannot write.
+
+SYMBOL_REVERSE = {}
+for _code, _uni in SYMBOL.items():
+    SYMBOL_REVERSE.setdefault(_uni, _code)          # first key wins; the map
+                                                     # has no duplicate glyphs
+_DINGBAT_REVERSE = {u: chr(b) for b, u in _DINGBAT_EXCEPTIONS.items()}
+
+def _dingbat_code(ch):
+    """Inverse of _dingbat(): the ZapfDingbats byte for a Unicode glyph, or
+    None if this face never carried it."""
+    if ch in _DINGBAT_REVERSE:
+        return _DINGBAT_REVERSE[ch]
+    cp = ord(ch)
+    if 0x2701 <= cp <= 0x275E:                      # the block _dingbat() emits
+        return chr(cp - 0x2700 + 0x20)
+    return None
+
+def untransliterate(text, kind):
+    """Inverse of transliterate: real Unicode -> the bytes to set in the
+    Symbol/ZapfDingbats font itself. Unmappable characters -> '?'."""
+    if kind not in ('math', 'symbols'):
+        return text
+    out = []
+    for ch in text:
+        code = (SYMBOL_REVERSE.get(ch) if kind == 'math' else _dingbat_code(ch))
+        if code is None:
+            # ASCII rode through the forward map untouched and rides back the
+            # same way (both faces keep ASCII punctuation and digits in place).
+            code = ch if ' ' <= ch <= '~' else '?'
+        out.append(code)
+    return ''.join(out)
+
 def transliterate(text, kind):
     """kind: 'math' (Symbol encoding) or 'symbols' (ZapfDingbats)."""
     if kind == 'math':
