@@ -256,8 +256,16 @@ class Document:
     #   1 line        footer text          (.fo/.f1-.f5)
     #   remainder     blank                (to fill .mb)
     # so .mt 3 == header + .hm 2, and .mb 8 == .fm 2 + footer + 5.
-    headers: dict = field(default_factory=dict)       # {1..5: str}
-    footers: dict = field(default_factory=dict)       # {1..5: str}
+    headers: dict = field(default_factory=dict)       # {1..5: str} (final state)
+    footers: dict = field(default_factory=dict)       # {1..5: str} (final state)
+    # Every .he/.h1-.h5/.fo/.f1-.f5 IN DOCUMENT ORDER, with the block it
+    # precedes: ('H'|'F', line 1-5, text, block_index). WordStar applies a
+    # running head from the page where it is defined -- on that page itself
+    # only if no text has printed there yet, else from the next page. The
+    # final-state dicts above cannot express that (OLDTIMES defines its head
+    # after page 1's title block: a proper manuscript has NO running head on
+    # page 1); the paginator replays these events instead.
+    hf_events: list = field(default_factory=list)
     footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
                                                        # endnotes, and annotations, in document
                                                        # order -- all three are rendered the
@@ -1245,7 +1253,7 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
             doc.meta['line_numbering'] = value if value > 0 else None
 
 
-def _parse_head_foot(cmd: bytes, doc, encoding: str):
+def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -1275,10 +1283,13 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str):
         pos = t.end()
     parts.append(raw_txt[pos:].decode(encoding, 'replace'))
     text = ''.join(parts).rstrip()
-    which = doc.headers if tag.startswith(b'H') else doc.footers
+    kind = 'H' if tag.startswith(b'H') else 'F'
+    which = doc.headers if kind == 'H' else doc.footers
     second = tag[1:2]
     line = 1 if second in (b'E', b'O') else int(second)
     which[line] = text
+    if anchor is not None:
+        doc.hf_events.append((kind, line, text, anchor))
 
 
 def _cp_lines(cmd: bytes) -> int:
@@ -2398,7 +2409,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # beside every page number. WS4 (strip_hibit) keeps the mask: its
             # flag bits really do ride on argument letters.
             _parse_head_foot(cmd if strip_hibit else raw.rstrip(), doc,
-                             encoding)
+                             encoding,
+                             anchor=len(doc.blocks) + (1 if cur.lines or
+                                                       cur_line.spans else 0))
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.
