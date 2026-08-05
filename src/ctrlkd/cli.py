@@ -80,8 +80,13 @@ def main(argv=None):
                          'always render printed regardless.')
     ap.add_argument('--variant', choices=('ws4', 'ws5+', 'printstream', 'text'),
                     help='override detection')
-    ap.add_argument('--encoding', default='cp437',
-                    help='byte encoding of the source (default: cp437)')
+    ap.add_argument('--encoding', choices=('cp437',), default='cp437',
+                    help='byte encoding of the source. Only cp437 is '
+                         'accepted: every known WordStar file uses the IBM '
+                         'PC code page, and no non-437 corpus exists to '
+                         'validate another decoding against (see FAQ.md). '
+                         'The library API (ctrlkd.core.parse) accepts any '
+                         'codec name for experimenters with real material.')
     ap.add_argument('--fonts', choices=('office', 'mac', 'google', 'linux'),
                     default='office',
                     help='RTF font-name target: office (Word/Docs, default; '
