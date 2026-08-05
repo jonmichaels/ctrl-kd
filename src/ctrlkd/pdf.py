@@ -822,6 +822,20 @@ class PageLine(list):
         self.lead = lead
 
 
+class Page(list):
+    """One paginated page: a list of PageLines plus the running head and
+    foot IN FORCE when this page printed (replayed from doc.hf_events).
+    A list subclass for the same reason PageLine is: every existing consumer
+    iterates a page as a list and keeps working untouched."""
+
+    __slots__ = ('headers', 'footers')
+
+    def __init__(self, seq=()):
+        super().__init__(seq)
+        self.headers = {}
+        self.footers = {}
+
+
 def _doc_to_pagelines(doc, printed):
     """IR -> list of pages, each a list of segment-lines."""
     if printed and _has_placeable_notes(doc):
@@ -832,8 +846,17 @@ def _doc_to_pagelines(doc, printed):
             pages.pop()
         return pages or [[]]
 
+    # Header/footer changes, replayed at the block they precede so each
+    # page carries the running head IN FORCE when it printed (doc.hf_events;
+    # OLDTIMES defines its head after page 1's title -- a manuscript has no
+    # running head on page 1, and now doesn't get one).
+    hf_by_block = {}
+    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
+        hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
     lines = []                                            # None = forced page break
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
+        for ev in hf_by_block.get(bi, ()):
+            lines.append(('hf',) + ev)
         if b.kind == 'pagebreak':
             lines.append(None)
             continue
@@ -889,32 +912,47 @@ def _doc_to_pagelines(doc, printed):
     default_lead = _printed_lead(doc) if printed else LEAD
     budget = (cap - 1) * default_lead
     pages, page, spent = [], [], 0.0
+    cur_hdrs, cur_ftrs = {}, {}
+    page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
     def _cost(ln):
         if not page:                              # first line on page is free
             return 0.0
         if getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
         return getattr(ln, 'lead', None) or default_lead
+    def _close_page():
+        pg = Page(page)
+        pg.headers = {k: v for k, v in page_hdrs.items() if v}
+        pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        pages.append(pg)
     for l in lines:
+        if isinstance(l, tuple) and l and l[0] == 'hf':
+            _, kind, lno, txt = l
+            (cur_hdrs if kind == 'H' else cur_ftrs)[lno] = txt
+            if not page:                   # nothing printed on this page yet:
+                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+            continue
         if isinstance(l, tuple) and l and l[0] == 'cond':
             # strictly fewer than n lines left -> break; exactly n is enough
             room = (budget - spent) / default_lead if printed \
                    else cap - len(page)
             if room < l[1] and page:
-                pages.append(page); page, spent = [], 0.0
+                _close_page(); page, spent = [], 0.0
+                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             continue
         full = (spent + _cost(l) > budget + 1e-6) if printed \
                else len(page) >= cap
         if l is None or full:
             if page or l is None:
-                pages.append(page); page, spent = [], 0.0
+                _close_page(); page, spent = [], 0.0
+                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             if l is None:
                 continue
         if printed:
             spent += _cost(l)
         page.append(l)
     if page:
-        pages.append(page)
+        _close_page()
     # We supply the paper margins, so WordStar's own margin blanks in a print
     # stream would double up. But deliberate spacing (a chapter-drop on page 1)
     # must survive: the MACHINE margin is uniform on every page, so strip only
@@ -968,7 +1006,8 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _running_ops(doc, page_no, page_h, lead, size, left, printed):
+def _running_ops(doc, page_no, page_h, lead, size, left, printed,
+                 headers=None, footers=None):
     """Header and footer text for one page, as content-stream ops.
 
     Geometry MEASURED on WordStar 4 (2026-08-03), not inferred:
@@ -985,7 +1024,9 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     `.op` ("omit page number ... unless the # has been used in footers or
     headers") suppresses the substitution, leaving the literal token out.
     """
-    if not (doc.headers or doc.footers) or not printed:
+    headers = doc.headers if headers is None else headers
+    footers = doc.footers if footers is None else footers
+    if not (headers or footers) or not printed:
         return []
     page = doc.meta.get('page') or {}
     # `.op` does NOT suppress a `#` in a header or footer. MEASURED on WordStar 4
@@ -1018,10 +1059,10 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
     # 2026-08-05: no printer lays ink at y = 0).
     mt = float(page.get('mt_lines', 3))
     hm = float(page.get('hm_lines', 2))
-    top_head = max(doc.headers, default=1)
+    top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
     ops = []
-    for n, txt in sorted(doc.headers.items()):
+    for n, txt in sorted(headers.items()):
         if not txt:
             continue
         y = page_h - (head_base + n - 1) * lead - size
@@ -1029,7 +1070,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed):
                    (FONTS[(False, False)].encode(), size, left, y,
                     _esc(render(txt))))
     foot_line = pl - mb + fm
-    for n, txt in sorted(doc.footers.items()):
+    for n, txt in sorted(footers.items()):
         if not txt:
             continue
         y = page_h - (foot_line + n - 1) * lead - size
@@ -1371,8 +1412,41 @@ def emit_pdf(doc, mode='printed', **options):
     """Assemble the PDF: catalog, page tree, the font table (the Courier four
     always, plus whatever base-14 faces a WS5+ document's own font runs
     reached for in printed mode), one content stream per page, xref. Returns
-    bytes — PDF is a binary format."""
+    bytes — PDF is a binary format.
+
+    `page_defaults` (option): {'mt_lines': .., 'mb_lines': .., 'po_cols': ..,
+    'hm_lines': .., 'fm_lines': ..} -- replacement DEFAULTS for geometry the
+    document does not declare itself (a field is overridden only when its
+    *_source is 'default'; a document's own dot commands always win). This
+    exists because WordStar's stock defaults are not what a given machine
+    printed: WSCHANGE patches them, and Robert J. Sawyer's own DEFAULT.PAT
+    (recovered 2026-08-05, INIEDT block vs PRISTINE.PAT) sets .mt 1195/1440in
+    ~= 0.83in, .mb exactly 1.0in, .po 0.7in -- the page every default-geometry
+    manuscript in the archive actually printed on."""
     printed = mode == 'printed' or _printed(doc)
+    page_defaults = options.get('page_defaults')
+    saved_page = None
+    if page_defaults and doc.meta.get('page') is not None:
+        saved_page = doc.meta['page']
+        eff = dict(saved_page)
+        for key, val in page_defaults.items():
+            src = key[:2] + '_source'
+            if eff.get(src, 'default') == 'default':
+                eff[key] = val
+                eff[src] = 'machine-default'
+        from .core import _text_lines_per_page
+        eff['text_lines'] = _text_lines_per_page(
+            eff.get('pl_lines', 66.0), eff.get('mt_lines', 3.0),
+            eff.get('mb_lines', 8.0), eff.get('lh_48', 8.0))
+        doc.meta['page'] = eff
+    try:
+        return _emit_pdf_inner(doc, printed, options)
+    finally:
+        if saved_page is not None:
+            doc.meta['page'] = saved_page
+
+
+def _emit_pdf_inner(doc, printed, options):
     pages = _doc_to_pagelines(doc, printed)
     top = _printed_top(doc) if printed else TOP_MODERN    # .mt-derived for WS docs;
                                                            # default .mt 3 IS the old 36pt
@@ -1409,7 +1483,9 @@ def emit_pdf(doc, mode='printed', **options):
     streams = []
     for page_index, pl in enumerate(pages):
         running = _running_ops(doc, start_no + page_index, page_h, lead,
-                               size, left, printed)
+                               size, left, printed,
+                               headers=getattr(pl, 'headers', None),
+                               footers=getattr(pl, 'footers', None))
         streams.append(_page_stream(pl, top, page_h, lead, size, left,
                                     running, fonts, res, colour_map))
 
