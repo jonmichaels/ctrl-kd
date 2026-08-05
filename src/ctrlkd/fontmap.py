@@ -65,6 +65,70 @@ FONT_ALTS = {
 _GENERIC_CSS = {'sans': 'sans-serif', 'serif': 'serif',
                 'script': 'cursive', 'display': 'fantasy'}
 
+# ---- render targets (Jon's ruling, 2026-08-04 night) -----------------------
+# One RTF file cannot serve every importer (Office-private fonts, Cocoa's
+# falt-blindness, Docs' web catalog), so the CALLER picks a target:
+#   office  Word-first (default): Microsoft names, resolved by Word AND Docs
+#   mac     Cocoa-native names -- TextEdit/Pages/Soft Return.app world
+#   google  Docs' own catalog where it has something Office lacks (chancery)
+# Coverage rule: a family with no entry in FONT_ALTS still gets a USEFUL face
+# from its font block's own generic-style bits -- never nothing.
+
+GENERIC_PRIMARY = {
+    'office': {'sans': 'Arial', 'serif': 'Times New Roman',
+               'script': 'Monotype Corsiva', 'display': 'Impact'},
+    'mac':    {'sans': 'Helvetica', 'serif': 'Georgia',
+               'script': 'Apple Chancery', 'display': 'Futura'},
+    'google': {'sans': 'Arial', 'serif': 'Times New Roman',
+               'script': 'Dancing Script', 'display': 'Impact'},
+}
+
+TARGET_OVERRIDES = {
+    'office': {},
+    # macOS-native stand-ins for the Office-private set: Futura carries the
+    # Avant Garde geometry; Iowan Old Style is the closest native to
+    # Bookman's warmth; Georgia was DESIGNED as a screen Schoolbook-alike.
+    'mac': {
+        'avant garde': 'Futura',
+        'bookman': 'Iowan Old Style',
+        'cntry schlbk': 'Georgia',
+        'newcntschlbk': 'Georgia',
+        'new century schoolbook': 'Georgia',
+        'century': 'Georgia',
+        'american classic': 'Iowan Old Style',
+        'helv': 'Helvetica',
+        'helvetica': 'Helvetica',
+        'univers': 'Helvetica Neue',
+    },
+    # Docs resolves the Microsoft names natively; its one real gap is a
+    # chancery script -- Dancing Script is the stock calligraphic answer.
+    'google': {
+        'zapfchancery': 'Dancing Script',
+        'zapf chancery': 'Dancing Script',
+        'coronet': 'Dancing Script',
+    },
+}
+
+
+def rtf_fonts(family, generic_style=None, target='office'):
+    """(primary, falt_or_None) for an RTF fonttbl entry. The primary is the
+    target's best AVAILABLE name; the falt is the next-best MODERN name --
+    never the era name (Jon: 'no use keeping the ALT font that crazy title'
+    -- nothing modern resolves 'PS SansSer Qual'; the verbatim era name
+    stays first-class in doc.fonts and the HTML stacks). A family with no
+    table entry gets the target's generic primary from the font block's own
+    style bits, so EVERY font run lands on a usable face."""
+    fam_key = (family or '').lower()
+    alts = FONT_ALTS.get(fam_key, [])
+    primary = (TARGET_OVERRIDES.get(target, {}).get(fam_key)
+               or (alts[0] if alts else None)
+               or GENERIC_PRIMARY.get(target, GENERIC_PRIMARY['office'])
+                  .get(generic_style or ''))
+    if not primary:
+        return (family or None), None
+    falt = next((a for a in alts if a != primary), None)
+    return primary, falt
+
 
 def font_stack(family, generic_style=None):
     """CSS-style ordered list: original family first, then modern
