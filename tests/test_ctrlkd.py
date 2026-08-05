@@ -2739,7 +2739,7 @@ def test_font_changes_render_as_runs():
     assert not any(t.startswith('font') for s in spans for t in s.styles
                    if 'Before' in s.text)
     rtf = emit.emit_rtf(doc, mode='modern')
-    assert '{\\f2 Courier New{\\*\\falt Courier};}' in rtf   # modern primary (TextEdit ignores falt), era name preserved in falt
+    assert '{\\f2 Courier New;}' in rtf   # modern primary; falt only when a SECOND modern alt exists (era names are never the falt -- Jon's ruling)
     assert '\\f2\\fs28 ' in rtf                       # 14pt = \fs28
     h = emit.emit_html(doc, mode='modern')
     assert "class=\"ws-font-0\"" in h
@@ -2772,3 +2772,29 @@ def test_symbol_and_dingbat_fonts_transliterate_to_unicode():
     assert 'αβΓ' in txt                    # Symbol run -> Greek
     assert '✁✂✃' in txt     # Dingbats run -> U+2701..
     assert 'Plain. ' in txt                # untouched outside the runs
+
+
+def test_fonts_target_selects_primaries_and_generic_coverage():
+    # Jon's ruling: --fonts {office,mac,google}. mac gets Cocoa-native
+    # primaries (Futura for Avant Garde); google gets Docs' chancery
+    # (Dancing Script); an UNMAPPED family lands on the target's generic
+    # primary from the font block's own style bits -- every run a usable
+    # face, era names never the falt.
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    ag = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('avant garde'))
+    zc = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('zapfchancery'))
+    def font(n, style_bits=0):
+        ts = (n & 0x01FF) | style_bits
+        return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                         + ts.to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) +
+            b'Prose padding for detection, a perfectly ordinary sentence.\r\n' +
+            font(ag) + b'Geometric. ' + font(zc) + b'Scripted.' + HARD +
+            b'Closing prose line keeps the byte ratio looking like text.\r\n')
+    doc = core.parse_ws(data)
+    office = emit.emit_rtf(doc, mode='modern')
+    assert '{\\f2 Century Gothic{\\*\\falt ITC Avant Garde Gothic};}' in office
+    mac = emit.emit_rtf(doc, mode='modern', fonts_target='mac')
+    assert '{\\f2 Futura{\\*\\falt Century Gothic};}' in mac
+    goog = emit.emit_rtf(doc, mode='modern', fonts_target='google')
+    assert 'Dancing Script' in goog
