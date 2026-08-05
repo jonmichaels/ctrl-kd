@@ -269,6 +269,30 @@ _COLOUR_GRAY_LJ6DTP = {
     15: 1.0,
 }
 
+# LJ6DTP's character substitutions -- the driver patches PC-8 slots so that
+# typing `_` PRINTS an em dash, `«»` print curly doubles, ☻ prints ©, and so
+# on (the whole point of the hack: proper typography out of a 1992 WordStar).
+# The map is the document's own chart, recovered and confirmed in the
+# deep-read. Face rules from the same chart: fixed-pitch faces (Courier,
+# Letter Gothic, LinePrinter) are NOT patched, and the rounded box corners
+# exist in Univers only (drawn here as square corners via the vector path --
+# the shape is approximated, the position is exact).
+_LJ_SUBST = str.maketrans({'☻': '©', '☼': '…', "'": '’', '_': '—',
+                           '`': '‘', '«': '“', '»': '”', '≡': '–'})
+_LJ_SUBST_UNIVERS = str.maketrans({'♥': '┌', '♦': '┐', '♣': '└', '♠': '┘'})
+
+
+def _lj_substitute(segs):
+    """Apply the LJ6DTP print-time substitutions to one line's spans."""
+    out = []
+    for text, styles, family, size_here, entry in segs:
+        if entry is not None and entry.get('proportional'):
+            text = text.translate(_LJ_SUBST)
+            if (entry.get('typestyle_name') or '').startswith('Univers'):
+                text = text.translate(_LJ_SUBST_UNIVERS)
+        out.append((text, styles, family, size_here, entry))
+    return out
+
 # ------------------------------------------------- cp437 graphics as vectors
 #
 # Latin-1 has none of cp437's line-drawing repertoire, so the text path
@@ -459,8 +483,17 @@ def _span_render(text, styles, fonts, size):
     # `width_1800`, the per-character advance WordStar used (_span_pitch).
     return text, family, (max(1, round(pts)) if pts else size), entry
 
+# Lookalike degradations for glyphs cp1252 cannot carry -- applied before
+# encoding so a middle dot from a header triple or a box glyph in a fontless
+# span degrades to its nearest visible relative, not to '?'.
+_ESC_FALLBACK = str.maketrans({'∙': '·', '•': '·', '‼': '!', '│': '|',
+                               '─': '-', '═': '='})
+
 def _esc(text):
-    raw = text.encode('latin-1', 'replace')
+    # cp1252, not latin-1: the declared /WinAnsiEncoding IS cp1252, and it is
+    # what gives the base-14 faces curly quotes, en/em dashes, ellipsis and
+    # the rest of the typographic range the LJ6DTP substitutions produce.
+    raw = text.translate(_ESC_FALLBACK).encode('cp1252', 'replace')
     return raw.replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
 
 def _wrap_line(spans, width):
@@ -818,18 +851,44 @@ def _doc_to_pagelines(doc, printed):
             note = f'[{i + 1}] ' + ''.join(s.text for s in n)
             lines.extend(_wrap_line([(note, frozenset())], MAX_COLS))
     cap = _printed_cap(doc) if printed else LINES_MODERN
-    pages, page = [], []
+    # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
+    # physical: WordStar advances each line by the `.lh` in force and starts
+    # a new page when the next advance would leave the text area -- so a
+    # document that varies its leading (LJ6DTP's title page swaps 10pt/14pt/
+    # 16pt leads around 72pt banners) fits more or fewer lines than the
+    # default-lead count says. The budget is (cap - 1) leads at the document
+    # default -- the first line sits at the top, each following line spends
+    # its own lead -- which makes a uniform-lead document paginate EXACTLY as
+    # the old line count did (n - 1 defaults == cap - 1 defaults at n == cap),
+    # so no fontless byte moves. Overprint lines spend no lead at all, on
+    # paper and here. (Resolves register #15's visible symptom -- an orphan
+    # line pushed onto its own page ahead of a `.pa`.)
+    default_lead = _printed_lead(doc) if printed else LEAD
+    budget = (cap - 1) * default_lead
+    pages, page, spent = [], [], 0.0
+    def _cost(ln):
+        if not page:                              # first line on page is free
+            return 0.0
+        if getattr(page[-1], 'overprint', False):
+            return 0.0                             # this line shares a baseline
+        return getattr(ln, 'lead', None) or default_lead
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'cond':
             # strictly fewer than n lines left -> break; exactly n is enough
-            if cap - len(page) < l[1] and page:
-                pages.append(page); page = []
+            room = (budget - spent) / default_lead if printed \
+                   else cap - len(page)
+            if room < l[1] and page:
+                pages.append(page); page, spent = [], 0.0
             continue
-        if l is None or len(page) >= cap:
+        full = (spent + _cost(l) > budget + 1e-6) if printed \
+               else len(page) >= cap
+        if l is None or full:
             if page or l is None:
-                pages.append(page); page = []
+                pages.append(page); page, spent = [], 0.0
             if l is None:
                 continue
+        if printed:
+            spent += _cost(l)
         page.append(l)
     if page:
         pages.append(page)
@@ -1105,6 +1164,10 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     the run's pitch already IS the document's, so it cannot change a fontless
     byte.)"""
     ops, x = [], left
+    if colour_map:
+        # colour_map is non-empty exactly when the document declares driver
+        # LJ6DTP -- the same gate covers its character substitutions.
+        segs = _lj_substitute(segs)
     for text, styles, family, size_here, entry, indent in _split_indent(
             _split_graphics(segs)):
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
@@ -1121,23 +1184,20 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         font = res.ref(basefont)
         if indent:
             scale, w = None, len(text) * size * 0.6      # document print columns
-        elif entry is not None and entry.get('proportional'):
-            # A PROPORTIONAL font's nominal HMI is not its average width, and
-            # WordStar knew it: WS5+ wraps proportional text by summing the
-            # driver's per-character widths, which is how LJ6DTP carries
-            # 93-character soft-wrapped lines inside a 6.5in measure. The
-            # document's own layout math here IS per-character metrics, and
-            # afm.py's widths for the substituted face are our closest model
-            # of them -- so the span advances at its natural width, unscaled.
-            # Tz onto the nominal grid (right for fixed pitch, where nominal
-            # IS the advance) stretched these runs ~40% past the paper edge.
-            natural = _natural_width_pt(text, basefont, pt)
-            if natural > 0:
-                scale, w = None, natural
-            else:                                # face afm.py cannot measure
-                target = len(text) * _span_pitch(entry, pt)
-                scale, w = _tz_scale(text, basefont, pt, target)
         else:
+            # EVERY span -- fixed or proportional -- is width-matched onto
+            # the font block's own HMI grid with Tz. A 2026-08-05 detour
+            # rendered proportional spans at the substituted face's natural
+            # AFM width instead, on the theory that nominal HMI overstates a
+            # proportional average; measurement disproved it (Jon's review,
+            # same day): PS.TST's faces declare DISTINCT per-character HMIs
+            # (Helv Narrow 4.80pt, Palatino 6.12, Univ. Roman 10.08 -- the
+            # widths of the real faces), so the grid is what preserves each
+            # face's true measure, and it is also what keeps text registered
+            # with tabs, rules and the cp437 vector graphics, which all
+            # advance on the same grid. The page-width overflow that
+            # motivated the detour was the style-font bleed, fixed at the
+            # source.
             target = len(text) * _span_pitch(entry, pt)
             scale, w = _tz_scale(text, basefont, pt, target)
         # Driver-aware colour: a span tagged colourN under a driver whose
@@ -1272,9 +1332,20 @@ def emit_pdf(doc, mode='printed', **options):
     next_num = 3
     for f, basefont in res.names.items():
         font_objs[f] = next_num
-        objs.append((next_num,
-                     b'<< /Type /Font /Subtype /Type1 /BaseFont /%s >>'
-                     % basefont.encode()))
+        # /WinAnsiEncoding on the ALPHABETIC faces: without a declared
+        # encoding a Type1 font falls back to its built-in StandardEncoding,
+        # where the cp1252 bytes _esc writes for curly quotes, dashes and ©
+        # name the WRONG glyphs. Symbol and ZapfDingbats keep their built-in
+        # encodings -- their bytes are glyph indices by design (symbolmap).
+        if basefont in ('Symbol', 'ZapfDingbats'):
+            objs.append((next_num,
+                         b'<< /Type /Font /Subtype /Type1 /BaseFont /%s >>'
+                         % basefont.encode()))
+        else:
+            objs.append((next_num,
+                         b'<< /Type /Font /Subtype /Type1 /BaseFont /%s'
+                         b' /Encoding /WinAnsiEncoding >>'
+                         % basefont.encode()))
         next_num += 1
     font_dict = b' '.join(b'/%s %d 0 R' % (f.encode(), n) for f, n in font_objs.items())
 
