@@ -401,7 +401,8 @@ def _html_span(s, keep_ws=False):
         t = _TAG.get(st)                              # e.g. 'fnref' has no tag of its own
         if t:
             text = f'<{t}>{text}</{t}>'
-    font = next((st for st in s.styles if st.startswith('font')), None)
+    font = next((st for st in s.styles
+                 if st.startswith('font') and st[4:].isdigit()), None)
     if font:
         # class only -- the matching .ws-font-N rule comes from _style_css,
         # so --no-styles leaves the class inert

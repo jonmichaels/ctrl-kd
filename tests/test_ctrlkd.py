@@ -2818,3 +2818,19 @@ def test_linux_target_uses_urw_base35_clones():
     rtf = emit.emit_rtf(doc, mode='modern', fonts_target='linux')
     assert '{\\f2 URW Gothic{\\*\\falt Century Gothic};}' in rtf
     assert 'Z003' in rtf
+
+
+def test_ws4_alternate_font_flag_is_stored_not_lost():
+    # Jon, 2026-08-04: "Store that ws4 font switch flag. Don't lose it."
+    # ^PA (0x01) / ^PN (0x0E) is the ONLY typeface signal a WS4 file can
+    # carry -- the face itself lived in the printer hardware. Preserved as
+    # the 'altfont' span tag; deliberately unrendered until a use exists.
+    data = ws4_text('Pica here') + b' ' + bytes([0x01]) + ws4_text('elite here') \
+        + bytes([0x0E]) + b' ' + ws4_text('pica again.') + HARD + make_prose()
+    doc = core.parse_ws(data)
+    spans = [s for b in doc.blocks for ln in b.lines for s in ln.spans]
+    alt = [s.text for s in spans if 'altfont' in s.styles]
+    assert alt == ['elite here']
+    assert not any('altfont' in s.styles for s in spans if 'pica' in s.text)
+    d2 = core.parse_ws(data)
+    assert '0x01' not in d2.meta['unknown_codes']    # no longer noise

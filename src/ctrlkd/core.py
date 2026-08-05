@@ -586,7 +586,12 @@ WS_TOGGLES = {0x02: 'b', 0x13: 'u', 0x19: 'i', 0x14: 'sup', 0x16: 'sub',
 # `unknown` tally, which `--diagnose` reports -- the project's own rule is never
 # to go quiet. Composing the overprinted pair properly is a separate job; being
 # able to SEE that a document contains overprints is the prerequisite for it.
-WS_DROP = {0x01, 0x03, 0x0B, 0x0E, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
+WS_DROP = {0x03, 0x0B, 0x10, 0x11, 0x12, 0x15, 0x17, 0x1C}
+# 0x01/0x0E left WS_DROP 2026-08-04 (Jon: 'Store that ws4 font switch
+# flag. Don't lose it.'): ^PA alternate font / ^PN normal -- the ONLY
+# typeface signal a WS4 file can carry (the face itself lived in the
+# printer: a daisy wheel, a cartridge). Carried as the 'altfont' span
+# tag; no emitter renders it yet.
 
 DOT_PAGEBREAK = {b'PA'}                 # UNCONDITIONAL page break
 # `.CP n` is CONDITIONAL and cannot be decided here: it depends on how many
@@ -1378,6 +1383,12 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             flush()
             style = WS_TOGGLES[b]
             (active.remove if style in active else active.add)(style)
+        elif b == 0x01:                           # ^PA: printer's ALTERNATE font
+            flush()
+            active.add('altfont')
+        elif b == 0x0E:                           # ^PN: back to the normal font
+            flush()
+            active.discard('altfont')
         elif b == 0x0F:
             buf.append(0x20)                      # binding space
         elif b == 0x1E:
