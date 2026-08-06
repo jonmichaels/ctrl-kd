@@ -20,7 +20,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from .symbolmap import transliterate, font_translit_kind
+from .symbolmap import SYMBOL, transliterate, font_translit_kind
 from .typestyles import TYPESTYLE_NAMES
 
 # The cp437 GLYPHS at control-code positions (and 0x7F). Python's cp437 codec
@@ -76,6 +76,32 @@ class Line:
     # --diagnose -- and resolving ONLY that stacked 72pt banners on a single
     # 14pt lead, which is the bug this field exists to fix. Register C24.
     lead_48: float = None
+    # RAW SOURCE bytes of the separator that ended this physical line
+    # (tasks #20/#21, the round-trip writer). `soft`/`overprint` collapse the
+    # byte-level variants -- a WS7 soft return after an end-of-page block is
+    # <8D 8A>, both bytes flagged (measured 2026-08-04), and a hard CR can be
+    # followed by a flagged LF <0D 8A> -- so the writer needs the bytes
+    # themselves, not the classification. None = not parsed from a file (a
+    # synthetically built Line); writer.py then infers from the flags.
+    brk_raw: bytes = None
+    # Trailing style-toggle run (tasks #20/#21): the verbatim toggle bytes
+    # that sat between this line's last text byte and its separator.
+    # _decode_spans folds them into the running style state -- the NEXT
+    # line's spans carry the style -- so without this the writer re-emits
+    # them at the head of the following line, and the corpus shows WordStar
+    # overwhelmingly writes them before the break (40+ archive documents
+    # diverged on exactly `02 0d 0a`).
+    tog_end: bytes = b''
+    # Byte restorations for this line (tasks #20/#21): (offset, expected,
+    # original) triples in ascending offset order, offsets in the line's own
+    # SOURCE byte space. Each records one place the decode collapsed bytes
+    # irreversibly -- 0x0F binding space to ' ', ^D doublestrike to the same
+    # 'b' tag as ^B, a dropped control, a WS4 flag bit, a bare high byte the
+    # writer would re-wrap as a triple. The writer re-encodes the spans,
+    # then patches `expected` back to `original` where the emission matches
+    # -- so edited text degrades gracefully (guard fails, no patch) instead
+    # of corrupting. See core._rt_line_fixups for the capture rules.
+    fixups: tuple = ()
 
     def text(self):
         return ''.join(s.text for s in self.spans)
@@ -134,6 +160,14 @@ class Block:
                                             # (span-style tags); emitters merge
                                             # them into every span, like heading
                                             # bold
+    # Provenance of a STRUCTURAL block (tasks #20/#21, the round-trip writer):
+    # 'ff' = a pagebreak made by a literal 0x0C in the byte stream (the writer
+    # re-emits the form feed); 'fi' = the synthetic `[insert: NAME]` paragraph
+    # parse_ws fabricates for a `.fi` line (no source bytes of its own -- the
+    # dot ledger re-emits the `.fi` line, so the writer skips this block).
+    # None everywhere else, including dot-command pagebreaks (`.pa`), whose
+    # bytes are the dot line itself.
+    origin: str = None
 
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
@@ -339,6 +373,17 @@ class Document:
     unknown_blocks: list = field(default_factory=list)  # list[UnknownBlock]: unrecognised
                                                          # symmetrical-sequence types, preserved
     meta: dict = field(default_factory=dict)          # detection + diagnose info
+    # Round-trip ledger (tasks #20/#21): the raw-source facts the IR proper
+    # cannot carry without faking -- per-dot-line raw bytes (the parser stores
+    # them bit-7-masked and rstripped), each consumed symmetric block's exact
+    # bytes with its offset in the cleaned stream, the bytes the _FLAGGED
+    # translation rewrote, the trailing-blank run lines_pass drops at EOF, and
+    # the file tail from the bare 0x1A onward (^Z padding, WS5+ style library).
+    # This is NOT a copy of the input: body text is serialized back from the
+    # spans, so an editor's mutations survive a save. None for documents not
+    # built by parse_ws (writer.py then writes canonical WordStar defaults).
+    # Keys: era, encoding, dots, sym, flagged_at, eof_tail, tail, unsupported.
+    roundtrip: dict = None
 
     def iter_lines(self):
         for b in self.blocks:
@@ -446,7 +491,7 @@ def _bare_eof(data: bytes) -> int:
 
 
 def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
-               soft_is_wrap=False, overprint_cr=False):
+               soft_is_wrap=False, overprint_cr=False, raw_extras=None):
     """Split into physical lines and classify every break.
 
     Yields (line_bytes, sep) with sep in {'wrap','line','para','eof'}:
@@ -475,6 +520,13 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     `_symmetric_blocks`. Marks travel as offsets for the same reason `tab_at`
     does, and each emitted line carries the marks that fall inside it, rebased
     to that line.
+
+    `raw_extras` (tasks #20/#21, round-trip writer): pass a dict to receive
+    the raw-source facts the classified output discards -- 'breaks', the
+    exact separator bytes for each yielded line (parallel to the returned
+    list), and 'eof_tail', the verbatim bytes of the invisible trailing run
+    this pass drops when a file ends in blank lines before its 0x1A. Purely
+    additive: the returned value is byte-for-byte what it always was.
     """
     cut = _bare_eof(data)
     if cut != -1:
@@ -494,6 +546,13 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     # so a break inside one is never seen; only group(1) matches split.
     lines = []
     starts = []                              # (offset, length, index) per emitted line
+    brks = {}       # line index -> that line's raw separator bytes (tasks
+                    # #20/#21: collected only, never classified; handed out
+                    # via `raw_extras` so the writer can re-emit <8D 8A> and
+                    # friends instead of a canonicalised guess)
+    if raw_extras is not None:
+        raw_extras['breaks'] = []
+        raw_extras['eof_tail'] = b''
 
     def _emit(text_start, text_end, brk):
         # A BARE CR is ^PM Overprint Line (WSFORMAT and the WS4 manual
@@ -509,6 +568,7 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             # `machine_indent`: this line's leading whitespace was emitted by
             # WordStar from a TAB, not typed by the author. See the wrap test.
             starts.append((text_start, len(text), len(lines)))
+            brks[len(lines)] = brk           # raw separator, for raw_extras
             lines.append([text, kind, text_start in tab_at, []])
 
     seg = 0
@@ -571,12 +631,16 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             # consumer decodes spans as usual; they simply render to nothing.
             if kind != 'eof':
                 out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard', _mk))
+                if raw_extras is not None:
+                    raw_extras['breaks'].append(brks[i])
             i += 1
             continue
         if kind == 'over':
             # An overprint separator is its own thing: no blank-counting, no
             # wrap inference -- the next physical line shares this baseline.
             out.append((text, 'over', _mk))
+            if raw_extras is not None:
+                raw_extras['breaks'].append(brks[i])
             i += 1
             continue
         n_hard = 1 if kind == 'hard' else 0
@@ -590,6 +654,14 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             j += 1
         if j >= len(lines):
             out.append((text, 'eof', _mk))
+            if raw_extras is not None:
+                # This line's own real break, and the invisible trailing run
+                # the classifier consumes without ever yielding (a file ending
+                # in blank lines before its ^Z lost them entirely) -- verbatim,
+                # text and separators both, so the writer can put them back.
+                raw_extras['breaks'].append(brks[i])
+                raw_extras['eof_tail'] = b''.join(
+                    lines[b][0] + brks[b] for b in range(i + 1, len(lines)))
             break
         if n_hard >= 1 and n_total >= 2:
             sep = 'para'
@@ -624,6 +696,8 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
                 W = len(nxt_vis.split(b' ', 1)[0])
                 sep = 'line' if L + 1 + W < margin else 'wrap'
         out.append((text, sep, _mk))
+        if raw_extras is not None:
+            raw_extras['breaks'].append(brks[i])
         # The blanks this run consumed, in document order, after the line they
         # follow. They were counted above to classify `sep` and are now also
         # kept as content -- the counting and the keeping are separate jobs.
@@ -631,6 +705,8 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             btext, bk, _, bmk = lines[b]
             if bk != 'eof':
                 out.append((btext, 'blank-soft' if bk == 'soft' else 'blank-hard', bmk))
+                if raw_extras is not None:
+                    raw_extras['breaks'].append(brks[b])
         i = j
     return out, margin
 
@@ -1756,7 +1832,7 @@ def _tab_columns(content: bytes):
         leader = b' '
     return cols, leader
 
-def _symmetric_blocks(data: bytes, encoding: str):
+def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
     """Strip WS5+ 1D symmetric sequences (2-byte LE length, command type at +2),
     collecting notes (footnotes/endnotes/annotations/comments, types 3-6) and
     injecting sentinels for the block types that carry document structure.
@@ -1766,7 +1842,14 @@ def _symmetric_blocks(data: bytes, encoding: str):
 
     Also returns the offsets (into the returned stream) at which TAB-derived
     padding begins -- see lines_pass, which needs to tell a program-emitted
-    indent from one the author typed."""
+    indent from one the author typed.
+
+    `raw_out` (tasks #20/#21, round-trip writer): pass a dict to receive
+    'blocks', every consumed sequence as (cleaned-stream offset, length its
+    expansion contributed there, verbatim source bytes 1D..1D) in consumption
+    order, and 'shift', True when 0x17 Shift-In/Out rewrote the stream (the
+    one transform whose offsets cannot be replayed -- the writer refuses
+    rather than corrupt). Purely additive: returns are unchanged without it."""
     out = bytearray()
     notes = []
     unknown = []
@@ -1780,6 +1863,9 @@ def _symmetric_blocks(data: bytes, encoding: str):
     shift_open = []
     driver = [None]
     tab_at = set()
+    if raw_out is not None:
+        raw_out['blocks'] = []
+        raw_out['shift'] = False
     i = 0
     while i < len(data):
         if data[i] == 0x1B and i + 1 < len(data):
@@ -1808,6 +1894,12 @@ def _symmetric_blocks(data: bytes, encoding: str):
                 continue
             block = data[i + 1:i + 3 + jump]
             cmd = block[2] if len(block) > 2 else -1
+            # Round-trip ledger (tasks #20/#21): the sequence's verbatim bytes
+            # and where its expansion (possibly empty) lands in the cleaned
+            # stream. Captured BEFORE dispatch: the 0x17 branch reassigns
+            # `start`, and the shift-out rewrite is what 'shift' flags.
+            rt_pre = len(out)
+            rt_raw = bytes(data[i:i + jump + 3])
             if cmd in NOTE_KINDS:
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 notes.append(_parse_note(cmd, content, start, encoding))
@@ -2113,12 +2205,18 @@ def _symmetric_blocks(data: bytes, encoding: str):
                     unknown.append(UnknownBlock(cmd, bytes(block), start))
             else:
                 unknown.append(UnknownBlock(cmd, bytes(block), start))
+            if raw_out is not None:
+                raw_out['blocks'].append((rt_pre, len(out) - rt_pre, rt_raw))
+                if cmd == 0x17:
+                    raw_out['shift'] = True     # stream rewritten; see docstring
             i += jump + 3
         else:
             out.append(data[i])
             i += 1
     # An unterminated shift-in runs to the end of the document: the text is
     # Japanese from there on, and dropping the run would lose that fact entirely.
+    if shift_open and raw_out is not None:
+        raw_out['shift'] = True                 # same rewrite, same refusal
     while shift_open:
         start = shift_open.pop()
         raw = bytes(out[start:])
@@ -2262,9 +2360,226 @@ def _style_heading_level(name: str) -> int:
     return 0
 
 
+# ---------------------------------------------- round-trip capture (#20/#21)
+#
+# _decode_spans is deliberately lossy in small, well-known ways: it folds
+# toggle bytes into a style set, collapses 0x0F/0x1F/0xA0 to their printable
+# stand-ins, masks WS4 flag bits, drops controls it does not model, and
+# reads bare high bytes and <1B x 1C> triples into the same Unicode. The two
+# helpers below record exactly those spots per line, so writer.py can put
+# the source bytes back WITHOUT the IR carrying a copy of the text. They
+# mirror _decode_spans's dispatch, case for case -- change one, change both.
+
+# Inverse of symbolmap's Symbol table, restricted to forward keys a decode
+# can actually REACH: transliteration runs on cp437-decoded text, so a key
+# like '­' (SYMBOL maps it to '↑') can never fire -- no cp437 byte
+# decodes to it -- and reversing '↑' through it would corrupt a '↑' that
+# was really a wrapped 0x18 glyph (fontcrib.ws). First reachable key wins,
+# same rule as symbolmap.SYMBOL_REVERSE. Shared by writer.py and the fixup
+# capture below -- they MUST agree byte for byte.
+_RT_CP437_HIGH = {bytes([b]).decode('cp437'): b for b in range(0x80, 0x100)}
+_RT_SYM_REV = {}
+for _rt_c, _rt_u in SYMBOL.items():
+    if ' ' <= _rt_c <= '~' or _rt_c in _RT_CP437_HIGH:
+        _RT_SYM_REV.setdefault(_rt_u, _rt_c)
+
+
+def _rt_untranslit(text: str, kind: str) -> str:
+    """Inverse of symbolmap.transliterate with the SAME passthrough rule: a
+    character the forward map never touched (an é wrapped in a triple inside
+    a Symbol run, ASCII digits) rides back unchanged. Deliberately NOT
+    symbolmap.untransliterate, whose '?' degradation is right for a PDF (the
+    face cannot show the glyph) and wrong for a writer (the file could).
+    Dingbats reverse by the U+2700-block formula alone -- the card-suit
+    exceptions are latin-1 keyed and unreachable from cp437 text, exactly
+    like the Symbol dead keys above."""
+    if kind == 'math':
+        return ''.join(_RT_SYM_REV.get(c, c) for c in text)
+    if kind == 'symbols':
+        return ''.join(chr(ord(c) - 0x2700 + 0x20)
+                       if 0x2701 <= ord(c) <= 0x275E else c for c in text)
+    return text
+
+
+_RT_GRAPHICS_REV = {ch: b for b, ch in CP437_GRAPHICS.items() if b != 0x00}
+
+
+def _rt_encode_char(ch: str, ws5: bool) -> bytes:
+    """Mirror of writer.py's _encode_text for ONE character -- the fixup
+    capture predicts emissions with it, so the two must stay identical."""
+    o = ord(ch)
+    if ch == '\t' or 0x20 <= o < 0x7F:
+        return bytes([o])
+    b = _RT_CP437_HIGH.get(ch)
+    if b is None:
+        b = _RT_GRAPHICS_REV.get(ch)
+    if b is None:
+        return b'?'
+    if ws5:
+        return bytes((0x1B, b, 0x1C))
+    return bytes([b])
+
+
+_RT_TOGGLABLE = frozenset(WS_TOGGLES.values()) | {'altfont'}
+# tag -> the canonical toggle byte the writer emits for it (^B for bold,
+# never the ^D doublestrike alias -- lowest byte wins, mirroring writer.py)
+_RT_TOGGLE_ON = {}
+for _rt_b in sorted(WS_TOGGLES):
+    _RT_TOGGLE_ON.setdefault(WS_TOGGLES[_rt_b], _rt_b)
+
+
+def _rt_cluster_byte(b: int) -> bool:
+    """Is `b` (already bit-7-masked where applicable) a byte that leaves NO
+    text behind in _decode_spans -- a style toggle, altfont, or a dropped
+    control? Runs of these form one span boundary, at which the writer emits
+    a single net style diff; anything else ends the run. 0x1B is handled by
+    the caller (an escape is content; a trailing bare 0x1B is dropped)."""
+    if b in WS_TOGGLES or b in (0x01, 0x0E, 0x1E, 0x7F):
+        return True
+    return b < 0x20 and b not in (0x09, 0x0F, 0x1B, 0x1F)
+
+
+def _rt_toggle_diff(prev: frozenset, want: frozenset) -> bytes:
+    """Exactly the bytes writer.py's span diff emits for one style-set
+    change: removals then additions, each sorted by toggle byte."""
+    out = bytearray()
+    for tag in sorted(prev - want, key=lambda t: _RT_TOGGLE_ON.get(t, 0x0E)):
+        out.append(0x0E if tag == 'altfont' else _RT_TOGGLE_ON[tag])
+    for tag in sorted(want - prev, key=lambda t: _RT_TOGGLE_ON.get(t, 0x01)):
+        out.append(0x01 if tag == 'altfont' else _RT_TOGGLE_ON[tag])
+    return bytes(out)
+
+
+def _rt_line_capture(raw: bytes, strip_hibit: bool, ws5: bool,
+                     active0: frozenset = frozenset(), translit0=None,
+                     translit_at=()):
+    """One forward pass over a line's raw bytes -> (fixups, tog_end).
+
+    `fixups` is (offset, expected, original) triples: each place where the
+    writer's re-encode of the decoded spans will differ from `raw`, with
+    `expected` being what the writer emits there and `original` the source
+    bytes to patch back in. Offsets ascend; both sides may be empty (a
+    dropped control inserts; a net-zero toggle pair like <14 14> emits
+    nothing at all). `active0` is the togglable style state in force as the
+    line begins -- the diff a cluster emits depends on it.
+
+    `tog_end` is the verbatim toggle/dropped-control run that CLOSES the
+    line, when there is one: those bytes leave no span behind (a toggle's
+    style lands on the NEXT line's spans), so the writer re-emits them
+    directly and flips its own state -- a fixup cannot, and the corpus
+    shows WordStar overwhelmingly writes toggles before the break. Found
+    by the same forward walk, so a trailing <1B x 1C> triple is never torn
+    apart the way an end-anchored scan tore PP.WS's."""
+    fx = []
+    cur = set(active0)
+    pending_translit = sorted(translit_at, key=lambda t: t[0])
+    i, n = 0, len(raw)          # (offset, kind|None): font marks mid-line,
+    while i < n:                # the same rule as _decode_spans's font_at
+                                # (key= because kind None/str won't compare)
+        while pending_translit and pending_translit[0][0] <= i:
+            translit0 = pending_translit.pop(0)[1]
+        b0 = raw[i]
+        b = b0 & 0x7F if strip_hibit and b0 >= 0x80 else b0
+        if _rt_cluster_byte(b) and not (b == 0x1B and i + 1 < n):
+            # A toggle/dropped-control CLUSTER: one span boundary. The
+            # writer emits only the NET style change, in its own canonical
+            # order -- so <02 19> against an italic run comes out <19 02>,
+            # <14 14> comes out empty, ^D comes out ^B -- and the fixup
+            # restores the file's own byte order.
+            start = i
+            prev = frozenset(cur & _RT_TOGGLABLE)
+            while i < n:
+                c0 = raw[i]
+                c = c0 & 0x7F if strip_hibit and c0 >= 0x80 else c0
+                if not _rt_cluster_byte(c) or (c == 0x1B and i + 1 < n):
+                    break                        # escape/content ends the run
+                if c in WS_TOGGLES:
+                    tag = WS_TOGGLES[c]
+                    cur.symmetric_difference_update({tag})
+                elif c == 0x01:
+                    cur.add('altfont')
+                elif c == 0x0E:
+                    cur.discard('altfont')
+                i += 1
+            seq = bytes(raw[start:i])
+            if i >= n:
+                # the run closes the line: it is the tog_end, not a fixup
+                return tuple(fx), seq
+            exp = _rt_toggle_diff(prev, frozenset(cur & _RT_TOGGLABLE))
+            if exp != seq:
+                fx.append((start, exp, seq))
+            continue
+        if b == 0x1B and i + 1 < n:
+            # Extended-character escape. _decode_spans consumes <1B x> and
+            # lets a following 1C fall into WS_DROP; the writer re-emits the
+            # decoded character canonically -- a full triple for glyphs and
+            # extended characters (WS5+), the bare byte for a printable x.
+            x = raw[i + 1]
+            j = i + 2
+            if j < n and ((raw[j] & 0x7F if strip_hibit and raw[j] >= 0x80
+                           else raw[j]) == 0x1C):
+                j += 1
+            seq = bytes(raw[i:j])
+            if ws5 and (x < 0x20 or x >= 0x7F):
+                if not translit0:
+                    # through the shared encoder, not a blind triple: the
+                    # glyph at 0x00 is ' ', which re-encodes as a bare
+                    # space (LSRBOXES.MRG wraps NULs)
+                    exp = _rt_encode_char(
+                        CP437_GRAPHICS[x] if x < 0x20 or x == 0x7F
+                        else bytes([x]).decode('cp437'), True)
+                elif x < 0x20 or x == 0x7F:
+                    # A glyph span skips forward transliteration at decode,
+                    # but the writer's reverse pass still sees its character
+                    # -- fontcrib.ws wraps '←' (glyph 0x1B) inside a Symbol
+                    # run, and the reverse turns it into cp437 '¬' (0xAA).
+                    # Predict that emission so the fixup can restore the
+                    # wrapped original.
+                    exp = _rt_encode_char(
+                        _rt_untranslit(CP437_GRAPHICS[x], translit0), True)
+                else:
+                    # a wrapped TEXT character rides through the forward
+                    # transliteration and back: <1B E0 1C> (cp437 α) in a
+                    # Symbol run comes out as the face's own 'a'
+                    ch = bytes([x]).decode('cp437')
+                    exp = _rt_encode_char(
+                        _rt_untranslit(transliterate(ch, translit0),
+                                       translit0), True)
+            else:
+                exp = bytes([x])
+            if exp != seq:
+                fx.append((i, exp, seq))
+            i = j
+            continue
+        if b == 0x0F:
+            fx.append((i, b' ', bytes([b0])))   # binding space
+        elif b == 0x1F:
+            fx.append((i, b'-', bytes([b0])))   # active soft hyphen
+        elif b == 0x09:
+            if b0 != b:
+                fx.append((i, b'\t', bytes([b0])))
+        elif b == 0xA0 and not strip_hibit:
+            fx.append((i, b' ', bytes([b0])))   # WS5+ soft space
+        elif ws5 and b0 >= 0x80:
+            # bare extended byte: decoded as its cp437 character, which the
+            # writer would re-wrap as a triple -- patch back to the bare form
+            fx.append((i, bytes((0x1B, b0, 0x1C)), bytes([b0])))
+        elif b0 != b:
+            fx.append((i, bytes([b]), bytes([b0])))   # WS4 flag bit on text
+        i += 1
+    return tuple(fx), b''
+
+
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
     marks = {}
+    # Round-trip ledger scaffolding (tasks #20/#21). `_rt_original` is a
+    # REFERENCE to the input, held only long enough to slice the post-EOF
+    # tail out of it -- the ledger stores that slice, never the body.
+    _rt_original = data
+    _rt_sym = {}
+    _rt_extras = {}
+    _rt_flagged = []
     det = detect(data)
     doc.meta.update(det)
     era = era_for(det['variant'])
@@ -2279,7 +2594,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     if ws5:
         raw_file = data           # the style-library pointer is file-absolute
         (data, notes, blobs, tab_at, graphics, colours, fonts,
-         includes, driver, shift_runs, marks, header) = _symmetric_blocks(data, encoding)
+         includes, driver, shift_runs, marks, header) = _symmetric_blocks(
+             data, encoding, raw_out=_rt_sym)
         if header:
             doc.meta['ws_header'] = header
             ptr = header.get('style_library_offset')
@@ -2336,12 +2652,16 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
              0x8C: 0x0C,          # flagged ^L form feed     (20x in 5 docs)
              0x94: 0x14}          # flagged ^T sup toggle    (oracle-measured)
         ).get(b, b) for b in range(256))
-        data = b''.join(
+        _rt_pre_translate = data          # ledger: which bytes the translation
+        data = b''.join(                  # rewrote (length-preserving, so the
             seg if k % 2 else seg.translate(_FLAGGED)   # odd = captured triples
             for k, seg in enumerate(re.split(rb'(\x1b.\x1c)', data, flags=re.S)))
+        if _rt_pre_translate != data:     # offsets stay valid either side)
+            _rt_flagged = [(k, _rt_pre_translate[k]) for k in range(len(data))
+                           if _rt_pre_translate[k] != data[k]]
 
     physical, margin = lines_pass(data, tab_at, marks, soft_is_wrap=ws5,
-                                  overprint_cr=True)
+                                  overprint_cr=True, raw_extras=_rt_extras)
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
@@ -2403,6 +2723,18 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     cur_line = Line()
     ruler = False
     page, meta_extra = {}, {}
+    # Round-trip ledger (tasks #20/#21): a running count of EVENTS in emission
+    # order -- Lines appended anywhere plus form-feed pagebreak blocks -- and
+    # the last Line appended, so each physical entry's raw separator can be
+    # stamped onto the Line that actually closed it. Dot lines are anchored by
+    # this same counter: "this dot line sits before event N", which survives
+    # every block split/drop that makes (block, line) anchors unstable.
+    _rt_tally = [0]
+    _rt_last = [None]
+    _rt_content = [0]       # Lines with spans specifically: fixups/tog_end
+    _rt_lastc = [None]      # attach to the line that holds the entry's text,
+                            # not to a phantom blank appended after it
+    _rt_dots = []
 
     def close_line():
         nonlocal cur_line
@@ -2413,6 +2745,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # normalised against the document default once that is known, below.
             cur_line.lead_48 = fmt.get('lead_48', DEFAULT_LH_48)
             cur.lines.append(cur_line)
+            _rt_tally[0] += 1
+            _rt_last[0] = cur_line
+            _rt_content[0] += 1
+            _rt_lastc[0] = cur_line
         cur_line = Line()
 
     def close_block():
@@ -2423,7 +2759,22 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         cur = _new_block()
 
     pending_marks = []      # dot-line comment marks awaiting a content line
-    for raw, sep, line_marks in physical:
+    _rt_breaks = _rt_extras.get('breaks', [])
+    for _rt_idx, (raw, sep, line_marks) in enumerate(physical):
+        # this entry's raw separator bytes, and the event count before it --
+        # tasks #20/#21, stamped onto whichever Line closes the entry below
+        _rt_brk = _rt_breaks[_rt_idx] if _rt_idx < len(_rt_breaks) else None
+        _rt_n0 = _rt_tally[0]
+        _rt_c0 = _rt_content[0]
+        _rt_raw0 = raw          # the FF branch consumes `raw`; capture first
+        _rt_act0 = frozenset(t for t in active if t in _RT_TOGGLABLE)
+        # the transliteration (if any) of the font in force at line start --
+        # the same lookup _decode_spans makes at flush time
+        _rt_fidx = next((int(t[4:]) for t in active
+                         if t.startswith('font') and t[4:].isdigit()), None)
+        _rt_kind0 = (font_translit_kind(doc.fonts[_rt_fidx])
+                     if _rt_fidx is not None and _rt_fidx < len(doc.fonts)
+                     else None)
         stripped = bytes(b & 0x7F for b in raw)
         # A line that BEGINS with a 0x0F print control's display string is
         # content, not a dot command -- but its first character is often «
@@ -2434,6 +2785,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         if stripped[:1] == b'.' and not pctl_leads:  # dot command line
             cmd = stripped.rstrip()
             dots.append(cmd.decode(encoding, 'replace'))
+            # Round-trip ledger (tasks #20/#21): the line's UNMASKED,
+            # UNSTRIPPED bytes and its own separator, anchored to the event
+            # counter. `cmd` above is bit-7-masked and rstripped -- fine for
+            # interpretation, lossy for a writer -- and mailmerge lines
+            # (.av/.dm/.df/.rv...) must come back byte-exact, never
+            # re-serialized from an interpretation (permanent ruling).
+            _rt_dots.append((_rt_tally[0], bytes(raw),
+                             _rt_brk if _rt_brk is not None else b''))
             # Where in the document this command sat. `dot_commands` is a flat
             # list with no anchor, so a consumer that wants to SHOW a dot
             # command in place -- Soft Return.app's Show Invisibles -- has
@@ -2498,8 +2857,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 # before it has to be closed out first or the marker jumps to the
                 # front of the document.
                 close_block()
+                # origin='fi': fabricated placeholder, no source bytes of its
+                # own (the `.fi` dot line carries them) -- the round-trip
+                # writer skips it without counting (tasks #20/#21)
                 doc.blocks.append(Block('para', lines=[
-                    Line([Span('[insert: %s]' % inserted, frozenset())])]))
+                    Line([Span('[insert: %s]' % inserted, frozenset())])],
+                    origin='fi'))
             # A formatting change starts a NEW block: `.oc on` mid-paragraph means
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
@@ -2526,7 +2889,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             for n, part in enumerate(parts):
                 if n:
                     close_block()
-                    doc.blocks.append(Block('pagebreak'))
+                    # origin='ff': this break IS a byte (0x0C), unlike a
+                    # `.pa` pagebreak whose bytes are its dot line. It also
+                    # counts as an EVENT so dot lines on either side of it
+                    # keep their order (tasks #20/#21).
+                    doc.blocks.append(Block('pagebreak', origin='ff'))
+                    _rt_tally[0] += 1
                 if part:
                     spans = _decode_spans(part, strip_hibit, encoding, active,
                                           unknown, fn_counter)
@@ -2656,8 +3024,64 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks[-1].lines.append(blank)
             else:
                 cur.lines.append(blank)
+            _rt_tally[0] += 1              # both branches append exactly one
+            _rt_last[0] = blank            # Line, in linear order (#20/#21)
         else:                                      # para / eof
             close_block()
+        # Stamp this entry's raw separator on the Line that closed it (tasks
+        # #20/#21). Entries that appended no Line (a toggles-only invisible
+        # line whose softness folded into its predecessor) stamp nothing:
+        # their bytes are a known, census-counted loss, and overwriting the
+        # predecessor's own separator would corrupt a good one.
+        if _rt_tally[0] > _rt_n0 and _rt_last[0] is not None \
+                and _rt_brk is not None:
+            _rt_last[0].brk_raw = _rt_brk
+        # ... and the entry's lossy-decode record on the Line holding its
+        # TEXT (a phantom blank may follow it and own the separator), or on
+        # the blank Line itself for an invisible entry whose only bytes are
+        # controls (a lone ^P before a break was vanishing entirely). A
+        # form-feed-split entry anchors against its LAST part -- the one
+        # whose Line closed last -- because that is the offset space the
+        # last Line's bytes actually live in; earlier parts' losses are a
+        # census-counted tail (BOOKLET's flagged-FF pages sat in one).
+        _rt_line = None
+        if _rt_content[0] > _rt_c0 and _rt_lastc[0] is not None:
+            _rt_line = _rt_lastc[0]
+        elif _rt_tally[0] > _rt_n0 and _rt_last[0] is not None \
+                and not _rt_last[0].spans:
+            _rt_line = _rt_last[0]
+        if _rt_line is not None:
+            _rt_src = _rt_raw0
+            _rt_tr_at = ()
+            if 0x0C in _rt_raw0:
+                _rt_src = _split_bare_ff(_rt_raw0)[-1]
+            else:
+                # mid-line font changes move the transliteration boundary --
+                # fontcrib.ws switches to Symbol partway through a line, via
+                # a type-2 Font block on one page and via a paragraph-style
+                # selection whose record carries a font on another. Both are
+                # replayed; a style with no font of its own changes nothing
+                # ('inherit' keeps what is in force). Offsets are entry-
+                # relative, so FF-split entries keep only line-start state.
+                _rt_tr = []
+                for _rel, _m in line_marks:
+                    if _m[0] == 'font' and _m[1] < len(doc.fonts):
+                        _rt_tr.append((_rel,
+                                       font_translit_kind(doc.fonts[_m[1]])))
+                    elif _m[0] == 'style' and (_m[1] >> 8) == 0x02:
+                        _e = style_slots.get(_m[1] & 0xFF)
+                        if _e is not None and _e.get('font') \
+                                and any(_e['font']):
+                            _rt_tr.append((_rel, font_translit_kind(
+                                _font_entry(_e['font'][0], _e['font'][1],
+                                            _e['font'][2], None))))
+                _rt_tr_at = _rt_tr
+            _rt_fx, _rt_tog = _rt_line_capture(_rt_src, strip_hibit, ws5,
+                                               _rt_act0, _rt_kind0, _rt_tr_at)
+            if _rt_tog:
+                _rt_line.tog_end = _rt_tog
+            if _rt_fx:
+                _rt_line.fixups = _rt_fx
     close_block()
 
     if pending_marks:
@@ -2782,6 +3206,43 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['page']['lh_varies'] = varying
     if meta_extra:
         doc.meta.update(meta_extra)
+
+    # ---------------- round-trip ledger (tasks #20/#21) ----------------
+    # `data` here is the stream lines_pass consumed (cleaned+translated for
+    # WS5+, the raw file for WS4), so this recomputes the same EOF cut it
+    # used. The tail is sliced from the ORIGINAL file: for WS5+ the cleaned
+    # cut is mapped back to a file offset by re-adding what each consumed
+    # block's raw bytes displaced (blocks copy nothing 1:1; everything else,
+    # wrapped triples included, does). Everything after that offset -- the
+    # ^Z itself, DOS padding, the style library the header points into --
+    # comes back verbatim, which is also why blocks consumed BEYOND the cut
+    # are excluded from 'sym': their bytes already live inside the tail.
+    _rt_cut = _bare_eof(data)
+    _rt_blocks = _rt_sym.get('blocks', [])
+    _rt_spliceable = [e for e in _rt_blocks
+                      if _rt_cut == -1 or e[0] + max(e[1], 0) <= _rt_cut]
+    if ws5:
+        if _rt_cut == -1:
+            _rt_tail = b''
+        else:
+            _rt_file_cut = _rt_cut + sum(len(r) - exp
+                                         for (_o, exp, r) in _rt_spliceable)
+            _rt_tail = bytes(_rt_original[_rt_file_cut:])
+    else:
+        _rt_tail = bytes(_rt_original[_rt_cut:]) if _rt_cut != -1 else b''
+    doc.roundtrip = {
+        'era': era.name,
+        'encoding': encoding,
+        'dots': _rt_dots,                    # (event anchor, raw line, raw brk)
+        'sym': _rt_spliceable,               # (cleaned offset, expansion len, raw)
+        'flagged_at': _rt_flagged,           # (cleaned offset, original byte)
+        'eof_tail': _rt_extras.get('eof_tail', b''),
+        'tail': _rt_tail,
+        # 0x17 Shift-In/Out rewrites the cleaned stream after the fact, so
+        # every recorded offset in a Japanese run is unreplayable -- the
+        # writer refuses such documents instead of corrupting them.
+        'unsupported': 'shift-jis' if _rt_sym.get('shift') else None,
+    }
     return doc
 
 # ---------------------------------------------------------------- print streams
