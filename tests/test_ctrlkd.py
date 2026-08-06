@@ -3584,3 +3584,38 @@ def test_modern_applies_lj6dtp_character_substitutions():
     assert doc.meta['printer_driver'] == 'LJ6DTP'
     pdf = emit_pdf(doc, 'modern')
     assert b'word\x97word' in pdf                     # '_' -> em dash (cp1252)
+
+
+def test_note_refs_prefixed_scheme_matches_markdown_labels():
+    """Ruling 2026-08-06 (round 2 follow-up): --note-refs prefixed shows the
+    Markdown emitter's own labels -- footnotes bare, endnotes e1, annotations
+    a1 -- in PDF, RTF, and HTML alike. `word` (the default) stays exactly
+    what displayed before: arabic/roman/tags. Ids and structure never move;
+    only the visible mark text does."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'One' + ws7_note(0x03, b'Foot text.', number=0)
+            + b' two' + ws7_note(0x04, b'End text.', number=0)
+            + b' three' + ws7_note_with_tag(0x05, b'Anno text.', number=0)
+            + b' done.' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+
+    pdf = emit_pdf(doc, 'modern', note_refs='prefixed')
+    ops = _td_ops6(pdf)
+    texts = [t for _, _, t in ops]
+    assert b'e1' in texts and b'[e1]' in texts        # endnote, inline + end
+    assert b'a1' in texts and b'[a1]' in texts        # annotation likewise
+    assert b'i' not in texts                          # no roman under prefixed
+
+    rtf = emit.emit_rtf(doc, 'modern', note_refs='prefixed')
+    assert r'{\super e1}' in rtf                      # custom mark, not \chftn
+    assert r'{\super a1}' in rtf
+    word = emit.emit_rtf(doc, 'modern')
+    assert r'{\super e1}' not in word                 # default keeps \chftn
+
+    html = emit.emit_html(doc, 'modern', note_refs='prefixed')
+    assert '>e1</a></sup>' in html
+    assert 'id="enref1"' in html                      # ids stay structural
