@@ -2779,3 +2779,22 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document
     if v in ('printstream', 'text'):
         return parse_printstream(data, encoding)
     raise ValueError(f'not a convertible file (detected: {v})')
+
+
+def effective_page(page, settings):
+    """A copy of a doc's resolved page dict with `settings` applied to every
+    field the DOCUMENT did not declare itself (its *_source is 'default') --
+    the machine layer of the page model: document dot commands > these
+    settings > WordStar factory. Shared by the PDF emitter's page_settings
+    option and the CLI's --page-settings flag (which mutates doc.meta['page']
+    once so ALL emitters, RTF page setup included, see the same page)."""
+    eff = dict(page)
+    for key, val in settings.items():
+        src = key[:2] + '_source'
+        if eff.get(src, 'default') == 'default':
+            eff[key] = val
+            eff[src] = 'machine-default'
+    eff['text_lines'] = _text_lines_per_page(
+        eff.get('pl_lines', DEFAULT_PL_LINES), eff.get('mt_lines', DEFAULT_MT_LINES),
+        eff.get('mb_lines', DEFAULT_MB_LINES), eff.get('lh_48', DEFAULT_LH_48))
+    return eff
