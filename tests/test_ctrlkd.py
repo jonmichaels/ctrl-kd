@@ -1183,9 +1183,15 @@ def test_page_geometry_snaps_close_but_honours_far_raw_geometry():
     close = core.parse_ws(b'.PL 67' + HARD + b'x' + HARD)     # 11.1667in: within 0.25 of Letter
     assert close.meta['page']['size_name'] == 'Letter'
     assert close.meta['page']['height_in'] == 11.0             # snapped to the named figure
-    far = core.parse_ws(b'.PL 70' + HARD + b'x' + HARD)        # 11.667in: > 0.25 from Letter
+    # .PL 70 = 11.667in: within 0.026 of A4's 11.693 -- since 2026-08-06
+    # ("the 3 main page sizes") that IS A4, at the 210mm width
+    a4 = core.parse_ws(b'.PL 70' + HARD + b'x' + HARD)
+    assert a4.meta['page']['size_name'] == 'A4'
+    assert abs(a4.meta['page']['pw_in'] - 8.268) < 1e-6
+    far = core.parse_ws(b'.PL 74' + HARD + b'x' + HARD)        # 12.33in: far from all
     assert far.meta['page']['size_name'] == 'Custom'
-    assert far.meta['page']['height_in'] == pytest.approx(70 / 6)   # raw geometry honoured
+    assert far.meta['page']['pw_in'] == 8.5
+    assert far.meta['page']['height_in'] == pytest.approx(74 / 6)   # raw geometry honoured
 
 def test_page_geometry_dot_commands_still_preserved_verbatim():
     # recognising .pl/.mt/.mb/.po must not stop them being kept in the
@@ -3843,3 +3849,26 @@ def test_layout_emitter_serializes_the_viewer_contract():
     assert d['invisibles']['notes'][0]['origin'] == '..'
     assert d['invisibles']['dot_positions']           # Show Invisibles anchors
     assert 'layout' in emit.formats()                 # reachable from the CLI
+
+
+def test_page_settings_size_presets_letter_legal_a4():
+    """Ruling 2026-08-06 (task #16): --page-settings size=letter|legal|a4
+    fills SILENT files with a named sheet -- the document's own .pl always
+    wins. An A4 page narrows the PDF MediaBox and the RTF \\paperw."""
+    from ctrlkd.pdf import emit_pdf
+    silent = core.parse_ws(ws7_block(0x00) +
+                           b'Plain prose line, ordinary and long enough here.'
+                           + HARD)
+    eff = core.effective_page(silent.meta['page'], {'pl_lines': 70.157})
+    assert eff['size_name'] == 'A4' and abs(eff['pw_in'] - 8.268) < 1e-6
+    silent.meta['page'] = eff
+    pdf = emit_pdf(silent, 'modern')
+    assert b'/MediaBox [0 0 595 842]' in pdf
+    rtf = emit.emit_rtf(silent, 'modern')
+    assert r'\paperw11906' in rtf and r'\paperh16838' in rtf
+    # a file DECLARING its length keeps it against any preset
+    own = core.parse_ws(ws7_block(0x00) + b'.pl 84' + HARD +
+                        b'Plain prose line, ordinary and long enough here.'
+                        + HARD)
+    eff = core.effective_page(own.meta['page'], {'pl_lines': 70.157})
+    assert eff['size_name'] == 'Legal' and eff['pw_in'] == 8.5
