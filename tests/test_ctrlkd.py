@@ -2323,8 +2323,10 @@ def test_margins_are_per_block_state_not_first_occurrence():
     """C9. `.lm`/`.rm`/`.pm` are stateful, and emphatically not first-occurrence
     the way page geometry is -- one archive file sets `.pm` seven hundred times."""
     doc = core.parse_ws(b'.lm 5\r\n.rm 60\r\nIndented.\r\n.pm 4\r\nPara margin.\r\n')
+    # left_margin is stored as OFFSET columns (`.lm 5` = text at column 5 =
+    # 4 columns in), matching the style-block hmi path -- see the LM handler
     assert [(b.left_margin, b.right_margin, b.para_margin) for b in doc.blocks] == [
-        (5.0, 60.0, None), (5.0, 60.0, 4.0)]
+        (4.0, 60.0, None), (4.0, 60.0, 4.0)]
     # never set -> None, so a consumer applies its own default rather than a
     # fabricated one
     b = core.parse_ws(b'Plain.\r\n').blocks[0]
@@ -3413,3 +3415,172 @@ def test_modern_pdf_page_bottom_footnotes():
     note_y = next(y for y, t in ys if t == b'bottom.')
     body_y = next(y for y, t in ys if b'referenced' in t)
     assert note_y < body_y
+
+
+# ====================== Modern layout rulings (2026-08-06) ==================
+#
+# Jon's second Modern review round, all six rulings: endnotes to the document
+# end, block margins honored, editor-time alignment de-duplicated, only the
+# author's blank lines make space, running heads kept, and driver character
+# substitutions are content. The printed digests above must NOT move.
+
+def _td_ops6(pdf):
+    """(x, y, text) for every one-word show op, in stream order."""
+    return [(float(m.group(1)), float(m.group(2)), m.group(3))
+            for m in re.finditer(
+                rb'([\d.-]+) ([\d.-]+) Td \(((?:\\.|[^)\\])*)\) Tj', pdf)]
+
+
+def test_modern_pdf_endnotes_collect_at_document_end():
+    """Ruling 1: Word sends \\ftnalt notes to the back, and Modern PDF is the
+    printed Modern RTF -- so endnotes flow after the last body line (never
+    the page-bottom footnote area), inline-marked in Word's own lowercase
+    roman so footnote [1] and endnote [i] cannot collide."""
+    from ctrlkd.pdf import emit_pdf
+    note = ws7_note(0x04, b'The endnote text itself.', number=0)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'The referenced line' + note + b' continues after.'
+            + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    ops = _td_ops6(pdf)
+    assert any(t == b'i' for _, _, t in ops)          # inline roman marker
+    label_y = next(y for _, y, t in ops if t == b'[i]')
+    last_body_y = next(y for _, y, t in ops if t == b'honest.')
+    assert 0 < last_body_y - label_y < 80             # flows just below body
+    assert label_y > 300                              # not bottom-anchored
+
+
+def test_modern_pdf_block_margins_indent_and_narrow_the_measure():
+    """Ruling 2: a block's own .lm/.rm are the document's explicit choices
+    and win in Modern exactly as its fonts do. WordStar's stamped .lm spaces
+    come off the front so the indent isn't applied twice."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Full width prose before the quotation, ordinary and plain.'
+            + HARD + b'.lm 8' + HARD + b'.rm 58' + HARD +
+            b'       An indented quotation, with enough words in it that the '
+            b'line has to wrap inside its own narrowed measure to pass.'
+            + HARD + b'.lm 1' + HARD + b'.rm 65' + HARD +
+            b'Back to the full measure after the quotation ends here.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    ops = _td_ops6(pdf)
+    x_quote = next(x for x, _, t in ops if t == b'An')
+    x_back = next(x for x, _, t in ops if t == b'Back')
+    assert abs(x_quote - (72 + 7 * 7.2)) < 0.1        # .lm 8 = 7 columns in
+    assert abs(x_back - 72) < 0.1
+
+
+def test_modern_alignment_tag_strips_the_spaces_that_implemented_it():
+    """Ruling 3: WordStar 5+ aligned at EDITOR time -- the file carries both
+    the tag and the spaces that implemented it. The spaces come off and the
+    tag does the work; the visible text lands dead center of the measure."""
+    from ctrlkd.pdf import emit_pdf
+    from ctrlkd.afm import string_width_pt
+    data = (ws7_block(0x00) +
+            b'Padding prose line one, entirely ordinary text, for balance.'
+            + HARD + b'.oc on' + HARD +
+            b'                    Centered Headline' + HARD +
+            b'.oc off' + HARD +
+            b'More plain prose to close the document, again fully ordinary.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    ops = _td_ops6(pdf)
+    x = next(x for x, _, t in ops if t == b'Centered')
+    w = string_width_pt('Centered Headline', 'Times-Roman', 14)
+    assert abs(x - (72 + (468 - w) / 2)) < 0.5
+
+
+def test_modern_dot_command_block_split_invents_no_blank():
+    """Ruling 4: command codes are invisible -- a block boundary made by a
+    dot command adds no space; the author's own blank line still does."""
+    from ctrlkd.pdf import emit_pdf
+
+    def gap(mid):
+        doc = core.parse_ws(
+            ws7_block(0x00) +
+            b'First paragraph line of plain prose, long enough to matter.'
+            + HARD + mid +
+            b'Second paragraph line of plain prose, also long enough.' + HARD)
+        ops = _td_ops6(emit_pdf(doc, 'modern'))
+        y1 = next(y for _, y, t in ops if t == b'First')
+        y2 = next(y for _, y, t in ops if t == b'Second')
+        return y1 - y2
+
+    assert abs(gap(b'.cp 4' + HARD) - 16.8) < 0.1     # dot command: one lead
+    assert abs(gap(HARD) - 33.6) < 0.1                # author blank: two
+
+
+def test_modern_running_heads_replay_with_page_numbers():
+    """Ruling 5: Modern keeps headers. They replay per page (state in force
+    when the page takes content), live in the top margin zone, and WordStar's
+    # token becomes the page number."""
+    from ctrlkd.pdf import emit_pdf
+    doc = core.parse_ws(
+        ws7_block(0x00) + b'.he Chapter / #' + HARD +
+        b'Page one prose, plain and ordinary, enough for the detector.'
+        + HARD + b'.pa' + HARD +
+        b'Page two prose, also plain and ordinary, and long enough too.'
+        + HARD)
+    pdf = emit_pdf(doc, 'modern')
+    streams = re.findall(rb'stream\r?\n(.*?)endstream', pdf, re.S)
+    assert len(streams) >= 2
+    for pi, s in enumerate(streams[:2]):
+        ops = _td_ops6(s)
+        assert any(t == b'Chapter' and y > 720 for _, y, t in ops)
+        assert any(t == str(pi + 1).encode() and y > 720 for _, y, t in ops)
+
+
+def test_modern_rtf_carries_running_heads_and_strips_align_spaces():
+    """Rulings 3 and 5 on the RTF side: a real \\header destination with
+    Word's own \\chpgn page number, and center/right paragraphs shed the
+    spaces that implemented their alignment."""
+    doc = core.parse_ws(ws7_block(0x00) + b'.he Chapter / #' + HARD +
+                        b'.oc on' + HARD +
+                        b'          A Centered Title' + HARD +
+                        b'.oc off' + HARD +
+                        b'Plain closing prose, quite ordinary and long.' + HARD)
+    rtf = emit.emit_rtf(doc, 'modern')
+    assert r'{\header \pard\plain \f0\fs22 Chapter / {\chpgn }\par}' in rtf
+    assert 'A Centered Title' in rtf
+    assert '  A Centered Title' not in rtf            # the tag does the work
+
+
+def test_modern_rtf_dot_command_split_invents_no_par():
+    """Ruling 4 on the RTF side: \\par count between paragraphs follows the
+    author's blank lines, never the block structure."""
+    def rtf_for(mid):
+        doc = core.parse_ws(
+            ws7_block(0x00) +
+            b'First paragraph line of plain prose, long enough to matter.'
+            + HARD + mid +
+            b'Second paragraph line of plain prose, also long enough.' + HARD)
+        return emit.emit_rtf(doc, 'modern')
+
+    tight = rtf_for(b'.cp 4' + HARD)
+    seg = tight[tight.find('matter.'):tight.find('Second')]
+    assert seg.count(r'\par') == 1
+    spaced = rtf_for(HARD)
+    seg = spaced[spaced.find('matter.'):spaced.find('Second')]
+    assert seg.count(r'\par') == 2
+
+
+def test_modern_applies_lj6dtp_character_substitutions():
+    """Ruling 7: the driver's patched slots are CONTENT -- an em dash is an
+    em dash in any century -- so Modern applies them (proportional faces
+    only, the driver's own rule). The page art stays print-time."""
+    from ctrlkd.pdf import emit_pdf
+    prop = _font_block(_helv_typestyle(), 12.0, style_bits=0x8000)
+    data = (_ws_block(0x00, b'pLJ6DTP\x00\x00\x00\x80') +
+            prop + b'word_word' + HARD +
+            b'Plain padding prose, ordinary and long enough to balance it.'
+            + HARD)
+    doc = core.parse_ws(data)
+    assert doc.meta['printer_driver'] == 'LJ6DTP'
+    pdf = emit_pdf(doc, 'modern')
+    assert b'word\x97word' in pdf                     # '_' -> em dash (cp1252)
