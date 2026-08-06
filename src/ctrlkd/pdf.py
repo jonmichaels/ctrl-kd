@@ -1534,6 +1534,8 @@ def _modern_flow(doc, keep, note_refs='word'):
             flow.append(('cond', it['lines']))
         elif k == 'hf':
             flow.append(('hf', it['which'], it['line'], it['text']))
+        elif k == 'tabs':
+            continue          # editor-time state: no rendered consequence
         elif k == 'note-separator':
             sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
                                       MODERN_NOTE_PT)
