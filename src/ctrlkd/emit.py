@@ -236,6 +236,14 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         for line in (b.lines if printed else merged_lines(b)):
             seg = []
             for s in line.spans:
+                pctl = next((t for t in s.styles if t.startswith('pctl')),
+                            None)
+                if pctl is not None:
+                    # screen-only display string: printed pads the declared
+                    # width, modern shows nothing (M4 extended, 2026-08-06)
+                    if printed:
+                        seg.append(' ' * round(int(pctl[4:]) / 180))
+                    continue
                 note, label = (_resolve_ref(refs, s.text)
                                if 'fnref' in s.styles else (None, None))
                 if note is not None:
@@ -294,6 +302,8 @@ def _resolve_ref(refs, text):
 
 
 def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
+    if any(t.startswith('pctl') for t in s.styles):
+        return ''                  # screen-only print-control display string
     text = s.text
     if 'fnref' in s.styles:
         note, label = _resolve_ref(refs, text)
@@ -442,6 +452,11 @@ def _html_note_ref(note, label, shown=None):
 def _html_line(line, refs, keep, keep_ws=False, shown_map=None):
     out = []
     for s in line.spans:
+        pctl = next((t for t in s.styles if t.startswith('pctl')), None)
+        if pctl is not None:
+            if keep_ws:                        # the printed physical layer
+                out.append(' ' * round(int(pctl[4:]) / 180))
+            continue
         if 'fnref' in s.styles:
             note, label = _resolve_ref(refs, s.text)
             if note is not None:
@@ -793,16 +808,18 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
                         if shown_map is not None
                         and note.kind in ('endnote', 'annotation') else None)
             return _rtf_note_dest(note, label, override)
-    if printed:
+    pctl = next((t for t in sp.styles if t.startswith('pctl')), None)
+    if pctl is not None:
         # A 0x0F print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
-        # HMI word. The printed facsimile does the same -- the declared
-        # width of blank space (0 for LJ6DTP's rule-drawing controls), in
-        # the 10-CPI print columns the rest of printed layout uses.
-        pctl = next((t for t in sp.styles if t.startswith('pctl')), None)
-        if pctl is not None:
+        # HMI word. Printed pads that width (10-CPI print columns); Modern
+        # shows NOTHING -- the string is an editor-screen artifact, and
+        # command codes are invisible (M4, extended to print controls,
+        # ruling 2026-08-06 round 3).
+        if printed:
             pad = ' ' * round(int(pctl[4:]) / 180)
             return '{' + pad + '}' if pad else ''
+        return ''
     styles = sorted(st for st in sp.styles if st != 'fnref')
     ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
     if fontctl:
@@ -861,6 +878,46 @@ def _strip_align_spaces(spans):
     return out
 
 
+# WordStar print-toggle bytes that legitimately appear inside header/footer
+# TEXT (a `.h1` line carries them raw -- LJ6DTP's is `^B^BLJ6DTP ... ^B`).
+# Interpreted minimally here: toggles flip a style, every other control byte
+# is stripped (0x0F print-control lead-ins included). U+2219 maps to the
+# cp1252-friendly bullet so PDF measurement and drawing agree; one glyph,
+# consistent across formats.
+_HF_TOGGLES = {0x02: 'b', 0x19: 'i', 0x13: 'u',
+               0x14: 'sup', 0x16: 'sub', 0x18: 'strike'}
+
+
+def hf_runs(txt):
+    """A running-head string -> [(text, styles)] with WordStar's own toggle
+    bytes interpreted and remaining control bytes stripped. Returns [] for a
+    head that is nothing but control bytes (LJ6DTP's `.f1` is two 0x0F
+    bytes) -- callers skip those instead of rendering junk."""
+    runs, buf, active = [], [], set()
+
+    def flush():
+        if buf:
+            runs.append((''.join(buf), frozenset(active)))
+            buf.clear()
+
+    for ch in txt.replace('∙', '•'):
+        code = ord(ch)
+        if code in _HF_TOGGLES:
+            flush()
+            tag = _HF_TOGGLES[code]
+            active.symmetric_difference_update({tag})
+            continue
+        if code < 0x20:
+            continue
+        buf.append(ch)
+    flush()
+    # whitespace runs SURVIVE (a head positions its parts with baked
+    # spaces); only a head with no visible text at all empties out
+    if not any(t.strip() for t, _ in runs):
+        return []
+    return runs
+
+
 def _rtf_running_heads(doc):
     """Modern RTF `\\header`/`\\footer` groups from the document's own
     running heads (ruling 2026-08-06: Modern keeps headers).
@@ -886,10 +943,19 @@ def _rtf_running_heads(doc):
     def group(name, lines):
         if not lines:
             return ''
-        body = r'\line '.join(
-            _rtf_escape(lines[n]).replace('#', r'{\chpgn }')
-            for n in sorted(lines))
-        return r'{\%s \pard\plain \f0\fs22 %s\par}' % (name, body)
+        rendered = []
+        for n in sorted(lines):
+            runs = hf_runs(lines[n])
+            if not runs:
+                continue                     # control-bytes-only head
+            rendered.append(''.join(
+                '{' + ''.join(_RTF_ON.get(st, '') for st in sorted(styles))
+                + _rtf_escape(text).replace('#', r'{\chpgn }') + '}'
+                for text, styles in runs))
+        if not rendered:
+            return ''
+        return (r'{\%s \pard\plain \f0\fs22 %s\par}'
+                % (name, r'\line '.join(rendered)))
 
     out = group('header', hdr) + group('footer', ftr)
     if first_anchor and first_anchor > 0:

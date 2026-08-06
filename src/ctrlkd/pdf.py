@@ -22,7 +22,7 @@ import re as _re
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
-    _font_family, note_ref_labels as _note_ref_labels
+    _font_family, note_ref_labels as _note_ref_labels, hf_runs as _hf_runs
 from .symbolmap import font_translit_kind, untransliterate
 from .afm import string_width_pt as _natural_width_pt
 
@@ -1604,6 +1604,12 @@ def _modern_flow(doc, keep, note_refs='word'):
                     spans.pop(0)
             toks, notes = [], []
             for sp in spans:
+                if any(t.startswith('pctl') for t in sp.styles):
+                    # a 0x0F print control's display string is SCREEN-ONLY;
+                    # the paper got the raw payload. Printed pads its HMI
+                    # width; Modern shows nothing -- command codes are
+                    # invisible (M4, extended 2026-08-06 round 3)
+                    continue
                 styles = sp.styles | ({'b'} if b.heading else frozenset()) \
                          | b.style_attrs
                 if 'fnref' in sp.styles:
@@ -1710,12 +1716,19 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
     zone, WordStar's `#` token as the page number (same rule as printed:
     `.op` never suppresses an explicit `#`). The header keeps its own baked
     spaces -- that is how a 1990 head positioned its parts, and a running
-    head is a page fixture, not reflowing text."""
-    text = txt.replace('#', str(page_no))
+    head is a page fixture, not reflowing text. Raw toggle bytes in the
+    stored head (`^B` bold and friends -- LJ6DTP's `.h1`) are interpreted
+    as styles via emit.hf_runs, so measurement and drawing agree; letters
+    overlapped when the toggles were measured as glyphs (round 3)."""
     toks = []
-    for m in _re.finditer(r' +|[^ ]+', text):
-        w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
-        toks.append((m.group(0), frozenset(), 'Times', MODERN_NOTE_PT, None, w))
+    for run_text, styles in _hf_runs(txt):
+        run_text = run_text.replace('#', str(page_no))
+        for m in _re.finditer(r' +|[^ ]+', run_text):
+            basefont = BASE14['Times'][('b' in styles) + 2 * ('i' in styles)]
+            w = _natural_width_pt(m.group(0), basefont, MODERN_NOTE_PT)
+            toks.append((m.group(0), styles, 'Times', MODERN_NOTE_PT, None, w))
+    if not toks:
+        return []
     return _modern_line_ops(toks, left, y, width, 'left', res, tz_state)
 
 
