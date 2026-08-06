@@ -100,7 +100,13 @@ references show as lowercase roman (i, ii), Word's own endnote convention,
 so a page can carry footnote [1] and endnote [i] without ambiguity.
 **Annotations** keep the tag WordStar gave them (AC1, AC2 …) and travel with
 the endnotes. **Comments** were never printed by WordStar and stay hidden
-unless you ask (`--comments`). Printed mode does exactly what WordStar
+unless you ask (`--comments`) — and WordStar had two kinds, both covered:
+`^ON` comment notes and `..`/`.ig` dot-command lines (authors used the
+latter for asides *and* to disable commands; each carries an `origin` so
+you can tell which). Opted in under Modern, they appear at their true
+position — RTF gets real Word margin comments, the PDF lists them
+`[c1]`-labeled at the end. Printed stays silent about them always (they
+were never on the page; the CLI says so on stderr if you try). Printed mode does exactly what WordStar
 Professional did in 1990, including growing the footnote area and carrying
 overflow to the next page.
 
