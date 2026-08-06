@@ -2870,14 +2870,42 @@ def parse_printstream(data: bytes, encoding: str = 'cp437',
 
 # ---------------------------------------------------------------- front door
 
+class ParseError(ValueError):
+    """A file the library cannot convert, with the evidence attached.
+
+    `kind` is machine-readable ('empty' | 'binary'); `detection` is the
+    full detect() dict -- variant, reason, size -- so a caller (the app's
+    error alert, the CLI message) can say WHY, not just "no" (ruled
+    2026-08-06: "whatever error and debug handling we can wire in early,
+    the better"). Subclasses ValueError so every existing
+    `except ValueError` keeps working -- wiring errors in early must not
+    break the callers that already exist."""
+
+    def __init__(self, message, kind, detection=None):
+        super().__init__(message)
+        self.kind = kind
+        self.detection = detection or {}
+
+
 def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document:
-    """Detect (unless told) and parse. This is the library's main entry."""
-    v = variant or detect(data)['variant']
+    """Detect (unless told) and parse. This is the library's main entry.
+
+    Raises ParseError (a ValueError) for content it cannot convert; the
+    exception carries the detection evidence for callers that want to
+    explain the refusal."""
+    if not data:
+        raise ParseError('empty file: nothing to convert', 'empty',
+                         {'variant': 'binary', 'reason': 'zero bytes',
+                          'size': 0})
+    det = {'variant': variant} if variant else detect(data)
+    v = det['variant']
     if v in ('ws4', 'ws5+'):
         return parse_ws(data, encoding)
     if v in ('printstream', 'text'):
         return parse_printstream(data, encoding)
-    raise ValueError(f'not a convertible file (detected: {v})')
+    reason = det.get('reason', 'content statistics')
+    raise ParseError(f'not a convertible file (detected: {v} -- {reason})',
+                     'binary', det)
 
 
 def effective_page(page, settings):
