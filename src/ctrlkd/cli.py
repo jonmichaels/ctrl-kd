@@ -1,8 +1,10 @@
 """ctrl-kd command line: convert WordStar-era files to modern formats.
 
-    ctrl-kd PAPER.WS                       # -> PAPER.md, modern reflow
-    ctrl-kd PAPER.WS -t html -o out.html
-    ctrl-kd --mode printed LETTER          # as it came off the printer
+    ctrl-kd PAPER.WS                       # -> PAPER.rtf: modern reflow, the
+                                           #    document's own fonts carried
+    ctrl-kd --mode printed LETTER.WS       # -> LETTER.pdf: the 1990 facsimile
+    ctrl-kd PAPER.WS -t md                 # modern markdown instead
+    ctrl-kd --page-settings sawyer X.WS    # a known machine's page defaults
     ctrl-kd --diagnose MYSTERY.FIL         # what IS this file?
     ctrl-kd -t text -t html -d out/ *.WS   # batch, multiple formats
 """

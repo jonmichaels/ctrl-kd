@@ -16,13 +16,17 @@ format most converters mangle), and writes plain text, Markdown, HTML, RTF, or P
 viewer's built-in base-14 fonts — no dependencies, nothing embedded, the page as it would have
 printed: printed mode follows the document's own font blocks *and its own layout
 arithmetic* — the `.lh` in force on each line, and each span placed at the
-per-character advance the file's font blocks declare — while modern mode stays Courier).
+per-character advance the file's font blocks declare — while modern mode is the
+same document reflowed for today: its fonts carried, footnotes at the page
+bottom, fontless text in a comfortable reading serif).
 
 ```console
-$ ctrl-kd ESSAY.WS                      # -> ESSAY.md
+$ ctrl-kd ESSAY.WS                      # -> ESSAY.rtf: modern reflow, the
+                                        #    document's own fonts carried
+$ ctrl-kd --mode printed LETTER.WS      # -> LETTER.pdf: the 1990 facsimile
+$ ctrl-kd ESSAY.WS -t md                # modern markdown instead
 $ ctrl-kd ESSAY.WS -t html -t rtf       # multiple formats
-$ ctrl-kd ESSAY.WS -t pdf --mode printed # a facsimile of the 1990 printout
-$ ctrl-kd --mode printed LETTER.WS      # line-for-line, as it printed in 1990
+$ ctrl-kd --page-settings sawyer X.WS   # a known machine's page defaults
 $ ctrl-kd --diagnose MYSTERY.FIL        # what IS this file?
 $ ctrl-kd --comments MEMO.WS            # include the author's hidden comments
 $ ctrl-kd --no-notes PAPER.WS           # body text only, no notes
@@ -89,10 +93,13 @@ against surviving period printouts of the same documents. Its rules are empirica
 
 ## Modes
 
-* `--mode modern` (default): reflowed paragraphs, semantic markup, deliberate
-  line breaks kept.
-* `--mode printed`: every line as laid out, fixed-width, `.pa`/form-feed page
-  breaks honored — how it came off the printer.
+* `--mode modern` (default; bare runs produce RTF): the document brought to a
+  modern audience — reflowed, its own fonts and styles carried, footnotes at
+  the page bottom, gaps the file never specified filled with today's
+  conventions (a comfortable serif at reading size, one-inch margins).
+* `--mode printed` (bare runs produce PDF): every line as laid out, on the
+  era's own page — how it came off the printer. Gaps are filled with 1990's
+  conventions instead; `--page-settings` supplies a particular machine's.
 
 Version coverage, known limitations (WordStar 6's bare `.pl`, WordStar 3
 status), and how behaviour gets verified: **[FAQ.md](FAQ.md)**, with the
