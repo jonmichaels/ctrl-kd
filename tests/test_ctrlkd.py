@@ -3898,3 +3898,18 @@ def test_tab_stops_are_editor_time_state_carried_not_rendered():
     from ctrlkd.pdf import emit_pdf
     without = core.parse_ws(data.replace(b'.tb 12 27 41' + HARD, b''))
     assert emit_pdf(doc, 'modern') == emit_pdf(without, 'modern')
+
+
+def test_parse_error_carries_kind_and_detection_evidence():
+    """Task #18: refusals explain themselves. ParseError subclasses
+    ValueError (existing handlers keep working) and carries a machine-
+    readable kind plus the full detection dict, so the app's error alert
+    can say WHY a file failed instead of just 'no'."""
+    from ctrlkd import ParseError
+    with pytest.raises(ParseError) as ei:
+        core.parse(b'')
+    assert ei.value.kind == 'empty'
+    with pytest.raises(ValueError) as ei:            # old handlers still catch
+        core.parse(bytes(range(256)) * 8)
+    assert getattr(ei.value, 'kind', None) == 'binary'
+    assert ei.value.detection.get('reason')          # evidence attached
