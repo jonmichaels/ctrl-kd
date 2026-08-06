@@ -489,8 +489,10 @@ def test_print_control_display_string_is_screen_only_in_printed_pdf():
             b'Heading before the control' + ctl + HARD +
             b'Plain paragraph of ordinary prose padding for detection.' + HARD)
     doc = core.parse_ws(body)
-    assert 'EMPTY 3-dot rule' in emit.emit_text(doc, mode='modern')
-    assert 'EMPTY 3-dot rule' in emit.emit_rtf(doc, mode='modern')
+    # Round 3 (2026-08-06): display strings are SCREEN-ONLY everywhere --
+    # Modern shows nothing (command codes are invisible; M4 extended)
+    assert 'EMPTY 3-dot rule' not in emit.emit_text(doc, mode='modern')
+    assert 'EMPTY 3-dot rule' not in emit.emit_rtf(doc, mode='modern')
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(doc, 'printed')
     assert b'EMPTY 3-dot rule' not in pdf
@@ -2797,7 +2799,10 @@ def test_user_print_control_is_parsed_not_scanned():
     # a display string, no file reference
     body = (0).to_bytes(2, 'little') + bytes([7]) + b'[LOGO] ' + b'\x1b*p0002x'
     doc = core.parse_ws(b'Before ' + _ws_block(0x0F, body) + b' after.\r\n')
-    assert '[LOGO]' in emit_text(doc, mode='printed')
+    # Round 3 (2026-08-06): the paper never showed the display string --
+    # printed pads the control's declared HMI width instead (here 0)
+    assert '[LOGO]' not in emit_text(doc, mode='printed')
+    assert 'Before  after.' in emit_text(doc, mode='printed')
     assert doc.includes == []
 
     # a file reference inside the printer payload
@@ -3573,7 +3578,7 @@ def test_modern_rtf_carries_running_heads_and_strips_align_spaces():
                         b'.oc off' + HARD +
                         b'Plain closing prose, quite ordinary and long.' + HARD)
     rtf = emit.emit_rtf(doc, 'modern')
-    assert r'{\header \pard\plain \f0\fs22 Chapter / {\chpgn }\par}' in rtf
+    assert r'{\header \pard\plain \f0\fs22 {Chapter / {\chpgn }}\par}' in rtf
     assert 'A Centered Title' in rtf
     assert '  A Centered Title' not in rtf            # the tag does the work
 
@@ -3734,3 +3739,34 @@ def test_dot_comment_before_blank_creates_no_phantom_line():
                              + HARD + HARD +
                              b'Second paragraph line of plain prose, also long enough.' + HARD))
     assert emit_pdf(with_c, 'printed') == emit_pdf(without, 'printed')
+
+
+def test_running_head_toggle_bytes_become_styles_not_glyphs():
+    """Round 3 (2026-08-06): LJ6DTP's `.h1` carries raw ^B bold toggles and
+    a U+2219 dot; measuring toggles as glyphs made header letters overlap.
+    hf_runs interprets them as styles, maps the dot to the cp1252 bullet,
+    and a control-bytes-only head (LJ6DTP's `.f1` = two 0x0F bytes) empties
+    out entirely."""
+    from ctrlkd.emit import hf_runs
+    runs = hf_runs('  \x02\x02Title ∙ #\x02 tail')
+    assert runs[0] == ('  ', frozenset())            # baked spaces survive
+    texts = ''.join(t for t, _ in runs)
+    assert '\x02' not in texts and '∙' not in texts and '•' in texts
+    assert any('b' in s for _, s in runs)            # bold recognized
+    assert hf_runs('\x0f\x0f') == []                 # junk head -> nothing
+    # end-to-end: a doc with a toggle-carrying head renders overlap-free
+    # (words strictly ordered, no negative advance) in the modern PDF
+    from ctrlkd.pdf import emit_pdf
+    doc = core.parse_ws(ws7_block(0x00) +
+                        b'.he \x02Big Bold Header\x02 / #' + HARD +
+                        b'Page one prose, plain and ordinary and long enough.'
+                        + HARD + b'.pa' + HARD +
+                        b'Page two prose, also plain, ordinary, long enough.'
+                        + HARD)
+    pdf = emit_pdf(doc, 'modern')
+    first = re.search(rb'stream\r?\n(.*?)endstream', pdf, re.S).group(1)
+    hdr = [(x, t) for x, y, t in _td_ops6(first) if y > 720]
+    words = [t for _, t in hdr]
+    assert b'Big' in words and b'\x02Big' not in words
+    xs = [x for x, _ in hdr]
+    assert xs == sorted(xs)                          # strictly left-to-right
