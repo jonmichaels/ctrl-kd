@@ -6,5 +6,6 @@ from .emit import (emit_text, emit_markdown, emit_html, emit_rtf,
 from .layout import modern_flow, emit_layout    # registers the 'layout' format
 from .pdf import emit_pdf                        # registers the 'pdf' format
 from .convert import convert, select_notes, DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS
+from .info import document_info
 
 __version__ = '4.0.0'
