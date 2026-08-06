@@ -782,9 +782,15 @@ _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
 # Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
 # 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
 # Letter, 84 lines/14in Legal, 81 lines/13.5in Foolscap Folio (the pre-ISO UK
-# long sheet). All three share the same 8.5in width, so only page HEIGHT is
-# resolved here -- there is no dot command for physical page width.
-NAMED_PAGE_HEIGHTS = (('Letter', 11.0), ('Legal', 14.0), ('Foolscap Folio', 13.5))
+# long sheet), and A4 (297mm = 11.693in, ~70 lines -- ruled into the model
+# 2026-08-06: "the 3 main page sizes" are Letter, Legal, A4). There is no
+# dot command for physical page WIDTH, so width rides on the height
+# inference: a page tall enough to be A4 is 210mm wide, everything else is
+# the 8.5in American sheet -- and a Custom height keeps 8.5in, the only
+# honest default the format allows.
+NAMED_PAGE_SIZES = (('Letter', 11.0, 8.5), ('Legal', 14.0, 8.5),
+                    ('Foolscap Folio', 13.5, 8.5),
+                    ('A4', 11.693, 8.268))
 # "Close" isn't spec-given -- a judgment call, not a reading. 0.25in is a
 # bit over a line and a half at 6 LPI: near enough to call it the named
 # size; farther out, honour the raw geometry instead of forcing a label
@@ -909,14 +915,16 @@ def _text_lines_per_page(pl_lines: float, mt_lines: float, mb_lines: float,
     return max(1, int(usable * 8.0 / lh_48))
 
 def _resolve_page_size(pl_lines: float):
-    """pl_lines -> (height_in, size_name). Snaps to a named size when close;
-    otherwise reports the raw geometry under 'Custom' rather than forcing a
-    label that doesn't fit."""
+    """pl_lines -> (height_in, size_name, width_in). Snaps to a named size
+    when close; otherwise reports the raw geometry under 'Custom' (at the
+    8.5in width -- see NAMED_PAGE_SIZES) rather than forcing a label that
+    doesn't fit."""
     height_in = pl_lines / 6.0
-    name, named_in = min(NAMED_PAGE_HEIGHTS, key=lambda nh: abs(nh[1] - height_in))
+    name, named_in, width_in = min(
+        NAMED_PAGE_SIZES, key=lambda nhw: abs(nhw[1] - height_in))
     if abs(named_in - height_in) <= PAGE_SIZE_SNAP_IN:
-        return named_in, name
-    return height_in, 'Custom'
+        return named_in, name, width_in
+    return height_in, 'Custom', 8.5
 
 _HEAD_FOOT_RE = re.compile(rb'^\.(H[E1-5]|F[O1-5])\s?(.*)$', re.I)
 
@@ -2676,8 +2684,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['columnar'] = ruler and not ws5
 
     pl_lines = page.get('pl_lines')
-    height_in, size_name = _resolve_page_size(pl_lines if pl_lines is not None
-                                              else DEFAULT_PL_LINES)
+    height_in, size_name, pw_in = _resolve_page_size(
+        pl_lines if pl_lines is not None else DEFAULT_PL_LINES)
     mt_lines = page.get('mt_lines')
     mb_lines = page.get('mb_lines')
     po_cols = page.get('po_cols')
@@ -2705,6 +2713,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         'pl_lines': pl_lines if pl_lines is not None else DEFAULT_PL_LINES,
         'height_in': height_in,
         'size_name': size_name,
+        # width is INFERRED from the height (no dot command exists for it);
+        # its provenance is therefore the size's provenance
+        'pw_in': pw_in,
         'size_source': 'file' if pl_lines is not None else 'default',
         'mt_lines': mt_lines if mt_lines is not None else DEFAULT_MT_LINES,
         'mt_source': 'file' if mt_lines is not None else 'default',
@@ -2861,6 +2872,15 @@ def effective_page(page, settings):
     eff = dict(page)
     for key, val in settings.items():
         src = key[:2] + '_source'
+        if key == 'pl_lines':
+            # a page-size override (--page-settings size=...) carries the
+            # whole trio: height, name, width recompute from the new .pl
+            if eff.get('size_source', 'default') == 'default':
+                eff['pl_lines'] = val
+                (eff['height_in'], eff['size_name'],
+                 eff['pw_in']) = _resolve_page_size(val)
+                eff['size_source'] = 'machine-default'
+            continue
         if eff.get(src, 'default') == 'default':
             eff[key] = val
             eff[src] = 'machine-default'

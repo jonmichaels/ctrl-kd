@@ -1062,9 +1062,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                  if page.get('mb_source', 'default') != 'default' else 1440)
         margl = (int(round(float(page.get('po_cols', 10.0)) * 144))
                  if page.get('po_source', 'default') != 'default' else 1440)
-        paperh = 15840
-    pagesetup = (r'\paperw12240\paperh%d\margl%d\margr%d\margt%d\margb%d'
-                 % (paperh, margl, margl, margt, margb))
+        paperh = (int(round(float(page.get('height_in', 11.0)) * 1440))
+                  if page.get('size_source', 'default') != 'default'
+                  else 15840)
+    # width joined the page model 2026-08-06: A4-tall documents get the
+    # 210mm sheet; everything else (and every default) stays 12240 twips
+    paperw = int(round(float(page.get('pw_in', 8.5)) * 1440))
+    pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
+                 % (paperw, paperh, margl, margl, margt, margb))
     running = '' if printed else _rtf_running_heads(doc)
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
