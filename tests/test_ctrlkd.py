@@ -3770,3 +3770,24 @@ def test_running_head_toggle_bytes_become_styles_not_glyphs():
     assert b'Big' in words and b'\x02Big' not in words
     xs = [x for x, _ in hdr]
     assert xs == sorted(xs)                          # strictly left-to-right
+
+
+def test_modern_draws_fontless_cp437_square_bullet_as_vector():
+    """Round 3 (2026-08-06): -README's list bullets are cp437 0xFE black
+    squares in FONTLESS spans -- no cp1252 slot, and the graphics vector
+    path used to require a font entry, so they rendered '?'. Modern now
+    draws the geometry for fontless spans too; printed keeps its
+    fontless-untouched doctrine (digests prove it)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'A paragraph of ordinary prose before the bulleted list here.'
+            + HARD + b'\xfe First item of the list, plain prose and clear.'
+            + HARD +
+            b'A closing paragraph of ordinary prose after the list ends.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    assert b'(?' not in pdf                       # no mangled bullet
+    assert b're f' in pdf                         # a filled vector rect
+    ops = _td_ops6(pdf)
+    assert any(t == b'First' for _, _, t in ops)  # text continues after it

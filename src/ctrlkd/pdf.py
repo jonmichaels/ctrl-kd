@@ -348,7 +348,11 @@ BOX_ARMS = {
 SHADE_GRAY = {'░': 0.75, '▒': 0.50, '▓': 0.25}
 # Partial blocks: (x-frac, y-frac, w-frac, h-frac) of the cell.
 PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
-               '▌': (0, 0, 0.5, 1), '▐': (0.5, 0, 0.5, 1)}
+               '▌': (0, 0, 0.5, 1), '▐': (0.5, 0, 0.5, 1),
+               # cp437 0xFE: the PC-8 black square, WordStar-era bullet of
+               # choice (Sawyer's -README list markers). Centered small
+               # block, per the IBM glyph.
+               '■': (0.12, 0.18, 0.72, 0.55)}
 GRAPHIC_CHARS = frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY) | set(PART_BLOCKS)
 _GRAPHIC_RUN = _re.compile('[%s](?:[%s ]*[%s])?' % tuple(
     _re.escape(''.join(GRAPHIC_CHARS)) for _ in range(3)))
@@ -1473,11 +1477,16 @@ def _modern_w(text, styles, family, pt, entry):
     grid only where a fixed-pitch font block asks for it."""
     spt, _rise = _sized(styles, pt)
     basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-    if entry is not None and (set(text) & GRAPHIC_CHARS):
+    if set(text) & GRAPHIC_CHARS:
         # mixed tokens split into graphic runs (cell advance) and text
-        # (natural), same rule as printed's _split_graphics
+        # (natural), same rule as printed's _split_graphics. FONTLESS spans
+        # take this path too under Modern (round 3, 2026-08-06): a cp437
+        # box/block glyph has no cp1252 slot, and '?' is nobody's take --
+        # the geometry IS the glyph. Printed keeps its fontless-untouched
+        # doctrine; Modern draws the shape at the em advance.
         total = 0.0
-        pitch = spt if entry.get('proportional') else _span_pitch(entry, spt)
+        pitch = (spt if entry is None or entry.get('proportional')
+                 else _span_pitch(entry, spt))
         pos = 0
         for m in _GRAPHIC_RUN.finditer(text):
             if m.start() > pos:
@@ -1749,10 +1758,12 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state):
         spt, rise = _sized(styles, pt)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
-        if entry is not None and (set(text) & GRAPHIC_CHARS):
+        if set(text) & GRAPHIC_CHARS:
             # split mixed tokens: graphic runs draw as vectors at the cell
             # advance, interleaved text renders through the normal path
-            pitch = spt if entry.get('proportional') else _span_pitch(entry, spt)
+            # (fontless spans included under Modern -- round 3, 2026-08-06)
+            pitch = (spt if entry is None or entry.get('proportional')
+                     else _span_pitch(entry, spt))
             pos, gx = 0, x
             for m in _GRAPHIC_RUN.finditer(text):
                 if m.start() > pos:
