@@ -25,39 +25,10 @@ from . import core, emit
 from .convert import DEFAULT_NOTE_KINDS   # module attr, not the re-exported convert()
 
 def diagnose(path, data):
-    det = core.detect(data)
-    info = {'file': path, **det}
-    if det['variant'] in ('ws4', 'ws5+'):
-        doc = core.parse_ws(data)
-        info.update({k: doc.meta[k] for k in
-                     ('margin_estimate', 'dot_commands', 'unknown_codes', 'columnar')})
-        info['paragraphs'] = sum(1 for b in doc.blocks if b.kind == 'para')
-        # note kinds, counted separately (footnote/endnote/annotation/comment)
-        # rather than flattened, so a rescue tool can tell a file has hidden
-        # comments even when this run is only converting to plain text
-        info['notes'] = {kind: sum(1 for n in doc.notes if n.kind == kind)
-                         for kind in ('footnote', 'endnote', 'annotation', 'comment')}
-        # unrecognised symmetrical-sequence types: preserved, not silently
-        # dropped, so --diagnose can report them instead of going quiet
-        info['unknown_blocks'] = [
-            {'type': f'0x{u.cmd:02x}' if u.cmd >= 0 else 'malformed',
-             'offset': u.offset, 'length': len(u.data)}
-            for u in doc.unknown_blocks]
-        # page geometry from the file's own dot commands, with provenance --
-        # a caller must be able to say "Legal (from file)" vs "Letter (default)"
-        info['page'] = doc.meta.get('page')
-        # .PT/.PSA/.PSB are WordTsar's inventions, not WordStar commands: their
-        # presence identifies who WROTE the file, not how it is encoded
-        if doc.meta.get('producer'):
-            info['producer'] = doc.meta['producer']
-    elif det['variant'] == 'printstream':
-        doc = core.parse(data)
-        # damage WordStar itself introduced at print time (comments + the
-        # ASCII/ASC256/PRVIEW/WS4 drivers truncated the rest of the line);
-        # reported so it reads as a 1990s defect, not our parse failing
-        if doc.meta.get('comment_bug'):
-            info['comment_bug'] = doc.meta['comment_bug']
-    return info
+    """CLI face of the library's document_info (moved to ctrlkd.info,
+    task #17 -- the app's Document Info window consumes the same dict)."""
+    from .info import document_info
+    return document_info(data, path=path)
 
 def main(argv=None):
     emit.load_plugins()          # third-party emitters (ctrlkd.emitters entry points)
