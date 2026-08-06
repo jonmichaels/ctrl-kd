@@ -227,6 +227,15 @@ class Note:
                                 # text same as the body) -- stripped from `text` but
                                 # preserved verbatim, in order, not dropped
     offset: int = 0            # source byte offset of this block's opening 0x1D
+                                # (0 for dot-line comments, which have no block --
+                                # their stable anchor is doc.meta['dot_at'])
+    origin: str = 'block'      # where this note came from: 'block' (a real
+                                # ^ON/^FN symmetrical sequence) or the dot-line
+                                # comment syntaxes '..' / '.ig' (ruling
+                                # 2026-08-06: both WordStar comment forms unify
+                                # into kind='comment'; origin is the provenance
+                                # that explains an odd-looking entry -- a
+                                # commented-out `..rm 60` is still a comment)
 
 @dataclass
 class UnknownBlock:
@@ -1777,8 +1786,13 @@ def _symmetric_blocks(data: bytes, encoding: str):
             if cmd in NOTE_KINDS:
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 notes.append(_parse_note(cmd, content, start, encoding))
-                if cmd != 0x06:                          # comments: never printed inline
-                    marks.setdefault(len(out), []).append(('fnref',))
+                # Comments included (ruling 2026-08-06): every note kind now
+                # emits a reference mark so consumers know WHERE it lives --
+                # Show Invisibles needs the position, RTF anchors its margin
+                # comment there. WordStar printed nothing for a comment and
+                # printed mode still renders nothing; the mark is position,
+                # not ink.
+                marks.setdefault(len(out), []).append(('fnref',))
             elif cmd == 0x09:                                     # tab (and dot leaders)
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 cols, leader = _tab_columns(content)
@@ -2306,7 +2320,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
-    fn_counter = [0] if ws5 else None
+    # Always live, not ws5-only: dot-line comments ('..'/'.ig') exist in WS4
+    # files too and now emit reference marks (ruling 2026-08-06)
+    fn_counter = [0]
     # Running FORMATTING state (`.oc`/`.oj`/`.aw`/`.ul`/`.sb`/`.ps`/`.kr`), stamped
     # onto each block as it opens. Stateful, unlike page geometry -- see
     # `_parse_format_dot`.
@@ -2380,6 +2396,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             doc.blocks.append(cur)
         cur = _new_block()
 
+    pending_marks = []      # dot-line comment marks awaiting a content line
     for raw, sep, line_marks in physical:
         stripped = bytes(b & 0x7F for b in raw)
         # A line that BEGINS with a 0x0F print control's display string is
@@ -2398,6 +2415,28 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # that block) costs nothing and is the coarsest anchor that is
             # actually stable: it survives reflow, which a byte offset does not.
             dot_at.append((len(doc.blocks), len(cur.lines), cmd.decode(encoding, 'replace')))
+            # '..' and '.ig' are COMMENT lines (ruling 2026-08-06): both
+            # WordStar comment syntaxes unify into Note(kind='comment'),
+            # each emitting a reference mark at its own position -- the
+            # text is kept verbatim after the syntax (a commented-out
+            # `..rm 60` is still a comment; `origin` says which syntax
+            # carried it, so a consumer can explain odd-looking entries).
+            # doc.notes must stay in reference-emission order, so the note
+            # is INSERTED at the count of marks already numbered.
+            if cmd[:2] == b'..' or cmd[1:3].upper() == b'IG':
+                is_dotdot = cmd[:2] == b'..'
+                cnote = Note(kind='comment',
+                             text=(cmd[2:] if is_dotdot else cmd[3:])
+                             .decode(encoding, 'replace').strip(),
+                             origin='..' if is_dotdot else '.ig')
+                doc.notes.insert(fn_counter[0], cnote)
+                fn_counter[0] += 1
+                # DEFERRED attachment: the mark rides at the head of the
+                # next CONTENT line. Appending to cur_line here would let a
+                # following blank line close a phantom line holding only the
+                # mark -- one extra printed line WordStar never had.
+                pending_marks.append(Span(str(fn_counter[0]),
+                                          frozenset({'sup', 'fnref'})))
             if cmd[1:3].upper() in DOT_PAGEBREAK:
                 close_block()
                 doc.blocks.append(Block('pagebreak'))
@@ -2465,6 +2504,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 if part:
                     spans = _decode_spans(part, strip_hibit, encoding, active,
                                           unknown, fn_counter)
+                    if pending_marks and spans:
+                        cur_line.spans.extend(pending_marks)
+                        pending_marks = []
                     for sp in spans:
                         cur_line.spans.append(sp)
             raw = b''
@@ -2546,6 +2588,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
                               pctl_at, colour_at)
+        if pending_marks and spans:
+            # a content line arrived: deferred dot-comment marks land at
+            # its head, the position the comment line occupied
+            cur_line.spans.extend(pending_marks)
+            pending_marks = []
         for s in spans:
             cur_line.spans.append(s)
         if sep == 'wrap':
@@ -2587,6 +2634,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             close_block()
     close_block()
 
+    if pending_marks:
+        # trailing dot comments with no content line after them: the marks
+        # attach to the END of the last content line (never a phantom line)
+        tgt = next((b.lines[-1] for b in reversed(doc.blocks)
+                    if b.kind == 'para' and b.lines and b.lines[-1].spans),
+                   None)
+        if tgt is not None:
+            tgt.spans.extend(pending_marks)
+        # a comment-only document has no line to anchor to; the notes exist
+        # in doc.notes/doc.comments regardless, marks are dropped
+    # Dot-line comments were inserted into doc.notes mid-pass; rebuild the
+    # convenience view so it covers both origins ('block' and dot-line).
+    doc.comments = [n for n in doc.notes if n.kind == 'comment']
     doc.meta['dot_commands'] = dots
     # The formatting commands that are document-wide rather than per-block. Only
     # keys the file actually SET appear, so a consumer can tell "the author asked
