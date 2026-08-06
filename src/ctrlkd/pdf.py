@@ -21,7 +21,8 @@ superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 import re as _re
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines
-from .emit import emitter, _printed, _annotated_notes, _ref_pairs, _font_family
+from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
+    _font_family, note_ref_labels as _note_ref_labels
 from .symbolmap import font_translit_kind, untransliterate
 from .afm import string_width_pt as _natural_width_pt
 
@@ -1504,7 +1505,7 @@ def _endnote_label(label):
     return out
 
 
-def _modern_flow(doc, keep):
+def _modern_flow(doc, keep, note_refs='word'):
     """The document as a flat list of layout items:
         ('para', toks, align, [(note, label)...], indent_pt, cut_pt)
         ('blank', height) | ('break',) | ('cond', n)
@@ -1518,6 +1519,15 @@ def _modern_flow(doc, keep):
     exactly as its fonts do."""
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
+    # Reference-mark display per scheme (ruling 2026-08-06): `word` shows
+    # arabic footnotes / roman endnotes / annotation tags -- what Word
+    # itself renders from our RTF; `prefixed` shows the Markdown emitter's
+    # own labels (1 2 3, e1 e2, a1 a2), matched across formats.
+    if note_refs == 'prefixed':
+        shown_by_id = _note_ref_labels(pairs, 'prefixed')
+    else:
+        shown_by_id = {id(n): (_endnote_label(l) if n.kind == 'endnote'
+                               else l) for n, l in pairs}
     # LJ6DTP substitutions apply in Modern too (ruling 2026-08-06): the
     # driver's patched slots are CONTENT -- an em dash is an em dash in any
     # century -- while its page art (colour, rules, boxes) stays print-time.
@@ -1580,8 +1590,7 @@ def _modern_flow(doc, keep):
                         continue
                     if note.kind not in keep:
                         continue
-                    shown = (_endnote_label(label) if note.kind == 'endnote'
-                             else label)
+                    shown = shown_by_id[id(note)]
                     marker = (shown, styles, 'Times', MODERN_BODY_PT, None)
                     w = _modern_w(*marker)
                     toks.append(marker + (w,))
@@ -1752,7 +1761,7 @@ def _modern_streams(doc, options, res):
     keep = frozenset(options.get('notes', ())) or frozenset(
         ('footnote', 'endnote', 'annotation'))
     margl, margt, margb, width = _modern_geometry(doc)
-    flow = _modern_flow(doc, keep)
+    flow = _modern_flow(doc, keep, options.get('note_refs') or 'word')
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 

@@ -421,22 +421,26 @@ def _html_ids(kind, label):
     slug = _note_slug(label)
     return f'{prefix}ref{slug}', f'{prefix}{slug}'
 
-def _html_note_ref(note, label):
+def _html_note_ref(note, label, shown=None):
     """<sup><a ...role="doc-noteref">N</a></sup>: an anchored, backlinkable
     inline reference -- the previous output was a bare <sup>1</sup> with no
-    anchor at all, so nothing linked to the note and nothing linked back."""
+    anchor at all, so nothing linked to the note and nothing linked back.
+    `shown` overrides the visible text only (the `prefixed` scheme); the
+    ids stay kind-prefixed and stable either way."""
     ref_id, target_id = _html_ids(note.kind, label)
     return (f'<sup><a id="{ref_id}" href="#{target_id}" role="doc-noteref">'
-            f'{_html.escape(label)}</a></sup>')
+            f'{_html.escape(shown if shown is not None else label)}</a></sup>')
 
-def _html_line(line, refs, keep, keep_ws=False):
+def _html_line(line, refs, keep, keep_ws=False, shown_map=None):
     out = []
     for s in line.spans:
         if 'fnref' in s.styles:
             note, label = _resolve_ref(refs, s.text)
             if note is not None:
                 if note.kind in keep:
-                    out.append(_html_note_ref(note, label))
+                    shown = (shown_map[id(note)]
+                             if shown_map is not None else None)
+                    out.append(_html_note_ref(note, label, shown))
                 continue
         out.append(_html_span(s, keep_ws))
     return ''.join(out)
@@ -576,7 +580,7 @@ def _style_css(doc):
 
 
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
-              styles=True, **_options):
+              styles=True, note_refs='word', **_options):
     keep = frozenset(notes)
     style_class = {}
     if styles:
@@ -586,6 +590,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     refs = _ref_pairs(pairs)
     parts = []
     printed = mode == 'printed' or _printed(doc)
+    # `prefixed` reference labels (ruling 2026-08-06) change the visible
+    # mark text only; ids and sections are structural and stay put
+    shown_map = (note_ref_labels(pairs, 'prefixed')
+                 if note_refs == 'prefixed' and not printed else None)
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
@@ -594,17 +602,17 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         if b.heading:
             # merged either mode: a heading is a logical unit, and joining its
             # logical lines with a space is what this always rendered
-            txt = ' '.join(_html_line(line, refs, keep) for line in merged_lines(b)).strip()
+            txt = ' '.join(_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
             continue
         if printed:
             # PHYSICAL lines: inside <pre>, a soft return is a real line break
-            body = '\n'.join(_html_line(line, refs, keep, keep_ws=True) for line in b.lines)
+            body = '\n'.join(_html_line(line, refs, keep, keep_ws=True, shown_map=shown_map) for line in b.lines)
             if body.strip():
                 parts.append(f'<pre{cls}>{body}</pre>')
         else:
-            lines = [_html_line(line, refs, keep) for line in merged_lines(b)]
+            lines = [_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)]
             para = '<br>\n'.join(lines)
             if para.strip():
                 # C16/C17: HTML can express all four alignments, so unlike the
@@ -655,7 +663,32 @@ def _rtf_escape(text):
             out.append(f'\\u{ord(ch)}?')
     return ''.join(out)
 
-def _rtf_note_dest(note, label):
+def note_ref_labels(pairs, scheme):
+    """{id(note): shown_label} for the `prefixed` note-reference scheme
+    (ruling 2026-08-06): footnotes bare (1, 2, 3), endnotes e1 e2,
+    annotations a1 a2 -- the SAME labels the Markdown emitter has always
+    written, so a document's reference marks match across every Modern
+    format. Under `word` (the default) this returns the stored labels
+    unchanged and each format applies its own Word-standard display on top
+    (arabic footnotes, roman endnotes in the PDF, WordStar tags for
+    annotations)."""
+    shown, ords = {}, {}
+    for note, label in pairs:
+        k = ords.get(note.kind, 0) + 1
+        ords[note.kind] = k
+        if scheme == 'prefixed':
+            if note.kind == 'endnote':
+                shown[id(note)] = 'e%s' % label
+            elif note.kind == 'annotation':
+                shown[id(note)] = 'a%d' % k
+            else:
+                shown[id(note)] = label
+        else:
+            shown[id(note)] = label
+    return shown
+
+
+def _rtf_note_dest(note, label, mark_override=None):
     """The genuine `{\\*\\footnote ...}` destination for one footnote,
     endnote, or annotation, plus the inline mark that anchors it (a
     footnote is anchored to the character(s) immediately preceding its
@@ -684,8 +717,11 @@ def _rtf_note_dest(note, label):
     end-of-section collection is the closer honest fit of the two RTF has.
     """
     flag = r'\ftnalt' if note.kind in ('endnote', 'annotation') else ''
-    if note.kind == 'annotation':
-        mark_txt = _rtf_escape(label)
+    if note.kind == 'annotation' or mark_override is not None:
+        # custom mark: the annotation's tag, or the `prefixed` scheme's
+        # label (e1/a1) standing in for \chftn on any kind
+        mark_txt = _rtf_escape(mark_override
+                               if mark_override is not None else label)
         mark = '{' + r'\super ' + mark_txt + '}'
         echo = r'\super ' + mark_txt + ' '
     else:
@@ -714,11 +750,16 @@ def _rtf_comment_dest(note):
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
-def _rtf_span(sp, refs, keep, fontctl=None, printed=False):
+def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
-            return _rtf_note_dest(note, label) if note.kind in keep else ''
+            if note.kind not in keep:
+                return ''
+            override = (shown_map[id(note)]
+                        if shown_map is not None
+                        and note.kind in ('endnote', 'annotation') else None)
+            return _rtf_note_dest(note, label, override)
     if printed:
         # A 0x0F print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
@@ -824,11 +865,17 @@ def _rtf_running_heads(doc):
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             fonts_target='office', **_options):
+             fonts_target='office', note_refs='word', **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
+    # `prefixed` note references (ruling 2026-08-06): endnotes/annotations
+    # anchor with literal e1/a1 custom marks instead of \chftn/tags -- the
+    # Markdown emitter's own labels, matched across formats. Never printed:
+    # the facsimile shows what WordStar printed.
+    shown_map = (note_ref_labels(pairs, 'prefixed')
+                 if note_refs == 'prefixed' and not printed else None)
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc) if styles else ''
     fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target)
@@ -850,7 +897,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 # editor-time alignment: the spaces implemented the tag;
                 # keeping both aligns twice (ruling 2026-08-06)
                 spans = _strip_align_spaces(spans)
-            seg = ''.join(_rtf_span(sp, refs, keep, fontctl, printed)
+            seg = ''.join(_rtf_span(sp, refs, keep, fontctl, printed,
+                                    shown_map)
                           for sp in spans)
             lines.append(seg)
         if b.heading:

@@ -104,6 +104,12 @@ unless you ask (`--comments`). Printed mode does exactly what WordStar
 Professional did in 1990, including growing the footnote area and carrying
 overflow to the next page.
 
+Prefer plainer marks? `--note-refs prefixed` shows footnotes as 1 2 3,
+endnotes as e1 e2, annotations as a1 a2 — the same labels the markdown
+output always uses — in PDF, RTF, and HTML alike. The default (`word`)
+is the Word standard; Microsoft's own spec notes ([MS-OI29500] §17.11.17)
+document lowercase roman as Word's endnote default.
+
 ## My document used a hacked printer driver (LJ6DTP). Why does Modern look strange?
 
 LJ6DTP is Robert J. Sawyer's modified LaserJet driver: it patches the

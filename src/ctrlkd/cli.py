@@ -118,6 +118,16 @@ def main(argv=None):
                     help='accepted for command-line compatibility with sr '
                          '(where it bypasses the overwrite prompt); ctrl-kd '
                          'always overwrites existing outputs')
+    ap.add_argument('--note-refs', choices=('word', 'prefixed'),
+                    default='word',
+                    help='note reference-mark display in Modern output. '
+                         '"word" (default): the Word standard -- arabic '
+                         'footnotes, lowercase-roman endnotes, WordStar '
+                         'tags for annotations. "prefixed": footnotes 1 2 '
+                         '3, endnotes e1 e2, annotations a1 a2 -- the same '
+                         'labels the markdown output always uses, matched '
+                         'across formats. Printed output is a facsimile '
+                         'and ignores this.')
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
@@ -223,7 +233,8 @@ def main(argv=None):
         for fmt in formats:
             reg = emit.get_emitter(fmt)
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
-                            styles=not a.no_styles, fonts_target=a.fonts)
+                            styles=not a.no_styles, fonts_target=a.fonts,
+                            note_refs=a.note_refs)
             if a.output:
                 dest = a.output
             else:
