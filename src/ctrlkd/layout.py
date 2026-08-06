@@ -37,6 +37,11 @@ Each item is a dict with a 'kind':
   hf              running-head change: 'which' ('H'|'F'), 'line' (1-based
                   slot), 'text' (raw — consumers pass it through hf_runs
                   for toggle bytes, and replace '#' with the page number)
+  tabs            ruler tab stops changed: 'stops' (10-CPI columns). Tab
+                  stops are editor-time state (they bake type-9 positions
+                  at the keyboard) and change no rendered byte; carried for
+                  Show Invisibles and editors. Absent until the first
+                  change; None stops = back to the ruler default.
   note-separator  the 20-dash rule opening the end-notes section
   note            one end-matter note: 'index' (into notes), 'label',
                   'text' — endnotes/annotations/comments, document order
@@ -149,7 +154,12 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
 
     items = []
     end_rows, end_seen = [], set()    # end-matter note indices, doc order
+    cur_tabs = None                    # ruler default until a block differs
     for bi, b in enumerate(doc.blocks):
+        stops = getattr(b, 'tab_stops', None)
+        if b.kind == 'para' and stops != cur_tabs:
+            items.append({'kind': 'tabs', 'stops': stops})
+            cur_tabs = stops
         for kind, lno, txt in hf_by_block.get(bi, ()):
             items.append({'kind': 'hf', 'which': kind, 'line': lno,
                           'text': txt})

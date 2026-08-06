@@ -95,6 +95,14 @@ class Block:
     # they appear until changed -- so the state is stamped onto each block as it
     # opens rather than looked up later. Register C16/C17.
     align: str = 'left'
+    # The ruler tab stops in force when this block opened (`.tb`, 10-CPI
+    # columns) -- stateful like the margins. Measured 2026-08-06 (46 archive
+    # files use `.tb`, ZERO of them carry a bare 0x09): tab stops are
+    # EDITOR-time state -- the Tab key resolves against them and bakes a
+    # type-9 sequence with its own position -- so they change no rendered
+    # byte here; they are carried for the layout contract, Show Invisibles,
+    # and a future editor. None = the ruler default (factory: every 5 cols).
+    tab_stops: list = None
     # Whether WordStar was word-wrapping when this block was opened (`.aw on|off`).
     # Register C23: with wrap off the author is positioning lines by hand, so a
     # reflowing consumer must NOT re-wrap them or the layout is destroyed.
@@ -1119,14 +1127,19 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # test n against. Zero archive documents use it.
         state.setdefault('cond_col', []).append(
             arg.strip().decode('cp437', 'replace'))
-    elif name == b'TB':                     # tab stops for ASCII ^I tabs
-        # `.tb` sets the stops a plain ASCII 0x09 tab expands to. RECORDED;
-        # ASCII-tab expansion stays at the spec's own default ("At print time
-        # the number of hard spaces required to reach a modulus 8 print
-        # position is generated" -- WSFORMAT control-code table; HORTAB
-        # concurs "as though tab stops were set every .8 inches"). Whether
-        # `.tb` overrides that at print time is UNMEASURED, and zero archive
-        # documents use `.tb` -- symseq tabs carry their own positions.
+    elif name == b'TB':                     # tab stops (ruler state)
+        # `.tb` sets the RULER's tab stops (WSFORMAT: "E P ... Sets multiple
+        # tab stops for further editing/printing"). Their real mechanism is
+        # EDITOR-time (measured 2026-08-06, third confirmation of the
+        # doctrine): the Tab key resolves against the stops and bakes a
+        # type-9 sequence carrying its own HMI position, so the stops
+        # change no rendered byte -- 46 archive files use `.tb` and ZERO of
+        # them contain a bare 0x09 (the intersection is empty, corpus-wide).
+        # A bare 0x09's print expansion stays at the spec's own fixed rule
+        # ("modulus 8 print position" -- WSFORMAT control-code table);
+        # whether `.tb` would override THAT is unmeasured and unreachable
+        # in this corpus (probe design logged in the register). Stops are
+        # carried per-block for the layout contract and a future editor.
         stops = []
         for tok in arg.replace(b',', b' ').split():
             m2 = _DOT_NUM_RE.match(tok)
@@ -1200,7 +1213,11 @@ def _block_format(state: dict) -> tuple:
     return (_align_now(state), state.get('wrap', True),
             state.get('left_margin'), state.get('right_margin'),
             state.get('para_margin'), state.get('columns'),
-            state.get('column_gutter'))
+            state.get('column_gutter'),
+            # `.tb` mid-paragraph means the lines after it were typed
+            # against different stops (2026-08-06) -- rendering doesn't
+            # change, but per-block fidelity of the carried state does
+            tuple(state['tab_stops']) if state.get('tab_stops') else None)
 
 
 def _align_now(state: dict) -> str:
@@ -2374,6 +2391,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      left_margin=style_fmt.get('left_margin', fmt.get('left_margin')),
                      right_margin=style_fmt.get('right_margin', fmt.get('right_margin')),
                      para_margin=style_fmt.get('para_margin', fmt.get('para_margin')),
+                     tab_stops=fmt.get('tab_stops'),
                      columns=fmt.get('columns'),
                      column_gutter=fmt.get('column_gutter'),
                      heading=style_fmt.get('heading', 0),

@@ -3872,3 +3872,29 @@ def test_page_settings_size_presets_letter_legal_a4():
                         + HARD)
     eff = core.effective_page(own.meta['page'], {'pl_lines': 70.157})
     assert eff['size_name'] == 'Legal' and eff['pw_in'] == 8.5
+
+
+def test_tab_stops_are_editor_time_state_carried_not_rendered():
+    """.tb (task #19, measured 2026-08-06): the stops are ruler state the
+    Tab key resolves against at EDIT time -- type-9 sequences carry their
+    own baked positions, and zero archive files pair .tb with a bare 0x09.
+    So the stops change no rendered byte; they are stamped per block and
+    surface as 'tabs' items in the layout contract for Show Invisibles and
+    a future editor."""
+    from ctrlkd.layout import modern_flow
+    data = (ws7_block(0x00) +
+            b'Prose before the stops change, plain and long enough here.'
+            + HARD + b'.tb 12 27 41' + HARD +
+            b'Prose after the stops change, also plain and long enough.'
+            + HARD)
+    doc = core.parse_ws(data)
+    blocks = [b for b in doc.blocks if b.kind == 'para']
+    assert blocks[0].tab_stops is None                # ruler default
+    assert blocks[1].tab_stops == [12.0, 27.0, 41.0]  # stateful, per block
+    items = modern_flow(doc)['items']
+    tabs = [i for i in items if i['kind'] == 'tabs']
+    assert tabs and tabs[-1]['stops'] == [12.0, 27.0, 41.0]
+    # and the rendered PDF is identical with or without the .tb line
+    from ctrlkd.pdf import emit_pdf
+    without = core.parse_ws(data.replace(b'.tb 12 27 41' + HARD, b''))
+    assert emit_pdf(doc, 'modern') == emit_pdf(without, 'modern')
