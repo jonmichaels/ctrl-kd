@@ -22,7 +22,8 @@ import re as _re
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
-    _font_family, note_ref_labels as _note_ref_labels, hf_runs as _hf_runs
+    _font_family, hf_runs as _hf_runs
+from . import layout as _layout
 from .symbolmap import font_translit_kind, untransliterate
 from .afm import string_width_pt as _natural_width_pt
 
@@ -1506,183 +1507,59 @@ def _modern_w(text, styles, family, pt, entry):
     return nat
 
 
-def _endnote_label(label):
-    """Endnote display label under Modern: lowercase roman, Word's own
-    default for \\ftnalt endnotes -- the PDF matches the RTF it mirrors,
-    and a page can carry footnote [1] and endnote [i] without collision
-    (ruling 2026-08-06)."""
-    try:
-        n = int(label)
-    except (TypeError, ValueError):
-        return label
-    if n <= 0:
-        return label
-    out = ''
-    for v, s in ((1000, 'm'), (900, 'cm'), (500, 'd'), (400, 'cd'),
-                 (100, 'c'), (90, 'xc'), (50, 'l'), (40, 'xl'),
-                 (10, 'x'), (9, 'ix'), (5, 'v'), (4, 'iv'), (1, 'i')):
-        while n >= v:
-            out += s
-            n -= v
-    return out
-
-
 def _modern_flow(doc, keep, note_refs='word'):
-    """The document as a flat list of layout items:
-        ('para', toks, align, [(note, label)...], indent_pt, cut_pt)
+    """The MEASURED Modern flow: layout.modern_flow's semantic items (the
+    single implementation of the M-rules -- see layout.py's contract)
+    converted to this emitter's tuples:
+        ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt)
         ('blank', height) | ('break',) | ('cond', n)
         ('hf', 'H'|'F', line_no, text)
-    A tok is (text, styles, family, pt, entry, width). FOOTNOTES referenced
-    on a line ride with it so the paginator can reserve their page-bottom
-    room; endnotes and annotations collect at the document's end instead
-    (ruling 2026-08-06 -- Word sends \\ftnalt notes to the back, and Modern
-    PDF is the printed Modern RTF). indent/cut carry the block's own
-    `.lm`/`.rm` in points -- the document's explicit margins win in Modern
-    exactly as its fonts do."""
-    pairs = _annotated_notes(doc)
-    refs = _ref_pairs(pairs)
-    # Reference-mark display per scheme (ruling 2026-08-06): `word` shows
-    # arabic footnotes / roman endnotes / annotation tags -- what Word
-    # itself renders from our RTF; `prefixed` shows the Markdown emitter's
-    # own labels (1 2 3, e1 e2, a1 a2), matched across formats.
-    if note_refs == 'prefixed':
-        shown_by_id = _note_ref_labels(pairs, 'prefixed')
-    else:
-        shown_by_id, _ords = {}, {}
-        for n, l in pairs:
-            k = _ords.get(n.kind, 0) + 1
-            _ords[n.kind] = k
-            if n.kind == 'endnote':
-                shown_by_id[id(n)] = _endnote_label(l)
-            elif n.kind == 'comment':
-                # self-identifying in the end list either scheme; under
-                # `word` there is no inline mark to match anyway
-                shown_by_id[id(n)] = 'c%d' % k
-            else:
-                shown_by_id[id(n)] = l
-    # LJ6DTP substitutions apply in Modern too (ruling 2026-08-06): the
-    # driver's patched slots are CONTENT -- an em dash is an em dash in any
-    # century -- while its page art (colour, rules, boxes) stays print-time.
-    lj = doc.meta.get('printer_driver') == 'LJ6DTP'
-    # one WordStar column in points, at the document's own `.cw`
+    A tok is (text, styles, family, pt, entry, width). This adapter adds
+    exactly what a PDF needs -- font resolution, AFM widths, points -- and
+    decides nothing about WHAT renders: that is layout.py's job, shared
+    with the app's native text stack and the `layout` JSON emitter."""
+    sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs)
+    note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
-    hf_by_block = {}
-    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
-        hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
-    flow = []
-    end_pairs, end_seen = [], set()   # endnotes/annotations, document order
     blank_h = MODERN_LINE * MODERN_BODY_PT
-    for bi, b in enumerate(doc.blocks):
-        for ev in hf_by_block.get(bi, ()):
-            flow.append(('hf',) + ev)
-        if b.kind == 'pagebreak':
+    flow = []
+    for it in sem['items']:
+        k = it['kind']
+        if k == 'blank':
+            flow.append(('blank', blank_h))
+        elif k == 'break':
             flow.append(('break',))
-            continue
-        if b.kind == 'condpage':
-            flow.append(('cond', b.heading or 1))
-            continue
-        lm = b.left_margin or 0
-        indent = lm * col_pt
-        rm = b.right_margin or 0
-        # `.rm` narrows the measure from the document's full line (MAX_COLS,
-        # the same 65 columns the era page gives); a block at the default 65
-        # cuts nothing
-        cut = max(0, MAX_COLS - rm) * col_pt if rm else 0.0
-        for line in _merged_lines(b):
-            if not line.spans:
-                flow.append(('blank', blank_h))
-                continue
-            spans = list(line.spans)
-            if lm:
-                # WordStar stamps `.lm` onto every line it writes; the
-                # indent is carried by the BLOCK now, so the stamped spaces
-                # come off the front (whatever indent remains past `.lm` is
-                # the author's own tab and stays)
-                drop = lm
-                while drop and spans:
-                    t = spans[0].text
-                    take = 0
-                    while take < len(t) and take < drop and t[take] == ' ':
-                        take += 1
-                    if not take:
-                        break
-                    drop -= take
-                    if t[take:]:
-                        spans[0] = _Span(t[take:], spans[0].styles)
-                        break
-                    spans.pop(0)
-            toks, notes = [], []
-            for sp in spans:
-                if any(t.startswith('pctl') for t in sp.styles):
-                    # a 0x0F print control's display string is SCREEN-ONLY;
-                    # the paper got the raw payload. Printed pads its HMI
-                    # width; Modern shows nothing -- command codes are
-                    # invisible (M4, extended 2026-08-06 round 3)
+        elif k == 'cond':
+            flow.append(('cond', it['lines']))
+        elif k == 'hf':
+            flow.append(('hf', it['which'], it['line'], it['text']))
+        elif k == 'note-separator':
+            sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
+                                      MODERN_NOTE_PT)
+            flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
+                                   MODERN_NOTE_PT, None, sep_w)],
+                         'left', [], 0.0, 0.0))
+        elif k == 'note':
+            flow.append(('para', _modern_note_toks(it['label'], it['text']),
+                         'left', [], 0.0, 0.0))
+        else:                                                   # para
+            toks = []
+            for run in it['runs']:
+                styles = frozenset(run['styles'])
+                if 'ref' in run:
+                    marker = (run['text'], styles, 'Times', MODERN_BODY_PT,
+                              None)
+                    toks.append(marker + (_modern_w(*marker),))
                     continue
-                styles = sp.styles | ({'b'} if b.heading else frozenset()) \
-                         | b.style_attrs
-                if 'fnref' in sp.styles:
-                    try:
-                        note, label = refs[int(sp.text) - 1]
-                    except (ValueError, IndexError):
-                        continue
-                    if note.kind not in keep:
-                        continue
-                    shown = shown_by_id[id(note)]
-                    if note.kind != 'comment' or note_refs == 'prefixed':
-                        # `word` comments are markless (Word's bubble
-                        # convention); `prefixed` shows the c-mark
-                        marker = (shown, styles, 'Times', MODERN_BODY_PT,
-                                  None)
-                        w = _modern_w(*marker)
-                        toks.append(marker + (w,))
-                    if note.kind == 'footnote':
-                        notes.append((note, label))
-                    elif id(note) not in end_seen:
-                        end_seen.add(id(note))
-                        end_pairs.append((note, shown))
-                    continue
-                for m in _re.finditer(r' +|[^ ]+', sp.text):
+                for m in _re.finditer(r' +|[^ ]+', run['text']):
                     written, family, pt, entry = _modern_tok_font(
                         m.group(0), styles, doc.fonts)
-                    if lj and entry is not None and entry.get('proportional'):
-                        written = written.translate(_LJ_SUBST)
-                        if (entry.get('typestyle_name') or
-                                '').startswith('Univers'):
-                            written = written.translate(_LJ_SUBST_UNIVERS)
                     w = _modern_w(written, styles, family, pt, entry)
                     toks.append((written, styles, family, pt, entry, w))
-            if b.align in ('center', 'right'):
-                # WordStar 5+ aligned at EDITOR time -- the centering is
-                # already in the file as spaces (the same fact the WS4 `.oj`
-                # DOSBox probe proved for justification). Applying the
-                # stored tag on top of the baked spaces aligned twice; the
-                # spaces come off and the tag does the work (ruling
-                # 2026-08-06 -- no per-document exceptions).
-                while toks and not toks[0][0].strip():
-                    toks.pop(0)
-                while toks and not toks[-1][0].strip():
-                    toks.pop()
-            flow.append(('para', toks, b.align, notes, indent, cut))
-        # Only the author's own blank lines make space (ruling 2026-08-06):
-        # a block boundary is often just a dot command, and command codes
-        # are invisible. merged_lines buffered these away; count them back.
-        for _ in range(_trailing_blank_lines(b)):
-            flow.append(('blank', blank_h))
-    if end_pairs:
-        # Endnotes and annotations at the true end, after the last body
-        # line -- flowing, not bottom-anchored -- behind the same 20-dash
-        # separator the page-bottom notes use. No heading: WordStar never
-        # printed one (any "Notes" heading in a period document was typed).
-        flow.append(('blank', blank_h))
-        sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
-                                  MODERN_NOTE_PT)
-        flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
-                               MODERN_NOTE_PT, None, sep_w)],
-                     'left', [], 0.0, 0.0))
-        for note, shown in end_pairs:
-            flow.append(('para', _modern_note_toks(note, shown),
-                         'left', [], 0.0, 0.0))
+            notes = [(note_rows[ni], label) for ni, label in it['footnotes']]
+            flow.append(('para', toks, it['align'], notes,
+                         it['indent_cols'] * col_pt,
+                         it['cut_cols'] * col_pt))
     return flow
 
 
@@ -1705,9 +1582,9 @@ def _modern_wrap(toks, width):
     return lines
 
 
-def _modern_note_toks(note, label):
+def _modern_note_toks(label, text):
     """One note as `[label] text` tokens of Times MODERN_NOTE_PT."""
-    text = '[%s] %s' % (label, note.text)
+    text = '[%s] %s' % (label, text)
     toks = []
     for m in _re.finditer(r' +|[^ ]+', text):
         w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
@@ -1715,9 +1592,9 @@ def _modern_note_toks(note, label):
     return toks
 
 
-def _modern_note_lines(note, label, width):
+def _modern_note_lines(label, text, width):
     """A page-bottom note as wrapped visual lines of Times MODERN_NOTE_PT."""
-    return _modern_wrap(_modern_note_toks(note, label), width)
+    return _modern_wrap(_modern_note_toks(label, text), width)
 
 
 def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
@@ -1872,7 +1749,7 @@ def _modern_streams(doc, options, res):
         for note, label in notes:
             if id(note) in seen_notes:
                 continue
-            new_note_lines += _modern_note_lines(note, label, width)
+            new_note_lines += _modern_note_lines(label, note['text'], width)
         for vi, vline in enumerate(vis):
             h = MODERN_LINE * max([_sized(t[1], t[3])[0] for t in vline]
                                   or [MODERN_BODY_PT])
