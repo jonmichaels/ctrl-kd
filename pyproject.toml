@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ctrl-kd"
-version = "3.0.0"
+dynamic = ["version"]
 description = "Convert WordStar 4-7 documents and print-to-disk files to text, Markdown, HTML, RTF, or PDF. ^KD: save and done."
 readme = "README.md"
 license = {text = "MIT"}
@@ -28,3 +28,9 @@ ctrl-kd = "ctrlkd.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+# single source of truth: src/ctrlkd/__init__.py __version__ -- the 4.0.0
+# release shipped with pyproject still saying 3.0.0 because the version
+# lived in two places and the bump hit one (2026-08-06); never again
+version = {attr = "ctrlkd.__version__"}
