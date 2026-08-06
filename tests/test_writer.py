@@ -256,7 +256,10 @@ def test_shift_jis_document_refused():
 
 # The private archive (never enters this repo). One path constant; every
 # corpus test skips when it is absent.
-ARCHIVE = '/mnt/md0/archives/preservation-tools/sawyer-ws7/'
+# The private corpus never appears in the repo (standing rule): the path
+# arrives via environment; unset means every corpus test skips cleanly.
+import os
+ARCHIVE = os.environ.get('CTRLKD_PRIVATE_CORPUS', '')
 
 # Files VERIFIED byte-identical on 2026-08-06 -- a deliberate spread:
 # WS4-flagged prose, style libraries, notes, Symbol/Dingbats runs, pctl

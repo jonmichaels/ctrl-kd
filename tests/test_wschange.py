@@ -16,7 +16,10 @@ from ctrlkd.wschange import parse_pat, page_settings, ruler_tabs
 
 # The ONE place the archive path lives (private-local; keep it a single
 # constant for future scrubbing).
-_ARCHIVE = '/mnt/md0/archives/preservation-tools/sawyer-ws7/WS'
+import os
+# private corpus path via environment only (standing rule); unset -> skip
+_ARCHIVE = os.environ.get('CTRLKD_PRIVATE_CORPUS', '').rstrip('/') + '/WS' \
+    if os.environ.get('CTRLKD_PRIVATE_CORPUS') else ''
 
 
 def _pat(name):

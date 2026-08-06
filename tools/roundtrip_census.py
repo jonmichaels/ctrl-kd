@@ -28,7 +28,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from ctrlkd import core                                     # noqa: E402
 from ctrlkd.writer import emit_ws, WriteError               # noqa: E402
 
-DEFAULT_ROOT = '/mnt/md0/archives/preservation-tools/sawyer-ws7/'
+import os
+# corpus root via env or --root; the private path never lives in the repo
+DEFAULT_ROOT = os.environ.get('CTRLKD_PRIVATE_CORPUS', '')
 
 
 def first_divergence(a: bytes, b: bytes) -> int:
