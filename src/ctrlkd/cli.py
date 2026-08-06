@@ -70,14 +70,20 @@ def main(argv=None):
                     version=BANNER + f'\nctrl-kd {__version__}')
     ap.add_argument('files', nargs='+', help='input file(s)')
     ap.add_argument('-t', '--to', action='append', choices=emit.formats(),
-                    help='output format (repeatable; default: markdown)')
+                    help='output format (repeatable). Default follows the '
+                         'mode: modern -> rtf (the full-fidelity living '
+                         'document), printed -> pdf (the closest thing to '
+                         'actually printing).')
     ap.add_argument('-o', '--output', help='output file (single input only)')
     ap.add_argument('-d', '--outdir', help='output directory for batch conversion')
-    ap.add_argument('--mode', choices=('modern', 'printed'), default='printed',
-                    help='printed: line-for-line, fixed-width, as it printed in '
-                         '1990 (DEFAULT). modern: reflowed paragraphs for '
-                         'reading. Print streams and ruler-line documents '
-                         'always render printed regardless.')
+    ap.add_argument('--mode', choices=('modern', 'printed'), default=None,
+                    help='modern: the document brought to a modern audience -- '
+                         'reflowed, its own fonts carried, gaps filled with '
+                         "today's conventions (DEFAULT). printed: the 1990 "
+                         'facsimile -- line-for-line on the era page. Print '
+                         'streams and ruler-line documents always render '
+                         'printed (a notice is printed if you asked for '
+                         'modern).')
     ap.add_argument('--variant', choices=('ws4', 'ws5+', 'printstream', 'text'),
                     help='override detection')
     ap.add_argument('--encoding', choices=('cp437',), default='cp437',
@@ -95,15 +101,21 @@ def main(argv=None):
                          'catalog incl. its chancery script), linux (URW '
                          'base-35 -- free clones of exactly this era\'s '
                          'faces)')
-    ap.add_argument('--page-defaults', metavar='mt=0.83in,mb=1in,po=0.7in',
-                    help='replacement DEFAULTS for page geometry the document '
-                         'does not declare (its own dot commands always win). '
-                         'Keys: mt, mb (top/bottom margin), po (page offset), '
-                         'hm, fm (header/footer margin). Values take an "in" '
-                         'suffix for inches, else native units (lines at 6 '
-                         'LPI; po in 10-CPI columns). Use when the printing '
-                         "machine's WSCHANGE-patched defaults are known -- "
-                         'stock WordStar is not what every printer produced')
+    ap.add_argument('--page-settings', metavar='PRESET|mt=..,mb=..,po=..',
+                    help='page geometry for everything the document does not '
+                         'declare itself (its own dot commands always win). '
+                         'Presets: "default" (WordStar factory: mt 0.5in, '
+                         'mb 1.33in, po 0.8in), "sawyer" (Robert J. '
+                         "Sawyer's own WSCHANGE-recovered machine: mt "
+                         '0.83in, mb 1in, po 0.7in), "modern" (1in '
+                         'margins). Or raw values -- keys mt, mb, po, hm, '
+                         'fm; an "in" suffix means inches, bare numbers are '
+                         'native units (lines at 6 LPI; po in 10-CPI '
+                         'columns).')
+    ap.add_argument('--force', action='store_true',
+                    help='accepted for command-line compatibility with sr '
+                         '(where it bypasses the overwrite prompt); ctrl-kd '
+                         'always overwrites existing outputs')
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
@@ -116,7 +128,11 @@ def main(argv=None):
                     help='report what the file is (variant, margin, dot commands, '
                          'unknown codes) as JSON; no conversion')
     a = ap.parse_args(argv)
-    formats = a.to or ['markdown']
+    mode_explicit = a.mode is not None
+    a.mode = a.mode or 'modern'
+    # The default format follows the mode (ruling 2026-08-05): bare modern =
+    # the full-fidelity RTF; bare printed = the facsimile PDF.
+    formats = a.to or (['pdf'] if a.mode == 'printed' else ['rtf'])
     if a.no_notes:
         notes = frozenset()
     else:
@@ -124,25 +140,38 @@ def main(argv=None):
     if a.output and (len(a.files) > 1 or len(formats) > 1):
         ap.error('-o works with a single input and a single format; use -d for batch')
 
-    page_defaults = None
-    if a.page_defaults:
-        # mt/mb/hm/fm -> lines at 6 LPI, po -> 10-CPI columns; an "in" suffix
-        # converts from inches, a bare number is already native units
-        keymap = {'mt': ('mt_lines', 6.0), 'mb': ('mb_lines', 6.0),
-                  'hm': ('hm_lines', 6.0), 'fm': ('fm_lines', 6.0),
-                  'po': ('po_cols', 10.0)}
-        page_defaults = {}
-        for part in a.page_defaults.split(','):
-            k, _, v = part.partition('=')
-            k, v = k.strip().lower(), v.strip().lower()
-            if k not in keymap or not v:
-                ap.error(f'--page-defaults: unknown or empty entry {part!r}')
-            dest, per_inch = keymap[k]
-            try:
-                page_defaults[dest] = (float(v[:-2]) * per_inch
-                                       if v.endswith('in') else float(v))
-            except ValueError:
-                ap.error(f'--page-defaults: bad value in {part!r}')
+    # --page-settings: a preset name, or raw values. "default" is the
+    # explicit no-op (WordStar factory IS what an empty settings dict means).
+    PAGE_PRESETS = {
+        'default': {},
+        'sawyer': {'mt_lines': 1195 / 1440 * 6, 'mb_lines': 6.0,
+                   'po_cols': 7.0},
+        'modern': {'mt_lines': 6.0, 'mb_lines': 6.0, 'po_cols': 10.0},
+    }
+    page_settings = None
+    if a.page_settings:
+        preset = a.page_settings.strip().lower()
+        if preset in PAGE_PRESETS:
+            page_settings = dict(PAGE_PRESETS[preset])
+        else:
+            # mt/mb/hm/fm -> lines at 6 LPI, po -> 10-CPI columns; an "in"
+            # suffix converts from inches, a bare number is native units
+            keymap = {'mt': ('mt_lines', 6.0), 'mb': ('mb_lines', 6.0),
+                      'hm': ('hm_lines', 6.0), 'fm': ('fm_lines', 6.0),
+                      'po': ('po_cols', 10.0)}
+            page_settings = {}
+            for part in a.page_settings.split(','):
+                k, _, v = part.partition('=')
+                k, v = k.strip().lower(), v.strip().lower()
+                if k not in keymap or not v:
+                    ap.error(f'--page-settings: unknown or empty entry {part!r}'
+                             f" (or use a preset: {', '.join(PAGE_PRESETS)})")
+                dest, per_inch = keymap[k]
+                try:
+                    page_settings[dest] = (float(v[:-2]) * per_inch
+                                           if v.endswith('in') else float(v))
+                except ValueError:
+                    ap.error(f'--page-settings: bad value in {part!r}')
 
     status = 0
     for path in a.files:
@@ -162,12 +191,27 @@ def main(argv=None):
                   f'--variant to force)', file=sys.stderr)
             status = 1
             continue
+        # D5 notice (ruled 2026-08-05): when the user EXPLICITLY asked for
+        # modern and the input can only render printed, say so once instead
+        # of silently disobeying the flag. The override itself stands -- a
+        # print stream has no soft returns to unwrap.
+        if (mode_explicit and a.mode == 'modern'
+                and (doc.meta.get('variant') == 'printstream'
+                     or doc.meta.get('columnar'))):
+            kind = ('print stream' if doc.meta.get('variant') == 'printstream'
+                    else 'ruler-line document')
+            print(f'ctrl-kd: {path}: {kind} -- modern reflow is not '
+                  f'possible; rendering printed', file=sys.stderr)
+        # --page-settings applies ONCE to the resolved page dict, so every
+        # emitter (PDF geometry, RTF page setup) sees the same page.
+        if page_settings and doc.meta.get('page') is not None:
+            doc.meta['page'] = core.effective_page(doc.meta['page'],
+                                                   page_settings)
         base = os.path.splitext(os.path.basename(path))[0]
         for fmt in formats:
             reg = emit.get_emitter(fmt)
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
-                            styles=not a.no_styles, fonts_target=a.fonts,
-                            page_defaults=page_defaults)
+                            styles=not a.no_styles, fonts_target=a.fonts)
             if a.output:
                 dest = a.output
             else:

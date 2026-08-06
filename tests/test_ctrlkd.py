@@ -2897,7 +2897,9 @@ def test_linux_target_uses_urw_base35_clones():
             b'Closing prose line keeps the byte ratio looking like text.\r\n')
     doc = core.parse_ws(data)
     rtf = emit.emit_rtf(doc, mode='modern', fonts_target='linux')
-    assert '{\\f2 URW Gothic{\\*\\falt Century Gothic};}' in rtf
+    # falt is guaranteed-tier per the 2026-08-05 ruled table (DejaVu rides
+    # fontconfig itself; a Microsoft name is useless on a Ghostscript-less box)
+    assert '{\\f2 URW Gothic{\\*\\falt DejaVu Sans};}' in rtf
     assert 'Z003' in rtf
 
 
@@ -2996,7 +2998,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     assert digest(core.parse_ws(make_prose()), 'printed') == \
         'd8f6c993a645c735df77a78f58e4dd44464219685e49403e69359d5ff0641e3b'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
-        'a78b6655ab04698ed1b1b3b550a0d734aa4c713ab74e9c41cf8304b0881c05d8'
+        'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
     assert digest(core.parse_ws(styled), 'printed') == \
         'a9ffc0cb6a78d7c145306d3a22c1b210d04f1b87b6d38ff7fb7936c969908d39'
     assert digest(core.parse_printstream(stream), 'printed') == \
@@ -3028,8 +3030,16 @@ def test_pdf_printed_renders_the_documents_own_font_and_size():
     assert (helv, 14, b'After.') in shown         # the block's own points
     assert any(f == 'F1' and sz == 12 and b'Before.' in t for f, sz, t in shown)
 
+    # Modern is the printed form of the Modern RTF (ruling 2026-08-05):
+    # it CARRIES the document's fonts now -- the Courier-only Modern died
+    # with the WS4 lens. Fontless text reads in Times at the sophisticated
+    # size instead of Courier.
     modern = emit_pdf(doc, mode='modern')
-    assert b'Helvetica' not in modern and b'/Courier' in modern
+    assert b'Helvetica' in modern
+    m_shown = _content_text(modern)
+    assert any(sz == 14 and b'After.' in t for f, sz, t in m_shown)
+    assert any(b'Times-Roman' in modern.split(b'/BaseFont /')[i][:12]
+               for i in range(1, modern.count(b'/BaseFont /') + 1))
 
 
 def test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes():
@@ -3307,3 +3317,99 @@ def test_leading_tab_indent_measures_in_print_columns_not_the_font():
     x = next(s[3] for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'X')
     assert x == round(left + 14 * 12 * 0.6, 1)     # 14 columns at 10 CPI, not
                                                     # 14 x the 72pt font's 42.6pt
+
+
+# ---- the wholesale-defaults batch (CLI-Defaults-Audit, all ruled 2026-08-05)
+
+def _run_cli_defaults(tmp_path, args, name='DOC.WS', data=None):
+    from ctrlkd import cli
+    import io, contextlib
+    src = tmp_path / name
+    src.write_bytes(data if data is not None else make_prose())
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        cli.main([str(src)] + args)
+    return src, err.getvalue()
+
+def test_bare_invocation_is_modern_rtf(tmp_path):
+    # THE ruling: "the converter is about bringing the old docs to a modern
+    # audience" -- no flags means Modern RTF, Georgia 14 body, modern page.
+    src, _ = _run_cli_defaults(tmp_path, [])
+    out = (tmp_path / 'DOC.rtf').read_text()
+    assert out.startswith(r'{\rtf1')
+    assert r'{\f0 Georgia{\*\falt Times New Roman};}' in out
+    assert r'\f0\fs28' in out                       # the cozy-book 14pt
+    assert r'\paperw12240' in out and r'\margl1440' in out
+
+def test_printed_mode_defaults_to_pdf(tmp_path):
+    src, _ = _run_cli_defaults(tmp_path, ['--mode', 'printed'])
+    pdf = (tmp_path / 'DOC.pdf').read_bytes()
+    assert pdf.startswith(b'%PDF-1.4')
+
+def test_page_settings_presets(tmp_path):
+    # sawyer: the DEFAULT.PAT machine (mt ~0.83in -> margt 1195/1440*1440
+    # twips = 1195... in lines*240: 4.979*240 = 1195); default: factory page.
+    _run_cli_defaults(tmp_path, ['--mode', 'printed', '-t', 'rtf',
+                        '--page-settings', 'sawyer'])
+    rtf = (tmp_path / 'DOC.rtf').read_text()
+    assert r'\margt1195' in rtf and r'\margb1440' in rtf and r'\margl1008' in rtf
+    _run_cli_defaults(tmp_path, ['--mode', 'printed', '-t', 'rtf',
+                        '--page-settings', 'default'])
+    rtf = (tmp_path / 'DOC.rtf').read_text()
+    assert r'\margt720' in rtf and r'\margb1920' in rtf     # factory 0.5/1.33in
+
+def test_force_flag_is_accepted(tmp_path):
+    _run_cli_defaults(tmp_path, ['--force'])
+    assert (tmp_path / 'DOC.rtf').exists()
+
+def test_forced_printed_notice_on_explicit_modern(tmp_path):
+    # D5: a print stream cannot reflow; an EXPLICIT --mode modern gets one
+    # stderr line saying so. The default (no --mode) stays quiet.
+    stream = b'Line one of a printed page\r\nLine two of it\r\n\x1a'
+    _, err = _run_cli_defaults(tmp_path, ['--mode', 'modern', '-t', 'text'],
+                      name='CAP.PRN', data=stream)
+    assert 'modern reflow is not possible' in err
+    _, err = _run_cli_defaults(tmp_path, ['-t', 'text'], name='CAP2.PRN', data=stream)
+    assert 'modern reflow' not in err
+
+def test_modern_pdf_is_the_printed_modern_rtf():
+    # Ruling: one content model for Modern; PDF is its paper form. Document
+    # fonts carried (base-14 mapped), fontless body Times 14, footnotes at
+    # the page bottom behind the 20-dash separator.
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(core.parse_ws(make_prose()), 'modern')
+    assert b'/BaseFont /Times-Roman' in pdf
+    assert b' 14 Tf' in pdf                        # sophisticated size
+    assert b'/BaseFont /Courier' in pdf            # the four are still emitted
+    assert b'Tf 0 Ts' in pdf
+    helv = _helv_typestyle()
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + _font_block(helv, 18.0, width=250, style_bits=0x8000)
+            + b'Styled in a real face.' + HARD)
+    pdf2 = emit_pdf(core.parse_ws(data), 'modern')
+    assert b'/BaseFont /Helvetica' in pdf2
+    assert b'/F5 18 Tf' in pdf2 or b' 18 Tf' in pdf2
+
+def test_modern_pdf_page_bottom_footnotes():
+    from ctrlkd.pdf import emit_pdf
+    note = ws7_note(0x03, b'A note that lands at the page bottom.', number=0)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'The referenced line' + note + b' continues after.'
+            + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    assert doc.notes
+    pdf = emit_pdf(doc, 'modern')
+    assert b'--------------------' in pdf          # the 20-dash separator
+    # note text renders word-per-op; check words, and that they sit BELOW
+    # the body (page-bottom = smaller y than every body line)
+    assert b'(bottom.)' in pdf
+    import re as _re2
+    ys = [(float(m.group(1)), m.group(2))
+          for m in _re2.finditer(rb'[\d.]+ ([\d.]+) Td \((.*?)\) Tj', pdf)]
+    note_y = next(y for y, t in ys if t == b'bottom.')
+    body_y = next(y for y, t in ys if b'referenced' in t)
+    assert note_y < body_y

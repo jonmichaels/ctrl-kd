@@ -342,8 +342,10 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
 
 # ---------------------------------------------------------------- html
 
+# Body font: the sophisticated body ruling (2026-08-05) -- Georgia 14, the
+# stack carrying the no-Georgia case by HTML's own nature.
 _CSS = """body{max-width:42rem;margin:2rem auto;padding:0 1rem;
-font:17px/1.6 Georgia,serif;color:#222}p{margin:0 0 1em}
+font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
 pre{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto}
 hr.pb{border:none;border-top:1px dashed #bbb;margin:2rem 0}
 section[role=doc-endnotes]{margin-top:2rem}
@@ -810,10 +812,49 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         if comments:
             parts.append(comments)
     body = '\n'.join(parts)
-    return (r'{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}'
+    # The sophisticated body (Jon's specimen ruling, 2026-08-05): text with
+    # no font information reads in Georgia 14 under Modern -- "like reading
+    # a cozy book" -- one font for every target, the per-target variation
+    # riding in the falt (RTF's own no-Georgia safety net). Printed keeps
+    # Courier 12: a fontless document on the era's fixed grid IS a
+    # typescript, and Printed gap-fills with 1990.
+    from .fontmap import MODERN_BODY, MODERN_BODY_SIZE
+    b_primary, b_falt = MODERN_BODY.get(fonts_target, MODERN_BODY['office'])
+    f0 = (r'{\f0 %s{\*\falt %s};}' % (b_primary, b_falt) if b_falt
+          else r'{\f0 %s;}' % b_primary)
+    body_fs = r'\fs%d' % (MODERN_BODY_SIZE * 2)
+    if printed:
+        f0, body_fs = r'{\f0 Times New Roman;}', r'\fs24'
+    # Page setup, emitted EXPLICITLY: without \paperw/\margl the opening
+    # app's locale decides the paper (A4 in most of the world) and the
+    # "Modern page settings" ruling would be fiction. Geometry per the
+    # governing principle: the document's declared values win; silence is
+    # filled by the mode's own page (Modern: 1in Letter; Printed: the era
+    # page from doc.meta, which core already resolved with its defaults).
+    page = doc.meta.get('page') or {}
+    def _twips_lines(key, default_lines):
+        v = page.get(key, default_lines)
+        return int(round(float(v) * 240))            # 1 line at 6 LPI = 240 twips
+    if printed:
+        margt = _twips_lines('mt_lines', 3.0)
+        margb = _twips_lines('mb_lines', 8.0)
+        margl = int(round(float(page.get('po_cols', 8.0)) * 144))
+        paperh = int(round(float(page.get('height_in', 11.0)) * 1440))
+    else:
+        margt = (_twips_lines('mt_lines', 6.0)
+                 if page.get('mt_source', 'default') != 'default' else 1440)
+        margb = (_twips_lines('mb_lines', 6.0)
+                 if page.get('mb_source', 'default') != 'default' else 1440)
+        margl = (int(round(float(page.get('po_cols', 10.0)) * 144))
+                 if page.get('po_source', 'default') != 'default' else 1440)
+        paperh = 15840
+    pagesetup = (r'\paperw12240\paperh%d\margl%d\margr%d\margt%d\margb%d'
+                 % (paperh, margl, margl, margt, margb))
+    return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
             + stylesheet
-            + '\n' + font + r'\fs24 ' + '\n' + body + '\n}\n')
+            + pagesetup
+            + '\n' + font + body_fs + ' ' + '\n' + body + '\n}\n')
 
 # built-ins register through the same door plugins use
 emitter('text', ext='.txt')(emit_text)

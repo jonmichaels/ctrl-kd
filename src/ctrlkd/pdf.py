@@ -1407,38 +1407,329 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  col_state, colour_map or {})
     return b'\n'.join(ops)
 
+
+# ---- Modern layout: the printed form of the Modern RTF ---------------------
+#
+# Ruled 2026-08-05: "Modern PDF needs to be the printed version of Modern
+# RTF." One content model for the Modern column -- the RTF model (reflowed,
+# document fonts carried, footnotes anchored) -- with PDF as its paper
+# rendering. Everything here mirrors what Word does when you print the RTF:
+# proportional wrap at the real measure, single spacing by the line's own
+# type size, footnotes at the page bottom, paragraph gaps, .pa honored.
+# Fontless text is base-14 Times at the sophisticated size (Georgia has no
+# base-14 seat; "the PDF needs to work no matter what").
+
+MODERN_BODY_PT = 14           # the sophisticated size (Jon's specimen ruling)
+MODERN_NOTE_PT = 11
+MODERN_LINE = 1.2             # single-spacing: baseline advance = 1.2 x size
+
+
+def _modern_geometry(doc):
+    """(left, top_margin, bottom_margin, text_width) in points. The
+    document's declared geometry wins (governing principle); silence is the
+    modern page: 1in margins on Letter. The right margin is always 1in --
+    WordStar's right edge is a text measure, not a page property."""
+    page = doc.meta.get('page') or {}
+    margt = (float(page.get('mt_lines', 6.0)) * 12.0
+             if page.get('mt_source', 'default') != 'default' else 72.0)
+    margb = (float(page.get('mb_lines', 6.0)) * 12.0
+             if page.get('mb_source', 'default') != 'default' else 72.0)
+    margl = (float(page.get('po_cols', 10.0)) * 7.2
+             if page.get('po_source', 'default') != 'default' else 72.0)
+    return margl, margt, margb, max(144.0, PAGE_W - margl - 72.0)
+
+
+def _modern_tok_font(text, styles, fonts):
+    """(written, family, pt, entry) for one modern token. _span_render does
+    the real work (untransliteration, entry sizes); the one modern rule on
+    top: a token with NO font information reads in Times at the
+    sophisticated size, never Courier -- the typescript aesthetic lives
+    only in Printed now."""
+    written, family, pt, entry = _span_render(text, styles, fonts,
+                                              MODERN_BODY_PT)
+    if entry is None:
+        family = 'Times'
+    return written, family, pt, entry
+
+
+def _modern_w(text, styles, family, pt, entry):
+    """A token's advance in points under modern layout: natural face widths
+    (face-scaled for entries, straight AFM for fontless Times), the fixed
+    grid only where a fixed-pitch font block asks for it."""
+    spt, _rise = _sized(styles, pt)
+    basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+    if entry is not None and (set(text) & GRAPHIC_CHARS):
+        # mixed tokens split into graphic runs (cell advance) and text
+        # (natural), same rule as printed's _split_graphics
+        total = 0.0
+        pitch = spt if entry.get('proportional') else _span_pitch(entry, spt)
+        pos = 0
+        for m in _GRAPHIC_RUN.finditer(text):
+            if m.start() > pos:
+                total += _modern_w(text[pos:m.start()], styles, family, pt,
+                                   entry if not (set(text[pos:m.start()])
+                                                 & GRAPHIC_CHARS) else entry)
+            total += len(m.group(0)) * pitch
+            pos = m.end()
+        if pos < len(text):
+            total += _modern_w(text[pos:], styles, family, pt, entry)
+        return total
+    if entry is not None and not entry.get('proportional'):
+        return len(text) * _span_pitch(entry, spt)
+    nat = _natural_width_pt(text, basefont, spt)
+    if entry is not None:
+        return nat * _face_tz(basefont, _span_pitch(entry, spt), spt) / 100.0
+    return nat
+
+
+def _modern_flow(doc, keep):
+    """The document as a flat list of layout items:
+        ('line', [tok...], align, height, [note_index...])
+        ('blank', height) | ('break',) | ('cond', n)
+    A tok is (text, styles, family, pt, entry, width). Notes referenced on a
+    line ride with it so the paginator can reserve their page-bottom room."""
+    pairs = _annotated_notes(doc)
+    refs = _ref_pairs(pairs)
+    flow = []
+    for b in doc.blocks:
+        if b.kind == 'pagebreak':
+            flow.append(('break',))
+            continue
+        if b.kind == 'condpage':
+            flow.append(('cond', b.heading or 1))
+            continue
+        for line in _merged_lines(b):
+            toks, notes = [], []
+            for sp in line.spans:
+                styles = sp.styles | ({'b'} if b.heading else frozenset()) \
+                         | b.style_attrs
+                if 'fnref' in sp.styles:
+                    try:
+                        note, label = refs[int(sp.text) - 1]
+                    except (ValueError, IndexError):
+                        continue
+                    if note.kind not in keep:
+                        continue
+                    marker = (label, styles, 'Times', MODERN_BODY_PT, None)
+                    w = _modern_w(*marker)
+                    toks.append(marker + (w,))
+                    notes.append((note, label))
+                    continue
+                for m in _re.finditer(r' +|[^ ]+', sp.text):
+                    written, family, pt, entry = _modern_tok_font(
+                        m.group(0), styles, doc.fonts)
+                    w = _modern_w(written, styles, family, pt, entry)
+                    toks.append((written, styles, family, pt, entry, w))
+            # greedy wrap at the measure (widths already measured)
+            flow.append(('para', toks, b.align, notes))
+        flow.append(('blank', MODERN_LINE * MODERN_BODY_PT))
+    return flow
+
+
+def _modern_wrap(toks, width):
+    """Greedy wrap of one logical line's tokens -> visual lines. Leading
+    whitespace stays (paragraph indent); a space token at a wrap point is
+    swallowed, exactly as any renderer would."""
+    lines, cur, curw = [], [], 0.0
+    for tok in toks:
+        text, w = tok[0], tok[5]
+        if cur and curw + w > width and text.strip():
+            lines.append(cur)
+            cur, curw = [], 0.0
+        if not cur and not text.strip() and lines:
+            continue                      # swallow the wrap-point space
+        cur.append(tok)
+        curw += w
+    if cur or not lines:
+        lines.append(cur)
+    return lines
+
+
+def _modern_note_lines(note, label, width):
+    """A page-bottom note as wrapped visual lines of Times MODERN_NOTE_PT."""
+    text = '[%s] %s' % (label, note.text)
+    toks = []
+    for m in _re.finditer(r' +|[^ ]+', text):
+        w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
+        toks.append((m.group(0), frozenset(), 'Times', MODERN_NOTE_PT, None, w))
+    return _modern_wrap(toks, width)
+
+
+def _modern_line_ops(toks, left, y, width, align, res, tz_state):
+    """Content-stream ops for one modern visual line. One op per word keeps
+    a viewer's substitute-metric drift bounded, same as printed."""
+    lw = sum(t[5] for t in toks)
+    while toks and not toks[-1][0].strip():
+        lw -= toks[-1][5]
+        toks = toks[:-1]
+    x = left
+    if align == 'center':
+        x += max(0.0, (width - lw) / 2)
+    elif align == 'right':
+        x += max(0.0, width - lw)
+    ops = []
+    for text, styles, family, pt, entry, w in toks:
+        spt, rise = _sized(styles, pt)
+        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        font = res.ref(basefont)
+        if entry is not None and (set(text) & GRAPHIC_CHARS):
+            # split mixed tokens: graphic runs draw as vectors at the cell
+            # advance, interleaved text renders through the normal path
+            pitch = spt if entry.get('proportional') else _span_pitch(entry, spt)
+            pos, gx = 0, x
+            for m in _GRAPHIC_RUN.finditer(text):
+                if m.start() > pos:
+                    piece = text[pos:m.start()]
+                    pw = _modern_w(piece, styles, family, pt, entry)
+                    ops += _modern_line_ops(
+                        [(piece, styles, family, pt, entry, pw)],
+                        gx, y, width, 'left', res, tz_state)
+                    gx += pw
+                run = m.group(0)
+                ops += _graphic_ops(run, gx, y, pitch, spt)
+                gx += len(run) * pitch
+                pos = m.end()
+            if pos < len(text):
+                piece = text[pos:]
+                pw = _modern_w(piece, styles, family, pt, entry)
+                ops += _modern_line_ops(
+                    [(piece, styles, family, pt, entry, pw)],
+                    gx, y, width, 'left', res, tz_state)
+            x += w
+            continue
+        if text.strip():
+            if entry is not None and not entry.get('proportional'):
+                want, _w = _tz_scale(text, basefont, spt,
+                                     len(text) * _span_pitch(entry, spt))
+                want = TZ_DEFAULT if want is None else round(want, 2)
+            elif entry is not None:
+                want = _face_tz(basefont, _span_pitch(entry, spt), spt)
+            else:
+                want = TZ_DEFAULT
+            if want == tz_state[0]:
+                ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), spt, rise, x, y, _esc(text)))
+            else:
+                ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s)'
+                           b' Tj ET' %
+                           (font.encode(), spt, rise, want, x, y, _esc(text)))
+                tz_state[0] = want
+        ops += _rules(styles, text, x, y, w)
+        x += w
+    return ops
+
+
+def _modern_streams(doc, options, res):
+    """All page content streams for Modern mode."""
+    keep = frozenset(options.get('notes', ())) or frozenset(
+        ('footnote', 'endnote', 'annotation'))
+    margl, margt, margb, width = _modern_geometry(doc)
+    flow = _modern_flow(doc, keep)
+    note_lead = MODERN_LINE * MODERN_NOTE_PT
+    sep_h = note_lead
+
+    pages = []                       # each: ([(y, toks, align)...], [note lines])
+    body, notes_lines, seen_notes = [], [], set()
+    y = PAGE_H - margt
+
+    def note_block_h():
+        return (sep_h + note_lead * len(notes_lines)) if notes_lines else 0.0
+
+    def close():
+        nonlocal body, notes_lines, y
+        pages.append((body, list(notes_lines)))
+        body, notes_lines[:] = [], []
+        y = PAGE_H - margt
+
+    for item in flow:
+        if item[0] == 'break':
+            close()
+            continue
+        if item[0] == 'cond':
+            need = item[1] * MODERN_LINE * MODERN_BODY_PT
+            if body and y - (margb + note_block_h()) < need:
+                close()
+            continue
+        if item[0] == 'blank':
+            if not body:
+                continue                      # no blank at a page top
+            h = item[1]
+            if y - h < margb + note_block_h():
+                close()
+                continue
+            y -= h
+            continue
+        _, toks, align, notes = item
+        vis = _modern_wrap(toks, width)
+        new_note_lines = []
+        for note, label in notes:
+            if id(note) in seen_notes:
+                continue
+            new_note_lines += _modern_note_lines(note, label, width)
+        for vi, vline in enumerate(vis):
+            h = MODERN_LINE * max([_sized(t[1], t[3])[0] for t in vline]
+                                  or [MODERN_BODY_PT])
+            extra = ((sep_h if not notes_lines else 0.0)
+                     + note_lead * len(new_note_lines)) if (vi == 0 and
+                                                            new_note_lines) else 0.0
+            if body and y - h < margb + note_block_h() + extra:
+                close()
+            y -= h
+            body.append((y, vline, align))
+            if vi == 0 and new_note_lines:
+                notes_lines.extend(new_note_lines)
+                for note, label in notes:
+                    seen_notes.add(id(note))
+                new_note_lines = []
+    close()
+    while len(pages) > 1 and not pages[-1][0] and not pages[-1][1]:
+        pages.pop()
+
+    streams = []
+    for body, nlines in pages:
+        tz_state = [TZ_DEFAULT]
+        ops = []
+        for y, toks, align in body:
+            ops += _modern_line_ops(list(toks), margl, y, width, align, res,
+                                    tz_state)
+        if nlines:
+            block = [None] + nlines           # None = the separator rule
+            total = len(block)
+            for i, ln in enumerate(block):
+                ly = margb + note_lead * (total - 1 - i)
+                if ln is None:
+                    f = res.ref('Times-Roman')
+                    ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
+                               (f.encode(), MODERN_NOTE_PT, margl, ly,
+                                _esc(FOOTNOTE_SEPARATOR)))
+                else:
+                    ops += _modern_line_ops(list(ln), margl, ly, width,
+                                            'left', res, tz_state)
+        streams.append(b'\n'.join(ops))
+    return streams
+
+
 @emitter('pdf')
 def emit_pdf(doc, mode='printed', **options):
     """Assemble the PDF: catalog, page tree, the font table (the Courier four
-    always, plus whatever base-14 faces a WS5+ document's own font runs
-    reached for in printed mode), one content stream per page, xref. Returns
-    bytes — PDF is a binary format.
+    always, plus whatever base-14 faces a document's own font runs reached
+    for), one content stream per page, xref. Returns bytes — PDF is a binary
+    format.
 
-    `page_defaults` (option): {'mt_lines': .., 'mb_lines': .., 'po_cols': ..,
+    `page_settings` (option): {'mt_lines': .., 'mb_lines': .., 'po_cols': ..,
     'hm_lines': .., 'fm_lines': ..} -- replacement DEFAULTS for geometry the
     document does not declare itself (a field is overridden only when its
-    *_source is 'default'; a document's own dot commands always win). This
-    exists because WordStar's stock defaults are not what a given machine
-    printed: WSCHANGE patches them, and Robert J. Sawyer's own DEFAULT.PAT
-    (recovered 2026-08-05, INIEDT block vs PRISTINE.PAT) sets .mt 1195/1440in
-    ~= 0.83in, .mb exactly 1.0in, .po 0.7in -- the page every default-geometry
-    manuscript in the archive actually printed on."""
+    *_source is 'default'; a document's own dot commands always win). The CLI
+    resolves its --page-settings flag (presets `default`/`sawyer`/`modern`,
+    or raw values) into this dict. Named "Page Settings" at every layer by
+    ruling (2026-08-05)."""
     printed = mode == 'printed' or _printed(doc)
-    page_defaults = options.get('page_defaults')
+    page_settings = options.get('page_settings')
     saved_page = None
-    if page_defaults and doc.meta.get('page') is not None:
+    if page_settings and doc.meta.get('page') is not None:
+        from .core import effective_page
         saved_page = doc.meta['page']
-        eff = dict(saved_page)
-        for key, val in page_defaults.items():
-            src = key[:2] + '_source'
-            if eff.get(src, 'default') == 'default':
-                eff[key] = val
-                eff[src] = 'machine-default'
-        from .core import _text_lines_per_page
-        eff['text_lines'] = _text_lines_per_page(
-            eff.get('pl_lines', 66.0), eff.get('mt_lines', 3.0),
-            eff.get('mb_lines', 8.0), eff.get('lh_48', 8.0))
-        doc.meta['page'] = eff
+        doc.meta['page'] = effective_page(saved_page, page_settings)
     try:
         return _emit_pdf_inner(doc, printed, options)
     finally:
@@ -1447,47 +1738,36 @@ def emit_pdf(doc, mode='printed', **options):
 
 
 def _emit_pdf_inner(doc, printed, options):
-    pages = _doc_to_pagelines(doc, printed)
-    top = _printed_top(doc) if printed else TOP_MODERN    # .mt-derived for WS docs;
-                                                           # default .mt 3 IS the old 36pt
-    lead = _printed_lead(doc) if printed else LEAD        # .lh-derived; .lh 8 IS 12pt
-    size = _printed_size(doc) if printed else SIZE        # .cw-derived; .cw 12 IS 12pt
-    left = _printed_left(doc, size) if printed else float(MARGIN)   # .po-derived;
-                                                           # default .po 8 = 57.6pt, the
-                                                           # manual's .8in -- see _printed_left
-    page_h = _resolved_page_height(doc, printed)          # file geometry wins in
-                                                           # printed mode (Task: .pl);
-                                                           # modern stays fixed Letter
-    # Font runs are a PRINTED-mode facsimile feature: Modern mode is Courier by
-    # ruling, so it is handed no fonts at all and every span stays on the
-    # fixed-pitch path. WS4 documents and print streams have no font blocks, so
-    # doc.fonts is empty for them and this is a no-op.
-    fonts = doc.fonts if printed else ()
-    # Colour is DRIVER-DEFINED: the palette indices a document records mean
-    # whatever its printer description file says. LJ6DTP's table is known
-    # (recovered from the PDF file's own string table and confirmed against
-    # the document's sample rows, 2026-08-05): 0 Black, 1-7 grays of
-    # decreasing ink, 15 White -- the knockout that lets white text punch out
-    # of a black bar. Any other driver: indices stay opaque, nothing rendered.
-    colour_map = _COLOUR_GRAY_LJ6DTP if (
-        printed and doc.meta.get('printer_driver') == 'LJ6DTP') else {}
+    if printed:
+        pages = _doc_to_pagelines(doc, printed)
+        top = _printed_top(doc)
+        lead = _printed_lead(doc)
+        size = _printed_size(doc)
+        left = _printed_left(doc, size)
+        page_h = _resolved_page_height(doc, printed)
+        fonts = doc.fonts
+        colour_map = _COLOUR_GRAY_LJ6DTP if (
+            doc.meta.get('printer_driver') == 'LJ6DTP') else {}
+        start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+        res = FontRes()
+        streams = []
+        for page_index, pl in enumerate(pages):
+            running = _running_ops(doc, start_no + page_index, page_h, lead,
+                                   size, left, printed,
+                                   headers=getattr(pl, 'headers', None),
+                                   footers=getattr(pl, 'footers', None))
+            streams.append(_page_stream(pl, top, page_h, lead, size, left,
+                                        running, fonts, res, colour_map))
+    else:
+        # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
+        # document fonts carried, proportional reflow at the real measure,
+        # footnotes at the page bottom, fontless body Times 14. Always
+        # US Letter, like the RTF's own page setup.
+        page_h = PAGE_H
+        res = FontRes()
+        streams = _modern_streams(doc, options, res)
+    n_pages = len(streams)
     objs = []                                             # (obj_number, bytes)
-
-    n_pages = len(pages)
-    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
-
-    # The streams are written FIRST: which base-14 fonts the document actually
-    # uses is only known once every span has been laid out, and the resource
-    # table has to name them all.
-    res = FontRes()
-    streams = []
-    for page_index, pl in enumerate(pages):
-        running = _running_ops(doc, start_no + page_index, page_h, lead,
-                               size, left, printed,
-                               headers=getattr(pl, 'headers', None),
-                               footers=getattr(pl, 'footers', None))
-        streams.append(_page_stream(pl, top, page_h, lead, size, left,
-                                    running, fonts, res, colour_map))
 
     font_objs = {}                                        # F1..Fn -> obj num
     next_num = 3
