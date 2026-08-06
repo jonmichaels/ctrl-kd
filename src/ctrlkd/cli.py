@@ -113,7 +113,8 @@ def main(argv=None):
                          'margins). Or raw values -- keys mt, mb, po, hm, '
                          'fm; an "in" suffix means inches, bare numbers are '
                          'native units (lines at 6 LPI; po in 10-CPI '
-                         'columns).')
+                         'columns). size=letter|legal|a4 names the sheet '
+                         'for files that declare no page length.')
     ap.add_argument('--force', action='store_true',
                     help='accepted for command-line compatibility with sr '
                          '(where it bypasses the overwrite prompt); ctrl-kd '
@@ -171,10 +172,19 @@ def main(argv=None):
             keymap = {'mt': ('mt_lines', 6.0), 'mb': ('mb_lines', 6.0),
                       'hm': ('hm_lines', 6.0), 'fm': ('fm_lines', 6.0),
                       'po': ('po_cols', 10.0)}
+            # the three main page sizes (ruled 2026-08-06) as .pl lines;
+            # width rides on the height inference in the page model
+            sizes = {'letter': 66.0, 'legal': 84.0, 'a4': 11.693 * 6}
             page_settings = {}
             for part in a.page_settings.split(','):
                 k, _, v = part.partition('=')
                 k, v = k.strip().lower(), v.strip().lower()
+                if k == 'size':
+                    if v not in sizes:
+                        ap.error(f'--page-settings: unknown size {v!r} '
+                                 f"(choose from {', '.join(sizes)})")
+                    page_settings['pl_lines'] = sizes[v]
+                    continue
                 if k not in keymap or not v:
                     ap.error(f'--page-settings: unknown or empty entry {part!r}'
                              f" (or use a preset: {', '.join(PAGE_PRESETS)})")

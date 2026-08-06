@@ -1456,7 +1456,8 @@ def _modern_geometry(doc):
              if page.get('mb_source', 'default') != 'default' else 72.0)
     margl = (float(page.get('po_cols', 10.0)) * 7.2
              if page.get('po_source', 'default') != 'default' else 72.0)
-    return margl, margt, margb, max(144.0, PAGE_W - margl - 72.0)
+    page_w = float(page.get('pw_in', 8.5)) * 72.0     # A4 files are narrower
+    return margl, margt, margb, max(144.0, page_w - margl - 72.0)
 
 
 def _modern_tok_font(text, styles, fonts):
@@ -1864,11 +1865,18 @@ def _emit_pdf_inner(doc, printed, options):
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,
-        # footnotes at the page bottom, fontless body Times 14. Always
-        # US Letter, like the RTF's own page setup.
-        page_h = PAGE_H
+        # footnotes at the page bottom, fontless body Times 14. The page is
+        # the document's declared size (Letter/Legal/A4 -- ruled 2026-08-06);
+        # silence is Letter, exactly as before.
+        page_h = int(round(float((doc.meta.get('page') or {})
+                                 .get('height_in', 11.0)) * 72))
         res = FontRes()
         streams = _modern_streams(doc, options, res)
+    # Width joined the page model 2026-08-06 ("the 3 main page sizes"):
+    # inferred from the height -- A4-tall pages are 210mm wide, everything
+    # else is the 8.5in sheet -- so a default document stays exactly 612.
+    page_w = int(round(float((doc.meta.get('page') or {})
+                             .get('pw_in', 8.5)) * 72))
     n_pages = len(streams)
     objs = []                                             # (obj_number, bytes)
 
@@ -1906,7 +1914,7 @@ def _emit_pdf_inner(doc, printed, options):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
-                     % (PAGE_W, page_h, font_dict, cnum)))
+                     % (page_w, page_h, font_dict, cnum)))
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 
