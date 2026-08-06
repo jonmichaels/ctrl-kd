@@ -218,6 +218,18 @@ def main(argv=None):
         # the log should say why (ruling 2026-08-06): the driver's page art
         # (colour knockouts, rules, hand-laid boxes) exists only at print
         # time. Its CHARACTER substitutions are content and ARE applied.
+        # --comments + printed is a contradiction the CLI explains rather
+        # than silently resolving (ruling 2026-08-06): WordStar printed
+        # nothing for a comment, and the facsimile doesn't either.
+        if (a.comments
+                and (a.mode == 'printed'
+                     or doc.meta.get('variant') == 'printstream'
+                     or doc.meta.get('columnar'))
+                and any(n.kind == 'comment' for n in doc.notes)):
+            print(f'ctrl-kd: {path}: comments are never part of the printed '
+                  f'page -- WordStar did not print them, so the facsimile '
+                  f"doesn't either; convert with --mode modern to see them",
+                  file=sys.stderr)
         if (a.mode == 'modern'
                 and doc.meta.get('printer_driver') == 'LJ6DTP'):
             print(f'ctrl-kd: {path}: LJ6DTP driver document -- its '

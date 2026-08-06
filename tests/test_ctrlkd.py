@@ -647,7 +647,9 @@ def test_ws7_four_note_kinds_distinguished():
     assert len(doc.annotations) == 1 and doc.annotations[0][0].text == 'An annotation.'
     assert len(doc.comments) == 1 and doc.comments[0].text == 'A hidden author aside.'
     refs = [s for s in doc.blocks[0].lines[0].spans if 'fnref' in s.styles]
-    assert [r.text for r in refs] == ['1', '2', '3']       # comment got no ref
+    # comments emit reference marks too since 2026-08-06 -- position, not
+    # ink; every rendering path still hides them unless --comments opts in
+    assert [r.text for r in refs] == ['1', '2', '3', '4']
     # the comment's text must not leak into rendered output at all
     md = emit.emit_markdown(doc)
     assert 'hidden author aside' not in md
@@ -992,8 +994,11 @@ def test_emit_text_sections_labeled_by_kind(four_kind_doc):
 
 def test_emit_text_comments_opt_in_own_section(four_kind_doc):
     from ctrlkd.emit import ALL_NOTE_KINDS
-    t = emit.emit_text(four_kind_doc, notes=ALL_NOTE_KINDS)
+    t = emit.emit_text(four_kind_doc, 'modern', notes=ALL_NOTE_KINDS)
     assert 'Comments:\n[1] Comment text.' in t
+    # printed is always silent about comments (ruling 2026-08-06)
+    assert 'Comment text.' not in emit.emit_text(four_kind_doc, 'printed',
+                                                 notes=ALL_NOTE_KINDS)
 
 # -- Task 2: markdown ---------------------------------------------------
 
@@ -1051,11 +1056,14 @@ def test_emit_html_comments_excluded_by_default_opt_in_no_backlink(four_kind_doc
     from ctrlkd.emit import ALL_NOTE_KINDS
     default_h = emit.emit_html(four_kind_doc)
     assert 'Comment text.' not in default_h and 'doc-endnotes' in default_h
-    h = emit.emit_html(four_kind_doc, notes=ALL_NOTE_KINDS)
+    # printed is always silent about comments (ruling 2026-08-06)
+    assert 'Comment text.' not in emit.emit_html(four_kind_doc, 'printed',
+                                                 notes=ALL_NOTE_KINDS)
+    h = emit.emit_html(four_kind_doc, 'modern', notes=ALL_NOTE_KINDS)
     assert 'Comment text.' in h
     assert '<h2 id="comments-label">Comments</h2>' in h
-    # comments have no inline reference to link back to
-    assert 'cmref' not in h
+    # word scheme: no visible inline anchor, hence no backlink either
+    assert '>↩</a></li></ol></section>' not in h.split('Comments</h2>')[1]
 
 # -- Task 2: rtf (real \footnote destination) ----------------------------
 
@@ -1078,9 +1086,16 @@ def test_emit_rtf_comments_use_real_annotation_destination(four_kind_doc):
     from ctrlkd.emit import ALL_NOTE_KINDS
     default_r = emit.emit_rtf(four_kind_doc)
     assert r'\annotation' not in default_r and 'Comment text.' not in default_r
-    r = emit.emit_rtf(four_kind_doc, notes=ALL_NOTE_KINDS)
+    # printed + comments is inert (ruling 2026-08-06): WordStar printed
+    # nothing for a comment, so the facsimile doesn't either
+    printed_r = emit.emit_rtf(four_kind_doc, 'printed', notes=ALL_NOTE_KINDS)
+    assert 'Comment text.' not in printed_r
+    # Modern anchors a real Word margin comment at the TRUE position --
+    # inline between the words around it, not dumped at the document end
+    r = emit.emit_rtf(four_kind_doc, 'modern', notes=ALL_NOTE_KINDS)
     assert r'\*\annotation' in r and r'\chatn' in r and r'\atnid' in r
     assert 'Comment text.' in r
+    assert r.index('Comment text.') < r.index('five')
     assert r.count('{') == r.count('}')
 
 def test_emit_rtf_no_extra_font_codes_in_note_destinations(four_kind_doc):
@@ -2656,9 +2671,18 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
     if not os.path.exists(p):
         return                      # fixture lives outside the repo; skip if absent
     doc = core.parse_ws(open(p, 'rb').read())
-    assert [n.kind for n in doc.notes[:4]] == ['footnote', 'footnote', 'endnote', 'endnote']
-    refs = sum(1 for l in doc.iter_lines() for s in l.spans if 'fnref' in s.styles)
-    assert refs == 6, refs          # four kinds, comments never referenced inline
+    noncomment = [n.kind for n in doc.notes if n.kind != 'comment']
+    assert noncomment[:4] == ['footnote', 'footnote', 'endnote', 'endnote']
+    from ctrlkd.emit import _annotated_notes, _ref_pairs
+    pairs = _ref_pairs(_annotated_notes(doc))
+    noncomment_refs = sum(
+        1 for l in doc.iter_lines() for s in l.spans
+        if 'fnref' in s.styles and s.text.isdigit()
+        and 0 < int(s.text) <= len(pairs)
+        and pairs[int(s.text) - 1][0].kind != 'comment')
+    assert noncomment_refs == 6, noncomment_refs   # the four real note kinds;
+                                                   # dot-line comments now also
+                                                   # carry marks (2026-08-06)
 
 
 def _real_fixture(name):
@@ -2700,7 +2724,10 @@ def test_sub_supe_tst_known_answers():
     for probe in ('Élisabeth', 'voilà', 'naïve', '¡Por favor!'):
         assert probe in txt, probe
     spans = [s for ln in doc.iter_lines() for s in ln.spans]
-    assert sum(1 for s in spans if 'sup' in s.styles) == 23
+    # known answer counts WordStar's own ^T toggles; reference marks also
+    # carry 'sup' (comment marks included since 2026-08-06) and are excluded
+    assert sum(1 for s in spans
+               if 'sup' in s.styles and 'fnref' not in s.styles) == 23
     assert sum(1 for s in spans if 'sub' in s.styles) == 30
 
 
@@ -3619,3 +3646,91 @@ def test_note_refs_prefixed_scheme_matches_markdown_labels():
     html = emit.emit_html(doc, 'modern', note_refs='prefixed')
     assert '>e1</a></sup>' in html
     assert 'id="enref1"' in html                      # ids stay structural
+
+
+# ================= Comments become first-class (2026-08-06) =================
+#
+# Both WordStar comment forms -- ^ON note blocks and '..'/'.ig' dot lines --
+# unify into Note(kind='comment') with `origin` provenance, each emitting a
+# reference mark at its position (position, not ink). --comments stays the
+# visibility gate; printed is always silent about them.
+
+def test_both_comment_origins_unify_and_refs_stay_aligned():
+    data = (ws7_block(0x00) +
+            b'.. a disabled command lives here' + HARD +
+            b'First line of prose, referencing'
+            + ws7_note(0x03, b'The footnote text.', number=0) + b' a note.'
+            + HARD + b'.ig the long-form comment syntax' + HARD +
+            b'Second line of prose to close the document, quite plainly.'
+            + HARD)
+    doc = core.parse_ws(data)
+    comments = [n for n in doc.notes if n.kind == 'comment']
+    assert [c.origin for c in comments] == ['..', '.ig']
+    assert comments[0].text == 'a disabled command lives here'
+    # the mark BEFORE the footnote must not derail its resolution: the
+    # footnote still renders as footnote 1 in every format
+    md = emit.emit_markdown(doc, 'modern')
+    assert '[^1]' in md and '[^1]: The footnote text.' in md
+    from ctrlkd.pdf import emit_pdf
+    ops = _td_ops6(emit_pdf(doc, 'modern'))
+    assert any(t == b'[1]' for _, _, t in ops)        # page-bottom footnote
+
+
+def test_comments_hidden_by_default_and_printed_always_silent():
+    data = (ws7_block(0x00) +
+            b'Visible prose line one, plain and ordinary for the detector.'
+            + HARD + b'.. the hidden aside' + HARD +
+            b'Visible prose line two, also plain and entirely ordinary.'
+            + HARD)
+    doc = core.parse_ws(data)
+    from ctrlkd.pdf import emit_pdf
+    for out in (emit.emit_text(doc, 'modern'), emit.emit_markdown(doc, 'modern'),
+                emit.emit_html(doc, 'modern'), emit.emit_rtf(doc, 'modern')):
+        assert 'hidden aside' not in out              # gate stays closed
+    keep = emit.ALL_NOTE_KINDS
+    for out in (emit.emit_text(doc, 'printed', notes=keep),
+                emit.emit_rtf(doc, 'printed', notes=keep)):
+        assert 'hidden aside' not in out              # printed: never
+    assert b'hidden aside' not in emit_pdf(doc, 'printed', notes=keep)
+
+
+def test_comments_opted_in_render_positioned_with_origin():
+    data = (ws7_block(0x00) +
+            b'Alpha prose line, plain and ordinary, before the comment.'
+            + HARD + b'.. the surfaced aside' + HARD +
+            b'Omega prose line, plain and ordinary, after the comment.'
+            + HARD)
+    doc = core.parse_ws(data)
+    keep = emit.ALL_NOTE_KINDS
+    from ctrlkd.pdf import emit_pdf
+    ops = _td_ops6(emit_pdf(doc, 'modern', notes=keep))
+    texts = [t for _, _, t in ops]
+    assert b'[c1]' in texts                           # end block, c-labeled
+    assert b'c1' not in texts                         # word scheme: markless
+    ops = _td_ops6(emit_pdf(doc, 'modern', notes=keep, note_refs='prefixed'))
+    assert b'c1' in [t for _, _, t in ops]            # prefixed: visible mark
+    md = emit.emit_markdown(doc, 'modern', notes=keep)
+    assert '[^c1]' in md and '[^c1]: the surfaced aside' in md
+    rtf = emit.emit_rtf(doc, 'modern', notes=keep)
+    assert rtf.index('Alpha') < rtf.index('the surfaced aside') < rtf.index('Omega')
+    html = emit.emit_html(doc, 'modern', notes=keep)
+    assert 'data-note-kind="comment"' in html
+
+
+def test_dot_comment_before_blank_creates_no_phantom_line():
+    """The mark defers to the next CONTENT line: a '..' line followed by the
+    author's blank must not close a phantom line holding only the mark --
+    printed line structure is identical with and without the comment."""
+    from ctrlkd.pdf import emit_pdf
+    base = (b'First paragraph line of plain prose, long enough to matter.'
+            + HARD + b'%s' + HARD +
+            b'Second paragraph line of plain prose, also long enough.' + HARD)
+    with_c = core.parse_ws(ws7_block(0x00) +
+                           (b'First paragraph line of plain prose, long enough to matter.'
+                            + HARD + b'.. noise' + HARD + HARD +
+                            b'Second paragraph line of plain prose, also long enough.' + HARD))
+    without = core.parse_ws(ws7_block(0x00) +
+                            (b'First paragraph line of plain prose, long enough to matter.'
+                             + HARD + HARD +
+                             b'Second paragraph line of plain prose, also long enough.' + HARD))
+    assert emit_pdf(with_c, 'printed') == emit_pdf(without, 'printed')

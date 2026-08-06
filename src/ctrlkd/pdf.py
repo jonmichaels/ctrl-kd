@@ -630,6 +630,8 @@ def _body_stream_printed(doc):
                     k = int(s.text)
                     if 0 < k <= len(refs_all):
                         note, label = refs_all[k - 1]
+                        if note.kind == 'comment':
+                            continue           # never printed: no ink, no ref
                         spans.append((label, styles))          # per-kind number, not the
                                                                 # raw shared fn_counter index
                         if note.kind in ('footnote', 'annotation'):
@@ -848,6 +850,17 @@ def _doc_to_pagelines(doc, printed):
             pages.pop()
         return pages or [[]]
 
+    refs_all = _ref_pairs(_annotated_notes(doc))
+
+    def _keep_span(s):
+        # a comment's reference mark is position, not ink -- it renders
+        # nowhere on this path (printed facsimile, or the plain line layer)
+        if 'fnref' in s.styles and s.text.isdigit():
+            k = int(s.text)
+            if 0 < k <= len(refs_all) and refs_all[k - 1][0].kind == 'comment':
+                return False
+        return True
+
     # Header/footer changes, replayed at the block they precede so each
     # page carries the running head IN FORCE when it printed (doc.hf_events;
     # OLDTIMES defines its head after page 1's title -- a manuscript has no
@@ -878,7 +891,7 @@ def _doc_to_pagelines(doc, printed):
             # Courier-Bold (found unimplemented by the Swift port, job-011)
             spans = [(s.text, s.styles | ({'b'} if b.heading else frozenset())
                       | b.style_attrs)
-                     for s in line.spans]
+                     for s in line.spans if _keep_span(s)]
             if printed:
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
@@ -1526,8 +1539,18 @@ def _modern_flow(doc, keep, note_refs='word'):
     if note_refs == 'prefixed':
         shown_by_id = _note_ref_labels(pairs, 'prefixed')
     else:
-        shown_by_id = {id(n): (_endnote_label(l) if n.kind == 'endnote'
-                               else l) for n, l in pairs}
+        shown_by_id, _ords = {}, {}
+        for n, l in pairs:
+            k = _ords.get(n.kind, 0) + 1
+            _ords[n.kind] = k
+            if n.kind == 'endnote':
+                shown_by_id[id(n)] = _endnote_label(l)
+            elif n.kind == 'comment':
+                # self-identifying in the end list either scheme; under
+                # `word` there is no inline mark to match anyway
+                shown_by_id[id(n)] = 'c%d' % k
+            else:
+                shown_by_id[id(n)] = l
     # LJ6DTP substitutions apply in Modern too (ruling 2026-08-06): the
     # driver's patched slots are CONTENT -- an em dash is an em dash in any
     # century -- while its page art (colour, rules, boxes) stays print-time.
@@ -1591,9 +1614,13 @@ def _modern_flow(doc, keep, note_refs='word'):
                     if note.kind not in keep:
                         continue
                     shown = shown_by_id[id(note)]
-                    marker = (shown, styles, 'Times', MODERN_BODY_PT, None)
-                    w = _modern_w(*marker)
-                    toks.append(marker + (w,))
+                    if note.kind != 'comment' or note_refs == 'prefixed':
+                        # `word` comments are markless (Word's bubble
+                        # convention); `prefixed` shows the c-mark
+                        marker = (shown, styles, 'Times', MODERN_BODY_PT,
+                                  None)
+                        w = _modern_w(*marker)
+                        toks.append(marker + (w,))
                     if note.kind == 'footnote':
                         notes.append((note, label))
                     elif id(note) not in end_seen:

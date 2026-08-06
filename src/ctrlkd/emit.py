@@ -73,11 +73,12 @@ DEFAULT_NOTE_KINDS = frozenset({'footnote', 'endnote', 'annotation'})
 # documented "not used" / never rendered) — a rescue tool opts them back in
 # by passing a `notes=` set that includes 'comment' (or ALL_NOTE_KINDS).
 
-_REF_KINDS = ('footnote', 'endnote', 'annotation')  # the three WordStar DOES
-                                                     # print inline; comments
-                                                     # never get a reference
-                                                     # mark (core.py never
-                                                     # injects one for them)
+_REF_KINDS = ('footnote', 'endnote', 'annotation', 'comment')
+# All four kinds emit reference marks since 2026-08-06 (comments included --
+# the mark is POSITION, not ink: WordStar printed nothing for a comment and
+# printed mode still renders nothing). _ref_pairs must mirror exactly the
+# kinds core.py numbers with the shared fn_counter, or every reference after
+# a comment would resolve to the wrong note.
 
 def select_notes(doc, kinds=DEFAULT_NOTE_KINDS):
     """doc.notes filtered to the requested kinds, in document order. Shared
@@ -220,6 +221,10 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
+    if printed:
+        # printed is always silent about comments (ruling 2026-08-06):
+        # WordStar printed nothing for them, sections included
+        keep = keep - {'comment'}
     out = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
@@ -234,7 +239,10 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 note, label = (_resolve_ref(refs, s.text)
                                if 'fnref' in s.styles else (None, None))
                 if note is not None:
-                    if note.kind in keep:
+                    # comments are never marked inline in plain text: the
+                    # kind has no printed identity (word scheme = markless);
+                    # opted-in comments appear in the Comments section
+                    if note.kind in keep and note.kind != 'comment':
                         seg.append(f'[{label}]')
                 else:
                     seg.append(s.text)
@@ -438,6 +446,11 @@ def _html_line(line, refs, keep, keep_ws=False, shown_map=None):
             note, label = _resolve_ref(refs, s.text)
             if note is not None:
                 if note.kind in keep:
+                    if note.kind == 'comment' and shown_map is None:
+                        # word scheme: comments are markless (a bubble in
+                        # Word, a section entry here) -- an empty visible
+                        # anchor would be noise, so none is emitted
+                        continue
                     shown = (shown_map[id(note)]
                              if shown_map is not None else None)
                     out.append(_html_note_ref(note, label, shown))
@@ -445,7 +458,7 @@ def _html_line(line, refs, keep, keep_ws=False, shown_map=None):
         out.append(_html_span(s, keep_ws))
     return ''.join(out)
 
-def _html_notes_sections(pairs, keep):
+def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
     sections = []
     for kind in ('footnote', 'endnote', 'annotation', 'comment'):
         if kind not in keep:
@@ -459,7 +472,7 @@ def _html_notes_sections(pairs, keep):
             text = _html.escape(n.text)
             tag_attr = f' data-note-tag="{_html.escape(n.tag)}"' if n.tag else ''
             back = (f' <a href="#{ref_id}" role="doc-backlink">↩</a>'
-                    if kind in _REF_KINDS else '')
+                    if kind in linked_kinds else '')
             lis.append(f'<li id="{target_id}" data-note-kind="{kind}"{tag_attr}>{text}{back}</li>')
         heading_id = f'{kind}s-label'
         sections.append(
@@ -590,6 +603,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     refs = _ref_pairs(pairs)
     parts = []
     printed = mode == 'printed' or _printed(doc)
+    if printed:
+        # printed is always silent about comments (ruling 2026-08-06)
+        keep = keep - {'comment'}
     # `prefixed` reference labels (ruling 2026-08-06) change the visible
     # mark text only; ids and sections are structural and stay put
     shown_map = (note_ref_labels(pairs, 'prefixed')
@@ -631,7 +647,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     parts.append(f'<div{col}><p{cls}{style}>{para}</p></div>')
                 else:
                     parts.append(f'<p{cls}{style}>{para}</p>')
-    sections = _html_notes_sections(pairs, keep)
+    linked = (_REF_KINDS if shown_map is not None
+              else tuple(k for k in _REF_KINDS if k != 'comment'))
+    sections = _html_notes_sections(pairs, keep, linked)
     if sections:
         parts.append('<hr>')
         parts.extend(sections)
@@ -681,6 +699,8 @@ def note_ref_labels(pairs, scheme):
                 shown[id(note)] = 'e%s' % label
             elif note.kind == 'annotation':
                 shown[id(note)] = 'a%d' % k
+            elif note.kind == 'comment':
+                shown[id(note)] = 'c%d' % k
             else:
                 shown[id(note)] = label
         else:
@@ -756,6 +776,19 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
         if note is not None:
             if note.kind not in keep:
                 return ''
+            if note.kind == 'comment':
+                # printed is a facsimile: WordStar printed nothing for a
+                # comment, so neither do we (the CLI explains on stderr).
+                # Modern anchors a real Word margin comment at the TRUE
+                # position (the end-of-document dump this replaces lost
+                # it); `prefixed` adds the visible c-mark, `word` stays
+                # markless -- Word's own convention is a bubble, not a
+                # superscript.
+                if printed:
+                    return ''
+                mark = ('{' + r'\super ' + _rtf_escape(shown_map[id(note)])
+                        + '}' if shown_map is not None else '')
+                return mark + _rtf_comment_dest(note)
             override = (shown_map[id(note)]
                         if shown_map is not None
                         and note.kind in ('endnote', 'annotation') else None)
@@ -870,6 +903,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
+    if printed:
+        # printed is always silent about comments (ruling 2026-08-06)
+        keep = keep - {'comment'}
     # `prefixed` note references (ruling 2026-08-06): endnotes/annotations
     # anchor with literal e1/a1 custom marks instead of \chftn/tags -- the
     # Markdown emitter's own labels, matched across formats. Never printed:
@@ -924,10 +960,6 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # 2026-08-06): a block boundary is often just a dot command,
             # and command codes are invisible.
             parts.extend([r'\par '] * trailing_blank_lines(b))
-    if 'comment' in keep:
-        comments = ''.join(_rtf_comment_dest(n) for n, _ in pairs if n.kind == 'comment')
-        if comments:
-            parts.append(comments)
     body = '\n'.join(parts)
     # The sophisticated body (Jon's specimen ruling, 2026-08-05): text with
     # no font information reads in Georgia 14 under Modern -- "like reading
