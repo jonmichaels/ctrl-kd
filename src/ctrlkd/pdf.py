@@ -19,7 +19,8 @@ Styles: bold/italic map to the family's variants, underline is drawn,
 superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
-from .core import merged_lines as _merged_lines
+from .core import merged_lines as _merged_lines, Span as _Span, \
+    trailing_blank_lines as _trailing_blank_lines
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, _font_family
 from .symbolmap import font_translit_kind, untransliterate
 from .afm import string_width_pt as _natural_width_pt
@@ -1482,25 +1483,94 @@ def _modern_w(text, styles, family, pt, entry):
     return nat
 
 
+def _endnote_label(label):
+    """Endnote display label under Modern: lowercase roman, Word's own
+    default for \\ftnalt endnotes -- the PDF matches the RTF it mirrors,
+    and a page can carry footnote [1] and endnote [i] without collision
+    (ruling 2026-08-06)."""
+    try:
+        n = int(label)
+    except (TypeError, ValueError):
+        return label
+    if n <= 0:
+        return label
+    out = ''
+    for v, s in ((1000, 'm'), (900, 'cm'), (500, 'd'), (400, 'cd'),
+                 (100, 'c'), (90, 'xc'), (50, 'l'), (40, 'xl'),
+                 (10, 'x'), (9, 'ix'), (5, 'v'), (4, 'iv'), (1, 'i')):
+        while n >= v:
+            out += s
+            n -= v
+    return out
+
+
 def _modern_flow(doc, keep):
     """The document as a flat list of layout items:
-        ('line', [tok...], align, height, [note_index...])
+        ('para', toks, align, [(note, label)...], indent_pt, cut_pt)
         ('blank', height) | ('break',) | ('cond', n)
-    A tok is (text, styles, family, pt, entry, width). Notes referenced on a
-    line ride with it so the paginator can reserve their page-bottom room."""
+        ('hf', 'H'|'F', line_no, text)
+    A tok is (text, styles, family, pt, entry, width). FOOTNOTES referenced
+    on a line ride with it so the paginator can reserve their page-bottom
+    room; endnotes and annotations collect at the document's end instead
+    (ruling 2026-08-06 -- Word sends \\ftnalt notes to the back, and Modern
+    PDF is the printed Modern RTF). indent/cut carry the block's own
+    `.lm`/`.rm` in points -- the document's explicit margins win in Modern
+    exactly as its fonts do."""
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
+    # LJ6DTP substitutions apply in Modern too (ruling 2026-08-06): the
+    # driver's patched slots are CONTENT -- an em dash is an em dash in any
+    # century -- while its page art (colour, rules, boxes) stays print-time.
+    lj = doc.meta.get('printer_driver') == 'LJ6DTP'
+    # one WordStar column in points, at the document's own `.cw`
+    col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
+    hf_by_block = {}
+    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
+        hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
     flow = []
-    for b in doc.blocks:
+    end_pairs, end_seen = [], set()   # endnotes/annotations, document order
+    blank_h = MODERN_LINE * MODERN_BODY_PT
+    for bi, b in enumerate(doc.blocks):
+        for ev in hf_by_block.get(bi, ()):
+            flow.append(('hf',) + ev)
         if b.kind == 'pagebreak':
             flow.append(('break',))
             continue
         if b.kind == 'condpage':
             flow.append(('cond', b.heading or 1))
             continue
+        lm = b.left_margin or 0
+        indent = lm * col_pt
+        rm = b.right_margin or 0
+        # `.rm` narrows the measure from the document's full line (MAX_COLS,
+        # the same 65 columns the era page gives); a block at the default 65
+        # cuts nothing
+        cut = max(0, MAX_COLS - rm) * col_pt if rm else 0.0
         for line in _merged_lines(b):
+            if not line.spans:
+                flow.append(('blank', blank_h))
+                continue
+            spans = list(line.spans)
+            if lm:
+                # WordStar stamps `.lm` onto every line it writes; the
+                # indent is carried by the BLOCK now, so the stamped spaces
+                # come off the front (whatever indent remains past `.lm` is
+                # the author's own tab and stays)
+                drop = lm
+                while drop and spans:
+                    t = spans[0].text
+                    take = 0
+                    while take < len(t) and take < drop and t[take] == ' ':
+                        take += 1
+                    if not take:
+                        break
+                    drop -= take
+                    if t[take:]:
+                        spans[0] = _Span(t[take:], spans[0].styles)
+                        break
+                    spans.pop(0)
             toks, notes = [], []
-            for sp in line.spans:
+            for sp in spans:
                 styles = sp.styles | ({'b'} if b.heading else frozenset()) \
                          | b.style_attrs
                 if 'fnref' in sp.styles:
@@ -1510,19 +1580,58 @@ def _modern_flow(doc, keep):
                         continue
                     if note.kind not in keep:
                         continue
-                    marker = (label, styles, 'Times', MODERN_BODY_PT, None)
+                    shown = (_endnote_label(label) if note.kind == 'endnote'
+                             else label)
+                    marker = (shown, styles, 'Times', MODERN_BODY_PT, None)
                     w = _modern_w(*marker)
                     toks.append(marker + (w,))
-                    notes.append((note, label))
+                    if note.kind == 'footnote':
+                        notes.append((note, label))
+                    elif id(note) not in end_seen:
+                        end_seen.add(id(note))
+                        end_pairs.append((note, shown))
                     continue
                 for m in _re.finditer(r' +|[^ ]+', sp.text):
                     written, family, pt, entry = _modern_tok_font(
                         m.group(0), styles, doc.fonts)
+                    if lj and entry is not None and entry.get('proportional'):
+                        written = written.translate(_LJ_SUBST)
+                        if (entry.get('typestyle_name') or
+                                '').startswith('Univers'):
+                            written = written.translate(_LJ_SUBST_UNIVERS)
                     w = _modern_w(written, styles, family, pt, entry)
                     toks.append((written, styles, family, pt, entry, w))
-            # greedy wrap at the measure (widths already measured)
-            flow.append(('para', toks, b.align, notes))
-        flow.append(('blank', MODERN_LINE * MODERN_BODY_PT))
+            if b.align in ('center', 'right'):
+                # WordStar 5+ aligned at EDITOR time -- the centering is
+                # already in the file as spaces (the same fact the WS4 `.oj`
+                # DOSBox probe proved for justification). Applying the
+                # stored tag on top of the baked spaces aligned twice; the
+                # spaces come off and the tag does the work (ruling
+                # 2026-08-06 -- no per-document exceptions).
+                while toks and not toks[0][0].strip():
+                    toks.pop(0)
+                while toks and not toks[-1][0].strip():
+                    toks.pop()
+            flow.append(('para', toks, b.align, notes, indent, cut))
+        # Only the author's own blank lines make space (ruling 2026-08-06):
+        # a block boundary is often just a dot command, and command codes
+        # are invisible. merged_lines buffered these away; count them back.
+        for _ in range(_trailing_blank_lines(b)):
+            flow.append(('blank', blank_h))
+    if end_pairs:
+        # Endnotes and annotations at the true end, after the last body
+        # line -- flowing, not bottom-anchored -- behind the same 20-dash
+        # separator the page-bottom notes use. No heading: WordStar never
+        # printed one (any "Notes" heading in a period document was typed).
+        flow.append(('blank', blank_h))
+        sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
+                                  MODERN_NOTE_PT)
+        flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
+                               MODERN_NOTE_PT, None, sep_w)],
+                     'left', [], 0.0, 0.0))
+        for note, shown in end_pairs:
+            flow.append(('para', _modern_note_toks(note, shown),
+                         'left', [], 0.0, 0.0))
     return flow
 
 
@@ -1545,14 +1654,33 @@ def _modern_wrap(toks, width):
     return lines
 
 
-def _modern_note_lines(note, label, width):
-    """A page-bottom note as wrapped visual lines of Times MODERN_NOTE_PT."""
+def _modern_note_toks(note, label):
+    """One note as `[label] text` tokens of Times MODERN_NOTE_PT."""
     text = '[%s] %s' % (label, note.text)
     toks = []
     for m in _re.finditer(r' +|[^ ]+', text):
         w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
         toks.append((m.group(0), frozenset(), 'Times', MODERN_NOTE_PT, None, w))
-    return _modern_wrap(toks, width)
+    return toks
+
+
+def _modern_note_lines(note, label, width):
+    """A page-bottom note as wrapped visual lines of Times MODERN_NOTE_PT."""
+    return _modern_wrap(_modern_note_toks(note, label), width)
+
+
+def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
+    """One modern running-head/foot line: Times MODERN_NOTE_PT in the margin
+    zone, WordStar's `#` token as the page number (same rule as printed:
+    `.op` never suppresses an explicit `#`). The header keeps its own baked
+    spaces -- that is how a 1990 head positioned its parts, and a running
+    head is a page fixture, not reflowing text."""
+    text = txt.replace('#', str(page_no))
+    toks = []
+    for m in _re.finditer(r' +|[^ ]+', text):
+        w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
+        toks.append((m.group(0), frozenset(), 'Times', MODERN_NOTE_PT, None, w))
+    return _modern_line_ops(toks, left, y, width, 'left', res, tz_state)
 
 
 def _modern_line_ops(toks, left, y, width, align, res, tz_state):
@@ -1628,20 +1756,38 @@ def _modern_streams(doc, options, res):
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 
-    pages = []                       # each: ([(y, toks, align)...], [note lines])
+    pages = []            # each: (body, [note lines], headers, footers)
     body, notes_lines, seen_notes = [], [], set()
     y = PAGE_H - margt
+    cur_h, cur_f = {}, {}          # running-head state as events replay
+    page_h, page_f = {}, {}        # state when the OPEN page took content
+    opened = False
 
     def note_block_h():
         return (sep_h + note_lead * len(notes_lines)) if notes_lines else 0.0
 
+    def open_page():
+        # the page's running heads are the state in force when it takes its
+        # first content -- OLDTIMES defines .h1 after page 1's title, and a
+        # manuscript has no running head on page 1 (same rule as printed)
+        nonlocal opened, page_h, page_f
+        if not opened:
+            page_h, page_f = dict(cur_h), dict(cur_f)
+            opened = True
+
     def close():
-        nonlocal body, notes_lines, y
-        pages.append((body, list(notes_lines)))
+        nonlocal body, notes_lines, y, opened
+        open_page()
+        pages.append((body, list(notes_lines), page_h, page_f))
         body, notes_lines[:] = [], []
         y = PAGE_H - margt
+        opened = False
 
     for item in flow:
+        if item[0] == 'hf':
+            _, kind, lno, txt = item
+            (cur_h if kind == 'H' else cur_f)[lno] = txt
+            continue
         if item[0] == 'break':
             close()
             continue
@@ -1659,8 +1805,9 @@ def _modern_streams(doc, options, res):
                 continue
             y -= h
             continue
-        _, toks, align, notes = item
-        vis = _modern_wrap(toks, width)
+        _, toks, align, notes, indent, cut = item
+        line_w = max(36.0, width - indent - cut)
+        vis = _modern_wrap(toks, line_w)
         new_note_lines = []
         for note, label in notes:
             if id(note) in seen_notes:
@@ -1674,8 +1821,9 @@ def _modern_streams(doc, options, res):
                                                             new_note_lines) else 0.0
             if body and y - h < margb + note_block_h() + extra:
                 close()
+            open_page()
             y -= h
-            body.append((y, vline, align))
+            body.append((y, vline, align, indent, cut))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
                 for note, label in notes:
@@ -1686,12 +1834,30 @@ def _modern_streams(doc, options, res):
         pages.pop()
 
     streams = []
-    for body, nlines in pages:
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+    for pi, (body, nlines, hdrs, ftrs) in enumerate(pages):
         tz_state = [TZ_DEFAULT]
         ops = []
-        for y, toks, align in body:
-            ops += _modern_line_ops(list(toks), margl, y, width, align, res,
-                                    tz_state)
+        page_no = start_no + pi
+        # running heads live in the margin zones: header lines walk down
+        # from ~0.6in off the top edge, footer lines sit ~0.6in off the
+        # bottom -- inside Modern's 1in margins, clear of the body
+        for lno in sorted(hdrs):
+            if not hdrs[lno]:
+                continue
+            hy = PAGE_H - 44.0 - (lno - 1) * note_lead
+            ops += _modern_hf_ops(hdrs[lno], page_no, margl, hy, width,
+                                  res, tz_state)
+        for lno in sorted(ftrs):
+            if not ftrs[lno]:
+                continue
+            fy = max(8.0, 44.0 - (lno - 1) * note_lead)
+            ops += _modern_hf_ops(ftrs[lno], page_no, margl, fy, width,
+                                  res, tz_state)
+        for y, toks, align, indent, cut in body:
+            ops += _modern_line_ops(list(toks), margl + indent, y,
+                                    max(36.0, width - indent - cut),
+                                    align, res, tz_state)
         if nlines:
             block = [None] + nlines           # None = the separator rule
             total = len(block)

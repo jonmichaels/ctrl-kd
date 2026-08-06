@@ -10,7 +10,7 @@ Two rendering philosophies, chosen by the caller:
 import html as _html
 import re
 
-from .core import merged_lines
+from .core import merged_lines, Span, trailing_blank_lines
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -178,7 +178,9 @@ def _text_width(block) -> int:
     """
     rm = block.right_margin if block.right_margin and block.right_margin > 0 else 65
     lm = block.left_margin or 0
-    return int(rm + lm)
+    # left_margin is OFFSET columns (normalised 2026-08-06): text occupies
+    # columns lm+1 .. rm, so WordStar's centre line is (lm + 1 + rm) / 2
+    return int(rm + lm + 1)
 
 
 def _align_lines(lines, align, block):
@@ -762,6 +764,65 @@ def _rtf_stylesheet(doc):
     return (r'{\stylesheet{\s0 Normal;}' + ''.join(entries) + '}') if entries else ''
 
 
+def _strip_align_spaces(spans):
+    """Spans minus leading/trailing spaces -- for center/right blocks under
+    Modern. WordStar 5+ aligned at EDITOR time, so the file carries BOTH the
+    alignment tag and the spaces that implemented it; emitting both aligns
+    twice (ruling 2026-08-06). The tag does the work now."""
+    out = list(spans)
+    while out:
+        t = out[0].text.lstrip(' ')
+        if t:
+            if t != out[0].text:
+                out[0] = Span(t, out[0].styles)
+            break
+        out.pop(0)
+    while out:
+        t = out[-1].text.rstrip(' ')
+        if t:
+            if t != out[-1].text:
+                out[-1] = Span(t, out[-1].styles)
+            break
+        out.pop()
+    return out
+
+
+def _rtf_running_heads(doc):
+    """Modern RTF `\\header`/`\\footer` groups from the document's own
+    running heads (ruling 2026-08-06: Modern keeps headers).
+
+    RTF carries ONE header per section; a document that redefines its head
+    mid-file keeps the FIRST definition of each line slot (the common case
+    -- OLDTIMES -- defines each exactly once). WordStar's `#` token becomes
+    \\chpgn, Word's own page-number field. A head first defined after the
+    opening block gets \\titlepg with an empty first-page header: the
+    manuscript convention (no running head on page 1), and exactly what
+    WordStar itself printed when `.h1` follows page 1's title."""
+    hdr, ftr = {}, {}
+    first_anchor = None
+    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
+        d = hdr if kind == 'H' else ftr
+        if lno not in d and txt:
+            d[lno] = txt
+            if first_anchor is None or anchor < first_anchor:
+                first_anchor = anchor
+    if not hdr and not ftr:
+        return ''
+
+    def group(name, lines):
+        if not lines:
+            return ''
+        body = r'\line '.join(
+            _rtf_escape(lines[n]).replace('#', r'{\chpgn }')
+            for n in sorted(lines))
+        return r'{\%s \pard\plain \f0\fs22 %s\par}' % (name, body)
+
+    out = group('header', hdr) + group('footer', ftr)
+    if first_anchor and first_anchor > 0:
+        out = r'\titlepg{\headerf \pard\plain\par}' + out
+    return out
+
+
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', **_options):
     keep = frozenset(notes)
@@ -784,8 +845,13 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # printed: physical lines (\line at every printed break, soft or hard);
         # modern: logical lines only
         for line in (b.lines if printed else merged_lines(b)):
+            spans = line.spans
+            if not printed and b.align in ('center', 'right') and spans:
+                # editor-time alignment: the spaces implemented the tag;
+                # keeping both aligns twice (ruling 2026-08-06)
+                spans = _strip_align_spaces(spans)
             seg = ''.join(_rtf_span(sp, refs, keep, fontctl, printed)
-                          for sp in line.spans)
+                          for sp in spans)
             lines.append(seg)
         if b.heading:
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
@@ -806,7 +872,10 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 parts.append(r'\s%d ' % (b.style_id + 1))
             parts.append(para + r'\par ')
         if not printed:
-            parts.append(r'\par ')                    # blank line between paragraphs
+            # Only the author's own blank lines make space (ruling
+            # 2026-08-06): a block boundary is often just a dot command,
+            # and command codes are invisible.
+            parts.extend([r'\par '] * trailing_blank_lines(b))
     if 'comment' in keep:
         comments = ''.join(_rtf_comment_dest(n) for n, _ in pairs if n.kind == 'comment')
         if comments:
@@ -850,10 +919,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         paperh = 15840
     pagesetup = (r'\paperw12240\paperh%d\margl%d\margr%d\margt%d\margb%d'
                  % (paperh, margl, margl, margt, margb))
+    running = '' if printed else _rtf_running_heads(doc)
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
             + stylesheet
             + pagesetup
+            + running
             + '\n' + font + body_fs + ' ' + '\n' + body + '\n}\n')
 
 # built-ins register through the same door plugins use

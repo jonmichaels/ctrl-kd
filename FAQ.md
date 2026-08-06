@@ -90,3 +90,31 @@ comfortable serif at reading size on a one-inch-margin page). `--mode
 printed` alone gives you the other philosophy: a **PDF facsimile** of the
 1990 printout, on the era's own page geometry — the closest thing to
 actually printing the file. Every other combination is one `-t` away.
+
+## Where do footnotes, endnotes, and annotations end up?
+
+Where their kinds were always meant to go. **Footnotes** print at the bottom
+of the page that references them, behind WordStar's own 20-dash separator.
+**Endnotes** collect at the end of the document — in Modern output their
+references show as lowercase roman (i, ii), Word's own endnote convention,
+so a page can carry footnote [1] and endnote [i] without ambiguity.
+**Annotations** keep the tag WordStar gave them (AC1, AC2 …) and travel with
+the endnotes. **Comments** were never printed by WordStar and stay hidden
+unless you ask (`--comments`). Printed mode does exactly what WordStar
+Professional did in 1990, including growing the footnote area and carrying
+overflow to the next page.
+
+## My document used a hacked printer driver (LJ6DTP). Why does Modern look strange?
+
+LJ6DTP is Robert J. Sawyer's modified LaserJet driver: it patches the
+printer's character slots (type `_`, print an em dash; type `☻`, print ©)
+and draws page art — title bars, rules, colour knockouts — at print time.
+That art lives in the *driver*, not the document, so a Modern reflow can't
+carry it: you get the words, correctly substituted (the em dash really is an
+em dash — substitutions are content and Modern applies them), but the boxes,
+stripes, and white-on-black effects belong to the printed page. The CLI
+prints a notice on stderr when this happens so the odd look is explained in
+the log. For the real thing, `--mode printed` reproduces the page, art and
+all. For extraction: `-t text` gives clean words, `-t html`/`-t rtf` give
+words plus semantic markup — but bytes that only meant something to the
+hacked driver will look strange in any modern format.

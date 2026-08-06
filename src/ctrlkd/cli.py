@@ -204,6 +204,16 @@ def main(argv=None):
                     else 'ruler-line document')
             print(f'ctrl-kd: {path}: {kind} -- modern reflow is not '
                   f'possible; rendering printed', file=sys.stderr)
+        # A driver-art document reflowed under modern will look strange, and
+        # the log should say why (ruling 2026-08-06): the driver's page art
+        # (colour knockouts, rules, hand-laid boxes) exists only at print
+        # time. Its CHARACTER substitutions are content and ARE applied.
+        if (a.mode == 'modern'
+                and doc.meta.get('printer_driver') == 'LJ6DTP'):
+            print(f'ctrl-kd: {path}: LJ6DTP driver document -- its '
+                  f'print-time page art (boxes, rules, colour) does not '
+                  f'reflow; character substitutions applied. '
+                  f'--mode printed reproduces the page', file=sys.stderr)
         # --page-settings applies ONCE to the resolved page dict, so every
         # emitter (PDF geometry, RTF page setup) sees the same page.
         if page_settings and doc.meta.get('page') is not None:

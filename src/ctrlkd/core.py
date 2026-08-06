@@ -1034,7 +1034,17 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
             if value is not None and math.isfinite(value):
                 key = {b'LM': 'left_margin', b'RM': 'right_margin',
                        b'PM': 'para_margin'}[name]
-                state[key] = _resolve_cols_arg(value, m.group(2))
+                cols = _resolve_cols_arg(value, m.group(2))
+                if name == b'LM' and not m.group(2):
+                    # `.lm 8` is a COLUMN NUMBER (1-based: text begins AT
+                    # column 8 = 7 columns of offset), while a unit-suffixed
+                    # `.lm 0.7"` and a paragraph style's left_margin_hmi are
+                    # already offsets from the edge. Normalised here so
+                    # left_margin means one thing -- offset columns -- to
+                    # every consumer, whichever way the file said it
+                    # (found 2026-08-06 wiring Modern block margins).
+                    cols = max(0.0, cols - 1.0)
+                state[key] = cols
     elif name == b'CO':                     # newspaper columns
         # `.co <n>, <gutter>` -- the archive writes `.co2, 0.3"`, `.CO3,  .20"`
         # and `.co1` (one column = columns off). Stateful like the margins: a
@@ -2798,3 +2808,20 @@ def effective_page(page, settings):
         eff.get('pl_lines', DEFAULT_PL_LINES), eff.get('mt_lines', DEFAULT_MT_LINES),
         eff.get('mb_lines', DEFAULT_MB_LINES), eff.get('lh_48', DEFAULT_LH_48))
     return eff
+
+
+def trailing_blank_lines(block) -> int:
+    """Hard blank lines at the END of a block -- the author's own paragraph
+    spacing. merged_lines emits interior blanks and buffers trailing ones
+    away; Modern layouts used to paper over the difference with a synthetic
+    blank after EVERY block, which invented spacing wherever a dot command
+    split the block (ruling 2026-08-06: command codes are invisible -- only
+    the author's blank lines make space). Soft blanks are `.ls` filler and
+    never count, same as in merged_lines."""
+    n = 0
+    for line in reversed(block.lines):
+        if line.spans:
+            break
+        if not line.soft:
+            n += 1
+    return n
