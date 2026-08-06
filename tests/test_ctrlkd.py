@@ -3791,3 +3791,55 @@ def test_modern_draws_fontless_cp437_square_bullet_as_vector():
     assert b're f' in pdf                         # a filled vector rect
     ops = _td_ops6(pdf)
     assert any(t == b'First' for _, _, t in ops)  # text continues after it
+
+
+# ================= The layout façade (task #15, 2026-08-06) =================
+
+def test_modern_flow_is_the_public_semantic_contract():
+    """layout.modern_flow is the single implementation of the M-rules,
+    consumed by the PDF's measuring adapter, the Mac app's text stack, and
+    the `layout` JSON emitter. Items are plain JSON-safe dicts; columns,
+    not points -- consumers convert with their own metrics."""
+    import json
+    from ctrlkd.layout import modern_flow
+    data = (ws7_block(0x00) + b'.oc on' + HARD +
+            b'     A Centered Heading' + HARD + b'.oc off' + HARD +
+            b'.lm 8' + HARD +
+            b'       An indented quotation line, plain prose and clear.'
+            + HARD + b'.lm 1' + HARD +
+            b'Body prose at the full measure'
+            + ws7_note(0x03, b'A footnote.', number=0) + b' continues.'
+            + HARD)
+    doc = core.parse_ws(data)
+    sem = modern_flow(doc)
+    json.dumps(sem)                                   # JSON-safe throughout
+    paras = [i for i in sem['items'] if i['kind'] == 'para']
+    centered = next(p for p in paras if p['align'] == 'center')
+    assert centered['runs'][0]['text'].startswith('A Centered')  # M3 strip
+    quote = next(p for p in paras if p['indent_cols'] == 7)      # M2 margins
+    assert quote['runs'][0]['text'].startswith('An indented')    # lm stamp off
+    body = next(p for p in paras if any('ref' in r for r in p['runs']))
+    assert body['footnotes'] and sem['notes'][body['footnotes'][0][0]][
+        'text'] == 'A footnote.'
+
+
+def test_layout_emitter_serializes_the_viewer_contract():
+    """`-t layout`: format/version header, semantic modern flow, printed
+    page-lines with soft flags, and the invisible layer -- enough for a
+    renderer in any language, no engine linked."""
+    import json
+    doc = core.parse_ws(ws7_block(0x00) + b'.. a hidden aside' + HARD +
+                        b'First line of prose, plain and long enough here.'
+                        + HARD +
+                        b'Second line of prose, also plain and long enough.'
+                        + HARD)
+    out = emit.get_emitter('layout')['fn'](doc, 'modern')
+    d = json.loads(out)
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 1
+    assert d['meta']['encoding'] == 'cp437'
+    assert d['page']['size_name'] == 'Letter'
+    assert any(i['kind'] == 'para' for i in d['modern']['items'])
+    assert d['printed']['pages'][0]['lines']          # printed layer present
+    assert d['invisibles']['notes'][0]['origin'] == '..'
+    assert d['invisibles']['dot_positions']           # Show Invisibles anchors
+    assert 'layout' in emit.formats()                 # reachable from the CLI
