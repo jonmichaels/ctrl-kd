@@ -51,7 +51,9 @@ Which number moves: **patch** = bug fix, no interface change; **minor** = new
 format/flag/IR field, existing code keeps working; **major** = anything that breaks
 the CLI, `convert()`, or the IR contract (see above).
 
-1. Bump version in **both** `pyproject.toml` and `src/ctrlkd/__init__.py`.
+1. Bump `__version__` in `src/ctrlkd/__init__.py` — the ONLY version
+   (pyproject reads it via `[tool.setuptools.dynamic]` since 2026-08-06,
+   after the 4.0.0 release shipped with pyproject still saying 3.0.0).
 2. Tests green; if behavior changed, eyeball real output, don't trust exit codes.
 3. Commit, tag `vX.Y.Z`, push main **and** the tag — the tag triggers
    `.github/workflows/publish.yml` → PyPI via trusted publishing (no tokens).
@@ -68,6 +70,13 @@ the CLI, `convert()`, or the IR contract (see above).
    f=[x for x in d['releases'][v] if x['packagetype']=='sdist'][0]
    print(f['url']); print(f['digests']['sha256'])"
    ```
+7. Sweep README versions (download links, SPM examples, roadmap) — it went
+   stale across two releases once.
+
+**This list is MANDATORY at every release, read top to bottom — 4.0.0
+skipped it and shipped with a 3.0.0 pyproject, a stale PyPI, and a
+two-majors-old Homebrew formula.** soft-return has its own list in its
+CLAUDE.md; run both when releasing in lockstep.
 
    A new dependency would also need `resource` blocks in the formula — and ctrl-kd
    has none by design, so that's a decision, not a detail.
