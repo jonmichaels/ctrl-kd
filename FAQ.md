@@ -80,3 +80,13 @@ still accepts any codec name, so an experimenter holding real international
 WordStar material can try it today — and if you have such files, please open
 an issue: a genuine known-answer document is exactly what would turn this
 limitation into a feature.
+
+## What do I get if I just run `ctrl-kd FILE` with no flags?
+
+A **Modern RTF**: the document reflowed for reading and editing today, with
+its own fonts and styles carried through, footnotes at the page bottom, and
+anything the file never specified filled in with modern conventions (a
+comfortable serif at reading size on a one-inch-margin page). `--mode
+printed` alone gives you the other philosophy: a **PDF facsimile** of the
+1990 printout, on the era's own page geometry — the closest thing to
+actually printing the file. Every other combination is one `-t` away.
