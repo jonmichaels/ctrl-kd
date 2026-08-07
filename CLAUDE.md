@@ -52,31 +52,26 @@ format/flag/IR field, existing code keeps working; **major** = anything that bre
 the CLI, `convert()`, or the IR contract (see above).
 
 1. Bump `__version__` in `src/ctrlkd/__init__.py` — the ONLY version
-   (pyproject reads it via `[tool.setuptools.dynamic]` since 2026-08-06,
-   after the 4.0.0 release shipped with pyproject still saying 3.0.0).
+   (pyproject reads it dynamically; a guard fails the release if the tag
+   disagrees).
 2. Tests green; if behavior changed, eyeball real output, don't trust exit codes.
-3. Commit, tag `vX.Y.Z`, push main **and** the tag — the tag triggers
-   `.github/workflows/publish.yml` → PyPI via trusted publishing (no tokens).
-4. PyPI's JSON API caches; confirm the upload in the workflow log, not the API.
-5. `gh release create vX.Y.Z ...` — the tag alone is invisible on the Releases page.
-6. Bump the Homebrew formula in `jonmichaels/homebrew-tap` (`Formula/ctrl-kd.rb`)
-   to the new sdist, then sanity-check on a Mac
-   (`brew update && brew upgrade ctrl-kd && brew test ctrl-kd`):
-
-   ```console
-   $ curl -s https://pypi.org/pypi/ctrl-kd/json | python3 -c "
-   import json,sys
-   d=json.load(sys.stdin); v=d['info']['version']
-   f=[x for x in d['releases'][v] if x['packagetype']=='sdist'][0]
-   print(f['url']); print(f['digests']['sha256'])"
-   ```
-7. Sweep README versions (download links, SPM examples, roadmap) — it went
+3. Commit and push main.
+4. `gh release create vX.Y.Z --title ... --notes ...` — writing the release
+   IS the trigger: the pipeline (publish.yml, on release-published) guards
+   the version, publishes to PyPI via trusted publishing, and bumps the
+   Homebrew formula itself over the tap deploy key. Verify all three jobs
+   green in the run; workflow_dispatch is the fallback if GitHub's event
+   delivery is degraded (it was, 2026-08-06 — check githubstatus.com when
+   runs go silent).
+5. Sweep README versions (download links, SPM examples, roadmap) — it went
    stale across two releases once.
 
-**This list is MANDATORY at every release, read top to bottom — 4.0.0
-skipped it and shipped with a 3.0.0 pyproject, a stale PyPI, and a
-two-majors-old Homebrew formula.** soft-return has its own list in its
-CLAUDE.md; run both when releasing in lockstep.
+**This list is MANDATORY at every release, read top to bottom.** 4.0.0
+skipped its longer ancestor and shipped with a stale PyPI and a
+two-majors-old formula; the automation (built 2026-08-06, proven live on
+4.0.1) now does the mechanical steps, but the guard only protects the
+releases you actually cut through it. soft-return has its own list; run
+both when releasing in lockstep.
 
    A new dependency would also need `resource` blocks in the formula — and ctrl-kd
    has none by design, so that's a decision, not a detail.
