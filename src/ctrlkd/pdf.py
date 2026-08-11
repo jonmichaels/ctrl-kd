@@ -401,12 +401,15 @@ def _graphic_ops(text, x, y, pitch, pt):
 
 def _split_graphics(segs):
     """Break mixed text/graphics spans so each piece is all-one-kind. Spans
-    without a font block pass through whole (they never take the vector
-    path), as do spans with no graphic character at all."""
+    with no graphic character at all pass through whole. A font block is NOT
+    required (Jon's ruling, 2026-08-10, overruling M11's printed-fontless
+    doctrine): a cp437 box/block glyph is geometry regardless of the run
+    carrying a WS5+ font block -- "the reason the box shows up is that it
+    could be done in that era." Mirrors the Swift engine's c01470a."""
     out = []
     for seg in segs:
         text, styles, family, size_here, entry = seg
-        if entry is None or not (set(text) & GRAPHIC_CHARS):
+        if not (set(text) & GRAPHIC_CHARS):
             out.append(seg)
             continue
         pos = 0
@@ -1313,8 +1316,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         # overlapping exactly as described); at the nominal 6.72pt the
         # segments cannot even meet. Fixed-pitch blocks stay on the pitch --
         # the same document's COURIER PC bars are correct there.
-        if entry is not None and (set(text) & GRAPHIC_CHARS):
-            pitch = pt if entry.get('proportional') else _span_pitch(entry, pt)
+        # A span with NO font block (every WS4 file) has no 'proportional' to
+        # ask -- _span_pitch(None, pt) already answers that case with the
+        # document's own Courier 0.6em column (Jon's 2026-08-10 ruling;
+        # mirrors Swift c01470a).
+        if set(text) & GRAPHIC_CHARS:
+            pitch = (pt if (entry is not None and entry.get('proportional'))
+                     else _span_pitch(entry, pt))
             ops += _graphic_ops(text, x, y, pitch, pt)
             x += len(text) * pitch
             continue
