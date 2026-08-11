@@ -3913,3 +3913,21 @@ def test_parse_error_carries_kind_and_detection_evidence():
         core.parse(bytes(range(256)) * 8)
     assert getattr(ei.value, 'kind', None) == 'binary'
     assert ei.value.detection.get('reason')          # evidence attached
+
+
+def test_fontless_box_corners_never_degrade_to_question_marks():
+    # Jon's standing guarantee (2026-08-11): NO release -- ctrl-kd, sr,
+    # QuickLook, or the Soft Return app -- may render fontless cp437 box
+    # corners as '?' in Printed mode (ruling B, 2026-08-10: "the geometry IS
+    # the glyph... it could be done in that era"). Mirrors the Swift engine's
+    # PDFGraphicsTests pin; the app repo's OracleByteParityTests pins the
+    # same bytes downstream. BOX.WS's exact shape: <1B x 1C>-wrapped cp437.
+    from ctrlkd.pdf import emit_pdf
+    import re as _re
+    row = b'\x1b\xda\x1c' + b'\x1b\xc4\x1c' * 8 + b'\x1b\xbf\x1c'
+    data = b'.aw off\r\n' + row + b'\r\n' + row + b'\r\n'
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'printed')
+    assert b' re f' in pdf, 'box arms must draw as vector fills'
+    shown = b''.join(_re.findall(rb'\((.*?)\)\s*Tj', pdf))
+    assert b'?' not in shown, 'a ? leaked into printed text ops'
