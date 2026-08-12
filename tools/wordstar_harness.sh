@@ -52,6 +52,16 @@ WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/WS" "$WORK/CAP"
 cp -r "$WSDIR"/. "$WORK/WS/"
 cp "$DOC" "$WORK/WS/DOC.WS"
+if [ "$MODE" = ws7 ]; then
+    # WS.EXE hardcodes C:\WS\PRINTERS for driver .PDFs, but an install may keep
+    # them loose in the root (Sawyer's does) -- make both locations valid.
+    cp "$WORK/WS/"*.PDF "$WORK/WS/PRINTERS/" 2>/dev/null || true
+    # An install's default printer may Redirect To a file in a directory that
+    # does not exist on the pristine tree (Sawyer's: C:\WS\TEMP\WORDSTAR.PCL).
+    # WordStar opens the file only if the directory exists; without it the print
+    # "succeeds" emitting nothing.
+    mkdir -p "$WORK/WS/TEMP"
+fi
 
 # A display. WordStar reports errors on screen only, so a real (virtual) one is
 # worth the two seconds even when nothing will look at it.
@@ -69,6 +79,13 @@ fi
 CONF="$WORK/harness.conf"
 {
   echo '[dosbox]'; echo 'memsize=32'
+  if [ "$MODE" = ws7 ]; then
+      # WS7 paces its despooler against the emulated clock: without turbo a
+      # 5-page LASERJET print trickles at ~100 bytes/min (measured 2026-08-12).
+      # Turbo races the whole clock; a document prints in seconds. ws4 must NOT
+      # get turbo -- its AUTOTYPE waits are emulated-time and would misfire.
+      echo '[cpu]'; echo 'turbo=true'
+  fi
   echo '[sdl]';    echo 'autolock=false'
   # LPT capture in BOTH modes. WS4 always prints to LPT1. A WS7 install prints
   # wherever its Redirect To field points -- often a file inside its own tree,
@@ -119,6 +136,13 @@ DBX=$!
 FOUND=""
 for _ in $(seq 1 100); do
     sleep 3
+    # WS7's /x exits WordStar after printing and the autoexec `exit` closes the
+    # emulator -- a clean exit means the print (and its final buffer flush) is
+    # done, so take whatever appeared and stop waiting.
+    if ! kill -0 "$DBX" 2>/dev/null; then
+        FOUND=$(candidates | comm -13 "$WORK/.pre" - | head -1 | cut -f2)
+        break
+    fi
     CAND=$(candidates | comm -13 "$WORK/.pre" - | head -1 | cut -f2)
     if [ -n "$CAND" ] && [ -s "$CAND" ]; then
         A=$(stat -c%s "$CAND"); sleep 4; B=$(stat -c%s "$CAND")

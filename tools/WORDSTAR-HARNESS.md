@@ -219,37 +219,63 @@ rather than an error.
   (font-relative before, a fixed 0.1in after). Run the version that matches the
   documents you care about.
 
-## 7. The Sawyer WS7 install — default printer emits no capturable output (2026-08-12)
+## 7. Printing with the Sawyer WS7 install — the working procedure (2026-08-12, verified)
 
-Reproduced: `wordstar_harness.sh ws7 <sawyer-ws7/WS> OLDTIMES.WS out.prn`
-reaches WS7's "Printing" screen (screenshot confirms) but produces ZERO
-capturable output. Full diagnosis:
+An earlier version of this section theorized the fix was driving WS7's
+print-options dialog to select a driver. WRONG — no keystrokes are needed
+(and stray AUTOTYPE keys during WS7 startup actually POISON the print:
+runs with injected keys stalled at "P1" forever). The harness now does all
+of the below itself; this is the reference for what and why.
 
-- Mount is correct (tree at C:\WS) — not the fault.
-- `.PDF` printer defs are loose in the ROOT, `PRINTERS/` holds only
-  `.PS`/`.HP` graphics files. Copy `*.PDF` into `PRINTERS/` too (the
-  loose-in-root case §3 warns about). Still not enough alone.
-- ROOT CAUSE: this install's DEFAULT printer redirects print to
-  `<doc>.$GP` — a WordStar-internal work file (contains style-table
-  names like "MS Chapter Title"/"WordStar Defaults", NOT rendered
-  text/PCL/PS). `pcl_text.py` returns `{"runs": []}` on it. So
-  `ws FILE /p /x` completes but emits nothing readable, and the LPT1
-  capture stays empty because output never goes to LPT1.
+Three conditions make `ws FILE /p /x` produce output headlessly:
 
-FIX NEEDED (harness WS7 mode enhancement): force a CAPTURABLE driver.
-Options, in order of preference:
-  1. Drive WS7's print-options dialog via AUTOTYPE to select the ASCII
-     driver (plain text -> readable directly) or LASERJET (PCL ->
-     pcl_text.py). WS7's dialog keystrokes differ from WS4's — the
-     current harness only automates the WS4 dialog. `ws` opening menu
-     'P' did NOT open print here (screenshot: stayed at file browser);
-     the WS7 opening menu is File/Utilities/Additional — find the real
-     print entry (likely under File, or ^KP from within the editor).
-  2. Pre-run WSCHANGE to set default printer=ASCII, port=PRN(LPT1), so
-     `/p /x` -> ASCII text -> LPT1 -> captured. WSCHANGE is itself an
-     interactive menu (AUTOTYPE-able but involved).
-  3. A `.pr`/driver dot-command prepended to a COPY of the doc (changes
-     input — least clean).
-Until fixed, "verify vs real WS7" for THIS install is blocked; the
-manuals + engine PDF are the available truth (they agreed on the
-OLDTIMES header question, 2026-08-12).
+1. **Tree mounted at C:\WS** (§3; WS.EXE hardcodes C:\WS\PRINTERS).
+2. **Driver .PDFs present in PRINTERS\** — Sawyer keeps them loose in the
+   root; copy `WS/*.PDF` into `WS/PRINTERS/` per run.
+3. **The default printer's Redirect-To directory must exist.** Sawyer's
+   default = LASERJET redirecting to `C:\WS\TEMP\WORDSTAR.PCL`, and
+   `TEMP\` is not in the pristine tree. `mkdir WS/TEMP` per run. Without
+   it the print "succeeds" while emitting nothing.
+
+Plus the speed discovery: **`[cpu] turbo=true`** in the DOSBox-X conf.
+WS7 paces its despooler against the emulated clock — without turbo a
+5-page LASERJET print trickles at ~100 bytes/min and looks like a hang;
+with turbo it completes in ~10 seconds and the emulator exits (`/x` +
+autoexec `exit`), which is itself the completion signal. Do NOT give ws4
+turbo (its AUTOTYPE timing would misfire).
+
+Per-driver redirect targets on this install (where output lands):
+- LASERJET → `C:\WS\TEMP\WORDSTAR.PCL` (PCL5; decode with
+  `tools/pcl_text.py` — exact per-run cursor positions in decipoints).
+- ASCII → `C:\WS\ASCII.TXT` (plain text; page breaks arrive as blank-line
+  runs, no form feeds). To force plain-text output without touching the
+  document, copy `ASCII.PDF` over `PRINTERS/LASERJET.PDF` ("driver swap")
+  — but note the ASCII driver imposes its own page geometry, so use it for
+  CONTENT questions, never for POSITION questions.
+- `<doc>.$GP` (≈1.5 KB, style-table strings) is WordStar's internal print
+  work file, not output — seeing only this means the print never reached
+  the driver stage (usually condition 3 missing).
+
+KNOWN LIMIT: documents carrying WS7 paragraph styles (e.g. Sawyer's own
+OLDTIMES.WS, authored with "MS Chapter Title" etc.) stall the LASERJET
+driver indefinitely even under turbo (dosbox spins at 100% CPU, zero
+output after the `.$GP` prelude). Plain-ASCII documents with dot commands
+print perfectly. For position questions about such documents, reproduce
+the relevant geometry in a minimal ASCII doc (explicit `.pl/.mt/.mb/.hm` +
+the same header) and print THAT — verified equivalent for the header
+question below.
+
+### Settled by real WS7 bytes (2026-08-12)
+Stock geometry (`.pl66 .mt3 .mb8 .hm2`, `.h1 Sawyer / Old Times / #`),
+genuine LASERJET.PDF, decoded PCL:
+- header baseline V=120 decipoints (0.167") = **physical line 1**, on
+  page 1 AND page 2;
+- first body line baseline V=480 (0.667") = **line 4**;
+- gap = 360 decipoints = exactly 3 lines at 6 LPI.
+This matches the engine's placement to the decipoint: WordStar really does
+print the header on line 1 under stock defaults. Separately, printing with
+the INSTALL's own defaults (no explicit dot commands) put the header at
+V=357 ≈ line 3 with body at line 6 — Sawyer's install carries WSCHANGE'd
+margins (≈.mt5/.hm3), presumably because line 1 sits at a LaserJet's
+printable edge. Both facts matter: the engine models stock WordStar
+correctly, and period Sawyer printouts would still show the header lower.
