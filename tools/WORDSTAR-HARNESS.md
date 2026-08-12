@@ -218,3 +218,38 @@ rather than an error.
   3.3 and 4, and the meaning of a "column" in margin dot commands changed at 5
   (font-relative before, a fixed 0.1in after). Run the version that matches the
   documents you care about.
+
+## 7. The Sawyer WS7 install — default printer emits no capturable output (2026-08-12)
+
+Reproduced: `wordstar_harness.sh ws7 <sawyer-ws7/WS> OLDTIMES.WS out.prn`
+reaches WS7's "Printing" screen (screenshot confirms) but produces ZERO
+capturable output. Full diagnosis:
+
+- Mount is correct (tree at C:\WS) — not the fault.
+- `.PDF` printer defs are loose in the ROOT, `PRINTERS/` holds only
+  `.PS`/`.HP` graphics files. Copy `*.PDF` into `PRINTERS/` too (the
+  loose-in-root case §3 warns about). Still not enough alone.
+- ROOT CAUSE: this install's DEFAULT printer redirects print to
+  `<doc>.$GP` — a WordStar-internal work file (contains style-table
+  names like "MS Chapter Title"/"WordStar Defaults", NOT rendered
+  text/PCL/PS). `pcl_text.py` returns `{"runs": []}` on it. So
+  `ws FILE /p /x` completes but emits nothing readable, and the LPT1
+  capture stays empty because output never goes to LPT1.
+
+FIX NEEDED (harness WS7 mode enhancement): force a CAPTURABLE driver.
+Options, in order of preference:
+  1. Drive WS7's print-options dialog via AUTOTYPE to select the ASCII
+     driver (plain text -> readable directly) or LASERJET (PCL ->
+     pcl_text.py). WS7's dialog keystrokes differ from WS4's — the
+     current harness only automates the WS4 dialog. `ws` opening menu
+     'P' did NOT open print here (screenshot: stayed at file browser);
+     the WS7 opening menu is File/Utilities/Additional — find the real
+     print entry (likely under File, or ^KP from within the editor).
+  2. Pre-run WSCHANGE to set default printer=ASCII, port=PRN(LPT1), so
+     `/p /x` -> ASCII text -> LPT1 -> captured. WSCHANGE is itself an
+     interactive menu (AUTOTYPE-able but involved).
+  3. A `.pr`/driver dot-command prepended to a COPY of the doc (changes
+     input — least clean).
+Until fixed, "verify vs real WS7" for THIS install is blocked; the
+manuals + engine PDF are the available truth (they agreed on the
+OLDTIMES header question, 2026-08-12).
