@@ -354,7 +354,46 @@ PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
                # choice (Sawyer's -README list markers). Centered small
                # block, per the IBM glyph.
                '■': (0.12, 0.18, 0.72, 0.55)}
-GRAPHIC_CHARS = frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY) | set(PART_BLOCKS)
+# cp437 control-position symbol glyphs (Jon's ruling, 2026-08-11, extending
+# the 2026-08-10 box ruling: "the card suits, etc. show up everywhere").
+# LJ6DTP p3's "Shows on screen as" column is literal bytes 02-06/0F/F0 — on
+# the era's screen: ☻ ♥ ♦ ♣ ♠ ☼ ≡. Latin-1 has none of them, so the text
+# path degraded all seven to '?'. Like the box set, they are geometry:
+# each entry is a list of filled sub-shapes in cell fractions (x up-right,
+# y up from cell bottom):
+#   ('poly', [(x,y)…])          closed filled polygon
+#   ('disc', cx, cy, r)         filled circle (four Béziers)
+#   ('rect', x, y, w, h)        filled rectangle
+#   ('white', <sub-shape>)      same shapes, filled paper-white (knockouts)
+# Scope is exactly the ruled seven; the rest of CP437_GRAPHICS (arrows,
+# music notes …) still degrades until a document surfaces them.
+SYMBOL_SHAPES = {
+    '♦': [('poly', [(0.50, 0.92), (0.88, 0.50), (0.50, 0.08), (0.12, 0.50)])],
+    '♥': [('disc', 0.32, 0.62, 0.21), ('disc', 0.68, 0.62, 0.21),
+          ('poly', [(0.09, 0.56), (0.91, 0.56), (0.50, 0.08)])],
+    '♠': [('poly', [(0.50, 0.94), (0.22, 0.52), (0.78, 0.52)]),
+          ('disc', 0.32, 0.42, 0.21), ('disc', 0.68, 0.42, 0.21),
+          ('poly', [(0.44, 0.36), (0.56, 0.36), (0.62, 0.08), (0.38, 0.08)])],
+    '♣': [('disc', 0.50, 0.68, 0.24), ('disc', 0.29, 0.42, 0.24),
+          ('disc', 0.71, 0.42, 0.24),
+          ('poly', [(0.44, 0.34), (0.56, 0.34), (0.62, 0.06), (0.38, 0.06)])],
+    '☻': [('disc', 0.50, 0.50, 0.44),
+          ('white', ('disc', 0.34, 0.64, 0.09)),
+          ('white', ('disc', 0.66, 0.64, 0.09)),
+          ('white', ('rect', 0.28, 0.28, 0.44, 0.09)),
+          ('white', ('rect', 0.24, 0.34, 0.08, 0.08)),
+          ('white', ('rect', 0.68, 0.34, 0.08, 0.08))],
+    '☼': [('disc', 0.50, 0.50, 0.22),
+          ('white', ('disc', 0.50, 0.50, 0.11)),
+          ('rect', 0.45, 0.78, 0.10, 0.16), ('rect', 0.45, 0.06, 0.10, 0.16),
+          ('rect', 0.06, 0.45, 0.16, 0.10), ('rect', 0.78, 0.45, 0.16, 0.10),
+          ('rect', 0.17, 0.71, 0.12, 0.12), ('rect', 0.71, 0.71, 0.12, 0.12),
+          ('rect', 0.17, 0.17, 0.12, 0.12), ('rect', 0.71, 0.17, 0.12, 0.12)],
+    '≡': [('rect', 0.10, 0.62, 0.80, 0.09), ('rect', 0.10, 0.42, 0.80, 0.09),
+          ('rect', 0.10, 0.22, 0.80, 0.09)],
+}
+GRAPHIC_CHARS = (frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY)
+                 | set(PART_BLOCKS) | set(SYMBOL_SHAPES))
 _GRAPHIC_RUN = _re.compile('[%s](?:[%s ]*[%s])?' % tuple(
     _re.escape(''.join(GRAPHIC_CHARS)) for _ in range(3)))
 
@@ -368,11 +407,45 @@ def _graphic_ops(text, x, y, pitch, pt):
     d = pt / 10.0                            # double-line half-gap
     def rect(rx, ry, rw, rh):
         ops.append(b'%.1f %.1f %.1f %.1f re f' % (rx, ry, rw, rh))
+    K = 0.5523                               # Bézier circle constant
+    def disc(cx, cy, r):
+        k = K * r
+        ops.append(b'%.1f %.1f m' % (cx + r, cy))
+        ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
+                   % (cx + r, cy + k, cx + k, cy + r, cx, cy + r))
+        ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
+                   % (cx - k, cy + r, cx - r, cy + k, cx - r, cy))
+        ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
+                   % (cx - r, cy - k, cx - k, cy - r, cx, cy - r))
+        ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
+                   % (cx + k, cy - r, cx + r, cy - k, cx + r, cy))
+        ops.append(b'f')
+    def symbol_shape(shape, x0):
+        kind = shape[0]
+        if kind == 'white':
+            ops.append(b'q 1 g')
+            symbol_shape(shape[1], x0)
+            ops.append(b'Q')
+        elif kind == 'poly':
+            pts = [(x0 + fx * pitch, yb + fy * h) for fx, fy in shape[1]]
+            ops.append(b'%.1f %.1f m' % pts[0])
+            for p in pts[1:]:
+                ops.append(b'%.1f %.1f l' % p)
+            ops.append(b'h f')
+        elif kind == 'disc':
+            _, fx, fy, fr = shape
+            disc(x0 + fx * pitch, yb + fy * h, fr * min(pitch, h))
+        elif kind == 'rect':
+            _, fx, fy, fw, fh = shape
+            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
     for n, ch in enumerate(text):
         x0 = x + n * pitch
         if ch == ' ':
             continue
-        if ch == '█':
+        if ch in SYMBOL_SHAPES:
+            for shape in SYMBOL_SHAPES[ch]:
+                symbol_shape(shape, x0)
+        elif ch == '█':
             rect(x0, yb, pitch, h)
         elif ch in SHADE_GRAY:
             ops.append(b'q %.2f g' % SHADE_GRAY[ch])

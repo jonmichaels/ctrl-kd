@@ -3931,3 +3931,22 @@ def test_fontless_box_corners_never_degrade_to_question_marks():
     assert b' re f' in pdf, 'box arms must draw as vector fills'
     shown = b''.join(_re.findall(rb'\((.*?)\)\s*Tj', pdf))
     assert b'?' not in shown, 'a ? leaked into printed text ops'
+
+
+def test_cp437_symbol_glyphs_draw_as_vectors_not_question_marks():
+    # Jon's ruling (2026-08-11, extending ruling B): "the card suits, etc.
+    # show up everywhere." LJ6DTP p3's "Shows on screen as" column is the
+    # literal control-position bytes 02-06/0F/F0 -- era screens showed
+    # card suits, the smiley, the sun, and the triple bar. Latin-1 has
+    # none of them; before this ruling every one degraded to '?' in the
+    # printed PDF. Now they draw as filled vector geometry (SYMBOL_SHAPES
+    # in pdf.py). Same <1B x 1C>-wrapped shape the box pin uses.
+    from ctrlkd.pdf import emit_pdf
+    import re as _re
+    symbols = b''.join(b'\x1b%c\x1c' % b for b in (0x02, 0x03, 0x04, 0x05, 0x06, 0x0F, 0xF0))
+    data = b'.aw off\r\n' + symbols + b'\r\n'
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'printed')
+    assert b' c' in pdf and b' re f' in pdf, 'symbol glyphs must draw as vector fills'
+    shown = b''.join(_re.findall(rb'\((.*?)\)\s*Tj', pdf))
+    assert b'?' not in shown, 'a ? leaked into printed text ops'
