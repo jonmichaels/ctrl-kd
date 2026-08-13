@@ -2305,7 +2305,7 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
                     n_tabs = min(n_reg + n_dec, 32)
                     entry['tabs_hmi'] = [word(rec+20 + 2*k) for k in range(n_tabs)]
                     entry['decimal_tabs'] = n_dec
-                just = int.from_bytes(raw[rec+86:rec+87], signed=True)
+                just = int.from_bytes(raw[rec+86:rec+87], 'little', signed=True)
                 # Spec: "0 means no justification, -1 inherit, 1 right
                 # justified, -2 centered, -3 flush right". In WordStar's own
                 # vocabulary "right justified" is a JUSTIFIED right edge --
@@ -2315,10 +2315,10 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
                 entry['justification'] = None if just == -1 else {
                     0: 'left', 1: 'justify', -2: 'center', -3: 'right'
                 }.get(just, just)
-                wrap = int.from_bytes(raw[rec+87:rec+88], signed=True)
+                wrap = int.from_bytes(raw[rec+87:rec+88], 'little', signed=True)
                 entry['word_wrap'] = None if wrap == -1 else bool(wrap)
                 entry['line_height_vmi'] = sword_none(rec+88, -1)
-                ls = int.from_bytes(raw[rec+90:rec+91], signed=True)
+                ls = int.from_bytes(raw[rec+90:rec+91], 'little', signed=True)
                 entry['line_spacing'] = None if ls == -1 else ls
                 entry['attrs_on'] = word(rec+91)
                 entry['attrs_off'] = word(rec+93)
@@ -2334,7 +2334,7 @@ def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
                                          (0x20, 'sup'), (0x40, 'b'),
                                          (0x80, 'i'))
                     if a & bit)
-                col = int.from_bytes(raw[rec+95:rec+96], signed=True)
+                col = int.from_bytes(raw[rec+95:rec+96], 'little', signed=True)
                 entry['colour'] = None if col == -1 else col
             styles.append(entry)
         block_off = base + link if link else 0

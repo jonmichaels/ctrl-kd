@@ -607,6 +607,162 @@ def _style_css(doc):
     return '\n'.join(rules)
 
 
+def _slice_spans(spans, start, end=None):
+    """`spans` cut to the character range [start, end) (end=None: to the
+    end) -- modern_flow's own `.lm`-drop generalised to an arbitrary
+    offset, so a marker/label/padding strip can happen on the STYLED spans
+    (bold, italics, fonts) instead of the plain text classify_rows worked
+    from, and stay stylistically correct on the way to HTML."""
+    total = sum(len(sp.text) for sp in spans)
+    if end is None:
+        end = total
+    out, pos = [], 0
+    for sp in spans:
+        sp_start, sp_end = pos, pos + len(sp.text)
+        pos = sp_end
+        lo, hi = max(start, sp_start), min(end, sp_end)
+        if lo < hi:
+            out.append(Span(sp.text[lo - sp_start:hi - sp_start], sp.styles))
+    return out
+
+
+_LIST_TAG = {'bullet': 'ul', 'def': 'dl'}
+
+
+class _HtmlListBuilder:
+    """Turns a stream of classified Modern rows (layout.py's
+    classify_rows(), the same classification the `layout` JSON emitter
+    exposes) into nested <ul>/<dl> markup -- HTML and layout.json agree on
+    where a list starts, ends, and nests, because they share the one
+    classifier. A row with no structure (kind=None) closes any open list
+    back to the document flow and renders as an ordinary <p>, same as
+    before this rule set existed."""
+
+    def __init__(self):
+        self._root = []
+        # (level, kind, items-array-of-the-open-list, current-item's-own-
+        # node-list); the root frame's "list" and "item" are both _root
+        # itself, since top-level content is a flat flow, not <li> content
+        self._stack = [(0, None, self._root, self._root)]
+
+    def add_text(self, html):
+        if html.strip():
+            self._stack = self._stack[:1]
+            self._root.append(('text', html))
+
+    def add_bullet(self, level, cls, html):
+        self._open(level, 'bullet', cls, html)
+
+    def add_def(self, level, cls, dt_html, dd_html):
+        self._open(level, 'def', cls, (dt_html, dd_html))
+
+    def _open(self, level, kind, cls, content):
+        while len(self._stack) > 1 and not (
+                self._stack[-1][0] < level or
+                (self._stack[-1][0] == level and self._stack[-1][1] == kind)):
+            self._stack.pop()
+        top_level, top_kind, top_items, top_cur_item = self._stack[-1]
+        if top_level == level and top_kind == kind:
+            new_item = []
+            top_items.append(new_item)
+            self._stack[-1] = (top_level, top_kind, top_items, new_item)
+        else:
+            new_items = []
+            new_item = []
+            new_items.append(new_item)
+            top_cur_item.append(('list', kind, cls, new_items))
+            self._stack.append((level, kind, new_items, new_item))
+        self._stack[-1][3].append(('text', content))
+
+    def flush(self, parts):
+        parts.extend(_render_list_nodes(self._root))
+        self._root = []
+        self._stack = [(0, None, self._root, self._root)]
+
+
+def _render_list_nodes(nodes):
+    out = []
+    for kind, *rest in nodes:
+        if kind == 'text':
+            out.append(rest[0])
+            continue
+        _, list_kind, cls, items = (kind,) + tuple(rest)
+        if list_kind == 'def':
+            entries = []
+            for item in items:
+                head, tail = item[0], item[1:]
+                dt, dd = head[1]
+                entries.append(f'<dt{cls}>{dt}</dt><dd{cls}>{dd}'
+                                f'{"".join(_render_list_nodes(tail))}</dd>')
+            out.append(f'<dl>{"".join(entries)}</dl>')
+        else:
+            entries = []
+            for item in items:
+                head, tail = item[0], item[1:]
+                entries.append(f'<li{cls}>{head[1]}'
+                                f'{"".join(_render_list_nodes(tail))}</li>')
+            out.append(f'<ul>{"".join(entries)}</ul>')
+    return out
+
+
+def _classify_modern_blocks(doc):
+    """{block_index: [(Line, structure_or_None), ...]} for every ordinary
+    (non-heading, non-pagebreak, non-multi-column) block, classified as
+    ONE document-wide row sequence -- bullet-marker discovery and nesting
+    both need the whole order, not one block seen in isolation. Mirrors
+    layout.modern_flow()'s own row-building exactly, so HTML sees the
+    identical classification the `layout` JSON emitter would for the same
+    document."""
+    from .layout import classify_rows, FULL_COLS
+
+    entries, plan = [], []
+    for bi, b in enumerate(doc.blocks):
+        if b.kind == 'pagebreak' or b.heading or (b.columns and b.columns > 1):
+            entries.append(('hard',))
+            plan.append(None)
+            continue
+        lm = b.left_margin or 0
+        rm = b.right_margin or 0
+        cut = max(0, FULL_COLS - rm) if rm else 0
+        for line in merged_lines(b):
+            text = ''.join(sp.text for sp in line.spans)
+            entries.append(('para', lm, cut, b.align, text))
+            plan.append((bi, line))
+
+    by_block = {}
+    for row, s in zip(plan, classify_rows(entries)):
+        if row is None:
+            continue
+        bi, line = row
+        by_block.setdefault(bi, []).append((line, s))
+    return by_block
+
+
+class _SpanRow:
+    """A bare `.spans` holder -- just enough for _html_line(), which only
+    ever reads that one attribute off whatever it's given."""
+    __slots__ = ('spans',)
+
+    def __init__(self, spans):
+        self.spans = spans
+
+
+def _html_slice(line, start, end, refs, keep, shown_map):
+    return _html_line(_SpanRow(_slice_spans(line.spans, start, end)),
+                      refs, keep, shown_map=shown_map)
+
+
+def _html_centered_row(line, s, refs, keep, shown_map):
+    """The centred line's own text with its alignment padding sliced off
+    (both mechanisms: a real align=center tag already had the M3 strip
+    upstream, so lead/trail are 0 and this is a no-op; spaces-only
+    centering strips the padding here for the first time)."""
+    raw = ''.join(sp.text for sp in line.spans)
+    lead = len(raw) - len(raw.lstrip(' '))
+    trail = len(raw) - len(raw.rstrip(' '))
+    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map)
+
+
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
               styles=True, note_refs='word', **_options):
     keep = frozenset(notes)
@@ -625,12 +781,21 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # mark text only; ids and sections are structural and stay put
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
-    for b in doc.blocks:
+    # Structure rules (M-rules addendum, 2026-08-13) only apply to the
+    # reflowed Modern view -- printed is a physical facsimile, its <pre>
+    # blocks stay exactly the plain-text-of-the-page they always were.
+    block_rows = {} if printed else _classify_modern_blocks(doc)
+    builder = _HtmlListBuilder()
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
+            if not printed:
+                builder.flush(parts)
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
         if b.heading:
+            if not printed:
+                builder.flush(parts)
             # merged either mode: a heading is a logical unit, and joining its
             # logical lines with a space is what this always rendered
             txt = ' '.join(_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)).strip()
@@ -642,26 +807,69 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             body = '\n'.join(_html_line(line, refs, keep, keep_ws=True, shown_map=shown_map) for line in b.lines)
             if body.strip():
                 parts.append(f'<pre{cls}>{body}</pre>')
-        else:
+        elif b.columns and b.columns > 1:
+            # C5: newspaper columns. CSS does this properly, so HTML is the one
+            # format that can honour `.co` rather than merely record it. A gutter
+            # is print columns at 10 CPI -> tenths of an inch. Opaque to the
+            # structure rules today (excluded from classification above) --
+            # flush first so a list never straddles one.
+            builder.flush(parts)
             lines = [_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)]
             para = '<br>\n'.join(lines)
             if para.strip():
-                # C16/C17: HTML can express all four alignments, so unlike the
-                # plain-text renderer it does not have to collapse justify into
-                # left. `left` is WordStar's default and gets no attribute, so
-                # every document that never touches `.oc`/`.oj` emits byte-identical
-                # HTML to before.
                 style = _HTML_ALIGN.get(b.align, '')
-                # C5: newspaper columns. CSS does this properly, so HTML is the one
-                # format that can honour `.co` rather than merely record it. A gutter
-                # is print columns at 10 CPI -> tenths of an inch.
-                if b.columns and b.columns > 1:
-                    gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
-                           if b.column_gutter else '')
-                    col = f' style="column-count:{b.columns}{gap}"'
-                    parts.append(f'<div{col}><p{cls}{style}>{para}</p></div>')
-                else:
-                    parts.append(f'<p{cls}{style}>{para}</p>')
+                gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
+                       if b.column_gutter else '')
+                col = f' style="column-count:{b.columns}{gap}"'
+                parts.append(f'<div{col}><p{cls}{style}>{para}</p></div>')
+        else:
+            # A plain (non-list, non-centred) row joins the REST of its
+            # own block's plain lines into one <p> with <br> between them,
+            # exactly as before this rule set existed -- only a line that
+            # actually matches one of the three rules ever breaks out of
+            # that into its own element, so an ordinary multi-line block
+            # (an address, a signature) still renders as one paragraph.
+            plain_buf = []
+            style = _HTML_ALIGN.get(b.align, '')
+
+            def _flush_plain():
+                if plain_buf:
+                    html = '<br>\n'.join(plain_buf)
+                    if html.strip():
+                        builder.add_text(f'<p{cls}{style}>{html}</p>')
+                    plain_buf.clear()
+
+            for line, s in block_rows.get(bi, []):
+                if s is None or s['kind'] is None:
+                    # Only the untagged, spaces-padded mechanism is new
+                    # here (rule 3's second half) -- a real align=center/
+                    # right/justify tag already renders correctly via
+                    # _HTML_ALIGN below and is left exactly as it was, so
+                    # a document using only the tag stays byte-identical.
+                    if s is not None and s['centered'] and s['center_via'] == 'spaces':
+                        _flush_plain()
+                        html = _html_centered_row(line, s, refs, keep, shown_map)
+                        if html.strip():
+                            builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
+                    else:
+                        plain_buf.append(_html_line(line, refs, keep, shown_map=shown_map))
+                    continue
+                _flush_plain()
+                if s['kind'] == 'bullet':
+                    raw = ''.join(sp.text for sp in line.spans)
+                    body = _html_slice(line, len(raw) - len(s['body']), None,
+                                       refs, keep, shown_map)
+                    builder.add_bullet(s['level'], cls, body)
+                else:  # 'def'
+                    raw = ''.join(sp.text for sp in line.spans)
+                    lead = len(raw) - len(raw.lstrip(' '))
+                    dt = _html_slice(line, lead, lead + len(s['label']),
+                                     refs, keep, shown_map)
+                    dd = _html_slice(line, len(raw) - len(s['body']), None,
+                                     refs, keep, shown_map)
+                    builder.add_def(s['level'], cls, dt, dd)
+            _flush_plain()
+    builder.flush(parts)
     linked = (_REF_KINDS if shown_map is not None
               else tuple(k for k in _REF_KINDS if k != 'comment'))
     sections = _html_notes_sections(pairs, keep, linked)

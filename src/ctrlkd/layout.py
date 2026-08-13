@@ -30,7 +30,15 @@ Each item is a dict with a 'kind':
                   its .rm shortfall from the 65-column line, in columns),
                   'runs' (below), 'footnotes' (list of [note_index, label]
                   whose text belongs at the bottom of whatever page this
-                  line lands on)
+                  line lands on), 'structure' (the M-rules structure
+                  addendum, 2026-08-13 -- see classify_rows()): 'col'
+                  (absolute column this row's text starts at), 'level'
+                  (nesting depth), 'kind' ('bullet'|'def'|None), 'marker'
+                  (bullet glyph), 'label'/'body' (def-list split),
+                  'centered'/'center_via'/'center_text'. Purely additive
+                  classification of the SAME text already in 'runs' --
+                  never reshapes or removes anything; a consumer that
+                  ignores it sees exactly what it always did.
   blank           one blank line (the author's own)
   break           a forced page break (.pa)
   cond            conditional break: 'lines' remaining or break (.cp n)
@@ -56,6 +64,9 @@ call kept, in document order — 'label' is the kind's own display number
 the requested `note_refs` scheme.
 """
 
+import re
+from collections import Counter
+
 from .core import merged_lines, Span, trailing_blank_lines
 from .emit import (DEFAULT_NOTE_KINDS, _annotated_notes, _ref_pairs,
                    note_ref_labels, emitter)
@@ -63,6 +74,204 @@ from .emit import (DEFAULT_NOTE_KINDS, _annotated_notes, _ref_pairs,
 # The era line: 65 columns at 10 CPI is the full measure every `.rm` is
 # read against (same constant printed layout wraps at).
 FULL_COLS = 65
+
+# ---------------------------------------------------------- structure rules
+#
+# The three GENERIC Modern structure rules (Jon's field notes, 2026-08-13):
+# def-list/hanging-indent, nested hierarchy (the same mechanism applied
+# recursively), and centered lines -- detected from a paragraph's own
+# column geometry, never keyed to a specific file (same "content-based,
+# never extension-based" spirit as core.py's format detection).
+#
+# A definition-list label is a run's own first word glued to its
+# description by 2+ spaces -- WordStar has no def-list markup, so a human
+# author signals "this word IS the label" the only way the era's plain
+# text allows: padding it out to a shared description column with spaces.
+# One label alone is already unambiguous (EXTENDING.md-style: `word.py:
+# does the thing`); no repetition is required to trust it, unlike a bullet
+# marker below.
+#
+# The label must itself end in a colon. Found the hard way against the
+# Sawyer WS7 archive's own prose corpus (OLDTIMES.WS): the era's own
+# double-space-after-a-period typing convention means a short opening
+# sentence -- dialogue like `"Right.  When the historical person...` --
+# is column-for-column indistinguishable from a real label if a bare
+# gap is all that's required. A colon is the one punctuation mark whose
+# job in English IS introducing a label (a dictionary entry, `key: value`
+# in code); a period/`!`/`?` ends a SENTENCE instead, never a label, so
+# requiring it filters out every prose false positive found while keeping
+# every genuine label in both real fixtures (`WS.EXE:`, `C:\WS\DEFAULT:`).
+_DEFLIST_RE = re.compile(r'^(\S+:)( {2,})(\S.*)$')
+
+
+def classify_rows(entries):
+    """Structure classification for a sequence of rows, one call per
+    document (bullet-marker discovery and nesting both need the WHOLE
+    row order, not one paragraph in isolation). `entries` is, per row in
+    document order:
+      ('para', indent_cols, cut_cols, align, text)  a candidate row
+      ('hard',)                                     a real break in flow
+                                                      (heading, page break,
+                                                      multi-column block) --
+                                                      resets nesting
+    Returns a parallel list: None for a 'hard' row, else a dict:
+      col          the absolute column this row's visible text starts at
+                   (indent_cols + this row's own residual leading spaces)
+      level        nesting depth (1 = an outermost list item; 0 = this row
+                   opens no container of its own, though it may still sit
+                   visually inside one -- see 'kind')
+      kind         'bullet' | 'def' | None
+      marker       the bullet glyph, kind == 'bullet' only
+      label, body  the def-list label and its description, kind == 'def'
+                   only
+      centered     True if this row reads as a centered line
+      center_via   'tag' (a real align=center block) | 'spaces' (leading-
+                   space padding, symmetric within the row's own measure)
+                   | None
+      center_text  the line with alignment padding stripped, when centered
+
+    A row with no matching structure keeps kind=None; callers render it
+    exactly as before (this function only ever ADDS classification, it
+    never rejects or reshapes a row that doesn't match one of the rules).
+    """
+    rows = []
+    for e in entries:
+        if e[0] != 'para':
+            rows.append(None)
+            continue
+        _, indent_cols, cut_cols, align, text = e
+        lead = len(text) - len(text.lstrip(' '))
+        rows.append({'indent_cols': indent_cols, 'cut_cols': cut_cols,
+                     'align': align, 'lead': lead,
+                     'col': indent_cols + lead, 'text': text[lead:],
+                     'raw': text})
+
+    # Bullet markers are discovered, never assumed: a single leading
+    # non-alnum glyph immediately followed by one space and real text,
+    # repeated at the SAME column at least twice, is this document's own
+    # evidence that the glyph is a marker -- one occurrence alone can't be
+    # told apart from ordinary punctuation starting a sentence. The glyph
+    # must not recur later in its OWN body text either: an ASCII table's
+    # box-drawing border (│) repeats down the left edge exactly like a
+    # bullet would, but it also reappears as the column separator further
+    # into the same row -- a real bullet is spent the moment it's used,
+    # never showing up again in its own item's text (found against
+    # BOXES.WS's own box-table rows in the Sawyer WS7 archive).
+    def _marker_candidate(t):
+        return (len(t) >= 3 and t[1] == ' ' and t[2] != ' '
+                and not t[0].isalnum() and t[0] != ' '
+                and t[0] not in t[2:])
+
+    counts = Counter()
+    for r in rows:
+        if r is None:
+            continue
+        t = r['text']
+        if _marker_candidate(t):
+            counts[(r['col'], t[0])] += 1
+    bullet_cols = {k for k, n in counts.items() if n >= 2}
+
+    for r in rows:
+        if r is None:
+            continue
+        t = r['text']
+        is_bullet = (_marker_candidate(t)
+                     and (r['col'], t[0]) in bullet_cols)
+        m = None if is_bullet else _DEFLIST_RE.match(t)
+        if is_bullet:
+            r['kind'], r['marker'] = 'bullet', t[0]
+            r['label'], r['body'] = None, t[2:]
+        elif m:
+            r['kind'], r['marker'] = 'def', None
+            r['label'], r['body'] = m.group(1), m.group(3)
+        else:
+            r['kind'] = r['marker'] = r['label'] = r['body'] = None
+
+    # The document's own routine first-line paragraph indent (if it has
+    # one): whichever `lead` value shows up on the most otherwise-plain
+    # rows. A real WS4-era author who indents every paragraph 5 spaces
+    # produces dozens of SHORT paragraphs (dialogue, essay sentences)
+    # whose particular length coincidentally lands that same 5-space
+    # indent near the middle of THEIR OWN short line too -- found the
+    # hard way against OLDTIMES.WS/KINGLEAR.ws/a-private-ws4-paper.ws, where treating
+    # every symmetric-looking indent as a centered line swept up dozens of
+    # ordinary paragraph openers. A deliberately centered line's own
+    # padding varies with ITS length (there's no reason it would match
+    # the paragraph-indent habit), so excluding the document's own most
+    # common indent removes the routine convention while leaving actual
+    # per-line centering (whose indent is evidence, not habit) alone.
+    body_indent_counts = Counter(r['lead'] for r in rows
+                                 if r and r['kind'] is None
+                                 and r['lead'] >= 2 and r['text'])
+    body_indent = (body_indent_counts.most_common(1)[0][0]
+                  if body_indent_counts and
+                  body_indent_counts.most_common(1)[0][1] >= 3 else None)
+
+    # Nesting: a column stack, one entry per open container. A row strictly
+    # shallower than the top closes it (and anything shallower still); a
+    # row opening a container at the current top's own column is a
+    # sibling, not a child. A non-list row never pops OR pushes on its
+    # own -- it may sit inside an open container (a note between bullets)
+    # without being one itself; only a real dedent, or a 'hard' break,
+    # ever closes one.
+    stack = []
+    for e, r in zip(entries, rows):
+        if e[0] == 'hard':
+            stack = []
+            continue
+        while stack and r['col'] < stack[-1]:
+            stack.pop()
+        if r['kind']:
+            if not (stack and stack[-1] == r['col']):
+                stack.append(r['col'])
+        r['level'] = len(stack)
+
+    for r in rows:
+        if r is None:
+            continue
+        r['centered'], r['center_via'], r['center_text'] = False, None, None
+        content = r['raw'].strip(' ')
+        if not content:
+            continue
+        if r['align'] == 'center':
+            # WS5+ centred at editor time (M3): the tag AND the padding
+            # both made it into the file. The tag already carries the
+            # decision; this just names the mechanism for a caller that
+            # wants one uniform 'centered' signal for both.
+            r['centered'], r['center_via'], r['center_text'] = \
+                True, 'tag', content
+        elif r['align'] == 'left' and len(re.findall(r' {3,}', content)) < 2:
+            # Undeclared centering: no tag at all, just spaces padding the
+            # line so it SITS centred within this row's own printable
+            # measure. Symmetric leading/trailing padding (within a little
+            # rounding slack -- an odd leftover column rounds toward the
+            # left in WordStar's own centering) is the only honest signal;
+            # a merely-indented paragraph is never trailing-padded to
+            # match, so this can't be confused with an ordinary `.lm`.
+            #
+            # The `findall` guard above: a fixed-width reference table row
+            # (YOURWAY.WS's own byte tables: '1B4  1B8    ^JM       0A 0D
+            # help with margins') has SEVERAL wide internal gaps from its
+            # OWN column alignment, and enough of them coincidentally land
+            # close to bisecting the line that this rule mis-fired across
+            # dozens of table rows before this guard existed. A genuine
+            # centered line carries at most one incidental wide gap (a
+            # sentence-ending double-space); 2+ is a column layout, not
+            # prose -- found the hard way against YOURWAY.WS/POWERUSE.WS.
+            width = FULL_COLS - r['indent_cols'] - r['cut_cols']
+            slack = width - len(content)
+            # A near-full measure leaves almost no room to be off-centre in
+            # the first place (a 1-column stray indent on a 62-of-65 line
+            # is trivially "symmetric" with nowhere else to go) -- real
+            # centering needs enough slack that landing near its middle is
+            # actually evidence of intent, not an artifact of the line
+            # nearly filling the width either way.
+            if r['lead'] >= 2 and r['lead'] != body_indent and slack >= 4:
+                ideal = slack / 2.0
+                if abs(r['lead'] - ideal) <= 1.5:
+                    r['centered'], r['center_via'], r['center_text'] = \
+                        True, 'spaces', content
+    return rows
 
 # LJ6DTP's character substitutions — the driver patches PC-8 slots so that
 # typing `_` PRINTS an em dash, `«»` print curly doubles, ☻ prints ©, and
@@ -276,6 +485,28 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
             row = note_rows[ni]
             items.append({'kind': 'note', 'index': ni,
                           'label': row['shown'], 'text': row['text']})
+
+    # Structure classification (M-rules addendum, 2026-08-13): 'blank' and
+    # the other carrier items (tabs/hf/note*) are soft -- they carry no
+    # column of their own and never interrupt a list; 'break'/'cond' are
+    # the only genuine hard resets modern_flow itself produces (headings
+    # here are just bold paragraphs, not a distinct item kind).
+    struct_entries, struct_idx = [], []
+    for idx, it in enumerate(items):
+        if it['kind'] == 'para':
+            struct_entries.append(('para', it['indent_cols'] or 0,
+                                   it['cut_cols'] or 0, it['align'],
+                                   ''.join(r['text'] for r in it['runs'])))
+            struct_idx.append(idx)
+        elif it['kind'] in ('break', 'cond'):
+            struct_entries.append(('hard',))
+            struct_idx.append(idx)
+    for idx, s in zip(struct_idx, classify_rows(struct_entries)):
+        if s is not None:
+            items[idx]['structure'] = {
+                k: s[k] for k in ('col', 'level', 'kind', 'marker', 'label',
+                                  'body', 'centered', 'center_via',
+                                  'center_text')}
     return {'items': items, 'notes': note_rows}
 
 
