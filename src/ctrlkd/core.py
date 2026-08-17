@@ -18,6 +18,7 @@ WordStar background this code encodes:
 from __future__ import annotations
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .symbolmap import SYMBOL, transliterate, font_translit_kind
@@ -322,6 +323,23 @@ def block_dominant_styles(lines: list) -> frozenset:
     return max(counts, key=counts.get) if counts else frozenset()
 
 
+def _run_term_frac(run: list) -> float:
+    """Fraction of RUN's letters-containing lines that end as a finished
+    sentence -- the same 'scored' population `looks_like_verse` computes
+    for its own term_frac signal, factored out so a caller that needs the
+    raw fraction (not just the boolean verdict) -- the mid-body strength
+    bar in `assemble_paragraphs`'s convention-outlier route -- doesn't
+    reimplement the letterless-line exclusion. 1.0 (reads as maximally
+    prose) for a scoreless run, matching `looks_like_verse`'s own
+    len-under-2 short-circuit: no evidence should never read as strong
+    verse."""
+    texts = [line_visible_text(l) for l in run if line_visible_text(l).strip()]
+    scored = [t for t in texts if any(c.isalpha() for c in t)]
+    if not scored:
+        return 1.0
+    return sum(_ends_terminal(t) for t in scored) / len(scored)
+
+
 def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> bool:
     """Whether a RUN of consecutive short, indented, hard-terminated Lines
     reads as a stanza (deliberate verse) rather than a run of short PROSE
@@ -390,7 +408,8 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     return term_frac < VERSE_TERMINAL_FRACTION
 
 
-def assemble_paragraphs(block: Block, margin: float = 65) -> list:
+def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = False,
+                        convention_indent: int = None) -> list:
     """`merged_lines(block)` grouped into Modern paragraph units.
 
     A WordStar manuscript that marks new paragraphs by indentation, not a
@@ -415,12 +434,44 @@ def assemble_paragraphs(block: Block, margin: float = 65) -> list:
        hard-terminated Line always starts a new unit, regardless of its own
        length; a flush one always continues the unit already being built.
     2. Runs of consecutive SHORT single-line units (candidates: length under
-       `margin - PARAGRAPH_JOIN_SLACK`) get a second look via
-       `looks_like_verse` -- a stanza reads as ONE unit with its lines kept
-       exactly as written (a poem/address's deliberate short breaks), while
-       ordinary short paragraphs (rapid dialogue, a one-line narrative beat)
-       each stay their own paragraph, which is what phase 1 already gave
-       them.
+       `margin - PARAGRAPH_JOIN_SLACK`, or wider still for a single line
+       boxed in by an established run -- see the in-run widening below) get
+       a second look via `looks_like_verse` -- a stanza reads as ONE unit
+       with its lines kept exactly as written (a poem/address's deliberate
+       short breaks), while ordinary short paragraphs (rapid dialogue, a
+       one-line narrative beat) each stay their own paragraph, which is
+       what phase 1 already gave them.
+
+    Before either phase: a CONVENTION-OUTLIER / POSITIONAL route (Jon's
+    ruling, closing round, 2026-08-17) for the case phase 1 itself gets
+    wrong -- an epigraph or chapter-opening quotation typed FLUSH per
+    verse line (no per-line indent at all), which phase 1's "flush
+    continues the paragraph" assumption reads as manual mid-sentence
+    wraps of ONE paragraph instead of separate deliberate lines. Real
+    evidence: W4P3's own Whitman epigraph (flush lines 0-2 glued into one
+    3-line pseudo-paragraph, lines 3-4 into another, line 5 alone -- 3
+    paragraphs instead of 1 preserved stanza) sat at the very head of the
+    document, its OWN opening line carrying none of the 5-space indent
+    every real body paragraph in that same document opens with. See
+    `_paragraph_layout_context` for how `convention_indent` and
+    `head_position` are derived once per document. Bounded two ways:
+
+    - CONVENTION: only a block whose own opening line's indent width
+      differs from the document's own established per-block indent is
+      even a candidate -- an ordinary paragraph that happens to open a
+      chapter is never touched by this at all.
+    - POSITION: at the document's own head or immediately after a
+      heading/section boundary (exactly where a real epigraph or
+      chapter-opening quotation lives), the whole block is classified as
+      ONE candidate run via `looks_like_verse` at the normal bar. Deep in
+      mid-body prose the same outlier shape is far likelier a typing
+      accident than a deliberate quotation, so it stays on today's
+      conservative phase-1 path UNLESS the signal is overwhelming: not
+      one line in the whole block ends as a finished sentence. Real prose
+      essentially never does that end to end (its very last line, if
+      nothing else, closes a sentence); a poem/lyric routinely does.
+      (Flagged as evidence-light -- no real mid-body case has been found
+      to calibrate against; recalibrate if one turns up.)
 
     Bounded, disclosed failure mode where the evidence is genuinely
     ambiguous (ties resolve to prose, per `looks_like_verse`): a short verse
@@ -435,6 +486,18 @@ def assemble_paragraphs(block: Block, margin: float = 65) -> list:
     lines = merged_lines(block)
     if not lines:
         return []
+
+    if convention_indent is not None:
+        first_text = line_visible_text(lines[0])
+        opening_indent = len(first_text) - len(first_text.lstrip(' '))
+        if opening_indent != convention_indent:
+            non_blank = [l for l in lines if line_visible_text(l).strip()]
+            if len(non_blank) >= 2:
+                whole_verse = looks_like_verse(non_blank, block_dominant_styles(lines))
+                if whole_verse and not head_position:
+                    whole_verse = _run_term_frac(non_blank) == 0.0
+                if whole_verse:
+                    return [lines]         # whole block -> one preserved stanza
     threshold = max(1, (margin or 65) - PARAGRAPH_JOIN_SLACK)
 
     # Phase 1: indent starts a unit; flush continues one. line_visible_text
@@ -511,6 +574,71 @@ def assemble_paragraphs(block: Block, margin: float = 65) -> list:
             out.extend(units[i:j])              # each stays its own paragraph
         i = j
     return out
+
+
+def paragraph_layout_context(doc) -> tuple:
+    """(convention_indent, head_position) -- the two whole-document signals
+    `assemble_paragraphs`'s convention-outlier/positional route needs,
+    computed once per document rather than re-derived per block (Jon's
+    ruling, closing round, 2026-08-17).
+
+    CONVENTION_INDENT is the MODAL opening-line indent width across the
+    document's own para blocks (heading blocks excluded -- a heading's
+    "indent" is a title-page convention, not the body's paragraph mark) --
+    what "a normal paragraph here opens like" means for THIS document. A
+    block whose own opening line doesn't match it is a convention outlier.
+
+    HEAD_POSITION is a dict, by `id(block)`, of whether that para block
+    sits in the document's own FRONT MATTER -- a contiguous run of blocks
+    at the document's head (or immediately after a heading-classified
+    block or a page/section break, the "start of a chapter" case) that
+    have not yet reached a single ordinary, convention-conforming
+    paragraph. Real evidence: W4P3's title/byline (block 0) and its
+    Whitman epigraph (block 1) are BOTH convention outliers -- the title
+    itself carries no WordStar heading classification (`b.heading` is 0),
+    so "immediately after a heading" alone would miss the epigraph
+    entirely, one block too late. Tracking "still in front matter" instead
+    of "immediately after one specific boundary block" covers exactly this
+    -- the head-position window extends through however many outlier
+    blocks open the document (or chapter), and closes the moment a block
+    actually matches the document's own paragraph convention (real body
+    prose has started). A pagebreak or a heading block reopens the window
+    for whatever comes next -- a new chapter gets its own front matter.
+    Heading blocks themselves get no entry (`assemble_paragraphs` callers
+    default to False via `.get`) -- irrelevant in practice, since a
+    heading is almost always one line and the outlier route requires at
+    least two."""
+    counts = Counter()
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines or b.heading:
+            continue
+        lines = merged_lines(b)
+        if not lines:
+            continue
+        t = line_visible_text(lines[0])
+        counts[len(t) - len(t.lstrip(' '))] += 1
+    convention_indent = counts.most_common(1)[0][0] if counts else 0
+
+    head_position = {}
+    in_front_matter = True
+    for b in doc.blocks:
+        if b.kind == 'pagebreak':
+            in_front_matter = True
+            continue
+        if b.kind != 'para' or not b.lines:
+            continue
+        if b.heading:
+            in_front_matter = True
+            continue
+        head_position[id(b)] = in_front_matter
+        if in_front_matter:
+            lines = merged_lines(b)
+            if lines:
+                t = line_visible_text(lines[0])
+                indent = len(t) - len(t.lstrip(' '))
+                if indent == convention_indent:
+                    in_front_matter = False   # real body prose has started
+    return convention_indent, head_position
 
 
 def split_leading_indent(spans: list):

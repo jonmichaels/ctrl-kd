@@ -11,7 +11,8 @@ import html as _html
 import re
 
 from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
-                   assemble_paragraphs, split_leading_indent)
+                   assemble_paragraphs, split_leading_indent,
+                   paragraph_layout_context)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -235,6 +236,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         # WordStar printed nothing for them, sections included
         keep = keep - {'comment'}
     margin = _doc_margin(doc)
+    convention_indent, head_position = paragraph_layout_context(doc)
 
     def render(line):
         seg = []
@@ -276,7 +278,9 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # Within a unit, lines still join with a bare newline -- exactly
             # today's same-paragraph separator (a deliberate short line, a
             # poem's stanza, stays a forced line break, never reflowed).
-            for unit in assemble_paragraphs(b, margin):
+            for unit in assemble_paragraphs(
+                    b, margin, head_position=head_position.get(id(b), False),
+                    convention_indent=convention_indent):
                 lines = _align_lines([render(l) for l in unit], b.align, b)
                 para = '\n'.join(lines)
                 if para.strip():
@@ -382,6 +386,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     margin = _doc_margin(doc)
+    convention_indent, head_position = paragraph_layout_context(doc)
     out = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
@@ -397,7 +402,9 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 out.append('#' * b.heading + ' ' + para.strip())
             continue
         quote = _is_quote_style(b)
-        for unit in assemble_paragraphs(b, margin):
+        for unit in assemble_paragraphs(
+                    b, margin, head_position=head_position.get(id(b), False),
+                    convention_indent=convention_indent):
             lines = _md_unit_lines(unit, refs, keep)
             if not any(l.strip() for l in lines):
                 continue
@@ -707,6 +714,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
     margin = _doc_margin(doc)
+    convention_indent, head_position = paragraph_layout_context(doc)
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
@@ -739,7 +747,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # `_html_span`'s own &nbsp; idiom still renders ITS leading
             # run visibly, which is exactly right for a poem's second
             # verse (content, not a paragraph-start marker).
-            for unit in assemble_paragraphs(b, margin):
+            for unit in assemble_paragraphs(
+                    b, margin, head_position=head_position.get(id(b), False),
+                    convention_indent=convention_indent):
                 first = _maybe_strip_align(b, list(unit[0].spans))
                 indent_cols, first = split_leading_indent(first)
                 rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
@@ -1149,6 +1159,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     parts = []
     rtf_state = {'align': 'left', 'fi': 0, 'styled_slots': styled_slots}
     margin = _doc_margin(doc)
+    convention_indent, head_position = paragraph_layout_context(doc)
 
     def rtf_seg(spans):
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
@@ -1183,7 +1194,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # indent whitespace); every other line in the unit keeps its
         # literal leading spaces exactly as before (a poem's second verse
         # is content, not a paragraph-start marker).
-        for unit in assemble_paragraphs(b, margin):
+        for unit in assemble_paragraphs(
+                    b, margin, head_position=head_position.get(id(b), False),
+                    convention_indent=convention_indent):
             first = _maybe_strip_align(b, list(unit[0].spans))
             indent_cols, first = split_leading_indent(first)
             lines = [rtf_seg(first)]
