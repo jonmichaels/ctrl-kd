@@ -163,6 +163,33 @@ def test_assemble_paragraphs_long_indented_lines_each_split():
     assert all(len(u) == 1 for u in units)
 
 
+def test_dot_command_wrapped_in_italic_toggle_displays_as_text():
+    """WSFORMAT.TXT's own 'Dot Commands' section: a dot command's period
+    must be 'preceded (in the first position in the line)' -- round 8
+    (SCRIPT.WS, Jon's field review): a magazine article demonstrating
+    WordStar's own dot-command syntax wraps each example in ^Y (0x19)
+    italic toggles, raw bytes `\\x19.lm7\\x19` -- the FIRST byte on that
+    physical line is the toggle, not the period, so by the spec's own
+    rule it is ordinary displayed text (in italics), never a live command.
+    Verified directly against SCRIPT.WS's own raw bytes (every one of its
+    demonstration lines carries this exact `\\x19.<cmd>\\x19` shape) and
+    reproduced here as a permanent regression fixture, contrasted with a
+    genuine unwrapped `.lm7` on its own line -- a REAL dot command,
+    swallowed into `doc.meta['dot_commands']`, absent from every Line."""
+    body = (ws7_block(0x00)
+            + b'\x19.lm7\x19' + HARD
+            + b'.lm7' + HARD
+            + b'ordinary text follows' + HARD)
+    doc = core.parse_ws(body)
+    texts = [l.text() for b in doc.blocks for l in b.lines]
+    assert texts.count('.lm7') == 1        # the ^Y-wrapped one displays...
+    assert 'ordinary text follows' in texts
+    assert doc.meta['dot_commands'] == ['.lm7']  # ...the bare one doesn't
+    wrapped_line = next(l for b in doc.blocks for l in b.lines
+                        if l.text() == '.lm7')
+    assert any('i' in sp.styles for sp in wrapped_line.spans)
+
+
 def test_ws4_multi_stanza_poem_survives_with_no_attributes_or_styles():
     """Round 2 (2026-08-17): a WS4 document has NEITHER the WS5+ symmetric-
     block machinery NOR (here) any inline b/i/u toggle -- so the attribute-
@@ -221,6 +248,40 @@ def test_ws4_dialogue_run_does_not_false_positive_as_stanza():
     units = core.assemble_paragraphs(doc.blocks[0], margin)
     assert len(units) == 6, [l.text() for u in units for l in u]
     assert all(len(u) == 1 for u in units)
+
+
+def test_graphic_box_stays_one_unit_not_three_prose_paragraphs():
+    """Round 8 (SCRIPT.WS, Jon's field review): a cp437 box-drawing caption
+    box -- two pure-border lines (zero letters -- 'scored' material) and
+    one mixed border+text line -- must read as ONE preserved unit, not
+    trip the letters-only `len(scored) < 2` floor and fall back to three
+    independently-flowed short paragraphs. Encoded via literal cp437 (a
+    WS5+ document's own high-byte convention for extended characters, no
+    escape wrapping needed for these specific glyphs)."""
+    lines = [
+        '┌────────┐'.encode('cp437'),
+        '│Figure 1│'.encode('cp437'),
+        '└────────┘'.encode('cp437'),
+    ]
+    doc = _typed_paragraph_doc(lines)
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 1, [l.text() for u in units for l in u]
+    assert sum(len(u) for u in units) == 3
+
+
+def test_looks_like_verse_pure_punctuation_rule_still_returns_false():
+    """Regression guard for the new graphic-run signal: a run that is
+    majority letterless but carries NO actual GRAPHIC_CHARS (e.g. a
+    decorative rule of plain hyphens/asterisks, or the pre-existing '#'
+    scene-break-marker case) must NOT be swept up by the box-drawing
+    early-return -- only genuine cp437 box/shade/block/card-suit content
+    qualifies."""
+    run_lines = [
+        core.Line([core.Span('----------')]),
+        core.Line([core.Span('##########')]),
+    ]
+    assert core.looks_like_verse(run_lines) is False
 
 
 def _filler(n):
@@ -451,6 +512,55 @@ def test_modern_rtf_poem_stays_one_par_with_line_breaks():
     r = emit.emit_rtf(doc, mode='modern')
     assert r.count(r'\par') == 1
     assert r.count(r'\line') == 3
+
+
+def test_modern_html_graphic_box_forces_monospace_on_borders_only():
+    """Round 8 (SCRIPT.WS): the box stays one <p> (the paragraph-assembly
+    fix above), AND the pure-border spans get the `ws-graphic` monospace
+    override while the "Figure 1" text between them keeps the document's
+    own declared (possibly proportional) font untouched -- forcing the
+    WHOLE line monospace would fix the border at the cost of silently
+    overriding the author's own font choice for real text."""
+    lines = [
+        '┌────────┐'.encode('cp437'),
+        '│Figure 1│'.encode('cp437'),
+        '└────────┘'.encode('cp437'),
+    ]
+    doc = _typed_paragraph_doc(lines)
+    h = emit.emit_html(doc, mode='modern')
+    body = h[h.index('<body>'):]
+    assert h.count('<p') == 1
+    assert h.count('<br>') == 2
+    # both border lines + both │ -- 'ws-graphic' also names the CSS rule
+    # itself once, up in <style>, hence counting from <body> only
+    assert body.count('ws-graphic') == 4
+    assert 'Figure 1' in h
+    # "Figure 1" itself must NOT carry the override -- this synthetic doc
+    # has no font record, so the text isn't even span-wrapped at all; the
+    # only way 'ws-graphic' could reach it is a bug spilling the class
+    # onto its own span, which this rules out directly
+    assert 'ws-graphic">Figure 1' not in h
+
+
+def test_modern_rtf_graphic_box_forces_courier_on_borders_only():
+    """RTF companion: `\\f1` (Courier New, always in the font table) is
+    appended to the pure-border spans only; "Figure 1" keeps whatever font
+    control the document's own font record produced."""
+    lines = [
+        '┌────────┐'.encode('cp437'),
+        '│Figure 1│'.encode('cp437'),
+        '└────────┘'.encode('cp437'),
+    ]
+    doc = _typed_paragraph_doc(lines)
+    r = emit.emit_rtf(doc, mode='modern')
+    fonttbl_end = r.index('}}', r.index(r'\fonttbl')) + 2
+    body = r[fonttbl_end:]
+    # both border lines + both │ -- \f1 also names the fonttbl's OWN
+    # Courier New declaration once, hence counting from after \fonttbl
+    assert body.count(r'\f1 ') == 4
+    fig_start = r.index('Figure 1')
+    group_open = r.rindex('{', 0, fig_start)
+    assert r'\f1 ' not in r[group_open:fig_start]
 
 
 def test_modern_markdown_poem_stays_one_paragraph_with_hard_breaks():

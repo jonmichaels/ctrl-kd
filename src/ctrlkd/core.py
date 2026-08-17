@@ -40,12 +40,58 @@ CP437_GRAPHICS = {
     0x7F: '⌂',
 }
 
+# cp437 line-drawing/shade/block/card-suit glyphs -- the SAME repertoire
+# pdf.py's BOX_ARMS/SHADE_GRAY/PART_BLOCKS/SYMBOL_SHAPES draw as vector
+# geometry (kept independent here: those dicts are PDF-specific drawing
+# recipes, this is a plain classification set with two Modern/HTML/RTF-side
+# jobs -- see `looks_like_verse` and `split_graphic_spans`). Round 8
+# (SCRIPT.WS, Jon's field review): a magazine article's own "Figure 1"
+# caption box, drawn in these characters, was splitting into three
+# independently-reflowed/centred paragraphs and rendering in whatever
+# proportional font the file's own font-change record declared -- box-
+# drawing is geometry regardless of the declared font, exactly the PDF
+# path's own doctrine ("the reason the box shows up is that it could be
+# done in that era"), just never extended to the reflowing formats.
+GRAPHIC_CHARS = frozenset(
+    '█░▒▓▀▄▌▐■♦♥♠♣☻☼≡'
+    '─│┌┐└┘├┤┬┴┼'
+    '═║╔╗╚╝╠╣╦╩╬╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫'
+)
+_GRAPHIC_RUN = re.compile('[%s]+' % re.escape(''.join(GRAPHIC_CHARS)))
+
 # ---------------------------------------------------------------- IR
 
 @dataclass
 class Span:
     text: str
     styles: frozenset = frozenset()      # subset of {'b','i','u','sup','sub','strike'}
+
+
+def split_graphic_spans(spans: list) -> list:
+    """Break spans that MIX graphic (box-drawing/shade/block/card-suit)
+    characters with ordinary text into consecutive same-kind pieces, each
+    its own Span carrying the original styles unchanged -- so a renderer
+    can single out the purely-graphic pieces (force a monospace face; see
+    emit.py's `_is_graphic_text`/`ws-graphic`) without touching the prose
+    sharing their line (a figure caption's own text, e.g. "Figure 1"
+    between the box's two vertical bars). Mirrors pdf.py's own
+    `_split_graphics`, at the Span level instead of PDF's segment tuples.
+    A span with no graphic character at all passes through unchanged (the
+    common case -- fast path, same object, not a copy)."""
+    out = []
+    for sp in spans:
+        if not (set(sp.text) & GRAPHIC_CHARS):
+            out.append(sp)
+            continue
+        pos = 0
+        for m in _GRAPHIC_RUN.finditer(sp.text):
+            if m.start() > pos:
+                out.append(Span(sp.text[pos:m.start()], sp.styles))
+            out.append(Span(m.group(0), sp.styles))
+            pos = m.end()
+        if pos < len(sp.text):
+            out.append(Span(sp.text[pos:], sp.styles))
+    return out
 
 @dataclass
 class Line:
@@ -394,7 +440,19 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     Ties resolve to PROSE (dialogue is the bulk of a real corpus, per
     Jon's ruling) -- a wrongly-glued short prose paragraph is silently
     wrong; a wrongly-split stanza is visible on review as an extra blank
-    line."""
+    line.
+
+    A FOURTH signal, checked first and decisive on its own: a run that is
+    MAJORITY pure cp437 box-drawing/shade/block content (GRAPHIC_CHARS, no
+    letters at all) is never prose, full stop -- a caption box's own top
+    and bottom border carry zero alphabetic scoring material by
+    definition, which is exactly the case the letters-only floor right
+    below exists to be cautious about, and wrongly so here (round 8,
+    SCRIPT.WS: Jon's field review found the article's own "Figure 1" box
+    -- 2 of its 3 lines pure border -- tripped that floor, fell back to
+    ordinary short-paragraph treatment, and split one box into three
+    independently-centred paragraphs, misaligned the moment the file's own
+    font-change record put them in a proportional face)."""
     # Letterless lines (a centred '#' scene-break marker; an ellipsis-only
     # pause line inside a stanza -- both real, found in real fixtures) are
     # excluded from every fraction below, not from the run itself: a '#'
@@ -405,6 +463,11 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     # first, tore a real WS4 poem in half at exactly that line). It still
     # rides along with whatever the rest of the run decides.
     texts = [line_visible_text(l) for l in run if line_visible_text(l).strip()]
+    if len(texts) >= 2:
+        graphic = sum(1 for t in texts if not any(c.isalpha() for c in t)
+                      and any(c in GRAPHIC_CHARS for c in t))
+        if graphic / len(texts) >= 0.5:
+            return True
     scored = [t for t in texts if any(c.isalpha() for c in t)]
     if len(scored) < 2:
         return False

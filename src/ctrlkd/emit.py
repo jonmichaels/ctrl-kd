@@ -13,7 +13,8 @@ import re
 from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
                    assemble_paragraphs, split_leading_indent,
                    paragraph_layout_context, looks_like_verse,
-                   block_dominant_styles, effective_span_styles)
+                   block_dominant_styles, effective_span_styles,
+                   GRAPHIC_CHARS, split_graphic_spans)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -569,6 +570,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
 _CSS = """body{margin:0;padding:2rem 1rem;
 font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
 .ws-native{white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+span.ws-graphic{font-family:ui-monospace,Menlo,Consolas,monospace}
 hr.pb{border:none;border-top:1px dashed #bbb;margin:2rem 0}
 blockquote{margin:1em 2em;padding-left:1em;border-left:2px solid #ccc}
 blockquote p{margin:0}
@@ -626,6 +628,16 @@ _KIND_LABEL = {'footnote': 'Footnotes', 'endnote': 'Endnotes',
                'annotation': 'Annotations', 'comment': 'Comments'}
 _KIND_PREFIX = {'footnote': 'fn', 'endnote': 'en', 'annotation': 'an', 'comment': 'cm'}
 
+def _is_graphic_text(text):
+    """Whether TEXT is entirely cp437 box-drawing/shade/block/card-suit
+    content (spaces allowed, e.g. a box's own top-border run of `─`) -- the
+    HTML/RTF-side twin of PDF's own graphics doctrine ("the reason the box
+    shows up is that it could be done in that era"), used to force a
+    monospace face on exactly the pieces `split_graphic_spans` isolated,
+    never on prose sharing their line (round 8, SCRIPT.WS)."""
+    stripped = text.replace(' ', '')
+    return bool(stripped) and all(c in GRAPHIC_CHARS for c in stripped)
+
 def _html_span(s, keep_ws=False):
     text = _html.escape(s.text)
     if keep_ws:
@@ -639,10 +651,19 @@ def _html_span(s, keep_ws=False):
             text = f'<{t}>{text}</{t}>'
     font = next((st for st in s.styles
                  if st.startswith('font') and st[4:].isdigit()), None)
+    classes = []
     if font:
-        # class only -- the matching .ws-font-N rule comes from _style_css,
-        # so --no-styles leaves the class inert
-        text = f'<span class="ws-{font.replace("font", "font-")}">{text}</span>'
+        classes.append('ws-' + font.replace('font', 'font-'))
+    if _is_graphic_text(s.text):
+        # `span.ws-graphic` (element+class) outranks the plain-class
+        # `.ws-font-N` rule regardless of stylesheet order, so a box-
+        # drawing run stays monospace even under a document font the
+        # generated `.ws-font-N` rule made proportional.
+        classes.append('ws-graphic')
+    if classes:
+        # class(es) only -- the matching CSS rules come from _CSS/
+        # _style_css, so --no-styles leaves them inert
+        text = f'<span class="{" ".join(classes)}">{text}</span>'
     return text
 
 def _html_ids(kind, label):
@@ -669,9 +690,13 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
     identically-styled spans unconditionally: cheap, idempotent for a
     caller that already coalesced (Modern's merged_lines), and the ONE
     place Printed's own physical-line spans get the same fix (item e of
-    the overhaul -- the fragmentation gap applies there too)."""
+    the overhaul -- the fragmentation gap applies there too). Graphic runs
+    are split out AFTER coalescing, not before (round 8) -- coalescing
+    merges by style equality alone, so a split-then-coalesce order would
+    silently re-glue a box character back onto the prose beside it the
+    moment they share a style."""
     out = []
-    for s in coalesce_spans(spans):
+    for s in split_graphic_spans(coalesce_spans(spans)):
         pctl = next((t for t in s.styles if t.startswith('pctl')), None)
         if pctl is not None:
             if keep_ws:                        # the printed physical layer
@@ -1236,6 +1261,13 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
     ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
     if fontctl:
         ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
+    if _is_graphic_text(sp.text):
+        # \f1 (Courier New) is ALWAYS in the font table (see the \fonttbl
+        # literal in `emit_rtf`) regardless of the document's own fonts --
+        # same reasoning as HTML's `ws-graphic` override, appended last so
+        # it wins the font-table reference while any \fs size already
+        # chosen above is left alone (round 8).
+        ctl += r'\f1 '
     return '{' + ctl + _rtf_escape(sp.text) + '}'
 
 _RTF_MODERN_QUOTE_INSET = 720   # 0.5in each side -- Jon's explicit ask, round 3
@@ -1561,8 +1593,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # also correctly re-joins runs that only differed because one
         # carried a redundant inline toggle the style already covered.
         merged = [Span(sp.text, effective_span_styles(sp, b)) for sp in spans]
+        # Graphic runs split out AFTER coalescing, same ordering reason as
+        # HTML's identical step in `_html_line` (round 8): splitting first
+        # would just get re-glued back onto the prose beside it the moment
+        # both share a style.
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
-                       for sp in coalesce_spans(merged))
+                       for sp in split_graphic_spans(coalesce_spans(merged)))
 
     for b in doc.blocks:
         if b.kind == 'pagebreak':
