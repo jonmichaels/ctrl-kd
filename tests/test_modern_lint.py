@@ -282,13 +282,13 @@ def test_ws4_long_line_boxed_in_by_dialogue_does_not_widen():
 # ------------------------------------------------------- epigraph handling
 # (Jon's ruling, closing round, 2026-08-17: convention-outlier detection
 # bounded by document position -- see core.paragraph_layout_context and
-# assemble_paragraphs's outlier route. Shaped after W4DIR2/W4P3's real
+# assemble_paragraphs's outlier route. Shaped after a private-corpus WS4 story's real
 # structure -- a flush-typed verse epigraph opening the document, ordinary
 # 5-space-indented prose paragraphs everywhere else -- with synthetic text
 # throughout, never the real corpus.)
 
 def test_epigraph_at_document_head_becomes_one_stanza_unit():
-    """W4P3's own real defect shape: a flush-typed (no per-line indent),
+    """The private-corpus story's real defect shape: a flush-typed (no per-line indent),
     non-terminal, multi-line epigraph opens the document; every ordinary
     paragraph in the rest of the document opens with the same 5-space
     indent, so the epigraph's own opening line is a convention outlier AND
@@ -376,7 +376,7 @@ def test_convention_outlier_mid_body_stays_conservative_unless_overwhelming():
     must NOT get the whole-block verse route just because it happens to
     open flush -- unless the verse signal is overwhelming (not one line in
     the whole block ends as a finished sentence). Two mid-body blocks,
-    same flush-then-indented shape (W4P3's own [3, 2] epigraph shape,
+    same flush-then-indented shape (the real epigraph's own [3, 2] shape,
     reused mid-document instead of at the head):
 
     - terminally-punctuated throughout (ordinary narrative that merely
@@ -513,7 +513,7 @@ def test_modern_non_verse_multiline_unit_flows_in_all_four_formats():
     1 flush continues it): this never even reaches phase 2's verse check
     inside `assemble_paragraphs` (multi-line already, so phase 2 skips
     it), which is exactly why each emitter has to re-derive the verdict
-    itself at render time. Real evidence this shape exists: W4P3's own
+    itself at render time. Real evidence this shape exists: the private-corpus story's own
     title block and one other body unit, found when this fix was first
     applied to HTML alone and only later made uniform. All four formats
     must flow it as ONE paragraph with NO forced break of any kind --

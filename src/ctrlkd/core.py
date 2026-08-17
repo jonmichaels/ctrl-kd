@@ -474,7 +474,7 @@ def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = 
     verse line (no per-line indent at all), which phase 1's "flush
     continues the paragraph" assumption reads as manual mid-sentence
     wraps of ONE paragraph instead of separate deliberate lines. Real
-    evidence: W4P3's own Whitman epigraph (flush lines 0-2 glued into one
+    evidence: a private-corpus WS4 story's verse epigraph (flush lines 0-2 glued into one
     3-line pseudo-paragraph, lines 3-4 into another, line 5 alone -- 3
     paragraphs instead of 1 preserved stanza) sat at the very head of the
     document, its OWN opening line carrying none of the 5-space indent
@@ -619,8 +619,8 @@ def paragraph_layout_context(doc) -> tuple:
     at the document's head (or immediately after a heading-classified
     block or a page/section break, the "start of a chapter" case) that
     have not yet reached a single ordinary, convention-conforming
-    paragraph. Real evidence: W4P3's title/byline (block 0) and its
-    Whitman epigraph (block 1) are BOTH convention outliers -- the title
+    paragraph. Real evidence: in the same private-corpus story, the title/byline (block 0) and the
+    verse epigraph (block 1) are BOTH convention outliers -- the title
     itself carries no WordStar heading classification (`b.heading` is 0),
     so "immediately after a heading" alone would miss the epigraph
     entirely, one block too late. Tracking "still in front matter" instead
