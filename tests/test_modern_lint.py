@@ -980,6 +980,76 @@ def _missing_attr_markers(rendered, fmt, attrs_present):
             if a in table and not any(m in body for m in table[a])]
 
 
+def _rtf_printed_vertical_space_expected(doc):
+    """(sl_values, fi_pm_values, (sb, sa)) EXPECTED in Printed/Native RTF
+    -- recomputed straight from the document model via the SAME functions
+    `emit.py` itself calls at its own printed-mode call site
+    (`_rtf_block_lead_48`/`_rtf_sl_twips`/`_rtf_pm_fi_twips`/
+    `_rtf_doc_spacing_twips`), never by re-parsing rendered RTF text --
+    the round-6 (2026-08-17) fail-first half of the vertical-space gate."""
+    sl_values, fi_values = set(), set()
+    margins = {e['slot']: emit._rtf_style_margins(e, True)
+              for e in doc.styles if 'attrs_on' in e}
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines:
+            continue
+        sl_values.add(emit._rtf_sl_twips(emit._rtf_block_lead_48(doc, b)))
+        if b.para_margin is not None:
+            li = margins.get(b.style_id, (0, 0))[0]
+            fi_values.add(emit._rtf_pm_fi_twips(b, li))
+    sb, sa = emit._rtf_doc_spacing_twips(doc)
+    return sl_values, fi_values, (sb, sa)
+
+
+def _rtf_printed_vertical_space_issues(doc):
+    """Round 6: every EXPECTED `\\sl`/`\\fi`(from `.pm`)/`\\sb`/`\\sa` value
+    must actually appear as a direct token somewhere in Printed/Native
+    RTF's own rendered output."""
+    r = emit.emit_rtf(doc, mode='printed', notes=emit.ALL_NOTE_KINDS)
+    body = _rtf_body_only(r)
+    sl_found = {int(x) for x in re.findall(r'\\sl(-?\d+)\\slmult0 ', body)}
+    fi_found = {int(x) for x in re.findall(r'\\fi(-?\d+) ', body)}
+    sb_found = {int(x) for x in re.findall(r'\\sb(-?\d+) ', body)}
+    sa_found = {int(x) for x in re.findall(r'\\sa(-?\d+) ', body)}
+    sl_expected, fi_expected, (sb_expected, sa_expected) = \
+        _rtf_printed_vertical_space_expected(doc)
+    bad = []
+    missing_sl = sl_expected - sl_found
+    if missing_sl:
+        bad.append(('sl', missing_sl))
+    # fi=0 is `rtf_state`'s own INITIAL value -- a block whose .pm computes
+    # to exactly 0 relative to \li needs no token at all (the persistence
+    # optimisation every other direct property already uses: only emit
+    # when the value CHANGES from what's already in force). Only a
+    # nonzero expected \fi has to appear as a literal token.
+    missing_fi = (fi_expected - {0}) - fi_found
+    if missing_fi:
+        bad.append(('fi(pm)', missing_fi))
+    if sb_expected is not None and sb_expected not in sb_found:
+        bad.append(('sb', sb_expected, sb_found))
+    if sa_expected is not None and sa_expected not in sa_found:
+        bad.append(('sa', sa_expected, sa_found))
+    return bad
+
+
+def _rtf_modern_vertical_space_leak(doc):
+    """Round 6: Modern RTF must carry NONE of `\\sl`/`\\slmult`/`\\sb`/
+    `\\sa` -- the reader owns presentation there, same doctrine as the
+    no-page-width ruling (round 3). `\\sb`/`\\sa` are searched as whole
+    control words (a trailing digit or space after the two letters) so
+    this can't false-positive against an unrelated control word that
+    merely contains the substring."""
+    r = emit.emit_rtf(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
+    bad = []
+    if r'\sl' in r and re.search(r'\\sl-?\d+\\slmult0', r):
+        bad.append('sl')
+    if re.search(r'\\sb-?\d+[ }]', r):
+        bad.append('sb')
+    if re.search(r'\\sa-?\d+[ }]', r):
+        bad.append('sa')
+    return bad
+
+
 def _assert_lint_gates(name, doc):
     # Rendering all four Modern formats here is also the corpus smoke test
     # (item I): every real fixture must convert without crashing, whether
@@ -1025,6 +1095,14 @@ def _assert_lint_gates(name, doc):
         for fmt, rendered in (('html', h), ('rtf', r), ('markdown', md)):
             missing = _missing_attr_markers(rendered, fmt, attrs_present)
             assert not missing, (name, fmt, 'attribute mapping missing', missing)
+    # 16. Modern RTF carries none of \sl/\slmult/\sb/\sa (round 6: the
+    #     reader owns presentation, same doctrine as no-page-width)
+    assert not _rtf_modern_vertical_space_leak(doc), \
+        (name, 'modern rtf vertical-space leak', _rtf_modern_vertical_space_leak(doc))
+    # 17. Printed/Native RTF carries every EXPECTED \sl/\fi(.pm)/\sb/\sa
+    #     direct token (round 6)
+    assert not _rtf_printed_vertical_space_issues(doc), \
+        (name, 'printed rtf vertical-space gap', _rtf_printed_vertical_space_issues(doc))
 
     # 1. no un-coalesced adjacent runs (IR-level -- see _ir_bad_adjacent_spans)
     assert not _ir_bad_adjacent_spans(doc), (name, 'un-coalesced adjacent spans')
@@ -1217,6 +1295,66 @@ def test_round5_style_level_bold_reaches_markdown_and_rtf_runs():
     assert not _rtf_missing_run_attrs(r, doc)
     assert r'\b \i ' in r or r'\i \b ' in r
     assert '***Honored' in md
+
+
+def test_round6_double_spaced_source_opens_double_spaced_in_printed_rtf():
+    """Direct regression test for round 6 (2026-08-17): a document whose
+    own `.lh` doubles the default leading (16/48in vs the default 8/48in)
+    must open double-spaced in Printed/Native RTF -- Jon's own acceptance
+    idea, verbatim. `.pm` (paragraph margin -- WSFORMAT semantics,
+    corroborated by core.py's own Block.para_margin docstring: "the first
+    line's own indent") lands as \\fi, relative to whatever \\li is
+    already in force (round 4's own style-margin mechanism; 0 here, no
+    style). Modern RTF gets NONE of it -- the reader owns presentation
+    there, same doctrine as the no-page-width ruling (round 3)."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+        + b'.lh 16' + HARD + b'.pm 10' + HARD
+        + b'Some paragraph text set at double leading.' + HARD)
+    assert doc.meta['page']['lh_48'] == 16.0
+    assert doc.blocks[0].para_margin == 10.0
+
+    r_printed = emit.emit_rtf(doc, mode='printed')
+    assert r'\sl-480\slmult0' in r_printed      # 16 * 30 twips/48in-unit, doubled
+    assert r'\fi1440' in r_printed              # 10 cols * 144 twips/col, li=0
+
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    assert not _rtf_modern_vertical_space_leak(doc)
+    assert r'\sl' not in r_modern
+    assert not _rtf_printed_vertical_space_issues(doc)
+
+
+def test_round6_psa_psb_land_as_direct_sb_sa_in_printed_rtf():
+    """Direct regression test for round 6: WordTsar's own `.PSA`/`.PSB`
+    extensions (never a real WordStar 4/5/7 command -- their presence IS
+    the producer signal core.py already records) build the MINIMAL model
+    the ruling asked for: one document-wide value each, applied uniformly
+    to every printed paragraph and converted to twips via the document's
+    own default leading -- the same unit `\\sl` itself uses. Modern RTF
+    and every other format stay untouched."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+        + b'.PSB 1' + HARD + b'.PSA 2' + HARD
+        + b'A paragraph with WordTsar spacing before and after.' + HARD)
+    assert doc.meta['producer'] == 'wordtsar'
+    assert doc.meta['space_before_lines'] == 1.0
+    assert doc.meta['space_after_lines'] == 2.0
+
+    r_printed = emit.emit_rtf(doc, mode='printed')
+    assert r'\sb240 ' in r_printed              # 1 line * 240 twips (default lead)
+    assert r'\sa480 ' in r_printed              # 2 lines * 240 twips
+    assert not _rtf_printed_vertical_space_issues(doc)
+
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    assert not _rtf_modern_vertical_space_leak(doc)
+    assert r'\sb' not in r_modern and r'\sa' not in r_modern
+
+    # the other three Modern formats never had a spacing concept to lose --
+    # confirmed unaffected by rendering cleanly, matching every other gate
+    h = emit.emit_html(doc, mode='modern')
+    md = emit.emit_markdown(doc, mode='modern')
+    t = emit.emit_text(doc, mode='modern')
+    assert h.strip() and md.strip() and t.strip()
 
 
 def _iter_private_fixtures():

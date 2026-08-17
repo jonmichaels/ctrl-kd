@@ -13,7 +13,8 @@ import re
 from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
                    assemble_paragraphs, split_leading_indent,
                    paragraph_layout_context, looks_like_verse,
-                   block_dominant_styles, effective_span_styles)
+                   block_dominant_styles, effective_span_styles,
+                   DEFAULT_LH_48)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -1452,35 +1453,146 @@ def _rtf_running_heads(doc):
     return out
 
 
-def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=0):
+# ------------------------------------------------------- printed vertical space
+#
+# Jon's ruling (2026-08-17, branch printed-vertical-space): line spacing/
+# leading, `.pm` (paragraph margin), and `.psa`/`.psb` (WordTsar's paragraph
+# spacing before/after) "need to be handled on Printed and Native RTF. The
+# other formats TXT, MD, and HTML probably shouldn't deal with line
+# spacing." Modern RTF stays out too -- the reader owns presentation there,
+# same logic as the no-page-width ruling (round 3). Scoped entirely to
+# `emit_rtf`'s PRINTED branch, which -- per the app's own current audit --
+# serves both the Printed and Native styles through this one code path.
+#
+# 1/48in -> twips: 1 inch is 1440 twips, so 1/48in is 1440/48 = 30 twips.
+# pdf.py's own `_lead_pt` (the reference behavior this ports) computes the
+# SAME unit as points (lh_48 * 1.5, since 1/48in = 1.5pt); 1.5pt * 20
+# twips/pt is the identical 30 -- both routes agree.
+_RTF_LEAD_TWIPS_PER_48 = 30
+
+# print columns (10 CPI) -> twips: 1440 twips/in / 10 cols/in = 144/col.
+# The same constant `_rtf_emit_para`'s own `\fi` (from Modern's indent_cols)
+# already uses inline; named here too since `.pm` shares the unit.
+_RTF_TWIPS_PER_COL = 144
+
+
+def _rtf_block_lead_48(doc, b):
+    """The 1/48in leading in force for block `b`'s own printed lines --
+    mirrors pdf.py's `_lead_pt`/`_printed_lead`, the REFERENCE behavior
+    this round ports to RTF. A block's first Line carries its own `.lh`
+    override (`Line.lead_48`) only when it DIFFERS from the document
+    default (core.py's own space-saving convention -- see the parse-time
+    comment by `DEFAULT_LH_48`'s usage); None there means "use the
+    document's own default", the SAME fallback pdf.py's `_lead_pt`
+    applies. RTF's `\\sl` is a PARAGRAPH property -- there is no per-line
+    leading control word -- so a block whose OWN physical lines carry
+    DIFFERENT `.lh` values (a real but rare case: `.lh` changing
+    mid-paragraph) is approximated at its first line's own value; this is
+    the ceiling of what RTF can express per paragraph, not a shortcut."""
+    if b.lines and b.lines[0].lead_48:
+        return b.lines[0].lead_48
+    page = doc.meta.get('page')
+    return page.get('lh_48', DEFAULT_LH_48) if page is not None else DEFAULT_LH_48
+
+
+def _rtf_sl_twips(lead_48):
+    """`\\sl` value (signed twips) for one `.lh`-derived leading. NEGATIVE,
+    per the RTF spec's own distinction: a positive `\\sl` is a MINIMUM
+    (the reader may expand it for a taller font); negative is EXACT,
+    unconditionally. WordStar's own printed page is the latter -- the
+    physical Y advance per line is the `.lh` VMI, full stop, regardless of
+    what font is set (pdf.py's `_page_stream` advances by exactly `lead`
+    for every line, never "at least") -- so `\\slmult0` (a literal twip
+    count, not a multiple of single-spacing) with a negative value is the
+    faithful translation, not the bare positive `\\slN` a first reading of
+    "double-spaced" might suggest."""
+    return -round(lead_48 * _RTF_LEAD_TWIPS_PER_48)
+
+
+def _rtf_pm_fi_twips(b, li_twips):
+    """`\\fi` (RTF's first-line indent, relative to `\\li`) from `.pm` --
+    `block.para_margin`, currently read by no emitter. WSFORMAT semantics,
+    corroborated by `core.py`'s own `Block.para_margin` docstring: ".pm is
+    the PARAGRAPH margin -- the first line's own indent", a column
+    position in the SAME absolute frame `.lm`/`.po` use, not a delta
+    against `.lm`. RTF's own model reads `\\fi` as relative to `\\li`, so
+    the direct token is the DIFFERENCE between .pm's absolute column (in
+    twips) and wherever `\\li` (the block's own style margin, round 4) is
+    already placing the body of the paragraph -- `\\li + \\fi` then lands
+    exactly on .pm's column, whether that's deeper (an ordinary indent) or
+    shallower (a hanging indent) than the body. None (the block never set
+    `.pm`) leaves `\\fi` untouched -- no override where there is no
+    evidence."""
+    if b.para_margin is None:
+        return None
+    return round(b.para_margin * _RTF_TWIPS_PER_COL) - li_twips
+
+
+def _rtf_doc_spacing_twips(doc):
+    """(sb, sa) in twips from WordTsar's own `.psa`/`.psb` extensions
+    (`doc.meta['space_before_lines']`/`['space_after_lines']` -- "not a
+    WordStar command" per WordTsar's own source, so their presence is a
+    producer signal; a real WordStar 4/5/7 file never carries them).
+    MINIMAL MODEL (2026-08-17): both are recorded as ONE document-wide
+    value each (first occurrence wins -- core.py's own existing design,
+    "one resolved answer per document"), so applied uniformly to every
+    printed paragraph rather than inventing per-block granularity no
+    evidence supports. Lines convert to twips via the document's own
+    DEFAULT leading -- the same unit `\\sl` itself uses -- consistent with
+    "N lines of space" meaning N times this document's own line advance.
+    (None, None) when neither command was ever seen."""
+    sb_lines = doc.meta.get('space_before_lines')
+    sa_lines = doc.meta.get('space_after_lines')
+    if sb_lines is None and sa_lines is None:
+        return None, None
+    page = doc.meta.get('page')
+    default_lead_48 = page.get('lh_48', DEFAULT_LH_48) if page is not None else DEFAULT_LH_48
+    lead_twips = round(default_lead_48 * _RTF_LEAD_TWIPS_PER_48)
+    sb = round(sb_lines * lead_twips) if sb_lines is not None else None
+    sa = round(sa_lines * lead_twips) if sa_lines is not None else None
+    return sb, sa
+
+
+def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=0,
+                   sl=0, sb=0, sa=0, fi_twips=None):
     """Append one `\\par`-terminated paragraph to `parts`.
 
-    RTF paragraph properties -- alignment, first-line indent, AND left/
-    right inset alike -- PERSIST across `\\par` until changed, so all
-    THREE must be tracked and re-emitted (even back to 0/`\\ql`) whenever
-    they differ from what is still in force, or a later plain paragraph
-    would silently inherit an earlier one's `\\fi`/`\\li`/`\\ri`.
-    `rtf_state` is the running {'align', 'fi', 'li', 'ri'} a single
-    `emit_rtf` call threads through every block (printed, heading, and
-    Modern body paragraphs alike -- only Modern body paragraphs ever pass
-    a nonzero `fi_cols`/`li`/`ri`, but every OTHER paragraph still needs
-    the chance to reset them back to 0).
+    `fi_twips`, when given, OVERRIDES `fi_cols` with an exact twip value
+    computed elsewhere (`.pm`'s own `_rtf_pm_fi_twips`, round 6) --
+    `fi_cols * 144` would round-trip a twip value that was never actually
+    columns through a lossy columns-shaped parameter twice.
 
-    `li`/`ri` are DIRECT formatting (round 4, 2026-08-17), not just the
-    `\\sN` stylesheet reference below -- most non-Word RTF readers ignore
-    `\\stylesheet` definitions entirely and honour only direct paragraph
-    formatting, so a property that exists ONLY in the stylesheet is
-    invisible to them. Same persistence-across-\\par optimisation as
-    `\\fi`: only re-emitted when the value actually changes, which is
-    also what keeps a run of consecutive quote paragraphs reading as one
-    continuous inset block with no reset in between."""
+    RTF paragraph properties -- alignment, first-line indent, left/right
+    inset, line spacing, and paragraph spacing before/after alike --
+    PERSIST across `\\par` until changed, so all SIX must be tracked and
+    re-emitted (even back to 0/`\\ql`) whenever they differ from what is
+    still in force, or a later plain paragraph would silently inherit an
+    earlier one's. `rtf_state` is the running {'align', 'fi', 'li', 'ri',
+    'sl', 'sb', 'sa'} a single `emit_rtf` call threads through every block
+    (printed, heading, and Modern body paragraphs alike -- only Modern
+    body paragraphs ever pass a nonzero `fi_cols`/`li`/`ri`, and only
+    PRINTED paragraphs ever pass a nonzero `sl`/`sb`/`sa` -- round 6,
+    2026-08-17, "the other formats [TXT/MD/HTML] probably shouldn't deal
+    with line spacing", Modern RTF included -- but every OTHER paragraph
+    still needs the chance to reset any of these back to 0).
+
+    `li`/`ri`/`sl`/`sb`/`sa` are all DIRECT formatting (round 4 established
+    this for li/ri; round 6 extends the same doctrine to vertical space),
+    not just the `\\sN` stylesheet reference below -- most non-Word RTF
+    readers ignore `\\stylesheet` definitions entirely and honour only
+    direct paragraph formatting, so a property that exists ONLY in the
+    stylesheet is invisible to them. Same persistence-across-\\par
+    optimisation as `\\fi`: only re-emitted when the value actually
+    changes, which is also what keeps a run of consecutive quote
+    paragraphs reading as one continuous inset block with no reset in
+    between."""
     para = r'\line '.join(lines)
     if not para.strip() and not force:
         return
     if b.align != rtf_state['align']:
         parts.append(_RTF_ALIGN[b.align])
         rtf_state['align'] = b.align
-    fi = fi_cols * 144                  # 10 CPI: 1440 twips/in / 10 = 144/col
+    fi = fi_twips if fi_twips is not None else fi_cols * 144   # 144 twips/col
     if fi != rtf_state['fi']:
         parts.append(r'\fi%d ' % fi)
         rtf_state['fi'] = fi
@@ -1490,6 +1602,17 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
     if ri != rtf_state['ri']:
         parts.append(r'\ri%d ' % ri)
         rtf_state['ri'] = ri
+    if sl != rtf_state['sl']:
+        # \slmult0: the value is a literal twip count, not a multiple of
+        # single-line spacing -- see `_rtf_sl_twips` for why it's signed.
+        parts.append(r'\sl%d\slmult0 ' % sl)
+        rtf_state['sl'] = sl
+    if sb != rtf_state['sb']:
+        parts.append(r'\sb%d ' % sb)
+        rtf_state['sb'] = sb
+    if sa != rtf_state['sa']:
+        parts.append(r'\sa%d ' % sa)
+        rtf_state['sa'] = sa
     if b.style_id in rtf_state['styled_slots']:
         # style pass-through: tag the paragraph with its \sN so a
         # consumer can act on the named style (Word can still edit it by
@@ -1523,9 +1646,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # round 4 (2026-08-17): li/ri per style, looked up per paragraph so
     # they can ride along as DIRECT formatting -- see _rtf_direct_margins.
     direct_margins = _rtf_direct_margins(doc, printed) if styles else {}
+    # round 6 (2026-08-17): .psa/.psb are ONE document-wide value each
+    # (see _rtf_doc_spacing_twips) -- resolved once, not per block. Only
+    # ever non-(None,None) for a WordTsar-produced file (a real WordStar
+    # 4/5/7 document never carries these). Applied in PRINTED mode only
+    # (below); Modern never reads doc_sb/doc_sa at all.
+    doc_sb, doc_sa = _rtf_doc_spacing_twips(doc) if printed else (None, None)
     parts = []
     rtf_state = {'align': 'left', 'fi': 0, 'li': 0, 'ri': 0,
-                 'styled_slots': styled_slots}
+                 'sl': 0, 'sb': 0, 'sa': 0, 'styled_slots': styled_slots}
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
     # Quote-group first-line indent (round 4, mirrors emit_html): computed
@@ -1576,7 +1705,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             lines = [rtf_seg(line.spans, b) for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
-            _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri)
+            # round 6 (2026-08-17): line spacing/.pm/.psa+.psb -- Printed
+            # and Native RTF's own domain (this IS that one shared code
+            # path -- see the module-level ruling above _rtf_block_lead_48).
+            sl = _rtf_sl_twips(_rtf_block_lead_48(doc, b))
+            pm_fi = _rtf_pm_fi_twips(b, li)
+            _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri,
+                           sl=sl, sb=(doc_sb or 0), sa=(doc_sa or 0),
+                           fi_twips=pm_fi)
             continue
         if b.heading:
             quote_open = False
