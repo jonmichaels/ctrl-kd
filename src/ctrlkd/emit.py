@@ -545,8 +545,22 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     # or verse-indent concept in Markdown, and 4+ columns risks CommonMark
     # reading it as an indented code block (found against a real fixture,
     # 2026-08-17).
+    #
+    # Round 12: also backslash-escape it, same as `_md_span` already does
+    # for every other piece of rendered text. A note's text bypasses
+    # `_md_span` entirely (it is emitted here, not through _md_unit_lines),
+    # so it was the one path in this emitter a content backslash reached
+    # CommonMark unescaped -- doubled at ANY position (not just end of
+    # line), since a bare backslash is CommonMark's ESCAPE character
+    # everywhere it appears, not only where it also happens to double as
+    # the hard-break marker: `\*` would have silently suppressed a
+    # following literal asterisk's own emphasis meaning just as easily as
+    # a trailing `\` would have inserted a break the author never wrote.
+    # Verified against the private corpus (metrics only): 8 documents,
+    # 55 notes carry a literal backslash somewhere in their text.
     defs = [f'[^{_md_note_id(n.kind, label)}]: '
-            + '\n'.join(l.lstrip(' ') for l in n.text.split('\n'))
+            + '\n'.join(l.lstrip(' ').replace('\\', '\\\\')
+                       for l in n.text.split('\n'))
             for n, label in pairs if n.kind in keep]
     if defs:
         md += '\n\n' + '\n'.join(defs)
