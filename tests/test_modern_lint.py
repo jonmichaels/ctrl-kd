@@ -721,13 +721,32 @@ def _html_bad_geometry(h):
     Flags any `max-width`/bare `width` CSS property anywhere, and any
     `margin-left`/`margin-right` expressed in inches over 1in (the
     blockquote structural inset is a flat em value, never inches, so this
-    never fires on legitimate quote styling)."""
+    never fires on legitimate quote styling).
+
+    Round 11: scoped to actual CSS -- the `<style>` block's own text, plus
+    every `style="..."` attribute value -- not the whole HTML string.
+    Rendered PROSE can legitimately contain the substring "width:" as
+    ordinary punctuation (a colon introducing an example, say), and a
+    document that is ITSELF about page layout is exactly the shape that
+    trips this: LAYOUT.WS's own body explains margin arithmetic in
+    English sentences (found via the corpus lint gate, round 11) --
+    "...the page width:" is prose, not a leaked CSS property, and the
+    emitter was never declaring one; only the gate's own pattern was
+    matching outside where CSS actually lives. No emitter change needed
+    or made -- this is the SAME rule, just checked in the region it was
+    always meant to describe."""
+    css = []
+    m = re.search(r'<style>(.*?)</style>', h, re.S)
+    if m:
+        css.append(m.group(1))
+    css.extend(re.findall(r'style="([^"]*)"', h))
+    css_text = '\n'.join(css)
     bad = []
-    if re.search(r'(?<![-\w])max-width\s*:', h):
+    if re.search(r'(?<![-\w])max-width\s*:', css_text):
         bad.append('max-width declared')
-    if re.search(r'(?<![-\w])width\s*:', h):
+    if re.search(r'(?<![-\w])width\s*:', css_text):
         bad.append('width declared')
-    for m in re.finditer(r'margin-(left|right)\s*:\s*([\d.]+)in', h):
+    for m in re.finditer(r'margin-(left|right)\s*:\s*([\d.]+)in', css_text):
         if float(m.group(2)) > 1.0:
             bad.append(f'margin-{m.group(1)}:{m.group(2)}in')
     return bad
@@ -1217,6 +1236,35 @@ def test_round5_style_level_bold_reaches_markdown_and_rtf_runs():
     assert not _rtf_missing_run_attrs(r, doc)
     assert r'\b \i ' in r or r'\i \b ' in r
     assert '***Honored' in md
+
+
+def test_round11_geometry_gate_ignores_prose_not_css():
+    """Round 11: the gate-7 false positive found via the corpus lint gate
+    on a private-corpus document ABOUT page layout (self-documenting
+    reference class, like LJ6DTP/SCRIPT.WS -- it exercises margin/width
+    arithmetic ON PURPOSE, in English). Its own prose explains a margin
+    calculation ending in "...the page width:" before an example -- a
+    colon as ordinary punctuation, not a CSS property -- and the gate's
+    OLD pattern matched `width\\s*:` anywhere in the rendered HTML string,
+    prose included, not just inside `<style>`/`style="..."`. No emitter
+    ever declared a width opinion (Printed HTML/PDF for the real document
+    are BYTE-IDENTICAL before and after this test file's own change, since
+    nothing in src/ changed -- only the test's own detection region did);
+    this reproduces the false-positive shape synthetically and confirms
+    the gate now passes it while still catching a REAL leak."""
+    lines = [b'     Subtract the margins from the page width: eight point five '
+             b'inches minus one leaves the text column you actually get.']
+    doc = _typed_paragraph_doc(lines)
+    h = emit.emit_html(doc, mode='modern')
+    assert 'width:' in h                      # the prose survives, unmangled
+    assert not _html_bad_geometry(h)           # and is NOT read as a CSS leak
+
+    # Regression safety: a GENUINE leak, in actual CSS regions, must still
+    # be caught -- both the <style> block and an inline style="..." attribute.
+    leaked_block = h.replace('<style>', '<style>p{width:5in}', 1)
+    assert _html_bad_geometry(leaked_block) == ['width declared']
+    leaked_inline = h.replace('<body>', '<body><p style="margin-left:5.8in">x</p>', 1)
+    assert _html_bad_geometry(leaked_inline) == ['margin-left:5.8in']
 
 
 def _iter_private_fixtures():
