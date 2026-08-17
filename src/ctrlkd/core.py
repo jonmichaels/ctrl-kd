@@ -169,6 +169,129 @@ class Block:
     # bytes are the dot line itself.
     origin: str = None
 
+def coalesce_spans(spans: list) -> list:
+    """Adjacent Spans with byte-identical `.styles` merged into one.
+
+    `merged_lines()` concatenates a soft-wrapped run's spans onto the
+    logical Line it belongs to (`cur.spans.extend(spans)` below) but never
+    merged the two runs at the seam even when they carried the exact same
+    style set -- so one continuous italic sentence that happened to wrap
+    mid-word came out as two adjacent `{\\i ...}` RTF groups / `<em>...</em>
+    <em>...</em>` HTML spans instead of one. A reader's eye sees no seam;
+    an RTF/HTML consumer's cursor does (Word "catches" at every former line
+    boundary -- readers commonly treat adjacent identically-formatted runs
+    as separate undo/format units).
+
+    Two spans merge iff their style sets are equal AND NEITHER is an
+    'fnref' pointer -- a footnote/endnote/annotation/comment reference
+    mark is POSITION-dependent (core.py's fn_counter numbers marks in
+    document order); merging one into surrounding text would blur a
+    pointer, not just its formatting. Every other style tag already
+    guards itself correctly through plain set equality (two `font3` spans
+    only merge when they really do share font index 3).
+
+    Safe to run over ANY span list -- a Modern logical Line's spans or a
+    Printed physical Line's own spans (item e of the overhaul: the same
+    fragmentation gap applies to Printed's `<1B x 1C>`-neighbouring runs).
+    It changes representation only, never content: concatenating two
+    spans' text is exactly what a reader already sees rendered as one run.
+    """
+    out = []
+    for s in spans:
+        if (out and out[-1].styles == s.styles
+                and 'fnref' not in out[-1].styles and 'fnref' not in s.styles):
+            out[-1] = Span(out[-1].text + s.text, out[-1].styles)
+        else:
+            out.append(s)
+    return out
+
+
+# How far short of the block's own measured wrap point (doc.meta
+# ['margin_estimate'], the same 90th-percentile-of-soft-wraps figure
+# `lines_pass` computes to classify soft returns) a hard-terminated line's
+# visible length may fall and still count as "ran near the wrap measure" --
+# Jon's ruling (2026-08-17) for reconstructing which hard returns are really
+# WordStar's own wrap decision (manuscript convention: type to the margin,
+# then Return) versus a deliberate short line (a poem's stanza, an address,
+# a one-line paragraph). Calibrated against Robert J. Sawyer's OLDTIMES.WS
+# (WS7, margin_estimate=65): the embedded four-line "Mikado" quotation's
+# longest line is 43 visible columns and must NOT split into its own
+# paragraph; the narrative's own longest short line before a scene break
+# ("No, thought Cohen. ... Turn and attack!", 58 columns) SHOULD. A slack
+# of 10 (threshold 55) sits strictly between the two on the real fixture.
+PARAGRAPH_JOIN_SLACK = 10
+
+def assemble_paragraphs(block: Block, margin: float = 65) -> list:
+    """`merged_lines(block)` grouped into Modern paragraph units.
+
+    A WordStar manuscript that marks new paragraphs by indentation, not a
+    blank line (Register: no dot command for it, purely a typing
+    convention), stores every typed paragraph as its own hard-return-
+    terminated Line inside ONE Block -- `lines_pass`/`parse_ws` only close a
+    Block on a blank line. Nothing before this function ever re-split that
+    Block back into paragraphs; every Modern emitter joined all of them with
+    its same-PARAGRAPH separator (\\line / <br> / a bare newline), so typed
+    paragraphs read as one run-on paragraph with forced line breaks.
+
+    The heuristic (Jon's ruling, matching the scoping study's Option 2):
+    a hard-terminated Line that opens with WordStar's typed/machine
+    paragraph indent (the project's existing 5-space idiom -- see
+    `emit._html_span`'s identical test) AND whose visible text comes within
+    PARAGRAPH_JOIN_SLACK columns of the block's own measured wrap point
+    STARTS a new paragraph unit; every other Line stays part of the unit
+    already being built, exactly as it renders today.
+
+    This is deliberately biased toward NOT splitting: a genuinely short
+    one-line prose paragraph ("He said, 'I'm going out to hunt humans.'")
+    is indistinguishable, on this signal alone, from a deliberately short
+    poem/address line, and stays glued to its neighbour rather than risk
+    tearing a stanza apart -- see PARAGRAPH_JOIN_SLACK's docstring for the
+    real fixture this was calibrated against, and EMITTER-MAP's own finding
+    that no style or length signal in the IR fully disambiguates the two.
+    Bounded, disclosed failure mode: ugly (an extra line inside a paragraph
+    that should have split), never data loss.
+
+    Returns a list of paragraph units, each a non-empty list of Lines (the
+    unit itself, not yet rendered -- callers still choose their own
+    within-unit joiner and first-line-indent treatment per format)."""
+    lines = merged_lines(block)
+    if not lines:
+        return []
+    threshold = max(1, (margin or 65) - PARAGRAPH_JOIN_SLACK)
+    units = [[lines[0]]]
+    for line in lines[1:]:
+        text = line.text()
+        starts_indented = text.startswith('     ')
+        is_long = len(text.rstrip()) >= threshold
+        if starts_indented and is_long:
+            units.append([line])
+        else:
+            units[-1].append(line)
+    return units
+
+
+def split_leading_indent(spans: list):
+    """(indent_cols, spans) -- a leading run of literal spaces on the FIRST
+    span, measured and removed. Used for a paragraph unit's own first line:
+    the typed/machine indent becomes a real `\\fi`/`text-indent` property
+    instead of literal characters (Modern rule: no literal leading indent
+    whitespace opening a paragraph). (0, spans) unchanged when there is no
+    leading run -- spans is returned as-is in that case (not copied)."""
+    if not spans:
+        return 0, spans
+    t = spans[0].text
+    stripped = t.lstrip(' ')
+    n = len(t) - len(stripped)
+    if not n:
+        return 0, spans
+    out = list(spans)
+    if stripped:
+        out[0] = Span(stripped, spans[0].styles)
+    else:
+        out.pop(0)
+    return n, out
+
+
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
     what Block.lines itself WAS before 2.0.0 stored physical lines.
@@ -238,9 +361,11 @@ def merged_lines(block: Block) -> list:
             if t and not t.endswith((' ', '-')):
                 cur.spans.append(Span(' ', cur.spans[-1].styles))
             continue
+        cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
         cur = None
     if cur is not None:
+        cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
     return out
 
