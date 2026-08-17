@@ -88,7 +88,24 @@ Semantics worth knowing:
   after a hyphen); each logical line is then a deliberate break (a poem line, a
   name/date heading, a chart row). Before 2.0.0 the joining happened at parse
   time and printed mode couldn't undo it — thousand-column lines ran off the
-  page. Paragraph separation is the block boundary itself.
+  page.
+* A manuscript that marks a new paragraph by indentation instead of a blank
+  line stores every typed paragraph as its own hard-terminated `Line` inside
+  ONE block — block boundaries alone are NOT paragraph separation for that
+  shape of document. Call **`core.assemble_paragraphs(block, margin)`**
+  (`margin = doc.meta.get('margin_estimate') or 65`) on top of
+  `merged_lines()`'s output to get paragraph UNITS — lists of Lines that
+  belong in one rendered paragraph — instead of one line per typed
+  paragraph; the four built-in Modern emitters (RTF/HTML/text/Markdown) do
+  this. `core.split_leading_indent(spans)` then separates a unit's own
+  typed/machine indent (a real first-line-indent property in most formats)
+  from its visible text. This is new, additive API (no IR field changed) —
+  a plugin that still calls `merged_lines()` alone keeps working exactly as
+  before, it just won't reflow typed-paragraph manuscripts the way the
+  built-in formats now do. The `layout`/PDF path does not use it yet (own
+  migration, tracked separately) — a plugin comparing its own output
+  against `--format layout`/`--format pdf` for this shape of document will
+  currently see them disagree on paragraph granularity.
 * Leading spaces in line text are the author's indentation. Keep them if your
   format can.
 * Blank-line geometry inside `printed`-mode documents is page layout — preserve it.
