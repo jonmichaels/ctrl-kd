@@ -160,10 +160,18 @@ def test_emit_html_poem_breaks():
     h = emit.emit_html(core.parse_ws(poem), mode='modern')
     assert '<br>' in h and '<p' in h
 
-def test_emit_html_printed_pre():
+def test_emit_html_printed_native_flow():
+    """Round 3 addendum (2026-08-17): Native/printed HTML retired <pre> --
+    a boxed, non-wrapping element implies a width opinion this project no
+    longer states in HTML at all. Line-for-line structure is now explicit
+    <br> in normal flow, with the monospace identity carried by the
+    `ws-native` CSS class (white-space:pre-wrap keeps literal column
+    spacing intact while still allowing the browser to wrap a long line)."""
     data = b'A    B    C\r\nD    E    F\r\n'
     h = emit.emit_html(core.parse_printstream(data), 'printed')
-    assert '<pre>' in h and 'A    B    C' in h
+    assert '<pre' not in h
+    assert 'class="ws-native"' in h
+    assert 'A    B    C' in h and '<br>' in h
 
 def test_emit_rtf_valid_shape():
     r = emit.emit_rtf(core.parse_ws(make_prose()))
@@ -434,14 +442,27 @@ def test_style_pass_through_html_css_and_rtf_stylesheet():
     data = bytearray(body.ljust(base, b'\x1a')) + lib
     data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
     doc = core.parse_ws(bytes(data))
+    # PRINTED keeps the WS4-absolute margin verbatim -- Printed's whole
+    # point is the file's own page geometry (round 3 ruling, 2026-08-17:
+    # "it remains Printed/Native's domain").
+    hp = emit.emit_html(doc, mode='printed')
+    assert '.ws-2-callout { ' in hp
+    assert 'text-align:center' in hp and 'margin-left:1.00in' in hp
+    assert 'font-weight:bold' in hp
+    rp = emit.emit_rtf(doc, mode='printed')
+    assert r'{\stylesheet{\s0 Normal;}{\s3\qc\li1440\b Callout;}' in rp
+    # MODERN drops the WS-absolute margin entirely (not a quote style, so
+    # no substitute inset either -- full measure) but keeps every OTHER
+    # property: alignment, weight, and the style's own CSS class/RTF \sN
+    # tag are all still a pass-through, just not page geometry.
     h = emit.emit_html(doc, mode='modern')
     assert '.ws-2-callout { ' in h                    # generated CSS rule
-    assert 'text-align:center' in h and 'margin-left:1.00in' in h
+    assert 'text-align:center' in h and 'margin-left' not in h
     assert 'font-weight:bold' in h
     assert 'class="ws-2-callout"' in h.split('<body>')[1]
     assert emit.emit_html(doc, mode='modern', styles=False).count('ws-2-callout') == 0
     r = emit.emit_rtf(doc, mode='modern')
-    assert r'{\stylesheet{\s0 Normal;}{\s3\qc\li1440\b Callout;}' in r
+    assert r'{\stylesheet{\s0 Normal;}{\s3\qc\b Callout;}' in r  # no \li/\ri
     assert r'\s3 ' in r.split(r'\stylesheet')[1]
 
 def test_style_font_field_changes_the_active_font():

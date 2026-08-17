@@ -36,15 +36,18 @@ def ws7_block(cmd, content=b''):
     return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
 
 
-def _style_record(left=1800, just=0):
+def _style_record(left=1800, just=0, right=None):
     """Trimmed 102-byte style record -- only the fields this file's tests
-    read (left margin, justification); everything else stays at the
+    read (left/right margin, justification); everything else stays at the
     project's own 'inherited' sentinels. See test_ctrlkd.py's
-    `_style_record` for the full field-by-field version."""
+    `_style_record` for the full field-by-field version. `right=None`
+    keeps the original inherited-margin sentinel (0xFFFE, -2 signed --
+    `core.sword_none`'s own "no value" reading); a real int is HMI
+    (1800/inch), same unit as `left`."""
     rec = bytearray(102)
     rec[0:2] = (0xFFFF).to_bytes(2, 'little')
     rec[10:12] = left.to_bytes(2, 'little')
-    rec[12:14] = (0xFFFE).to_bytes(2, 'little')
+    rec[12:14] = ((right if right is not None else 0xFFFE) & 0xFFFF).to_bytes(2, 'little')
     rec[14:16] = (0xFFFE).to_bytes(2, 'little')
     rec[18] = rec[19] = 0xFF
     for k in range(32):
@@ -634,14 +637,75 @@ def test_ir_glued_indented_paragraphs_gate_catches_round1_shape():
     assert not _unit_is_glued(verse_unit, frozenset())
 
 
+def _html_bad_geometry(h):
+    """Round 3 (2026-08-17): Modern HTML must carry NO page-width opinion
+    of its own -- neither WS-absolute geometry (the original defect: a
+    quote paragraph's own `margin-right:5.8in` alone exceeded the reading
+    column and broke wrapping in a real browser) NOR our own former
+    `max-width`/measure convention (Jon's round-3 addendum: width belongs
+    to the reader's own window, full stop, in Modern AND Native alike).
+    Flags any `max-width`/bare `width` CSS property anywhere, and any
+    `margin-left`/`margin-right` expressed in inches over 1in (the
+    blockquote structural inset is a flat em value, never inches, so this
+    never fires on legitimate quote styling)."""
+    bad = []
+    if re.search(r'(?<![-\w])max-width\s*:', h):
+        bad.append('max-width declared')
+    if re.search(r'(?<![-\w])width\s*:', h):
+        bad.append('width declared')
+    for m in re.finditer(r'margin-(left|right)\s*:\s*([\d.]+)in', h):
+        if float(m.group(2)) > 1.0:
+            bad.append(f'margin-{m.group(1)}:{m.group(2)}in')
+    return bad
+
+
+def _rtf_bad_geometry(r):
+    """Round 3: Modern RTF's stylesheet must carry no `\\li`/`\\ri` over
+    1440 twips (1in) -- ordinary styles lose page geometry outright (no
+    \\li/\\ri at all); a quote style's own override is a flat 720-twip
+    (0.5in) inset (`_RTF_MODERN_QUOTE_INSET`), comfortably under this
+    bound. Scoped to the `\\stylesheet` group specifically -- `\\li`/`\\ri`
+    only ever appear there in this project's own output, but scoping
+    avoids any risk of a false match against unrelated control words."""
+    m = re.search(r'\{\\stylesheet.*?\}\{\\f0', r, re.S)
+    sheet = m.group(0) if m else ''
+    bad = []
+    for mm in re.finditer(r'\\(li|ri)(\d+)', sheet):
+        if int(mm.group(2)) > 1440:
+            bad.append(f'\\{mm.group(1)}{mm.group(2)}')
+    return bad
+
+
+def _md_deep_indent_lines(md):
+    """Round 3 (+ Jon's follow-up Markdown note): no CONTENT line in
+    Modern Markdown may open with 4+ literal spaces -- CommonMark reads
+    that as an indented code block, and it's also simply meaningless in
+    Markdown (no first-line-indent concept, no verse-indent concept). This
+    is the general form of the hazard class; it covers verse/stanza lines
+    (uniformly flush per the follow-up ruling) the same way it covers a
+    centred block's stripped padding -- one check, not a special case per
+    content type."""
+    return [l for l in md.split('\n') if l[:4] == '    ']
+
+
 def _assert_lint_gates(name, doc):
     # Rendering all four Modern formats here is also the corpus smoke test
     # (item I): every real fixture must convert without crashing, whether
     # or not a structural gate below has anything to say about its output.
     h = emit.emit_html(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
-    emit.emit_rtf(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
-    emit.emit_markdown(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
+    r = emit.emit_rtf(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
+    md = emit.emit_markdown(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
     emit.emit_text(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
+
+    # 7. Modern HTML carries no page-width opinion (round 3 + addendum)
+    assert not _html_bad_geometry(h), (name, 'html page-width/geometry leak',
+                                       _html_bad_geometry(h))
+    # 8. Modern RTF stylesheet carries no geometry over 1in
+    assert not _rtf_bad_geometry(r), (name, 'rtf geometry over 1in',
+                                      _rtf_bad_geometry(r))
+    # 9. Modern Markdown has no 4+-space-opening content line (verse included)
+    assert not _md_deep_indent_lines(md), (name, 'markdown deep indent',
+                                           _md_deep_indent_lines(md)[:5])
 
     # 1. no un-coalesced adjacent runs (IR-level -- see _ir_bad_adjacent_spans)
     assert not _ir_bad_adjacent_spans(doc), (name, 'un-coalesced adjacent spans')
@@ -682,6 +746,58 @@ def test_lint_gates_on_double_centered_heading_synthetic_regression():
     doc.blocks[0].heading = 1              # force heading classification
     h = emit.emit_html(doc, mode='modern')
     _assert_lint_gates('synthetic-centered-heading', doc)
+
+
+def test_round3_geometry_normalization_and_quote_distinction():
+    """Direct regression test for the round-3 defect (2026-08-17): Jon's
+    real bug report was a browser rendering a quote paragraph one word per
+    line because `margin-left`+`margin-right:5.8in` (this style's own
+    WS4-absolute geometry, straight off an 8.5in page) exceeded the
+    reading column. Reproduces that exact geometry (5.8in each side) on a
+    synthetic 'Double-Indented Quote' style alongside an ordinary body
+    paragraph, and checks all four Modern formats: quotes read as visibly
+    distinct from body, and NONE of the WS-absolute geometry survives."""
+    quote_rec = _style_record(left=10440, right=10440, just=0)   # 5.8in each side
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Double-Indented Quote', True, quote_rec),
+    ])
+    header = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+    body = (header
+            + b'     An ordinary body paragraph with plenty of text in it.' + HARD
+            + _style_handle(2)
+            + b'A quoted passage that must read as visibly different from body.' + HARD
+            + _style_handle(1)
+            + b'     Back to an ordinary body paragraph to close things out.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    _assert_lint_gates('synthetic-quote-geometry', doc)
+
+    h = emit.emit_html(doc, mode='modern')
+    r = emit.emit_rtf(doc, mode='modern')
+    t = emit.emit_text(doc, mode='modern')
+    md = emit.emit_markdown(doc, mode='modern')
+
+    # HTML: quote wrapped in a real <blockquote>; no inch geometry anywhere
+    assert '<blockquote>' in h and '</blockquote>' in h
+    assert '5.8' not in h and 'in;' not in h and 'in"' not in h
+    assert not _html_bad_geometry(h)
+
+    # RTF: quote style gets the flat 720-twip inset; body style gets none
+    assert r'\li720\ri720' in r
+    assert not _rtf_bad_geometry(r)
+
+    # Text: quote block uniform 4-space indent, distinct from body's
+    # 5-space-first-line scheme
+    quote_line = next(l for l in t.split('\n') if 'quoted passage' in l)
+    assert quote_line.startswith('    ') and not quote_line.startswith('     ')
+
+    # Markdown: '>' prefix on the quote, not on body; no deep indent anywhere
+    assert any(l.startswith('> ') for l in md.split('\n'))
+    assert not _md_deep_indent_lines(md)
 
 
 def _iter_private_fixtures():

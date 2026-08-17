@@ -12,7 +12,8 @@ import re
 
 from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
                    assemble_paragraphs, split_leading_indent,
-                   paragraph_layout_context)
+                   paragraph_layout_context, looks_like_verse,
+                   block_dominant_styles)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -278,10 +279,24 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # Within a unit, lines still join with a bare newline -- exactly
             # today's same-paragraph separator (a deliberate short line, a
             # poem's stanza, stays a forced line break, never reflowed).
+            quote = _is_quote_style(b)
             for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
                 lines = _align_lines([render(l) for l in unit], b.align, b)
+                if quote:
+                    # rule 3 (round 3, 2026-08-17): plain text's only
+                    # "quote" vocabulary is indentation, and the source's
+                    # own typed depth is inconsistent block to block (even
+                    # paragraph to paragraph within one quote block --
+                    # Jon's own screenshot: first line one depth, later
+                    # paragraphs another). Normalize instead of passing
+                    # the source's literal indent through: every line of
+                    # every quote-block paragraph gets the SAME flat
+                    # 4-space indent, distinct from a body paragraph's own
+                    # 5-space-first-line-then-flush scheme.
+                    lines = [('    ' + l.lstrip(' ')) if l.strip() else l
+                             for l in lines]
                 para = '\n'.join(lines)
                 if para.strip():
                     out.append(para)
@@ -327,7 +342,7 @@ def _resolve_ref(refs, text):
     return None, None
 
 
-def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
+def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
     if any(t.startswith('pctl') for t in s.styles):
         return ''                  # screen-only print-control display string
     text = s.text
@@ -346,6 +361,20 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
     lead = esc[:len(esc) - len(esc.lstrip())]
     trail = esc[len(esc.rstrip()):]
     core = esc.strip()
+    if plain:
+        # rule 4 (round 3, 2026-08-17): a letterless marker line (a
+        # centred '#' scene break, an ellipsis-only pause) gets NO
+        # emphasis wrapping even when its source span carries one (real
+        # evidence: OLDTIMES's own '#' markers ride the SAME italic run
+        # as the body copy around them, so style alone can't tell "this
+        # is a marker" from "this is prose" -- see looks_like_verse's own
+        # letterless-line exclusion for the same distinction made on
+        # content instead of style). The character escaping above still
+        # applies -- a bare '#' at the start of a line would read as a
+        # Markdown heading otherwise -- only the `*emphasis*`/`<tag>`
+        # wrapping is skipped, so the result is the plain escaped
+        # character and nothing else.
+        return lead + core + trail
     # sorted: frozenset iteration order varies with hash seed, which made multi-style
     # nesting order (e.g. bold+strike) nondeterministic BETWEEN RUNS. Alphabetical
     # order happens to nest delimiter styles (b, i, strike) inside tag styles
@@ -360,20 +389,28 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
     return lead + core + trail
 
 def _md_unit_lines(unit, refs, keep):
-    """One paragraph unit's Lines rendered to Markdown text, first-line
-    indent dropped (Markdown paragraphs carry no first-line-indent concept
-    -- the paragraph gap itself is the "new paragraph" signal, the
-    Markdown-native way to say it; a literal leading run would also risk
-    CommonMark reading 4+ columns as an indented code block). Only the
-    FIRST line's own indent is dropped: an interior deliberate line (a
-    poem's second verse) keeps whatever indentation it was typed with --
-    that is content, not a paragraph-start marker."""
+    """One paragraph unit's Lines rendered to Markdown text, EVERY line's
+    own leading indent dropped (Jon's ruling, round 3, 2026-08-17 --
+    widened from "first line only" after real screenshots showed both
+    halves of the same defect: a centred award citation kept its baked
+    centering spaces on every line but the first, and a preserved stanza's
+    continuation verses kept their source 5-space typed indent, landing
+    flush-then-indented in the same paragraph). Markdown carries no
+    first-line-indent concept (the paragraph gap itself is the "new
+    paragraph" signal) and no verse-indent concept either -- the
+    Markdown-native way to say either is to say nothing, letting the
+    paragraph gap or the hard line-break do the whole job. A literal
+    leading run would also risk CommonMark reading 4+ columns as an
+    indented code block (the `_md_no_deep_indent` lint's whole reason to
+    exist). A letterless marker line (a centred '#' scene break) renders
+    with `plain=True` -- see `_md_span` -- so it never picks up emphasis
+    wrapping from a source style it happens to share with body prose."""
     out = []
-    for i, line in enumerate(unit):
-        text = ''.join(_md_span(s, refs, keep) for s in line.spans)
-        if i == 0:
-            text = text.lstrip(' ')
-        out.append(text)
+    for line in unit:
+        raw = ''.join(s.text for s in line.spans)
+        plain = bool(raw.strip()) and not any(c.isalpha() for c in raw)
+        text = ''.join(_md_span(s, refs, keep, plain=plain) for s in line.spans)
+        out.append(text.lstrip(' '))
     return out
 
 
@@ -394,8 +431,15 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             continue
         if b.heading:
             # a heading is a logical unit, not reflowed prose -- unaffected
-            # by paragraph assembly, same as before
-            lines = [''.join(_md_span(s, refs, keep) for s in line.spans)
+            # by paragraph assembly, same as before. EVERY line's own
+            # leading indent is dropped (round 3 lint, 2026-08-17 --
+            # found against a real fixture: a multi-line heading's FIRST
+            # and LAST line got trimmed by the final `.strip()` below, but
+            # an interior line's own baked centering/typed indent leaked
+            # straight into the output raw, the same CommonMark 4-space
+            # hazard `_md_unit_lines` already guards against for ordinary
+            # paragraphs).
+            lines = [''.join(_md_span(s, refs, keep) for s in line.spans).lstrip(' ')
                      for line in merged_lines(b)]
             para = '\\\n'.join(lines)
             if para.strip():
@@ -418,7 +462,17 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 # stays a forced line break, never reflowed into prose
                 out.append('\\\n'.join(lines))
     md = '\n\n'.join(out)
-    defs = [f'[^{_md_note_id(n.kind, label)}]: {n.text}'
+    # A note's own raw text is embedded verbatim below -- never routed
+    # through `_md_unit_lines`, so a multi-line WordStar comment/footnote
+    # (an annotator's own list, say) can carry the SAME baked-in leading
+    # spaces on its internal lines that the round-3 lint exists to catch
+    # everywhere else. Strip each embedded line's own leading run for the
+    # same reason as everywhere else in this module: no first-line-indent
+    # or verse-indent concept in Markdown, and 4+ columns risks CommonMark
+    # reading it as an indented code block (found against a real fixture,
+    # 2026-08-17).
+    defs = [f'[^{_md_note_id(n.kind, label)}]: '
+            + '\n'.join(l.lstrip(' ') for l in n.text.split('\n'))
             for n, label in pairs if n.kind in keep]
     if defs:
         md += '\n\n' + '\n'.join(defs)
@@ -428,14 +482,25 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
 
 # Body font: the sophisticated body ruling (2026-08-05) -- Georgia 14, the
 # stack carrying the no-Georgia case by HTML's own nature.
-_CSS = """body{max-width:42rem;margin:2rem auto;padding:0 1rem;
+#
+# NO WIDTH/MEASURE DECLARATION ANYWHERE (Jon's ruling, round 3 addendum,
+# 2026-08-17): an earlier version of this stylesheet capped the body at
+# `max-width:42rem` as a READING-MEASURE nicety -- reasonable on its own,
+# but it's still OUR OWN page-width opinion, the same category of thing as
+# the WS-absolute geometry this whole round exists to strip. HTML has no
+# page; width belongs entirely to the renderer/reader (the browser window),
+# in both Modern AND Native output. `padding` below is a fixed breathing-
+# room gutter, not a measure -- it doesn't cap anything, it just keeps text
+# off the viewport edge.
+_CSS = """body{margin:0;padding:2rem 1rem;
 font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
-pre{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto}
+.ws-native{white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
 hr.pb{border:none;border-top:1px dashed #bbb;margin:2rem 0}
+blockquote{margin:1em 2em;padding-left:1em;border-left:2px solid #ccc}
 section[role=doc-endnotes]{margin-top:2rem}
 section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
-hr.pb{border-top-color:#444}}"""
+hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
 
 _TAG = {'b': 'strong', 'i': 'em', 'u': 'u', 'sup': 'sup', 'sub': 'sub', 'strike': 's'}
 
@@ -638,13 +703,39 @@ def _style_slug(entry):
     return f"ws-{entry['slot']}-{slug}"
 
 
-def _style_css(doc):
+def _add_html_class(cls_attr, extra):
+    """Merge an extra CSS class into an already-built `' class="..."'`
+    attribute string (or start a fresh one if `cls_attr` is empty) --
+    Native HTML's own per-style class (`_style_slug`, may be absent) plus
+    the `ws-native` monospace/pre-wrap treatment both need to land on the
+    same element now that Native no longer wraps in a bare `<pre>`."""
+    if not cls_attr:
+        return f' class="{extra}"'
+    return cls_attr[:-1] + f' {extra}"'
+
+
+def _style_css(doc, printed=True):
     """CSS rules derived from the style records themselves -- a PASS-THROUGH
     of the file's own data (Jon, 2026-08-04: never hardwire a style name to
     a font or size; expose the data so a consumer can attach its own). Every
     property below comes from the entry's 102-byte record: alignment,
     margins (HMI/1800 = inches), print attributes, and the font block's
-    height word (VMI/20 = points). Inherited fields emit nothing."""
+    height word (VMI/20 = points). Inherited fields emit nothing.
+
+    PRINTED keeps the margins verbatim -- Printed's whole point is the
+    file's own WS4-absolute page geometry, on an actual 8.5in page. MODERN
+    drops `margin-left`/`margin-right` entirely (Jon's ruling, round 3,
+    2026-08-17): those inch values were measured against the ORIGINAL
+    page's own width, and a reflowed reader column is a different, much
+    narrower measure -- `margin-right:5.8in` alone exceeds the body's own
+    42rem column, which is what actually broke browsers (a quote paragraph
+    rendering one word per line). Modern presentation NORMALIZES instead:
+    body styles get the full reader measure (no geometry at all); a quote-
+    classified style's visible inset comes structurally from `<blockquote>`
+    (a flat, modest `margin` in the base stylesheet) at the call site in
+    `emit_html`, not from this per-style CSS. Alignment, weight/style/
+    decoration, and font-size are NOT page geometry -- unaffected either
+    way."""
     rules = []
     for entry in doc.styles:
         if 'attrs_on' not in entry:            # recordless base entry
@@ -652,10 +743,11 @@ def _style_css(doc):
         props = []
         if entry.get('justification') in ('left', 'center', 'right', 'justify'):
             props.append(f"text-align:{entry['justification']}")
-        if entry.get('left_margin_hmi'):
-            props.append('margin-left:%.2fin' % (entry['left_margin_hmi'] / 1800.0))
-        if entry.get('right_margin_hmi'):
-            props.append('margin-right:%.2fin' % (entry['right_margin_hmi'] / 1800.0))
+        if printed:
+            if entry.get('left_margin_hmi'):
+                props.append('margin-left:%.2fin' % (entry['left_margin_hmi'] / 1800.0))
+            if entry.get('right_margin_hmi'):
+                props.append('margin-right:%.2fin' % (entry['right_margin_hmi'] / 1800.0))
         a = entry.get('attrs', frozenset())
         if 'b' in a:
             props.append('font-weight:bold')
@@ -733,12 +825,24 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
             continue
         if printed:
-            # PHYSICAL lines: inside <pre>, a soft return is a real line break
-            body = '\n'.join(_html_line(list(line.spans), refs, keep,
-                                        keep_ws=True, shown_map=shown_map)
-                             for line in b.lines)
+            # PHYSICAL lines, normal flow (Jon's ruling, round 3 addendum,
+            # 2026-08-17 -- retires the earlier <pre> wrapper): a <pre> box
+            # implies a WIDTH-CONSTRAINING monospace grid, which is exactly
+            # the page-geometry opinion this round strips everywhere else.
+            # Native's own identity is the FONT (kept via the `ws-native`
+            # class: monospace, `white-space:pre-wrap` so literal column
+            # spacing still lines up) -- not a boxed, non-wrapping element.
+            # Every physical line break is now an explicit <br> rather than
+            # a literal newline relying on <pre>'s own whitespace handling,
+            # so a long physical line still wraps at the READER's window
+            # (the fixed 65-column look stays Printed/PDF's own domain).
+            lines = [_html_line(list(line.spans), refs, keep,
+                                keep_ws=True, shown_map=shown_map)
+                     for line in b.lines]
+            body = '<br>\n'.join(lines)
             if body.strip():
-                parts.append(f'<pre{cls}>{body}</pre>')
+                native_cls = _add_html_class(cls, 'ws-native')
+                parts.append(f'<p{native_cls}>{body}</p>')
         else:
             # Modern: one <p> per PARAGRAPH UNIT, not per block. A unit's
             # own first line loses its typed/machine indent to a real
@@ -747,16 +851,34 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # `_html_span`'s own &nbsp; idiom still renders ITS leading
             # run visibly, which is exactly right for a poem's second
             # verse (content, not a paragraph-start marker).
+            quote = _is_quote_style(b)
+            dominant = block_dominant_styles(merged_lines(b))
             for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
                 first = _maybe_strip_align(b, list(unit[0].spans))
                 indent_cols, first = split_leading_indent(first)
+                # rule (round 3 addendum, 2026-08-17): <br> is reserved for
+                # a REAL deliberate line break -- a verified verse/stanza
+                # unit. A multi-line unit that never got verse-verified (a
+                # bare phase-1 flush-continuation grouping) is prose that
+                # merely happens to carry more than one Line; it flows as
+                # ONE paragraph, same as the ordinary single-line case,
+                # rather than forcing a break neither the author nor
+                # `looks_like_verse` ever asked for. Re-derives the SAME
+                # verdict `assemble_paragraphs` used internally to build
+                # this very unit (pure function, identical inputs).
+                is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
                 rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
                 for line in unit[1:]:
                     spans = _maybe_strip_align(b, list(line.spans))
+                    if not is_verse:
+                        _, spans = split_leading_indent(spans)
                     rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
-                para = '<br>\n'.join(rendered)
+                if len(unit) > 1 and not is_verse:
+                    para = ' '.join(t for t in rendered if t.strip())
+                else:
+                    para = '<br>\n'.join(rendered)
                 if not para.strip():
                     continue
                 # C16/C17: HTML can express all four alignments, so unlike the
@@ -768,13 +890,22 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 # C5: newspaper columns. CSS does this properly, so HTML is the one
                 # format that can honour `.co` rather than merely record it. A gutter
                 # is print columns at 10 CPI -> tenths of an inch.
+                p_html = f'<p{cls}{style}>{para}</p>'
                 if b.columns and b.columns > 1:
                     gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
                            if b.column_gutter else '')
                     col = f' style="column-count:{b.columns}{gap}"'
-                    parts.append(f'<div{col}><p{cls}{style}>{para}</p></div>')
-                else:
-                    parts.append(f'<p{cls}{style}>{para}</p>')
+                    p_html = f'<div{col}>{p_html}</div>'
+                if quote:
+                    # rule 1 (round 3, 2026-08-17): quote-classified styles
+                    # become a real <blockquote> -- the style's own
+                    # margin-left/right (WS-absolute, sometimes 5+ inches)
+                    # no longer carries the visible inset at all
+                    # (`_style_css`, modern mode); this structural wrap plus
+                    # the base stylesheet's modest `blockquote` rule is what
+                    # makes a quote visibly read as one now.
+                    p_html = f'<blockquote>{p_html}</blockquote>'
+                parts.append(p_html)
     linked = (_REF_KINDS if shown_map is not None
               else tuple(k for k in _REF_KINDS if k != 'comment'))
     sections = _html_notes_sections(pairs, keep, linked)
@@ -783,7 +914,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         parts.extend(sections)
     css = _CSS
     if styles:
-        extra = _style_css(doc)
+        extra = _style_css(doc, printed)
         if extra:
             css = css + '\n' + extra
     return ('<!doctype html><html><head><meta charset="utf-8">'
@@ -939,11 +1070,24 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
         ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
     return '{' + ctl + _rtf_escape(sp.text) + '}'
 
-def _rtf_stylesheet(doc):
+_RTF_MODERN_QUOTE_INSET = 720   # 0.5in each side -- Jon's explicit ask, round 3
+
+def _rtf_stylesheet(doc, printed=True):
     """An RTF \\stylesheet group derived from the style records -- the same
     pass-through rule as the HTML CSS: properties come from the file's own
     data, names are carried verbatim, nothing is hardwired. \\sN numbers are
-    slot+1 (RTF style 0 is reserved for Normal)."""
+    slot+1 (RTF style 0 is reserved for Normal).
+
+    PRINTED keeps `\\li`/`\\ri` verbatim from the WS4-absolute geometry --
+    Printed IS that geometry. MODERN (Jon's ruling, round 3, 2026-08-17)
+    drops it for ordinary body styles (full measure, no page-relative
+    margins) and replaces a quote-classified style's own -- however large
+    or lopsided in the source -- with a small FIXED symmetric inset
+    (`_RTF_MODERN_QUOTE_INSET` each side): Jon's explicit ask is that a
+    quote paragraph in Pages/Word visibly reads as quoted material at all
+    -- indentation is RTF's only quoting vocabulary, so it can shrink, but
+    it can't disappear the way it would if quotes got the same "no
+    geometry" treatment as body text."""
     entries = []
     for entry in doc.styles:
         if 'attrs_on' not in entry:
@@ -951,10 +1095,13 @@ def _rtf_stylesheet(doc):
         props = ''
         props += {'center': r'\qc', 'right': r'\qr',
                   'justify': r'\qj'}.get(entry.get('justification'), '')
-        if entry.get('left_margin_hmi'):
-            props += r'\li%d' % round(entry['left_margin_hmi'] / 1800.0 * 1440)
-        if entry.get('right_margin_hmi'):
-            props += r'\ri%d' % round(entry['right_margin_hmi'] / 1800.0 * 1440)
+        if printed:
+            if entry.get('left_margin_hmi'):
+                props += r'\li%d' % round(entry['left_margin_hmi'] / 1800.0 * 1440)
+            if entry.get('right_margin_hmi'):
+                props += r'\ri%d' % round(entry['right_margin_hmi'] / 1800.0 * 1440)
+        elif _is_quote_name(entry.get('name')):
+            props += r'\li%d\ri%d' % (_RTF_MODERN_QUOTE_INSET, _RTF_MODERN_QUOTE_INSET)
         a = entry.get('attrs', frozenset())
         for tag, ctl in (('b', r'\b'), ('i', r'\i'), ('u', r'\ul'),
                          ('strike', r'\strike')):
@@ -1009,15 +1156,20 @@ def _maybe_strip_align(b, spans):
     return spans
 
 
+def _is_quote_name(name):
+    """Whether a WordStar paragraph-style NAME (block-level `b.style_name`
+    or a style-table entry's own `entry['name']`) marks quoted material --
+    e.g. 'Double-Indented Quote', 'MS Double-Indented Quote'. One substring
+    test shared by every Modern format's own quote treatment (Jon's ruling,
+    round 3, 2026-08-17): Markdown's '>' prefix, HTML's <blockquote> wrap,
+    RTF's modest symmetric \\li/\\ri override, and Text's uniform 4-space
+    block indent all key off this same signal."""
+    return 'quote' in (name or '').lower()
+
+
 def _is_quote_style(b):
-    """Whether this block's own WordStar paragraph style names it as quoted
-    material (e.g. 'Double-Indented Quote', 'MS Double-Indented Quote') --
-    the signal Modern Markdown uses to add '>' blockquote prefixes (rule D).
-    RTF/HTML already carry the style's own margins as CSS/`\\li`/`\\ri`
-    (`_style_css`/`_rtf_stylesheet`, pass-through from the style record)
-    with no change needed here; Markdown has no margin concept, so '>' is
-    its only way to say the same thing."""
-    return 'quote' in (b.style_name or '').lower()
+    """`_is_quote_name` for a Block's own style. See `_is_quote_name`."""
+    return _is_quote_name(b.style_name)
 
 
 # WordStar print-toggle bytes that legitimately appear inside header/footer
@@ -1151,7 +1303,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
     font = r'\f1' if printed else r'\f0'
-    stylesheet = _rtf_stylesheet(doc) if styles else ''
+    stylesheet = _rtf_stylesheet(doc, printed) if styles else ''
     fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target)
                               if styles else ('', {}))
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
