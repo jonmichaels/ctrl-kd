@@ -461,15 +461,48 @@ def assemble_paragraphs(block: Block, margin: float = 65) -> list:
         text = line_visible_text(u[0]).rstrip()
         return bool(text) and len(text) < threshold
 
+    # In-run widening (Jon's ruling, round 2 addendum, 2026-08-17): a single
+    # unit that fails `is_short` still counts as a run candidate when BOTH
+    # its immediate phase-1 neighbours pass the STRICT `is_short` test -- a
+    # line boxed in by verse on both sides reads as part of that run even
+    # past the shortness pre-filter's own cutoff. Real evidence: a genuine
+    # WS4 poem's own line (57 of a 65-column margin, comfortably past the
+    # 55-column `threshold`) sat inside an otherwise unbroken run of short
+    # verse and split the stanza in two under the strict-only test. Bounded
+    # two ways so it can't misfire into gluing prose: (1) the neighbour
+    # check itself uses `is_short`, never this widened form, so one long
+    # line can never bootstrap another next to it into the run; (2) even a
+    # widened-in line still has to survive `looks_like_verse`'s own
+    # terminal-punctuation/quote-opening/attribute-shift verdict on the
+    # WHOLE run before it reads as a stanza -- a dialogue or narrative line
+    # that happens to land between two short lines gets pulled into
+    # candidacy the same way, but the run it joins still reads as prose on
+    # content and splits right back apart (see the class of fixtures this
+    # is checked against in test_modern_lint.py).
+    effective_margin = margin or 65
+
+    def is_run_candidate(k):
+        if is_short(units[k]):
+            return True
+        u = units[k]
+        if len(u) != 1:
+            return False
+        text = line_visible_text(u[0]).rstrip()
+        if not text or len(text) >= effective_margin:
+            return False
+        prev_ok = k > 0 and is_short(units[k - 1])
+        next_ok = k + 1 < len(units) and is_short(units[k + 1])
+        return prev_ok and next_ok
+
     dominant = block_dominant_styles(lines)
     out, i = [], 0
     while i < len(units):
-        if not is_short(units[i]):
+        if not is_run_candidate(i):
             out.append(units[i])
             i += 1
             continue
         j = i
-        while j < len(units) and is_short(units[j]):
+        while j < len(units) and is_run_candidate(j):
             j += 1
         run = [u[0] for u in units[i:j]]
         if len(run) >= 2 and looks_like_verse(run, dominant):

@@ -203,6 +203,62 @@ def test_ws4_dialogue_run_does_not_false_positive_as_stanza():
     assert all(len(u) == 1 for u in units)
 
 
+def _filler(n):
+    """`n`-visible-character non-terminal, non-quote-opening filler text --
+    a stand-in for a real verse line whose own length happens to fall past
+    the shortness pre-filter, without needing (or risking pasting in) real
+    corpus text."""
+    return ('word ' * ((n // 5) + 3))[:n].rstrip()
+
+
+def test_ws4_long_line_boxed_in_by_verse_widens_into_the_run():
+    """The in-run widening (Jon's ruling, round 2 addendum, 2026-08-17): a
+    single line past `threshold` but under the block's own margin, with a
+    verified-short verse line immediately before AND after it, still joins
+    the stanza -- found against a real personal poem (a 57-of-65-column
+    line splitting an otherwise unbroken run in two) and reproduced here
+    without the real text."""
+    stanza = [
+        'shadows learning how to fall',
+        'something waits beyond the rain',
+        _filler(60),                        # past threshold(55), under margin(65)
+        'patient at the garden wall',
+        'marking time against the age',
+    ]
+    body = b''.join(b'     ' + ws4_text(l) + HARD for l in stanza)
+    assert core.detect(body)['variant'] == 'ws4'
+    doc = core.parse_ws(body)
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 1, [l.text() for u in units for l in u]
+    assert sum(len(u) for u in units) == 5
+
+
+def test_ws4_long_line_boxed_in_by_dialogue_does_not_widen():
+    """Companion/safety-net check: the SAME boxed-in shape, but the
+    neighbours are short dialogue (quote-opening, terminal-punctuated)
+    rather than verse -- the widened-in long line still has to survive
+    `looks_like_verse`'s content verdict on the whole run, so the run
+    reads as prose and every line -- including the widened one -- stays
+    its own paragraph. Proves the widening is bounded by content, not just
+    length: it cannot glue a real prose one-liner to its dialogue
+    neighbours."""
+    lines = [
+        'Wait.',
+        '"Where are you going?"',
+        _filler(59),
+        '"I already told you."',
+        'Gone.',
+    ]
+    body = b''.join(b'     ' + ws4_text(l) + HARD for l in lines)
+    assert core.detect(body)['variant'] == 'ws4'
+    doc = core.parse_ws(body)
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 5, [l.text() for u in units for l in u]
+    assert all(len(u) == 1 for u in units)
+
+
 def test_modern_html_poem_stays_one_paragraph_with_hard_breaks():
     lines = [
         b'     Line one is short,',
