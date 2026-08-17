@@ -130,3 +130,25 @@ the log. For the real thing, `--mode printed` reproduces the page, art and
 all. For extraction: `-t text` gives clean words, `-t html`/`-t rtf` give
 words plus semantic markup — but bytes that only meant something to the
 hacked driver will look strange in any modern format.
+
+## My document is a manuscript (typed paragraph indents, no blank lines between them) — does Modern reflow it into real paragraphs?
+
+Yes, as of 2026-08-17. A hard-terminated line that opens with the typed or
+machine paragraph indent AND runs close to the document's own measured wrap
+point becomes a new paragraph (`\par` in RTF, `<p>` in HTML, a blank line in
+text/Markdown) — reconstructing the decision WordStar's own word wrap would
+have made, since a manuscript typed with a hard Return at (near) the margin
+instead of trusting word wrap is functionally doing its own wrapping by
+hand. A **deliberately short line stays exactly as written** — a poem's
+stanza, a quoted address, a one-line aside keep their forced line break
+rather than being torn into their own paragraph or, worse, spaced apart like
+prose.
+
+This is a length-based heuristic, not a reading of the words: nothing in the
+file distinguishes a genuinely short *prose* paragraph ("`He said, 'I'm
+going out.'`") from a deliberately short *verse* line by style or length
+alone. The heuristic is biased toward the poem's side of that ambiguity — a
+short prose paragraph may stay glued to its neighbour with a forced line
+break instead of becoming its own paragraph, which is visible on review and
+never loses text. If your document's paragraphing looks off, `-t text` and a
+skim will show you exactly where.

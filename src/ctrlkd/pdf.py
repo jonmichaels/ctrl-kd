@@ -20,7 +20,8 @@ superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
 from .core import merged_lines as _merged_lines, Span as _Span, \
-    trailing_blank_lines as _trailing_blank_lines
+    trailing_blank_lines as _trailing_blank_lines, \
+    effective_span_styles as _effective_span_styles
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
 from . import layout as _layout
@@ -705,8 +706,7 @@ def _body_stream_printed(doc):
             spans = []
             refs = []
             for s in line.spans:
-                styles = (s.styles | ({'b'} if b.heading else frozenset())
-                          | b.style_attrs)
+                styles = _effective_span_styles(s, b, heading_bold=True)
                 if 'fnref' in s.styles and s.text.isdigit():
                     k = int(s.text)
                     if 0 < k <= len(refs_all):
@@ -970,8 +970,7 @@ def _doc_to_pagelines(doc, printed):
         for line in (b.lines if printed else _merged_lines(b)):
             # the docstring's "headings bold" promise: heading blocks render in
             # Courier-Bold (found unimplemented by the Swift port, job-011)
-            spans = [(s.text, s.styles | ({'b'} if b.heading else frozenset())
-                      | b.style_attrs)
+            spans = [(s.text, _effective_span_styles(s, b, heading_bold=True))
                      for s in line.spans if _keep_span(s)]
             if printed:
                 # verbatim, no wrap -- carrying the line's own soft flag and

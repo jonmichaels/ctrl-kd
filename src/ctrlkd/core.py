@@ -18,6 +18,7 @@ WordStar background this code encodes:
 from __future__ import annotations
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .symbolmap import SYMBOL, transliterate, font_translit_kind
@@ -169,6 +170,533 @@ class Block:
     # bytes are the dot line itself.
     origin: str = None
 
+def coalesce_spans(spans: list) -> list:
+    """Adjacent Spans with byte-identical `.styles` merged into one.
+
+    `merged_lines()` concatenates a soft-wrapped run's spans onto the
+    logical Line it belongs to (`cur.spans.extend(spans)` below) but never
+    merged the two runs at the seam even when they carried the exact same
+    style set -- so one continuous italic sentence that happened to wrap
+    mid-word came out as two adjacent `{\\i ...}` RTF groups / `<em>...</em>
+    <em>...</em>` HTML spans instead of one. A reader's eye sees no seam;
+    an RTF/HTML consumer's cursor does (Word "catches" at every former line
+    boundary -- readers commonly treat adjacent identically-formatted runs
+    as separate undo/format units).
+
+    Two spans merge iff their style sets are equal AND NEITHER is an
+    'fnref' pointer -- a footnote/endnote/annotation/comment reference
+    mark is POSITION-dependent (core.py's fn_counter numbers marks in
+    document order); merging one into surrounding text would blur a
+    pointer, not just its formatting. Every other style tag already
+    guards itself correctly through plain set equality (two `font3` spans
+    only merge when they really do share font index 3).
+
+    Safe to run over ANY span list -- a Modern logical Line's spans or a
+    Printed physical Line's own spans (item e of the overhaul: the same
+    fragmentation gap applies to Printed's `<1B x 1C>`-neighbouring runs).
+    It changes representation only, never content: concatenating two
+    spans' text is exactly what a reader already sees rendered as one run.
+    """
+    out = []
+    for s in spans:
+        if (out and out[-1].styles == s.styles
+                and 'fnref' not in out[-1].styles and 'fnref' not in s.styles):
+            out[-1] = Span(out[-1].text + s.text, out[-1].styles)
+        else:
+            out.append(s)
+    return out
+
+
+# How far short of the block's own measured wrap point (doc.meta
+# ['margin_estimate'], the same 90th-percentile-of-soft-wraps figure
+# `lines_pass` computes to classify soft returns) a hard-terminated line's
+# visible length may fall and still count as "short" -- a STANZA-candidate
+# rather than an ordinary paragraph (see assemble_paragraphs). Round 2
+# (2026-08-17) demoted this from the primary paragraph-start signal (round
+# 1's mistake: gluing every short line to its neighbour, which glued EVERY
+# short prose paragraph and dialogue exchange in a real corpus, reproducing
+# Jon's original complaint) to the pre-filter for the verse/prose
+# classifier below. 65 - 10 = 55 still separates OLDTIMES's real "Mikado"
+# quotation (longest line 43) from its narrative's longest genuine short
+# line (58, "No, thought Cohen. ... Turn and attack!").
+PARAGRAPH_JOIN_SLACK = 10
+
+# A minority of a run's lines ending "as a finished sentence" reads as
+# verse; a majority reads as prose. First calibrated (round 2, initial cut)
+# against OLDTIMES.WS ALONE at 0.5 -- wrong, caught by checking against a
+# real personal poetry corpus per Jon's own instruction (round 2 addendum,
+# 2026-08-17): free verse routinely end-stops MOST of its own lines (a
+# seven-poem WS4 sample measured 0.00-0.75 per stanza/run, several at or
+# above 0.5), so 0.5 mis-split the majority of real poems into one
+# paragraph per line -- the exact defect this whole heuristic exists to
+# avoid, just on the verse side instead of the prose side. Re-measured
+# against BOTH corpora together: every run-level fraction from the real
+# poem sample tops out at 0.75; every genuine prose/dialogue run in
+# OLDTIMES sits at 0.88 or above (its lowest, an 8-line action-dialogue
+# run, is 0.88 specifically because one line is a mid-word interruption
+# ending in a dash, not a dropped sentence). 0.8 sits in the gap with
+# daylight on both sides of BOTH real samples.
+VERSE_TERMINAL_FRACTION = 0.8
+# A THIRD of a run's lines opening with a quote mark is enough to veto a
+# verse call outright -- spoken dialogue, never poetry, and a stronger
+# signal than terminal punctuation where the two disagree (a quoted
+# question ends in `?"`, still "terminal", but the quote mark alone already
+# settles it).
+VERSE_QUOTE_VETO_FRACTION = 1 / 3
+# A run whose OWN text styling differs from the block's dominant running
+# style is verse WHENEVER AT LEAST THIS MUCH of it shows the shift --
+# OLDTIMES's real quotation is 4/4 (100%), so this has slack to spare. Only
+# meaningful for documents that carry styling at all (WS5+, or a WS4
+# document using inline b/i/u toggles); a WS4 poem with none of that gets
+# no vote from this signal and relies on VERSE_TERMINAL_FRACTION alone.
+VERSE_ATTR_SHIFT_FRACTION = 0.5
+# A run whose lines end AS FINISHED SENTENCES at or above this fraction is
+# prose, full stop -- an attribute shift never overrides this. Found by
+# evidence, not assumed: OLDTIMES uses its OWN roman-inside-italic device
+# for a second purpose beyond quoted titles/verse -- Cohen's telepathic
+# commands ("Get up, thought Cohen. Get up, damn you!" / "Nothing. No
+# response." / "Get up!") are ALSO set roman inside the italic body, and
+# every line there is a complete, terminally-punctuated sentence
+# (term_frac 1.0) despite a 2-of-3 attribute shift. The real quotation's
+# own term_frac (0.25, and 0.0 for its shorter mid-story echo) sits with
+# wide margin below this ceiling; a run this decisively "finished-sentence"
+# never gets rescued by styling alone.
+VERSE_ATTR_SUPPORTED_CEILING = 0.9
+
+_CLOSING_QUOTES = '"’”\''
+_OPENING_QUOTES = '"‘“\''
+
+
+def line_visible_text(line) -> str:
+    """A Line's text with footnote/endnote/annotation/comment REFERENCE
+    MARKERS (fnref spans -- `.text` is a reference index like '301', not
+    real content) skipped. Found by evidence on a real fixture (NOVEL.WS):
+    a footnote anchored to a paragraph's very first word stores its
+    fnref span(s) BEFORE the typed indent in span order, so `line.text()`
+    starts with the reference's digits, not the paragraph's own indent --
+    an indent check (or a verse signal like `_opens_quote`) against the
+    raw concatenation would see '301302     In the...' and miss both the
+    indent and the quote mark it's actually looking for. Every paragraph-
+    shape signal in this module reads through this instead of `.text()`
+    directly."""
+    return ''.join(s.text for s in line.spans if 'fnref' not in s.styles)
+
+
+def _ends_terminal(text: str) -> bool:
+    """Whether `text` ends as a finished sentence (. ! ?), a trailing
+    closing quote/apostrophe stripped first so a quoted question ("What?")
+    still counts."""
+    t = text.rstrip().rstrip(_CLOSING_QUOTES)
+    return t.endswith(('.', '!', '?'))
+
+
+def _opens_quote(text: str) -> bool:
+    t = text.lstrip()
+    return t[:1] in _OPENING_QUOTES
+
+
+def effective_span_styles(span, block, heading_bold: bool = False) -> frozenset:
+    """The ATTRIBUTES a character actually renders with -- a span's own
+    typed toggles (`span.styles`) merged with whatever the containing
+    Block's own paragraph STYLE turns on (`block.style_attrs`), plus
+    WordStar's own "headings render bold" convention when `heading_bold`
+    is asked for.
+
+    Found by real evidence (2026-08-17): OLDTIMES's own 'Award Citation'
+    paragraph style declares bold+italic, but its actual spans only
+    re-toggle italic inline -- the bold lives ENTIRELY in the named
+    style, never re-asserted per character. A consumer that reads
+    `span.styles` alone sees only what the typist explicitly toggled and
+    silently drops the style's own declared attributes. `pdf.py` and
+    `layout.py` already computed exactly this merge inline, each with its
+    own copy; Modern RTF and Markdown -- which render CHARACTER RUNS the
+    same way those two do (unlike HTML, whose paragraph-level CSS class
+    carries a style's attrs on a completely different, unaffected path)
+    -- silently lacked it, which is what dropped the same style-level
+    bold in both formats at once. One function now, so a future format
+    added the same way can't independently forget it either."""
+    styles = span.styles | block.style_attrs
+    if heading_bold and block.heading:
+        styles = styles | {'b'}
+    return styles
+
+
+def line_body_styles(line) -> frozenset:
+    """The styles of a Line's own text, its leading indent (if any) set
+    aside first -- the signal `looks_like_verse` needs to notice a run set
+    in a DIFFERENT attribute than the block's prose (OLDTIMES's own
+    convention: the story runs italic throughout; its embedded quotation is
+    set roman specifically to read as a quotation -- the same "titles set
+    opposite the body" convention POLARITY-ROOTCAUSE documents for this
+    file's title citations). Returns the first non-blank span's styles, or
+    an empty set for an all-blank line."""
+    _, spans = split_leading_indent(list(line.spans))
+    for sp in spans:
+        if 'fnref' not in sp.styles and sp.text.strip():
+            return sp.styles
+    return frozenset()
+
+
+def block_dominant_styles(lines: list) -> frozenset:
+    """The most common `line_body_styles` result across a block's own
+    (already merged) Lines -- its "ordinary prose" attribute, whatever it
+    is (usually no styles at all; OLDTIMES's own body copy is the
+    documented exception, italic throughout)."""
+    counts = {}
+    for l in lines:
+        st = line_body_styles(l)
+        counts[st] = counts.get(st, 0) + 1
+    return max(counts, key=counts.get) if counts else frozenset()
+
+
+def _run_term_frac(run: list) -> float:
+    """Fraction of RUN's letters-containing lines that end as a finished
+    sentence -- the same 'scored' population `looks_like_verse` computes
+    for its own term_frac signal, factored out so a caller that needs the
+    raw fraction (not just the boolean verdict) -- the mid-body strength
+    bar in `assemble_paragraphs`'s convention-outlier route -- doesn't
+    reimplement the letterless-line exclusion. 1.0 (reads as maximally
+    prose) for a scoreless run, matching `looks_like_verse`'s own
+    len-under-2 short-circuit: no evidence should never read as strong
+    verse."""
+    texts = [line_visible_text(l) for l in run if line_visible_text(l).strip()]
+    scored = [t for t in texts if any(c.isalpha() for c in t)]
+    if not scored:
+        return 1.0
+    return sum(_ends_terminal(t) for t in scored) / len(scored)
+
+
+def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> bool:
+    """Whether a RUN of consecutive short, indented, hard-terminated Lines
+    reads as a stanza (deliberate verse) rather than a run of short PROSE
+    paragraphs -- rapid dialogue, one-line narrative beats, which are the
+    common case in real fiction and, unlike a stanza, must each become
+    their own real paragraph (Jon's ruling, round 2, 2026-08-17: round 1's
+    length-only signal glued every short prose paragraph in a real corpus
+    right along with the poems it was protecting).
+
+    Evidence-based, three signals, no single one required:
+
+    - QUOTE-OPENING lines are the strongest PROSE tell (spoken dialogue)
+      and veto a verse call outright once a third of the run shows it --
+      even a borderline terminal-punctuation/attribute reading loses to an
+      opening quote mark.
+    - ATTRIBUTE SHIFT: a run set in a style that differs from the block's
+      own dominant running style. Strong when present, but NEVER required
+      -- a WS4 poem carries no attributes at all, and this signal is silent
+      (an empty style set never "shifts") on a document that has none.
+    - TERMINAL PUNCTUATION is the general-purpose fallback every document
+      has an opinion on: dialogue/narrative beats overwhelmingly END each
+      line as a finished sentence; verse leans the other way (enjambment, a
+      trailing dash, a comma). See VERSE_TERMINAL_FRACTION's docstring for
+      the real numbers this was calibrated against.
+
+    Ties resolve to PROSE (dialogue is the bulk of a real corpus, per
+    Jon's ruling) -- a wrongly-glued short prose paragraph is silently
+    wrong; a wrongly-split stanza is visible on review as an extra blank
+    line."""
+    # Letterless lines (a centred '#' scene-break marker; an ellipsis-only
+    # pause line inside a stanza -- both real, found in real fixtures) are
+    # excluded from every fraction below, not from the run itself: a '#'
+    # sitting between two ordinary prose sentences must not dilute their
+    # term_frac down from a decisive 1.0 (measured: OLDTIMES's own text),
+    # while an ellipsis line legitimately inside a stanza must not FORCE a
+    # run-break either (excluding it from run-candidacy entirely, tried
+    # first, tore a real WS4 poem in half at exactly that line). It still
+    # rides along with whatever the rest of the run decides.
+    texts = [line_visible_text(l) for l in run if line_visible_text(l).strip()]
+    scored = [t for t in texts if any(c.isalpha() for c in t)]
+    if len(scored) < 2:
+        return False
+    if sum(_opens_quote(t) for t in scored) / len(scored) >= VERSE_QUOTE_VETO_FRACTION:
+        return False
+    term_frac = sum(_ends_terminal(t) for t in scored) / len(scored)
+    if term_frac >= VERSE_ATTR_SUPPORTED_CEILING:
+        # Decisively-terminal runs never read as verse, full stop -- not
+        # even an attribute shift overrides this. Real, found-by-evidence
+        # false positive this guards: OLDTIMES uses the SAME roman-inside-
+        # italic device for Cohen's own telepathic commands ("Get up,
+        # thought Cohen. Get up, damn you!" / "Nothing. No response." /
+        # "Get up!", each a complete, terminally-punctuated sentence) --
+        # not only for quoted titles/verse. A style shift alone can't tell
+        # "this is a stanza" from "this is emphasis/interiority", so once
+        # the punctuation itself already reads as finished prose, it wins.
+        return False
+    shifted = [line_body_styles(l) for l in run if line_visible_text(l).strip()]
+    shift_frac = (sum(1 for st in shifted if st and st != dominant_styles)
+                 / len(shifted))
+    # strict >, not >=: a tie (one deviating line in a two-line run, say)
+    # must NOT be enough on its own -- ties resolve to prose, same as
+    # everywhere else in this function. Real evidence: OLDTIMES's own
+    # quotation is 4/4 (100%) shifted, well clear of this bar.
+    if shift_frac > VERSE_ATTR_SHIFT_FRACTION:
+        return True
+    return term_frac < VERSE_TERMINAL_FRACTION
+
+
+def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = False,
+                        convention_indent: int = None) -> list:
+    """`merged_lines(block)` grouped into Modern paragraph units.
+
+    A WordStar manuscript that marks new paragraphs by indentation, not a
+    blank line (Register: no dot command for it, purely a typing
+    convention), stores every typed paragraph as its own hard-return-
+    terminated Line inside ONE Block -- `lines_pass`/`parse_ws` only close a
+    Block on a blank line. Nothing before this function ever re-split that
+    Block back into paragraphs; every Modern emitter joined all of them with
+    its same-PARAGRAPH separator (\\line / <br> / a bare newline), so typed
+    paragraphs read as one run-on paragraph with forced line breaks.
+
+    Two phases (Jon's ruling, round 2, 2026-08-17 -- round 1 used a hard
+    line's own length as the paragraph-start signal and that was wrong: it
+    glued every short prose paragraph and dialogue exchange in a real
+    corpus right along with the poems it was protecting):
+
+    1. THE INDENT IS THE PARAGRAPH-START MARKER, unconditionally. Manuscript
+       convention (and every real fixture checked) puts the typed/machine
+       paragraph indent (the project's existing 5-space idiom -- see
+       `emit._html_span`'s identical test) on a paragraph's FIRST line only;
+       a manually hard-wrapped CONTINUATION line is flush. So: an indented
+       hard-terminated Line always starts a new unit, regardless of its own
+       length; a flush one always continues the unit already being built.
+    2. Runs of consecutive SHORT single-line units (candidates: length under
+       `margin - PARAGRAPH_JOIN_SLACK`, or wider still for a single line
+       boxed in by an established run -- see the in-run widening below) get
+       a second look via `looks_like_verse` -- a stanza reads as ONE unit
+       with its lines kept exactly as written (a poem/address's deliberate
+       short breaks), while ordinary short paragraphs (rapid dialogue, a
+       one-line narrative beat) each stay their own paragraph, which is
+       what phase 1 already gave them.
+
+    Before either phase: a CONVENTION-OUTLIER / POSITIONAL route (Jon's
+    ruling, closing round, 2026-08-17) for the case phase 1 itself gets
+    wrong -- an epigraph or chapter-opening quotation typed FLUSH per
+    verse line (no per-line indent at all), which phase 1's "flush
+    continues the paragraph" assumption reads as manual mid-sentence
+    wraps of ONE paragraph instead of separate deliberate lines. Real
+    evidence: a private-corpus WS4 story's verse epigraph (flush lines 0-2 glued into one
+    3-line pseudo-paragraph, lines 3-4 into another, line 5 alone -- 3
+    paragraphs instead of 1 preserved stanza) sat at the very head of the
+    document, its OWN opening line carrying none of the 5-space indent
+    every real body paragraph in that same document opens with. See
+    `_paragraph_layout_context` for how `convention_indent` and
+    `head_position` are derived once per document. Bounded two ways:
+
+    - CONVENTION: only a block whose own opening line's indent width
+      differs from the document's own established per-block indent is
+      even a candidate -- an ordinary paragraph that happens to open a
+      chapter is never touched by this at all.
+    - POSITION: at the document's own head or immediately after a
+      heading/section boundary (exactly where a real epigraph or
+      chapter-opening quotation lives), the whole block is classified as
+      ONE candidate run via `looks_like_verse` at the normal bar. Deep in
+      mid-body prose the same outlier shape is far likelier a typing
+      accident than a deliberate quotation, so it stays on today's
+      conservative phase-1 path UNLESS the signal is overwhelming: not
+      one line in the whole block ends as a finished sentence. Real prose
+      essentially never does that end to end (its very last line, if
+      nothing else, closes a sentence); a poem/lyric routinely does.
+      (Flagged as evidence-light -- no real mid-body case has been found
+      to calibrate against; recalibrate if one turns up.)
+
+    Bounded, disclosed failure mode where the evidence is genuinely
+    ambiguous (ties resolve to prose, per `looks_like_verse`): a short verse
+    line indistinguishable from prose by every signal here becomes its own
+    paragraph instead of joining a stanza. Ugly, visible on review, never
+    data loss -- the opposite failure (a real one in round 1) silently
+    glued paragraphs together instead.
+
+    Returns a list of paragraph units, each a non-empty list of Lines (the
+    unit itself, not yet rendered -- callers still choose their own
+    within-unit joiner and first-line-indent treatment per format)."""
+    lines = merged_lines(block)
+    if not lines:
+        return []
+
+    if convention_indent is not None:
+        first_text = line_visible_text(lines[0])
+        opening_indent = len(first_text) - len(first_text.lstrip(' '))
+        if opening_indent != convention_indent:
+            non_blank = [l for l in lines if line_visible_text(l).strip()]
+            if len(non_blank) >= 2:
+                whole_verse = looks_like_verse(non_blank, block_dominant_styles(lines))
+                if whole_verse and not head_position:
+                    whole_verse = _run_term_frac(non_blank) == 0.0
+                if whole_verse:
+                    return [lines]         # whole block -> one preserved stanza
+    threshold = max(1, (margin or 65) - PARAGRAPH_JOIN_SLACK)
+
+    # Phase 1: indent starts a unit; flush continues one. line_visible_text
+    # skips a leading footnote-reference marker (fnref span) so a paragraph
+    # whose first word carries a note doesn't read as "flush" because the
+    # reference's digits, not the typed indent, sat first in span order.
+    units = [[lines[0]]]
+    for line in lines[1:]:
+        if line_visible_text(line).startswith('     '):
+            units.append([line])
+        else:
+            units[-1].append(line)
+
+    # Phase 2: reconsider maximal runs of short single-line units. A blank
+    # line is never a candidate (nothing to merge); a genuinely symbol-only
+    # line (a centred '#' scene-break marker, an ellipsis-only pause inside
+    # a stanza) still IS -- see looks_like_verse for why letterless lines
+    # are excluded from ITS fractions instead of being kept out of the run
+    # entirely (an ellipsis line is legitimately part of a stanza; keeping
+    # it out here would tear the stanza at exactly that line).
+    def is_short(u):
+        if len(u) != 1:
+            return False
+        text = line_visible_text(u[0]).rstrip()
+        return bool(text) and len(text) < threshold
+
+    # In-run widening (Jon's ruling, round 2 addendum, 2026-08-17): a single
+    # unit that fails `is_short` still counts as a run candidate when BOTH
+    # its immediate phase-1 neighbours pass the STRICT `is_short` test -- a
+    # line boxed in by verse on both sides reads as part of that run even
+    # past the shortness pre-filter's own cutoff. Real evidence: a genuine
+    # WS4 poem's own line (57 of a 65-column margin, comfortably past the
+    # 55-column `threshold`) sat inside an otherwise unbroken run of short
+    # verse and split the stanza in two under the strict-only test. Bounded
+    # two ways so it can't misfire into gluing prose: (1) the neighbour
+    # check itself uses `is_short`, never this widened form, so one long
+    # line can never bootstrap another next to it into the run; (2) even a
+    # widened-in line still has to survive `looks_like_verse`'s own
+    # terminal-punctuation/quote-opening/attribute-shift verdict on the
+    # WHOLE run before it reads as a stanza -- a dialogue or narrative line
+    # that happens to land between two short lines gets pulled into
+    # candidacy the same way, but the run it joins still reads as prose on
+    # content and splits right back apart (see the class of fixtures this
+    # is checked against in test_modern_lint.py).
+    effective_margin = margin or 65
+
+    def is_run_candidate(k):
+        if is_short(units[k]):
+            return True
+        u = units[k]
+        if len(u) != 1:
+            return False
+        text = line_visible_text(u[0]).rstrip()
+        if not text or len(text) >= effective_margin:
+            return False
+        prev_ok = k > 0 and is_short(units[k - 1])
+        next_ok = k + 1 < len(units) and is_short(units[k + 1])
+        return prev_ok and next_ok
+
+    dominant = block_dominant_styles(lines)
+    out, i = [], 0
+    while i < len(units):
+        if not is_run_candidate(i):
+            out.append(units[i])
+            i += 1
+            continue
+        j = i
+        while j < len(units) and is_run_candidate(j):
+            j += 1
+        run = [u[0] for u in units[i:j]]
+        if len(run) >= 2 and looks_like_verse(run, dominant):
+            out.append(run)                    # one stanza, lines kept as-is
+        else:
+            out.extend(units[i:j])              # each stays its own paragraph
+        i = j
+    return out
+
+
+def paragraph_layout_context(doc) -> tuple:
+    """(convention_indent, head_position) -- the two whole-document signals
+    `assemble_paragraphs`'s convention-outlier/positional route needs,
+    computed once per document rather than re-derived per block (Jon's
+    ruling, closing round, 2026-08-17).
+
+    CONVENTION_INDENT is the MODAL opening-line indent width across the
+    document's own para blocks (heading blocks excluded -- a heading's
+    "indent" is a title-page convention, not the body's paragraph mark) --
+    what "a normal paragraph here opens like" means for THIS document. A
+    block whose own opening line doesn't match it is a convention outlier.
+
+    HEAD_POSITION is a dict, by `id(block)`, of whether that para block
+    sits in the document's own FRONT MATTER -- a contiguous run of blocks
+    at the document's head (or immediately after a heading-classified
+    block or a page/section break, the "start of a chapter" case) that
+    have not yet reached a single ordinary, convention-conforming
+    paragraph. Real evidence: in the same private-corpus story, the title/byline (block 0) and the
+    verse epigraph (block 1) are BOTH convention outliers -- the title
+    itself carries no WordStar heading classification (`b.heading` is 0),
+    so "immediately after a heading" alone would miss the epigraph
+    entirely, one block too late. Tracking "still in front matter" instead
+    of "immediately after one specific boundary block" covers exactly this
+    -- the head-position window extends through however many outlier
+    blocks open the document (or chapter), and closes the moment a block
+    actually matches the document's own paragraph convention (real body
+    prose has started). A pagebreak or a heading block reopens the window
+    for whatever comes next -- a new chapter gets its own front matter.
+    Heading blocks themselves get no entry (`assemble_paragraphs` callers
+    default to False via `.get`) -- irrelevant in practice, since a
+    heading is almost always one line and the outlier route requires at
+    least two."""
+    counts = Counter()
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines or b.heading:
+            continue
+        lines = merged_lines(b)
+        if not lines:
+            continue
+        t = line_visible_text(lines[0])
+        counts[len(t) - len(t.lstrip(' '))] += 1
+    convention_indent = counts.most_common(1)[0][0] if counts else 0
+
+    head_position = {}
+    in_front_matter = True
+    for b in doc.blocks:
+        if b.kind == 'pagebreak':
+            in_front_matter = True
+            continue
+        if b.kind != 'para' or not b.lines:
+            continue
+        if b.heading:
+            in_front_matter = True
+            continue
+        head_position[id(b)] = in_front_matter
+        if in_front_matter:
+            lines = merged_lines(b)
+            if lines:
+                t = line_visible_text(lines[0])
+                indent = len(t) - len(t.lstrip(' '))
+                if indent == convention_indent:
+                    in_front_matter = False   # real body prose has started
+    return convention_indent, head_position
+
+
+def split_leading_indent(spans: list):
+    """(indent_cols, spans) -- a leading run of literal spaces measured and
+    removed from the first VISIBLE span (a leading footnote/endnote/
+    annotation/comment reference marker -- fnref, see `line_visible_text`
+    -- is skipped over, not mistaken for having no indent). Used for a
+    paragraph unit's own first line: the typed/machine indent becomes a
+    real `\\fi`/`text-indent` property instead of literal characters
+    (Modern rule: no literal leading indent whitespace opening a
+    paragraph). (0, spans) unchanged when there is no leading run -- spans
+    is returned as-is in that case (not copied)."""
+    if not spans:
+        return 0, spans
+    i = 0
+    while i < len(spans) and 'fnref' in spans[i].styles:
+        i += 1
+    if i >= len(spans):
+        return 0, spans
+    t = spans[i].text
+    stripped = t.lstrip(' ')
+    n = len(t) - len(stripped)
+    if not n:
+        return 0, spans
+    out = list(spans)
+    if stripped:
+        out[i] = Span(stripped, spans[i].styles)
+    else:
+        out.pop(i)
+    return n, out
+
+
 def merged_lines(block: Block) -> list:
     """Block.lines with soft-wrapped runs joined back into logical lines --
     what Block.lines itself WAS before 2.0.0 stored physical lines.
@@ -238,9 +766,11 @@ def merged_lines(block: Block) -> list:
             if t and not t.endswith((' ', '-')):
                 cur.spans.append(Span(' ', cur.spans[-1].styles))
             continue
+        cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
         cur = None
     if cur is not None:
+        cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
     return out
 

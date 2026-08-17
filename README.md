@@ -56,6 +56,15 @@ against surviving period printouts of the same documents. Its rules are empirica
   are paragraph breaks; a lone hard return is the author's deliberate line break.
   Double-spaced documents (blank soft lines between every line) collapse
   automatically.
+* **Typed paragraphs reflow too.** A manuscript that marks a new paragraph by
+  indentation rather than a blank line — one WordStar `Block` full of many
+  hard-terminated, indented lines — gets those lines split back into real
+  paragraphs in every Modern format (RTF `\par`, HTML `<p>`, blank-line-
+  separated text/Markdown), not left as forced line breaks. A hard-terminated
+  line that opens with the typed/machine indent AND runs close to the block's
+  own measured wrap point starts a new paragraph; a deliberately short line
+  (a poem's stanza, an address) stays exactly as written. Printed mode is
+  untouched — it renders every physical line, always.
 * **Ruler lines mean columns.** A `.rr----!----` dot line defines tab stops; the
   document's alignment is space-built and only survives fixed-width. Such
   documents render `printed` in every mode.
