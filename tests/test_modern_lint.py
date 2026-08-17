@@ -131,6 +131,52 @@ def _para_blocks_doc(block_lines_list):
     return core.parse_ws(ws7_block(0x00) + body)
 
 
+def test_merged_lines_coalesces_across_a_blank_line_flush():
+    """Round 10: `merged_lines()` has THREE places a completed `cur` Line
+    reaches `out` -- a normal non-blank hard line ending it, end-of-block,
+    and a BLANK hard line cutting a soft-wrapped run short. The first two
+    always called `coalesce_spans(cur.spans)` before appending; the third
+    did not, found via the corpus lint gate on a real private-corpus WS5+
+    document (a macro-reference file): three soft-wrapped physical lines,
+    each decoding to its own plain-style Span (a physical-line seam is not
+    itself a style boundary -- the ordinary case, not an edge case), then
+    a blank line ended the block WITHOUT the catch-up coalesce the other
+    two paths get. Reproduced directly at the merged_lines() level (a
+    hand-built Block/Line list) rather than through raw bytes and the
+    line-classification heuristic, which is not what this bug is about."""
+    block = core.Block(kind='para', lines=[
+        core.Line([core.Span('one two three four five')], soft=True),
+        core.Line([core.Span('six seven eight nine ten')], soft=True),
+        core.Line([core.Span('eleven twelve done here')], soft=True),
+        core.Line([], soft=False),                    # the blank that cut it short
+    ])
+    merged = core.merged_lines(block)
+    assert len(merged) == 1
+    assert len(merged[0].spans) == 1, merged[0].spans   # was 6, one per seam
+
+
+def test_split_leading_indent_consumes_a_whole_span_straddling_style_change():
+    """Round 10, the SAME real document, a second (related but distinct --
+    coalesce_spans's own 'equal style sets' rule was never in question,
+    the two spans here are genuinely differently styled) mechanism the
+    same lint-gate area surfaced right after the fix above stopped
+    masking it: a typed indent that straddles a style toggle (five plain
+    spaces, then bold turned on, then three MORE spaces before the
+    visible label -- "     " + <^B> + "   Function:") decodes to two
+    Spans with different style sets, so they correctly do NOT coalesce,
+    but the original single-span strip only ever looked at the first one,
+    popped it, and stopped -- leaving the second Span's own leading
+    spaces as a literal indent. Any number of whole leading spans-only
+    Spans, of any style, are now consumed before the final partial strip."""
+    spans = [core.Span('     ', frozenset()),
+             core.Span('   Function:', frozenset({'b'})),
+             core.Span(' does a thing.', frozenset())]
+    n, out = core.split_leading_indent(spans)
+    assert n == 8                                       # 5 + 3
+    assert out[0].text == 'Function:' and out[0].styles == frozenset({'b'})
+    assert out[1].text == ' does a thing.'
+
+
 def test_assemble_paragraphs_short_lines_stay_one_unit():
     """Calibration fixture for PARAGRAPH_JOIN_SLACK (core.py): four
     deliberately short hard-terminated lines -- shaped exactly like

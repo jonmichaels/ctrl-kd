@@ -767,7 +767,25 @@ def split_leading_indent(spans: list):
     real `\\fi`/`text-indent` property instead of literal characters
     (Modern rule: no literal leading indent whitespace opening a
     paragraph). (0, spans) unchanged when there is no leading run -- spans
-    is returned as-is in that case (not copied)."""
+    is returned as-is in that case (not copied).
+
+    Round 10: the indent itself can straddle a STYLE change -- a private-
+    corpus WS5+ macro-reference document types five plain spaces, toggles
+    bold, then types three MORE spaces before the visible label ("     "
+    + <^B> + "   Function:"), all one typed indent in the author's own
+    head but two Spans once decoded, with genuinely different (so
+    correctly un-coalesced -- coalesce_spans's "equal style sets" rule
+    was never in question here) style sets. The original single-span
+    strip below popped the first (all-whitespace, plain) span entirely
+    and stopped, leaving the second span's OWN leading run of spaces
+    sitting untouched as a literal indent -- found by the very lint gate
+    this fixes, right after round 10's OTHER fix (the coalescing gap in
+    merged_lines) stopped masking it. Any number of WHOLE leading spans
+    that are pure whitespace, of ANY style, are consumed first now,
+    before the original partial-strip runs on whichever span is left at
+    the front carrying real content -- exactly the same "typed indent,
+    not authored content" reading, just no longer assuming it fits in
+    one Span."""
     if not spans:
         return 0, spans
     i = 0
@@ -775,17 +793,22 @@ def split_leading_indent(spans: list):
         i += 1
     if i >= len(spans):
         return 0, spans
-    t = spans[i].text
+    j, n = i, 0
+    while j < len(spans) and spans[j].text and not spans[j].text.strip():
+        n += len(spans[j].text)
+        j += 1
+    if j >= len(spans):
+        return (0, spans) if n == 0 else (n, spans[:i] + spans[j:])
+    t = spans[j].text
     stripped = t.lstrip(' ')
-    n = len(t) - len(stripped)
-    if not n:
+    m = len(t) - len(stripped)
+    if not n and not m:
         return 0, spans
-    out = list(spans)
+    n += m
+    tail = list(spans[j + 1:])
     if stripped:
-        out[i] = Span(stripped, spans[i].styles)
-    else:
-        out.pop(i)
-    return n, out
+        tail.insert(0, Span(stripped, spans[j].styles))
+    return n, spans[:i] + tail
 
 
 def merged_lines(block: Block) -> list:
@@ -826,6 +849,26 @@ def merged_lines(block: Block) -> list:
             # how the two disagreed for a day. Found by the Swift port.
             if not line.soft:
                 if cur is not None:
+                    # round 10: this is one of THREE places a completed `cur`
+                    # reaches `out` -- the other two (a normal non-blank hard
+                    # line ending it below, and end-of-block) both coalesce
+                    # first; this one, a blank hard line cutting a logical
+                    # line short, did not. A soft-wrapped run's own spans
+                    # never get coalesced AT the physical-line seam (each
+                    # physical line decodes independently, so two adjacent
+                    # empty-style text spans either side of a wrap are the
+                    # ordinary case, not an edge case) -- normally that is
+                    # fine because the eventual `coalesce_spans(cur.spans)`
+                    # below catches it once the logical line completes. A
+                    # paragraph that wraps across several physical lines and
+                    # is THEN immediately followed by a blank line (not
+                    # another line of content) hit this branch instead and
+                    # skipped that catch-up entirely, leaving the un-merged
+                    # seam spans in the IR (found via the corpus lint gate,
+                    # round 10: a private-corpus WS5+ document with exactly
+                    # this shape -- three physical lines, soft/soft/soft,
+                    # immediately followed by a blank hard line).
+                    cur.spans = coalesce_spans(cur.spans)
                     out.append(cur)
                     cur = None
                 pending_blanks += 1
