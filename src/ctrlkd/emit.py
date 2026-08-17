@@ -297,7 +297,15 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
-                is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+                # round 7 (2026-08-17): a wrap=off block's unit is ALWAYS
+                # treated as verse here too -- assemble_paragraphs already
+                # returns it as one whole-block unit unconditionally, but
+                # this is where a NON-verse multi-line unit gets flowed
+                # into one line (round 3b); without the `not b.wrap` guard
+                # that flow logic would still run on a hand-positioned
+                # block's lines and destroy the layout via a different
+                # mechanism. Register C23.
+                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
                 if len(unit) > 1 and not is_verse:
                     # only the unit's own FIRST line keeps its typed indent
                     # (the paragraph-start marker, unchanged from the
@@ -520,8 +528,10 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # unit that never got verse-verified (bare phase-1 flush-
             # continuation) flows as ONE line instead; every line was
             # already stripped of its own leading indent by
-            # `_md_unit_lines`, so a plain space join is enough.
-            if len(unit) > 1 and not looks_like_verse(unit, dominant):
+            # `_md_unit_lines`, so a plain space join is enough. round 7
+            # (2026-08-17): `not b.wrap` short-circuits this for a hand-
+            # positioned (.aw off) block -- never flowed, Register C23.
+            if len(unit) > 1 and not (not b.wrap or looks_like_verse(unit, dominant)):
                 lines = [' '.join(l for l in lines if l.strip())]
             if quote:
                 # rule D: style-carried blockquote material keeps its own
@@ -1022,7 +1032,15 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 # `looks_like_verse` ever asked for. Re-derives the SAME
                 # verdict `assemble_paragraphs` used internally to build
                 # this very unit (pure function, identical inputs).
-                is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+                # round 7 (2026-08-17): a wrap=off block's unit is ALWAYS
+                # treated as verse here too -- assemble_paragraphs already
+                # returns it as one whole-block unit unconditionally, but
+                # this is where a NON-verse multi-line unit gets flowed
+                # into one line (round 3b); without the `not b.wrap` guard
+                # that flow logic would still run on a hand-positioned
+                # block's lines and destroy the layout via a different
+                # mechanism. Register C23.
+                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
                 rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
                 for line in unit[1:]:
                     spans = _maybe_strip_align(b, list(line.spans))

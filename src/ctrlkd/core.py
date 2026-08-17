@@ -506,12 +506,40 @@ def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = 
     data loss -- the opposite failure (a real one in round 1) silently
     glued paragraphs together instead.
 
+    WRAP OFF IS CHECKED FIRST, before either phase and before the
+    convention-outlier route (Jon's ruling, round 7, 2026-08-17 -- a
+    regression the register re-audit found in this whole overhaul): `.aw
+    off` (`Block.wrap = False`) means the author is positioning these
+    lines BY HAND -- Register C23, the same rule already documented on
+    `Block.wrap` itself: "a reflowing consumer must NOT re-wrap them or
+    the layout is destroyed." Before `assemble_paragraphs` existed,
+    Modern simply never reflowed anything, so wrap=off was honored by
+    accident; this function's own phase 1 (indent starts a unit) and
+    phase 2 (short-run verse grouping) never learned to check it, so a
+    hand-positioned table-ish block could get torn into separate
+    paragraphs at its own column headers, or glued elsewhere -- the exact
+    "layout is destroyed" the register warns about, now via a different
+    mechanism. wrap=off gets the SAME treatment as a verified stanza --
+    the whole block is ONE preserved unit, every line kept exactly as
+    typed -- but unconditionally, never put through `looks_like_verse` at
+    all: an explicit dot command is stronger evidence than any inferred
+    signal. Emitters must not independently re-derive a verse verdict for
+    a unit that came from a wrap=off block either (see each Modern
+    emitter's own `is_verse` computation, which now checks `not
+    b.wrap` first) -- returning the whole block here is necessary but not
+    sufficient, since round 3b's own <br>-vs-flow logic re-derives
+    "is this verse" from the unit alone and would otherwise flow a
+    hand-positioned block's lines into one run-on line.
+
     Returns a list of paragraph units, each a non-empty list of Lines (the
     unit itself, not yet rendered -- callers still choose their own
     within-unit joiner and first-line-indent treatment per format)."""
     lines = merged_lines(block)
     if not lines:
         return []
+
+    if block.wrap is False:
+        return [lines]              # .aw off: whole block, one preserved unit
 
     if convention_indent is not None:
         first_text = line_visible_text(lines[0])
