@@ -450,6 +450,40 @@ def test_modern_rtf_poem_stays_one_par_with_line_breaks():
     assert r.count(r'\line') == 3
 
 
+def test_modern_markdown_poem_stays_one_paragraph_with_hard_breaks():
+    """Companion to the HTML/RTF poem tests, for Markdown (round 3b,
+    2026-08-17): a verified stanza still gets a real forced break --
+    Markdown's own vocabulary for one, a trailing backslash -- between
+    each of its lines."""
+    lines = [
+        b'     Line one is short,',
+        b'     line two also short --',
+        b'     line three fits the pattern --',
+        b'     line four closes it.',
+    ]
+    doc = _typed_paragraph_doc(lines)
+    md = emit.emit_markdown(doc, mode='modern')
+    assert md.count('\n\n') == 0
+    assert md.count('\\\n') == 3
+
+
+def test_modern_text_poem_stays_one_paragraph_with_line_breaks():
+    """Companion to the HTML/RTF/Markdown poem tests, for Text (round 3b,
+    2026-08-17): a verified stanza still gets a real forced break -- a
+    bare newline, Text's own paragraph-INTERNAL break -- between each of
+    its lines, distinct from the blank-line paragraph separator."""
+    lines = [
+        b'     Line one is short,',
+        b'     line two also short --',
+        b'     line three fits the pattern --',
+        b'     line four closes it.',
+    ]
+    doc = _typed_paragraph_doc(lines)
+    t = emit.emit_text(doc, mode='modern')
+    assert t.count('\n\n') == 0
+    assert t.strip().count('\n') == 3
+
+
 def test_modern_prose_lines_each_get_own_paragraph():
     long = 'x' * 58
     lines = [f'     {long} one'.encode(), f'     {long} two'.encode(),
@@ -463,6 +497,40 @@ def test_modern_prose_lines_each_get_own_paragraph():
     assert r.count(r'\par') == 3 and r.count(r'\line') == 0
     assert md.count('\n\n') == 2 and '\\\n' not in md
     assert t.count('\n\n') == 2
+
+
+def test_modern_non_verse_multiline_unit_flows_in_all_four_formats():
+    """Round 3b (2026-08-17): "no hard line breaks inside paragraphs in
+    ANY Modern format." Two complete, terminally-punctuated sentences --
+    decisively prose by every `looks_like_verse` signal -- shaped as a
+    BARE phase-1 flush-continuation unit (line 0 indented starts it, line
+    1 flush continues it): this never even reaches phase 2's verse check
+    inside `assemble_paragraphs` (multi-line already, so phase 2 skips
+    it), which is exactly why each emitter has to re-derive the verdict
+    itself at render time. Real evidence this shape exists: W4P3's own
+    title block and one other body unit, found when this fix was first
+    applied to HTML alone and only later made uniform. All four formats
+    must flow it as ONE paragraph with NO forced break of any kind --
+    <br>, \\line, a trailing-backslash break, or a bare newline."""
+    lines = [
+        b'     Fenn walked slowly to the door and stopped there for a moment.',
+        b'He turned the handle very carefully and stepped outside into the cold.',
+    ]
+    doc = _typed_paragraph_doc(lines)
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 1 and len(units[0]) == 2          # one bare 2-line unit
+    dominant = core.block_dominant_styles(core.merged_lines(doc.blocks[0]))
+    assert not core.looks_like_verse(units[0], dominant)    # decisively prose
+
+    h = emit.emit_html(doc, mode='modern')
+    r = emit.emit_rtf(doc, mode='modern')
+    md = emit.emit_markdown(doc, mode='modern')
+    t = emit.emit_text(doc, mode='modern')
+    assert h.count('<p') == 1 and '<br>' not in h
+    assert r.count(r'\par') == 1 and r'\line' not in r
+    assert md.count('\n\n') == 0 and '\\\n' not in md
+    assert t.strip().count('\n') == 0                       # one flowed line, no break
 
 
 def test_modern_first_line_indent_becomes_property_not_literal_spaces():

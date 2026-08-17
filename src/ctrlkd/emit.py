@@ -276,14 +276,28 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # Modern: one `out` entry per PARAGRAPH UNIT, not per block, so
             # the blank-line join below (unchanged) now separates typed
             # paragraphs from each other, not just Blocks from each other.
-            # Within a unit, lines still join with a bare newline -- exactly
-            # today's same-paragraph separator (a deliberate short line, a
-            # poem's stanza, stays a forced line break, never reflowed).
+            # Within a unit, a bare newline is reserved for a REAL
+            # deliberate break -- a verified verse/stanza unit (round 3b,
+            # 2026-08-17: "no hard line breaks inside paragraphs in ANY
+            # Modern format," matching HTML's own <br>-vs-flow rule). A
+            # multi-line unit that never got verse-verified (bare phase-1
+            # flush-continuation) flows as ONE line instead.
             quote = _is_quote_style(b)
+            dominant = block_dominant_styles(merged_lines(b))
             for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
-                lines = _align_lines([render(l) for l in unit], b.align, b)
+                is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+                if len(unit) > 1 and not is_verse:
+                    # only the unit's own FIRST line keeps its typed indent
+                    # (the paragraph-start marker, unchanged from the
+                    # single-line case); continuation lines lose theirs the
+                    # same way a genuine soft-wrap already would have.
+                    segs = [render(unit[0])] + [render(l).lstrip(' ') for l in unit[1:]]
+                    lines = _align_lines([' '.join(t for t in segs if t.strip())],
+                                        b.align, b)
+                else:
+                    lines = _align_lines([render(l) for l in unit], b.align, b)
                 if quote:
                     # rule 3 (round 3, 2026-08-17): plain text's only
                     # "quote" vocabulary is indentation, and the source's
@@ -446,20 +460,27 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 out.append('#' * b.heading + ' ' + para.strip())
             continue
         quote = _is_quote_style(b)
+        dominant = block_dominant_styles(merged_lines(b))
         for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
             lines = _md_unit_lines(unit, refs, keep)
             if not any(l.strip() for l in lines):
                 continue
+            # round 3b (2026-08-17): a trailing-backslash break is reserved
+            # for a REAL deliberate line break -- a verified verse/stanza
+            # unit -- matching HTML/RTF/Text's own same-rule fix. A
+            # multi-line unit that never got verse-verified (bare phase-1
+            # flush-continuation) flows as ONE line instead; every line was
+            # already stripped of its own leading indent by
+            # `_md_unit_lines`, so a plain space join is enough.
+            if len(unit) > 1 and not looks_like_verse(unit, dominant):
+                lines = [' '.join(l for l in lines if l.strip())]
             if quote:
                 # rule D: style-carried blockquote material keeps its own
                 # handling -- Markdown's only way to say "quoted" is '>'
                 out.append('\n'.join('> ' + l if l else '>' for l in lines))
             else:
-                # within-unit: unchanged hard-break join (trailing
-                # backslash) -- a deliberate short line (a poem's stanza)
-                # stays a forced line break, never reflowed into prose
                 out.append('\\\n'.join(lines))
     md = '\n\n'.join(out)
     # A note's own raw text is embedded verbatim below -- never routed
@@ -1345,15 +1366,30 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # typed/machine indent to a real \fi (rule B: no literal leading
         # indent whitespace); every other line in the unit keeps its
         # literal leading spaces exactly as before (a poem's second verse
-        # is content, not a paragraph-start marker).
+        # is content, not a paragraph-start marker) UNLESS the unit never
+        # got verse-verified, in which case it flows as one line instead
+        # (round 3b, 2026-08-17: \line is reserved for a REAL deliberate
+        # break -- a verified verse/stanza unit -- matching HTML/Text/
+        # Markdown's own same-rule fix; a bare phase-1 flush-continuation
+        # grouping is prose that merely happens to carry more than one
+        # Line).
+        dominant = block_dominant_styles(merged_lines(b))
         for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
             first = _maybe_strip_align(b, list(unit[0].spans))
             indent_cols, first = split_leading_indent(first)
-            lines = [rtf_seg(first)]
-            lines.extend(rtf_seg(_maybe_strip_align(b, list(line.spans)))
-                        for line in unit[1:])
+            is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+            rendered = [rtf_seg(first)]
+            for line in unit[1:]:
+                spans = _maybe_strip_align(b, list(line.spans))
+                if not is_verse:
+                    _, spans = split_leading_indent(spans)
+                rendered.append(rtf_seg(spans))
+            if len(unit) > 1 and not is_verse:
+                lines = [' '.join(t for t in rendered if t.strip())]
+            else:
+                lines = rendered
             _rtf_emit_para(parts, rtf_state, b, lines, indent_cols)
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
