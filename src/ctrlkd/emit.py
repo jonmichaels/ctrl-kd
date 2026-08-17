@@ -13,7 +13,7 @@ import re
 from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
                    assemble_paragraphs, split_leading_indent,
                    paragraph_layout_context, looks_like_verse,
-                   block_dominant_styles)
+                   block_dominant_styles, effective_span_styles)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -228,6 +228,16 @@ def _doc_margin(doc):
 
 
 def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
+    # RULED EXCLUSION (round 5, 2026-08-17, attribute-surface audit): plain
+    # text has no character-attribute vocabulary at all -- no bold, no
+    # italic, no underline/strikeout, no sub/superscript, style-declared
+    # or run-toggled alike. This is BY DESIGN, not a gap: `render()` below
+    # reads span TEXT only and never consults `s.styles` (besides the
+    # structural pctl/fnref exceptions, which are position/reference
+    # markers, not character formatting) or a block's own `style_attrs`.
+    # Every other Modern format has a documented, honest mapping for the
+    # full attribute set (see `_MD`/`_MD_HTML` for Markdown, `_TAG` for
+    # HTML, `_RTF_ON` for RTF); Text's own mapping is "none of it survives."
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -329,6 +339,19 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
 
 # ---------------------------------------------------------------- markdown
 
+# The full attribute mapping (round 5, 2026-08-17 audit -- every attribute
+# the model carries, b/i/u/strike/sub/sup, gets an HONEST mapping here, not
+# a silent drop): bold/italic/strikeout have native CommonMark syntax
+# (`_MD`, delimiter pairs); underline/sub/superscript do NOT (no CommonMark
+# construct means any of the three), so they fall through to raw inline
+# HTML passthrough instead (`_MD_HTML`, tag pairs) -- explicitly permitted
+# by the CommonMark spec, and the only honest way to say "underlined" in
+# Markdown without inventing non-standard syntax. Neither table's
+# attribute reaches `_md_span` unless it's actually EFFECTIVE on the span
+# (`core.effective_span_styles` -- style-level attrs merged with the
+# typist's own run-level toggles), which is what round 5 fixed: a style's
+# own declared bold used to reach RTF's stylesheet and HTML's CSS class but
+# never a Markdown run at all.
 _MD = {'b': '**', 'i': '*', 'strike': '~~'}
 _MD_HTML = {'u': 'u', 'sup': 'sup', 'sub': 'sub'}
 _MD_NOTE_PREFIX = {'footnote': '', 'endnote': 'e', 'annotation': 'a', 'comment': 'c'}
@@ -402,7 +425,13 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
             core = f'<{t}>{core}</{t}>'
     return lead + core + trail
 
-def _md_unit_lines(unit, refs, keep):
+# A real scene-break marker ('#', '* * *', '...') is a handful of
+# characters at most; see `_md_unit_lines`'s own docstring for why this
+# bound exists at all (round 5, 2026-08-17).
+_MARKER_MAX_LEN = 5
+
+
+def _md_unit_lines(unit, refs, keep, b):
     """One paragraph unit's Lines rendered to Markdown text, EVERY line's
     own leading indent dropped (Jon's ruling, round 3, 2026-08-17 --
     widened from "first line only" after real screenshots showed both
@@ -416,14 +445,31 @@ def _md_unit_lines(unit, refs, keep):
     paragraph gap or the hard line-break do the whole job. A literal
     leading run would also risk CommonMark reading 4+ columns as an
     indented code block (the `_md_no_deep_indent` lint's whole reason to
-    exist). A letterless marker line (a centred '#' scene break) renders
-    with `plain=True` -- see `_md_span` -- so it never picks up emphasis
-    wrapping from a source style it happens to share with body prose."""
+    exist). A SHORT letterless marker line (a centred '#' scene break, at
+    most `_MARKER_MAX_LEN` characters) renders with `plain=True` -- see
+    `_md_span` -- so it never picks up emphasis wrapping from a source
+    style it happens to share with body prose. Bounded to short runs only
+    (round 5, 2026-08-17 attribute-mapping audit): an UNBOUNDED letterless
+    check also caught a real fixture's own longer decorative letterless
+    run (LJ6DTP.WS, 23 cp437 block-drawing characters carrying a genuine
+    content `sup`) and silently dropped ITS formatting too -- a length a
+    real scene-break marker never reaches, so bounding it costs nothing
+    marker detection actually needs.
+
+    Every span's EFFECTIVE styles (round 5: merged with the containing
+    Block `b`'s own paragraph-style attrs, not just what the typist
+    toggled inline) are what actually get rendered -- OLDTIMES's own
+    'Award Citation' style declares bold+italic but its spans only
+    re-toggle italic; reading `s.styles` alone silently dropped the
+    style-level bold. See `core.effective_span_styles`."""
     out = []
     for line in unit:
         raw = ''.join(s.text for s in line.spans)
-        plain = bool(raw.strip()) and not any(c.isalpha() for c in raw)
-        text = ''.join(_md_span(s, refs, keep, plain=plain) for s in line.spans)
+        stripped = raw.strip()
+        plain = (bool(stripped) and len(stripped) <= _MARKER_MAX_LEN
+                and not any(c.isalpha() for c in raw))
+        spans = [Span(s.text, effective_span_styles(s, b)) for s in line.spans]
+        text = ''.join(_md_span(s, refs, keep, plain=plain) for s in spans)
         out.append(text.lstrip(' '))
     return out
 
@@ -453,7 +499,8 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # straight into the output raw, the same CommonMark 4-space
             # hazard `_md_unit_lines` already guards against for ordinary
             # paragraphs).
-            lines = [''.join(_md_span(s, refs, keep) for s in line.spans).lstrip(' ')
+            lines = [''.join(_md_span(Span(s.text, effective_span_styles(s, b)),
+                                      refs, keep) for s in line.spans).lstrip(' ')
                      for line in merged_lines(b)]
             para = '  \n'.join(lines)
             if para.strip():
@@ -464,7 +511,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
-            lines = _md_unit_lines(unit, refs, keep)
+            lines = _md_unit_lines(unit, refs, keep, b)
             if not any(l.strip() for l in lines):
                 continue
             # round 3b (2026-08-17): a hard break is reserved for a REAL
@@ -530,6 +577,16 @@ section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
 hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
 
+# The full attribute mapping (round 5 audit): every attribute the model
+# carries gets a real semantic tag here -- all six, no exceptions, since
+# HTML has native elements for every one of them. RUN-level attrs go
+# through this per span (`_html_span`); a paragraph STYLE's own declared
+# attrs take an entirely DIFFERENT path (`_style_css`'s CSS properties on
+# the style's class, applied to the whole `<p>`/`<h#>` at once) rather
+# than being merged into spans and run through this table -- which is
+# exactly why HTML never had round 5's bug in the first place, and why
+# `_style_css` needed its OWN sub/super rule (no tag to wrap a paragraph
+# in) once the audit found the paragraph-level table was missing them.
 _TAG = {'b': 'strong', 'i': 'em', 'u': 'u', 'sup': 'sup', 'sub': 'sub', 'strike': 's'}
 
 # DPUB-ARIA 1.1 (W3C Recommendation) roles used below, verified against the
@@ -785,6 +842,18 @@ def _style_css(doc, printed=True):
                 if tag in a]
         if deco:
             props.append('text-decoration:' + ' '.join(deco))
+        # round 5 (2026-08-17): a paragraph STYLE can declare sub/super
+        # (WSFORMAT's own attrs-on bits 0x10/0x20 -- verified against the
+        # spec, not assumed), the same as it declares bold/italic/
+        # underline/strikeout above; this CSS is the paragraph-level
+        # equivalent of the run-level <sub>/<sup> tag `_html_span` already
+        # uses, matching those elements' own default UA stylesheet
+        # (vertical-align + a smaller font-size) since a CSS class can't
+        # wrap content in a tag the way a run-level toggle can.
+        if 'sub' in a:
+            props.append('vertical-align:sub;font-size:smaller')
+        elif 'sup' in a:
+            props.append('vertical-align:super;font-size:smaller')
         font = entry.get('font')
         if font:
             w, h, ts = font
@@ -1014,6 +1083,15 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
 
 # ---------------------------------------------------------------- rtf
 
+# The full attribute mapping (round 5 audit): all six, one direct control
+# word each, applied to every RUN via `rtf_seg`'s own effective-attribute
+# merge (style-declared + run-toggled). Round 5's design ruling (Jon,
+# 2026-08-17, after finding style-declared bold invisible in Word itself,
+# not just non-Word readers): DIRECT FORMATTING IS THE ONLY RENDERING
+# MECHANISM IN RTF. `\sN` in `_rtf_stylesheet` is provenance/naming only
+# (so Sawyer's own style names still show up in Word's style pane) --
+# nothing may depend on the stylesheet actually being applied, character
+# attributes included.
 _RTF_ON = {'b': r'\b ', 'i': r'\i ', 'u': r'\ul ', 'sup': r'\super ',
            'sub': r'\sub ', 'strike': r'\strike '}
 
@@ -1468,9 +1546,23 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     quote_open = False
     quote_fi_cols = None
 
-    def rtf_seg(spans):
+    def rtf_seg(spans, b):
+        # round 5 (2026-08-17): DIRECT FORMATTING IS THE ONLY RENDERING
+        # MECHANISM IN RTF, full stop -- Jon opened a delivered file in
+        # Word itself and found style-declared bold invisible there too,
+        # which kills any "the stylesheet is fine for Word" premise (the
+        # RTF spec's own \sN is nominal, a style-pane label; a writer
+        # must emit the complete effective formatting as direct tokens,
+        # and no reader is obliged to apply \stylesheet on load). Every
+        # run's effective attributes -- its own toggles merged with
+        # whatever the containing Block's paragraph STYLE declares --
+        # are merged in BEFORE rendering, here, so every call site gets
+        # it free. `coalesce_spans` runs again after the merge, which
+        # also correctly re-joins runs that only differed because one
+        # carried a redundant inline toggle the style already covered.
+        merged = [Span(sp.text, effective_span_styles(sp, b)) for sp in spans]
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
-                       for sp in coalesce_spans(spans))
+                       for sp in coalesce_spans(merged))
 
     for b in doc.blocks:
         if b.kind == 'pagebreak':
@@ -1481,7 +1573,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
             # physical lines: \line at every printed break, soft or hard
-            lines = [rtf_seg(line.spans) for line in b.lines]
+            lines = [rtf_seg(line.spans, b) for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
             _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri)
@@ -1493,7 +1585,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # by paragraph assembly, same as before. Alignment stripping now
             # goes through the shared helper explicitly (it used to inherit
             # the fix only by accident of loop order).
-            lines = [rtf_seg(_maybe_strip_align(b, list(line.spans)))
+            lines = [rtf_seg(_maybe_strip_align(b, list(line.spans)), b)
                      for line in merged_lines(b)]
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
             _rtf_emit_para(parts, rtf_state, b, lines, li=li, ri=ri)
@@ -1533,12 +1625,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                     quote_fi_cols = indent_cols
                 indent_cols = quote_fi_cols
             is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
-            rendered = [rtf_seg(first)]
+            rendered = [rtf_seg(first, b)]
             for line in unit[1:]:
                 spans = _maybe_strip_align(b, list(line.spans))
                 if not is_verse:
                     _, spans = split_leading_indent(spans)
-                rendered.append(rtf_seg(spans))
+                rendered.append(rtf_seg(spans, b))
             if len(unit) > 1 and not is_verse:
                 lines = [' '.join(t for t in rendered if t.strip())]
             else:

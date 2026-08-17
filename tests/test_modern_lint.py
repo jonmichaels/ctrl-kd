@@ -36,14 +36,16 @@ def ws7_block(cmd, content=b''):
     return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
 
 
-def _style_record(left=1800, just=0, right=None):
+def _style_record(left=1800, just=0, right=None, attrs_on=0):
     """Trimmed 102-byte style record -- only the fields this file's tests
-    read (left/right margin, justification); everything else stays at the
-    project's own 'inherited' sentinels. See test_ctrlkd.py's
+    read (left/right margin, justification, attrs-on); everything else
+    stays at the project's own 'inherited' sentinels. See test_ctrlkd.py's
     `_style_record` for the full field-by-field version. `right=None`
     keeps the original inherited-margin sentinel (0xFFFE, -2 signed --
     `core.sword_none`'s own "no value" reading); a real int is HMI
-    (1800/inch), same unit as `left`."""
+    (1800/inch), same unit as `left`. `attrs_on` is the raw WSFORMAT bit
+    pattern (strikeout=1, doublestrike=2, underline=8, sub=16, super=32,
+    bold=64, italic=128 -- see core.py's own `entry['attrs']` decode)."""
     rec = bytearray(102)
     rec[0:2] = (0xFFFF).to_bytes(2, 'little')
     rec[10:12] = left.to_bytes(2, 'little')
@@ -56,6 +58,7 @@ def _style_record(left=1800, just=0, right=None):
     rec[87] = 1
     rec[88:90] = (0xFFFF).to_bytes(2, 'little')
     rec[90] = 0xFF
+    rec[91:93] = attrs_on.to_bytes(2, 'little')
     rec[95] = 0xFF
     return bytes(rec)
 
@@ -796,34 +799,50 @@ def _html_blockquote_indent_variance(h):
 
 
 def _rtf_body_only(r):
-    """`r` with the `\\stylesheet` group removed -- state-replay checks
-    (`_rtf_state_issues`) must scan only the BODY's own direct formatting
-    tokens; the stylesheet definition legitimately contains the same
-    `\\li`/`\\ri` control words for an entirely different reason (Word's
-    named-style definition) and would corrupt a naive token replay if
-    left in. `\\stylesheet` is emitted right after the `\\fonttbl` group
-    (BEFORE `{\\f0` in `_rtf_stylesheet`'s own document position -- not
-    after it, which a first attempt at this lookahead got backwards and
-    silently matched nothing at all) and always immediately precedes
-    `emit_rtf`'s own page-setup block, which always opens with the fixed
-    `\\paperw` token -- that boundary is unambiguous."""
-    return re.sub(r'\{\\stylesheet.*?\}(?=\\paperw)', '', r, flags=re.S)
+    """`r` with the `\\fonttbl` AND `\\stylesheet` groups removed --
+    state-replay checks (`_rtf_state_issues`, `_rtf_missing_run_attrs`)
+    must scan only the BODY's own direct-formatting/text runs. Two
+    real false-positive sources found removing each:
+
+    - `\\stylesheet` legitimately contains the same `\\li`/`\\ri`/`\\b`/
+      `\\i` control words for an entirely different reason (Word's named-
+      style definitions) and corrupts a naive token replay if left in.
+      Emitted right after `\\fonttbl` (BEFORE `{\\f0` in `_rtf_stylesheet`'s
+      own document position -- not after it, which a first attempt at
+      this lookahead got backwards and silently matched nothing at all)
+      and always immediately precedes `emit_rtf`'s own page-setup block,
+      which always opens with the fixed `\\paperw` token -- an
+      unambiguous boundary.
+    - `\\fonttbl` itself holds literal FONT NAME strings in braces (e.g.
+      `{\\f1 Courier New;}`) that read as plausible "runs" to a naive
+      brace-group scan -- found for real (MARKUP.WS): the paragraph-split
+      regex's own FIRST chunk (everything before the first real `\\par`)
+      still included the whole preamble, so a font name's own braces got
+      swept in as if they belonged to the first paragraph's \\sN run and
+      flagged missing attributes that were never real runs at all."""
+    body = re.sub(r'\{\\fonttbl.*?\}(?=\{\\stylesheet|\\paperw)', '', r, flags=re.S)
+    return re.sub(r'\{\\stylesheet.*?\}(?=\\paperw)', '', body, flags=re.S)
 
 
 def _rtf_state_issues(r, doc, printed=False):
-    """Replay Modern RTF's own body as a reader that skips `\\stylesheet`
-    entirely would (Pages, TextEdit, most non-Word readers -- round 4,
-    2026-08-17): track li/ri/fi as direct-formatting state, token by
-    token, and flag two hazards this round exists to close:
+    """Replay Modern RTF's own body -- direct-formatting tokens ONLY, the
+    `\\stylesheet` group entirely excluded from what's read (round 5's
+    absolute ruling, 2026-08-17: DIRECT FORMATTING IS THE ONLY RENDERING
+    MECHANISM IN RTF -- Jon opened a delivered file in Word ITSELF and
+    found style-declared bold invisible there too, which kills any
+    reader-specific "stylesheet is fine for X" premise outright; the RTF
+    spec's own `\\sN` is nominal, a style-pane label, and no reader is
+    obliged to apply `\\stylesheet` on load). Tracks li/ri/fi as direct-
+    formatting state, token by token, and flags two hazards:
 
     - a paragraph referencing a stylesheet style (`\\sN`) whose style-
-      table margins (`_rtf_style_margins`) don't match the DIRECT state
-      active at that point -- the precise shape of "stylesheet-only",
-      invisible outside Word.
+      table margins (`_rtf_style_margins` -- the DATA, never the
+      rendered `\\stylesheet` text) don't match the direct state active
+      at that point.
     - a quote-classified paragraph's own `\\fi` outside a sane bound
       (1440 twips/1in) -- scoped to quote styles specifically; an
       ordinary body paragraph's own (potentially large, genuinely typed)
-      indent is real content this round never touched or verified."""
+      indent is real content no round has touched or verified."""
     margins = {e['slot']: emit._rtf_style_margins(e, printed)
               for e in doc.styles if 'attrs_on' in e}
     quote_slots = {e['slot'] for e in doc.styles
@@ -848,6 +867,117 @@ def _rtf_state_issues(r, doc, printed=False):
                 if slot in quote_slots and abs(fi) > 1440:
                     bad.append(f'\\s{s_t}: fi={fi} exceeds 1440-twip bound')
     return bad
+
+
+_RTF_ATTR_CTL = {'b': r'\b ', 'i': r'\i ', 'u': r'\ul ', 'sup': r'\super ',
+                 'sub': r'\sub ', 'strike': r'\strike '}
+
+
+def _rtf_missing_run_attrs(r, doc):
+    """Round 5 (2026-08-17): every RUN inside a paragraph that references a
+    stylesheet style must carry that style's OWN declared character
+    attributes (b/i/u/strike/sub/sup) as direct control words -- not just
+    inherited from `\\sN`, which is nominal per the RTF spec and which
+    Word itself was found to ignore on load. Scans `\\par`-delimited
+    paragraphs for an `\\sN` tag, then checks every text-carrying brace
+    run within that paragraph for the style's full attribute set (from
+    `doc.styles`, the DATA -- never the rendered `\\stylesheet` text).
+    A run with no letters (a bare control group) isn't a character run
+    and is skipped. A run that IS a footnote/endnote/annotation/comment
+    DESTINATION (RTF's own `\\*` "skip if unrecognised" marker, or one of
+    the specific note control words) is ALSO skipped -- found for real
+    (NOVEL.WS): a comment's own `{\\*\\annotation ...}` text is
+    independent note content with its own formatting reset
+    (`\\pard\\plain\\fs24`), not a run that inherits the ENCLOSING
+    paragraph's style, and flagging it for missing the paragraph's bold
+    would be demanding a comment popup match body text it was never
+    part of."""
+    style_attrs = {e['slot']: e.get('attrs', frozenset())
+                   for e in doc.styles if 'attrs_on' in e}
+    body = _rtf_body_only(r)
+    bad = []
+    for para in re.split(r'(?<=\\par )', body):
+        m = re.search(r'\\s(\d+) ', para)
+        if not m:
+            continue
+        attrs = style_attrs.get(int(m.group(1)) - 1, frozenset())
+        needed = [a for a in attrs if a in _RTF_ATTR_CTL]
+        if not needed:
+            continue
+        for run in re.findall(r'\{([^{}]*)\}', para):
+            if not re.search(r'[A-Za-z]', run):
+                continue
+            if '\\*\\' in run or any(c in run for c in
+                                    (r'\chftn', r'\chatn', r'\atnid',
+                                     r'\footnote', r'\annotation')):
+                continue
+            missing = [a for a in needed if _RTF_ATTR_CTL[a] not in run]
+            if missing:
+                bad.append((m.group(1), missing, run[:40]))
+    return bad
+
+
+_ATTR_SET = frozenset({'b', 'i', 'u', 'strike', 'sub', 'sup'})
+
+# The attribute-mapping table this whole audit (round 5, 2026-08-17)
+# landed on -- one entry per format, one marker (or tuple of acceptable
+# markers) per attribute. Native HTML shares Modern HTML's own `_TAG`
+# table (run-level rendering is identical; only page geometry differs,
+# per round 3/4's own printed-vs-modern split) so it is not listed
+# separately. Text has NO markers at all -- see `emit_text`'s own RULED
+# EXCLUSION docstring -- so it is intentionally absent from this table
+# rather than mapped to an empty tuple.
+_ATTR_MARKERS = {
+    'html': {'b': ('<strong', 'font-weight:bold'),
+             'i': ('<em', 'font-style:italic'),
+             'u': ('<u>',),
+             'strike': ('<s>', 'text-decoration:line-through'),
+             'sub': ('<sub', 'vertical-align:sub'),
+             'sup': ('<sup', 'vertical-align:super')},
+    'rtf': {a: (ctl,) for a, ctl in _RTF_ATTR_CTL.items()},
+    'markdown': {'b': ('**',), 'i': ('*',), 'strike': ('~~',),
+                 'u': ('<u>',), 'sub': ('<sub>',), 'sup': ('<sup>',)},
+}
+
+
+def _effective_attrs_present(doc):
+    """Every character attribute (b/i/u/strike/sub/sup) EFFECTIVELY
+    present anywhere in the document -- style-declared OR run-toggled,
+    merged via `core.effective_span_styles` (round 5's own fix) -- the
+    source-of-truth set the attribute-mapping lint checks each format's
+    output against.
+
+    A note-REFERENCE marker (`fnref`) is excluded (found for real,
+    NOTES.TST): WordStar raises a footnote/endnote reference number with
+    its own `sup`, but that `sup` never reaches the general attribute
+    path in ANY format -- HTML/RTF wrap the reference in their OWN
+    dedicated superscript markup regardless of the span's styles, and
+    Markdown's `[^label]` carries the same meaning natively with no
+    wrapping at all. Checking for it here would demand a marker no
+    format's own (correct, intentional) note-reference handling ever
+    produces."""
+    present = set()
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines:
+            continue
+        for line in b.lines:
+            for sp in line.spans:
+                if 'fnref' in sp.styles:
+                    continue
+                present |= (core.effective_span_styles(sp, b) & _ATTR_SET)
+    return present
+
+
+def _missing_attr_markers(rendered, fmt, attrs_present):
+    """Attributes in `attrs_present` with NONE of their mapped markers
+    (`_ATTR_MARKERS[fmt]`) anywhere in `rendered` -- the fail-first half
+    of the round-5 audit: every attribute a real fixture's sources
+    declare must show up, per the mapping table, in every format that
+    isn't a RULED exclusion."""
+    table = _ATTR_MARKERS[fmt]
+    body = _rtf_body_only(rendered) if fmt == 'rtf' else rendered
+    return [a for a in sorted(attrs_present)
+            if a in table and not any(m in body for m in table[a])]
 
 
 def _assert_lint_gates(name, doc):
@@ -881,6 +1011,20 @@ def _assert_lint_gates(name, doc):
     #     \fi exceeds a sane bound (round 4)
     assert not _rtf_state_issues(r, doc, printed=False), \
         (name, 'rtf direct-formatting gap', _rtf_state_issues(r, doc, printed=False))
+    # 14. every RUN referencing a styled paragraph carries that style's
+    #     OWN declared character attrs as direct tokens (round 5)
+    assert not _rtf_missing_run_attrs(r, doc), \
+        (name, 'rtf run missing style attr', _rtf_missing_run_attrs(r, doc)[:5])
+    # 15. attribute-mapping audit (round 5): every b/i/u/strike/sub/sup
+    #     effectively present anywhere in the document shows up, per the
+    #     ruled mapping table, in HTML/RTF/Markdown output (Text is a
+    #     RULED exclusion -- see emit_text's own docstring -- so it is
+    #     deliberately not checked here)
+    attrs_present = _effective_attrs_present(doc)
+    if attrs_present:
+        for fmt, rendered in (('html', h), ('rtf', r), ('markdown', md)):
+            missing = _missing_attr_markers(rendered, fmt, attrs_present)
+            assert not missing, (name, fmt, 'attribute mapping missing', missing)
 
     # 1. no un-coalesced adjacent runs (IR-level -- see _ir_bad_adjacent_spans)
     assert not _ir_bad_adjacent_spans(doc), (name, 'un-coalesced adjacent spans')
@@ -1034,6 +1178,45 @@ def test_round4_quote_group_merges_across_styles_and_units():
     # quote styles either.
     assert not _rtf_state_issues(r, doc, printed=False)
     assert r.count(r'\li720\ri720') >= 1
+
+
+def test_round5_style_level_bold_reaches_markdown_and_rtf_runs():
+    """Direct regression test for round 5 (2026-08-17): OLDTIMES's real
+    'Award Citation' style declares bold+italic
+    ({\\s7\\qc\\b\\i\\fs24}), but its own spans only re-toggle italic
+    inline -- the bold lives ENTIRELY in the style. HTML rendered it
+    correctly by accident (a completely different, paragraph-level CSS-
+    class path); RTF and Markdown -- both of which render CHARACTER RUNS
+    off `span.styles` -- silently dropped the style-level bold in lockstep,
+    which is what pointed at one shared resolution gap rather than two
+    unrelated bugs. Reproduces the exact shape: a style with attrs
+    bold+italic, a paragraph whose ONE span only carries an inline italic
+    toggle, never bold."""
+    rec = _style_record(just=(-1) % 256, attrs_on=0b11000000)   # bold + italic, centered
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Award Citation', True, rec),
+    ])
+    header = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+    # \x19 toggles italic on/off around the text -- the style ALONE
+    # supplies bold, exactly as OLDTIMES's own spans do.
+    body = (header + _style_handle(2)
+            + b'\x19Honored for outstanding service to the community.\x19' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+    assert doc.blocks[0].style_attrs == frozenset({'b', 'i'})
+
+    h = emit.emit_html(doc, mode='modern')
+    r = emit.emit_rtf(doc, mode='modern')
+    md = emit.emit_markdown(doc, mode='modern')
+
+    assert 'font-weight:bold' in h and 'font-style:italic' in h   # unaffected (CSS path)
+    assert not _rtf_missing_run_attrs(r, doc)
+    assert r'\b \i ' in r or r'\i \b ' in r
+    assert '***Honored' in md
 
 
 def _iter_private_fixtures():

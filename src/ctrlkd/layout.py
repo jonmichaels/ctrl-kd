@@ -56,7 +56,7 @@ call kept, in document order — 'label' is the kind's own display number
 the requested `note_refs` scheme.
 """
 
-from .core import merged_lines, Span, trailing_blank_lines
+from .core import merged_lines, Span, trailing_blank_lines, effective_span_styles
 from .emit import (DEFAULT_NOTE_KINDS, _annotated_notes, _ref_pairs,
                    note_ref_labels, emitter)
 
@@ -204,8 +204,7 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
                     # the paper got the raw payload. Modern shows nothing —
                     # command codes are invisible (M4, extended M10)
                     continue
-                styles = sp.styles | ({'b'} if b.heading else frozenset()) \
-                         | b.style_attrs
+                styles = effective_span_styles(sp, b, heading_bold=True)
                 if 'fnref' in sp.styles:
                     try:
                         note, label = refs[int(sp.text) - 1]

@@ -295,6 +295,32 @@ def _opens_quote(text: str) -> bool:
     return t[:1] in _OPENING_QUOTES
 
 
+def effective_span_styles(span, block, heading_bold: bool = False) -> frozenset:
+    """The ATTRIBUTES a character actually renders with -- a span's own
+    typed toggles (`span.styles`) merged with whatever the containing
+    Block's own paragraph STYLE turns on (`block.style_attrs`), plus
+    WordStar's own "headings render bold" convention when `heading_bold`
+    is asked for.
+
+    Found by real evidence (2026-08-17): OLDTIMES's own 'Award Citation'
+    paragraph style declares bold+italic, but its actual spans only
+    re-toggle italic inline -- the bold lives ENTIRELY in the named
+    style, never re-asserted per character. A consumer that reads
+    `span.styles` alone sees only what the typist explicitly toggled and
+    silently drops the style's own declared attributes. `pdf.py` and
+    `layout.py` already computed exactly this merge inline, each with its
+    own copy; Modern RTF and Markdown -- which render CHARACTER RUNS the
+    same way those two do (unlike HTML, whose paragraph-level CSS class
+    carries a style's attrs on a completely different, unaffected path)
+    -- silently lacked it, which is what dropped the same style-level
+    bold in both formats at once. One function now, so a future format
+    added the same way can't independently forget it either."""
+    styles = span.styles | block.style_attrs
+    if heading_bold and block.heading:
+        styles = styles | {'b'}
+    return styles
+
+
 def line_body_styles(line) -> frozenset:
     """The styles of a Line's own text, its leading indent (if any) set
     aside first -- the signal `looks_like_verse` needs to notice a run set

@@ -266,7 +266,12 @@ def test_ws7_heading_and_softpage():
     assert heads[0].lines[0].text().strip() == 'Chapter One'
     assert any(ln.softpage for b in doc.blocks for ln in b.lines)
     md = emit.emit_markdown(doc, mode='modern')
-    assert '## Chapter One' in md
+    # H2's own style record declares bold (rec[91:93], _style_record's own
+    # default) -- round 5 (2026-08-17): a style's declared attrs render in
+    # every format, headings included, so the heading text is correctly
+    # bold-wrapped now, not just the bare '#'-implied emphasis a browser's
+    # own default heading styling would have given it for free.
+    assert '## **Chapter One**' in md
     h = emit.emit_html(doc, mode='modern')
     assert re.search(r'<h2[^>]*>Chapter One</h2>', h)
 
