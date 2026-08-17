@@ -2675,9 +2675,12 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
     """The other half: removing the sentinels must not lose the structure they
     carried. NOTES.TST is real WordStar output with four known note kinds."""
     import os
-    p = os.path.expanduser('~/vaults/claude_memory/workbench/chonky/fixtures-ws5/NOTES.TST')
+    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    if not root:
+        return                      # private fixtures opt in via env var; skip if absent
+    p = os.path.join(root, 'NOTES.TST')
     if not os.path.exists(p):
-        return                      # fixture lives outside the repo; skip if absent
+        return
     doc = core.parse_ws(open(p, 'rb').read())
     noncomment = [n.kind for n in doc.notes if n.kind != 'comment']
     assert noncomment[:4] == ['footnote', 'footnote', 'endnote', 'endnote']
@@ -2694,9 +2697,13 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
 
 
 def _real_fixture(name):
+    # Private fixture corpus lives OUTSIDE the repo; runners that have it
+    # export CTRLKD_PRIVATE_FIXTURES=<dir>. Everyone else skips cleanly.
     import os
-    p = os.path.expanduser(
-        '~/vaults/claude_memory/workbench/chonky/fixtures-ws5/' + name)
+    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    if not root:
+        return None
+    p = os.path.join(root, name)
     return open(p, 'rb').read() if os.path.exists(p) else None
 
 
