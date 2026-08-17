@@ -4095,3 +4095,160 @@ def test_cp437_symbol_glyphs_draw_as_vectors_not_question_marks():
     assert b' c' in pdf and b' re f' in pdf, 'symbol glyphs must draw as vector fills'
     shown = b''.join(_re.findall(rb'\((.*?)\)\s*Tj', pdf))
     assert b'?' not in shown, 'a ? leaked into printed text ops'
+
+
+# ---------------------------------------------------- Modern structure rules
+#
+# The three GENERIC structure rules (Jon's field notes, 2026-08-13):
+# def-list/hanging-indent, nested hierarchy (the same mechanism applied
+# recursively), and centered lines -- derived purely from a paragraph's own
+# column geometry (classify_rows() in layout.py), never keyed to a specific
+# file. The real-world source for all three is the Sawyer WS7 archive
+# (VERSIONS.WS, CONVERT.WS, STRENGTH.WS); these fixtures build the identical
+# shapes byte-by-byte, per this repo's synthetic-fixtures-only rule.
+
+def _modern(data):
+    doc = core.parse_ws(data)
+    doc.meta['variant'] = 'ws4'          # force the reflow path, not <pre>
+    return doc
+
+
+def test_deflist_ragged_label_widths_share_one_column():
+    """Rule 1: a def-list label is a paragraph's own first word glued to
+    its description by 2+ spaces -- WordStar has no def-list markup, so an
+    author signals it purely by padding labels of different lengths out to
+    a shared description column. VERSIONS.WS's 'WS.EXE:'/'WSRJS.EXE:' shape."""
+    from ctrlkd.layout import modern_flow
+    from ctrlkd.emit import emit_html
+    data = (b'.lm 15\r\n' +
+            b'A:             short label.' + HARD +
+            b'LONGLABEL:     longer label, same column.' + HARD)
+    doc = _modern(data)
+    items = [i for i in modern_flow(doc)['items'] if i['kind'] == 'para']
+    assert [i['structure']['kind'] for i in items] == ['def', 'def']
+    assert [i['structure']['label'] for i in items] == ['A:', 'LONGLABEL:']
+    assert [i['structure']['body'] for i in items] == \
+        ['short label.', 'longer label, same column.']
+    html = emit_html(doc, mode='modern')
+    assert ('<dl><dt>A:</dt><dd>short label.</dd>'
+            '<dt>LONGLABEL:</dt><dd>longer label, same column.</dd></dl>') in html
+
+
+def test_deflist_single_entry_needs_no_repetition():
+    """Edge case: unlike a bullet marker (a bare glyph could just be
+    punctuation, so it needs a repeated sibling to be trusted), one
+    label+gap+description line alone is already unambiguous."""
+    from ctrlkd.layout import modern_flow
+    data = b'Note:  a single hanging label, alone in its own document.' + HARD
+    doc = _modern(data)
+    s = modern_flow(doc)['items'][0]['structure']
+    assert s['kind'] == 'def' and s['label'] == 'Note:'
+    assert s['body'] == 'a single hanging label, alone in its own document.'
+
+
+def test_bullet_list_with_nested_deflist():
+    """Rule 2: a def-list nested INSIDE a bullet list -- the same column-
+    geometry mechanism as rule 1, one level deeper. CONVERT.WS's own
+    'Peter Mierau...: WSASC.COM: ...' shape."""
+    from ctrlkd.emit import emit_html
+    data = (b'.lm 2\r\n'
+            b'* First bullet item.' + HARD +
+            b'* Second bullet, introduces a sub-list:' + HARD +
+            b' LABEL:  nested description.' + HARD +
+            b'* Third bullet, back at the outer level.' + HARD)
+    doc = _modern(data)
+    html = emit_html(doc, mode='modern')
+    assert ('<ul><li>First bullet item.</li>'
+            '<li>Second bullet, introduces a sub-list:'
+            '<dl><dt>LABEL:</dt><dd>nested description.</dd></dl></li>'
+            '<li>Third bullet, back at the outer level.</li></ul>') in html
+
+
+def test_three_level_nesting():
+    """Edge case: nesting recurses to arbitrary depth, not just one level
+    -- a bullet list containing a nested bullet list containing a nested
+    def-list, three columns deep."""
+    from ctrlkd.layout import modern_flow
+    from ctrlkd.emit import emit_html
+    data = (b'.lm 2\r\n'
+            b'* Outer bullet one.' + HARD +
+            b'* Outer bullet two, introduces inner list:' + HARD +
+            b'  # Inner one' + HARD +
+            b'  # Inner two, introduces a def-list:' + HARD +
+            b'   LABEL:  deepest.' + HARD)
+    doc = _modern(data)
+    items = [i for i in modern_flow(doc)['items'] if i['kind'] == 'para']
+    assert [i['structure']['level'] for i in items] == [1, 1, 2, 2, 3]
+    html = emit_html(doc, mode='modern')
+    assert ('<ul><li>Outer bullet one.</li>'
+            '<li>Outer bullet two, introduces inner list:'
+            '<ul><li>Inner one</li>'
+            '<li>Inner two, introduces a def-list:'
+            '<dl><dt>LABEL:</dt><dd>deepest.</dd></dl></li></ul></li></ul>') in html
+
+
+def test_centered_by_spaces_detected_and_rendered():
+    """Rule 3, encoding finding: STRENGTH.WS's title/author/email carry NO
+    .oc tag at all -- centering is leading-space padding only, symmetric
+    within the document's own 65-column measure. Structural detection must
+    catch this untagged mechanism, which nothing rendered correctly before."""
+    from ctrlkd.layout import modern_flow
+    from ctrlkd.emit import emit_html
+    title = 'A Centered Title'
+    pad = (65 - len(title)) // 2
+    data = (' ' * pad + title).encode() + HARD
+    doc = _modern(data)
+    s = modern_flow(doc)['items'][0]['structure']
+    assert s['centered'] and s['center_via'] == 'spaces'
+    assert s['center_text'] == title
+    html = emit_html(doc, mode='modern')
+    assert '<p style="text-align:center">A Centered Title</p>' in html
+
+
+def test_centered_tag_also_classified_uniformly():
+    """The other mechanism named in the field notes ('likely both need
+    handling'): a real align=center tag is ALSO exposed as centered=True
+    (center_via='tag') for a consumer that wants one uniform signal --
+    but the tag's own existing HTML rendering (M3 already strips its
+    padding) is left completely alone, so a tagged document's output is
+    unchanged by this rule set."""
+    from ctrlkd.layout import modern_flow
+    doc = _modern(b'.oc on\r\nCentred.\r\n.oc off\r\n')
+    s = modern_flow(doc)['items'][0]['structure']
+    assert s['centered'] and s['center_via'] == 'tag'
+
+
+def test_near_centered_but_not_stays_plain():
+    """Edge case: a genuinely off-centre indent -- not padded to sit near
+    the measure's own midpoint -- must not be misread as a centered line,
+    however coincidentally short the paragraph is."""
+    from ctrlkd.layout import modern_flow
+    data = (b'    Not Quite Centered') + HARD   # ideal pad would be (65-19)//2=23
+    doc = _modern(data)
+    s = modern_flow(doc)['items'][0]['structure']
+    assert not s['centered']
+
+
+def test_ordinary_multiline_block_stays_one_paragraph():
+    """Regression guard: a block with NO list/def/center structure at all
+    -- a signature block with several hard-broken lines -- must still
+    render as ONE <p> with <br> between lines, exactly as before this rule
+    set existed. (The per-row classification needed for rules 1/2 renders
+    one merged line at a time; this proves plain lines still coalesce.)"""
+    from ctrlkd.emit import emit_html
+    data = b'-- Robert J. Sawyer' + HARD + b'   sawyer@sfwriter.com' + HARD
+    doc = _modern(data)
+    html = emit_html(doc, mode='modern')
+    assert '<p>-- Robert J. Sawyer<br>\n   sawyer@sfwriter.com</p>' in html
+
+
+def test_ordinary_prose_is_not_swept_into_a_list():
+    """False-positive guard: an ordinary sentence must never be read as a
+    bullet (needs a repeated marker glyph) or a def-list label (needs a
+    2+-space gap right after its very first word)."""
+    from ctrlkd.emit import emit_html
+    data = b'This is an entirely ordinary sentence, nothing structural here.' + HARD
+    doc = _modern(data)
+    html = emit_html(doc, mode='modern')
+    assert '<ul>' not in html and '<dl>' not in html
+    assert html.count('<p>') == 1

@@ -10,7 +10,7 @@ Two rendering philosophies, chosen by the caller:
 import html as _html
 import re
 
-from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
+from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spans,
                    assemble_paragraphs, split_leading_indent,
                    paragraph_layout_context, looks_like_verse,
                    block_dominant_styles, effective_span_styles,
@@ -939,6 +939,180 @@ def _style_css(doc, printed=True):
     return '\n'.join(rules)
 
 
+def _slice_spans(spans, start, end=None):
+    """`spans` cut to the character range [start, end) (end=None: to the
+    end) -- modern_flow's own `.lm`-drop generalised to an arbitrary
+    offset, so a marker/label/padding strip can happen on the STYLED spans
+    (bold, italics, fonts) instead of the plain text classify_rows worked
+    from, and stay stylistically correct on the way to HTML."""
+    total = sum(len(sp.text) for sp in spans)
+    if end is None:
+        end = total
+    out, pos = [], 0
+    for sp in spans:
+        sp_start, sp_end = pos, pos + len(sp.text)
+        pos = sp_end
+        lo, hi = max(start, sp_start), min(end, sp_end)
+        if lo < hi:
+            out.append(Span(sp.text[lo - sp_start:hi - sp_start], sp.styles))
+    return out
+
+
+_LIST_TAG = {'bullet': 'ul', 'def': 'dl'}
+
+
+class _HtmlListBuilder:
+    """Turns a stream of classified Modern rows (layout.py's
+    classify_rows(), the same classification the `layout` JSON emitter
+    exposes) into nested <ul>/<dl> markup -- HTML and layout.json agree on
+    where a list starts, ends, and nests, because they share the one
+    classifier. A row with no structure (kind=None) closes any open list
+    back to the document flow and renders as an ordinary <p>, same as
+    before this rule set existed."""
+
+    def __init__(self):
+        self._root = []
+        # (level, kind, items-array-of-the-open-list, current-item's-own-
+        # node-list); the root frame's "list" and "item" are both _root
+        # itself, since top-level content is a flat flow, not <li> content
+        self._stack = [(0, None, self._root, self._root)]
+
+    def add_text(self, html):
+        if html.strip():
+            self._stack = self._stack[:1]
+            self._root.append(('text', html))
+
+    def add_bullet(self, level, cls, html):
+        self._open(level, 'bullet', cls, html)
+
+    def add_def(self, level, cls, dt_html, dd_html):
+        self._open(level, 'def', cls, (dt_html, dd_html))
+
+    def _open(self, level, kind, cls, content):
+        while len(self._stack) > 1 and not (
+                self._stack[-1][0] < level or
+                (self._stack[-1][0] == level and self._stack[-1][1] == kind)):
+            self._stack.pop()
+        top_level, top_kind, top_items, top_cur_item = self._stack[-1]
+        if top_level == level and top_kind == kind:
+            new_item = []
+            top_items.append(new_item)
+            self._stack[-1] = (top_level, top_kind, top_items, new_item)
+        else:
+            new_items = []
+            new_item = []
+            new_items.append(new_item)
+            top_cur_item.append(('list', kind, cls, new_items))
+            self._stack.append((level, kind, new_items, new_item))
+        self._stack[-1][3].append(('text', content))
+
+    def flush(self, parts):
+        parts.extend(_render_list_nodes(self._root))
+        self._root = []
+        self._stack = [(0, None, self._root, self._root)]
+
+
+def _render_list_nodes(nodes):
+    out = []
+    for kind, *rest in nodes:
+        if kind == 'text':
+            out.append(rest[0])
+            continue
+        _, list_kind, cls, items = (kind,) + tuple(rest)
+        if list_kind == 'def':
+            entries = []
+            for item in items:
+                head, tail = item[0], item[1:]
+                dt, dd = head[1]
+                entries.append(f'<dt{cls}>{dt}</dt><dd{cls}>{dd}'
+                                f'{"".join(_render_list_nodes(tail))}</dd>')
+            out.append(f'<dl>{"".join(entries)}</dl>')
+        else:
+            entries = []
+            for item in items:
+                head, tail = item[0], item[1:]
+                entries.append(f'<li{cls}>{head[1]}'
+                                f'{"".join(_render_list_nodes(tail))}</li>')
+            out.append(f'<ul>{"".join(entries)}</ul>')
+    return out
+
+
+def _classify_modern_blocks(doc):
+    """{block_index: [(Line, structure_or_None), ...]} for every ordinary
+    (non-heading, non-pagebreak, non-multi-column, non-quote, non-wrap=off)
+    block, classified as ONE document-wide row sequence -- bullet-marker
+    discovery and nesting both need the whole order, not one block seen in
+    isolation. Mirrors layout.modern_flow()'s own row-building exactly, so
+    HTML sees the identical classification the `layout` JSON emitter would
+    for the same document.
+
+    Round 13 (main-merge reconciliation) widened the exclusion list by two,
+    found via the corpus this feature never ran against before today:
+    quote-classified blocks and wrap=off (`.aw off`) blocks are BOTH,
+    structurally, the same class of hazard the multi-column exclusion
+    already existed for -- content whose own margin/positioning is a
+    deliberate, source-carried decision rather than evidence of centering
+    or a list. A quote's own typed-paragraph indent is well documented
+    elsewhere in this file as INCONSISTENT by source (round 4: "opens its
+    first typed paragraph at column 7 and every later one at column 12"),
+    which the spaces-centering heuristic below can and did mistake for
+    deliberate symmetric padding on a short attribution line (round-4's
+    own regression fixture, once merged against this feature, is the real
+    evidence -- a 3-paragraph quote group lost its middle paragraph to a
+    false centering match). A wrap=off block is BY DEFINITION hand-
+    positioned, the exact opposite of "reflow-eligible content classify_
+    rows should reinterpret" -- Register C23's own preserved-verbatim
+    guarantee would otherwise compete with structure classification's
+    ability to pull a row out of the block entirely."""
+    from .layout import classify_rows, FULL_COLS
+
+    entries, plan = [], []
+    for bi, b in enumerate(doc.blocks):
+        if (b.kind == 'pagebreak' or b.heading or (b.columns and b.columns > 1)
+                or _is_quote_style(b) or b.wrap is False):
+            entries.append(('hard',))
+            plan.append(None)
+            continue
+        lm = b.left_margin or 0
+        rm = b.right_margin or 0
+        cut = max(0, FULL_COLS - rm) if rm else 0
+        for line in merged_lines(b):
+            text = ''.join(sp.text for sp in line.spans)
+            entries.append(('para', lm, cut, b.align, text))
+            plan.append((bi, line))
+
+    by_block = {}
+    for row, s in zip(plan, classify_rows(entries)):
+        if row is None:
+            continue
+        bi, line = row
+        by_block.setdefault(bi, []).append((line, s))
+    return by_block
+
+
+def _html_slice(line, start, end, refs, keep, shown_map):
+    # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
+    # spans LIST directly (the b23 overhaul's own signature -- it runs
+    # `coalesce_spans`/`split_graphic_spans` over its argument), not a
+    # line-like object with a `.spans` attribute the way it did when this
+    # function was first written on modern-structure-rules. The `_SpanRow`
+    # shim that used to bridge the two is gone; there is nothing left to
+    # bridge.
+    return _html_line(_slice_spans(line.spans, start, end),
+                      refs, keep, shown_map=shown_map)
+
+
+def _html_centered_row(line, s, refs, keep, shown_map):
+    """The centred line's own text with its alignment padding sliced off
+    (both mechanisms: a real align=center tag already had the M3 strip
+    upstream, so lead/trail are 0 and this is a no-op; spaces-only
+    centering strips the padding here for the first time)."""
+    raw = ''.join(sp.text for sp in line.spans)
+    lead = len(raw) - len(raw.lstrip(' '))
+    trail = len(raw) - len(raw.rstrip(' '))
+    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map)
+
+
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
               styles=True, note_refs='word', **_options):
     keep = frozenset(notes)
@@ -996,13 +1170,40 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         quote_open = False
         quote_indent_cols = None
 
-    for b in doc.blocks:
+    # Structure rules (M-rules addendum, 2026-08-13) only apply to the
+    # reflowed Modern view -- printed is a physical facsimile, its Native
+    # rendering stays exactly the plain-text-of-the-page it always was.
+    #
+    # COMPOSING WITH PARAGRAPH ASSEMBLY (round 13, the main-merge
+    # reconciliation -- modern-structure-rules (a83369b) predates the whole
+    # b23 reflow overhaul, so this pairing never existed until now). The
+    # Swift port hit this exact composition problem in the opposite order
+    # (it ported structure rules first, the reflow overhaul second -- job
+    # 34ef1c8, EmitHTML.swift) and its own resolution is mirrored here:
+    # classify_rows still runs FIRST and is DECISIVE, exactly as it always
+    # was -- a bullet/def-list/spaces-centered row is pulled out of the
+    # flow unconditionally, structure always wins. What changed is what
+    # happens to the PLAIN rows structure classification leaves behind:
+    # instead of one flat <br>-joined paragraph per contiguous plain run
+    # (a83369b's own original `_flush_plain`), each run now reflows
+    # through `assemble_paragraphs` exactly the way an ordinary,
+    # never-classified block already does -- verse detection, quote
+    # continuity, first-line indent extraction, all of it, via the SAME
+    # per-unit rendering body the plain "else" branch below already uses.
+    block_rows = {} if printed else _classify_modern_blocks(doc)
+    builder = _HtmlListBuilder()
+
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
+            if not printed:
+                builder.flush(parts)
             _flush_quote()
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
         if b.heading:
+            if not printed:
+                builder.flush(parts)
             _flush_quote()
             # merged either mode: a heading is a logical unit, and joining its
             # logical lines with a space is what this always rendered.
@@ -1036,97 +1237,175 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 native_cls = _add_html_class(cls, 'ws-native')
                 parts.append(f'<p{native_cls}>{body}</p>')
         else:
-            # Modern: one <p> per PARAGRAPH UNIT, not per block. A unit's
-            # own first line loses its typed/machine indent to a real
-            # text-indent property (rule C: no literal leading indent
-            # whitespace); every other line in the unit is untouched --
-            # `_html_span`'s own &nbsp; idiom still renders ITS leading
-            # run visibly, which is exactly right for a poem's second
-            # verse (content, not a paragraph-start marker).
+            # Modern: structure rules pull bullet/def-list/spaces-centered
+            # rows out of the flow first (unconditionally, as always);
+            # everything left over -- the SAME plain lines this block
+            # would always have carried -- assembles into paragraph UNITS
+            # exactly as an ordinary (never-classified) block already
+            # does: one <p> per unit, a unit's own first line losing its
+            # typed/machine indent to a real text-indent property, every
+            # other line untouched (`_html_span`'s own &nbsp; idiom still
+            # renders ITS leading run visibly, right for a poem's second
+            # verse -- content, not a paragraph-start marker).
             quote = _is_quote_style(b)
             if quote:
                 quote_open = True
             else:
                 _flush_quote()
             dominant = block_dominant_styles(merged_lines(b))
-            for unit in assemble_paragraphs(
-                    b, margin, head_position=head_position.get(id(b), False),
-                    convention_indent=convention_indent):
-                first = _maybe_strip_align(b, list(unit[0].spans))
-                indent_cols, first = split_leading_indent(first)
-                if quote:
-                    # round 4 (2026-08-17): a quote GROUP's first-line
-                    # indent is computed ONCE, from its own first
-                    # paragraph, and reused for every paragraph in the
-                    # group -- not each paragraph's own raw typed column
-                    # count, which the source itself carries
-                    # inconsistently (see the block comment above
-                    # `quote_buffer`). Still relative, still reader-
-                    # proportional (ch); just no longer "absolute where it
-                    # must be relative."
-                    if quote_indent_cols is None:
-                        quote_indent_cols = indent_cols
-                    indent_cols = quote_indent_cols
-                # rule (round 3 addendum, 2026-08-17): <br> is reserved for
-                # a REAL deliberate line break -- a verified verse/stanza
-                # unit. A multi-line unit that never got verse-verified (a
-                # bare phase-1 flush-continuation grouping) is prose that
-                # merely happens to carry more than one Line; it flows as
-                # ONE paragraph, same as the ordinary single-line case,
-                # rather than forcing a break neither the author nor
-                # `looks_like_verse` ever asked for. Re-derives the SAME
-                # verdict `assemble_paragraphs` used internally to build
-                # this very unit (pure function, identical inputs).
-                # round 7 (2026-08-17): a wrap=off block's unit is ALWAYS
-                # treated as verse here too -- assemble_paragraphs already
-                # returns it as one whole-block unit unconditionally, but
-                # this is where a NON-verse multi-line unit gets flowed
-                # into one line (round 3b); without the `not b.wrap` guard
-                # that flow logic would still run on a hand-positioned
-                # block's lines and destroy the layout via a different
-                # mechanism. Register C23.
-                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
-                rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
-                for line in unit[1:]:
-                    spans = _maybe_strip_align(b, list(line.spans))
-                    if not is_verse:
-                        _, spans = split_leading_indent(spans)
-                    rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
-                if len(unit) > 1 and not is_verse:
-                    para = ' '.join(t for t in rendered if t.strip())
-                else:
-                    para = '<br>\n'.join(rendered)
-                if not para.strip():
+            plain_run_lines = []
+            # The convention-outlier/positional epigraph route inside
+            # assemble_paragraphs only makes sense when the plain run IS
+            # the block's own opening lines -- a run that starts only
+            # AFTER a structure-classified row (a bullet list's own
+            # trailing plain note, say) has no "document's own opening
+            # line" left to compare against, so convention_indent/
+            # head_position are only passed on a block's FIRST plain run
+            # (mirrors the Swift port's own `plainRunIsBlockStart`).
+            plain_run_is_block_start = True
+
+            def _flush_plain_run():
+                nonlocal quote_indent_cols
+                if not plain_run_lines:
+                    return
+                # `wrap` copied from the real block: `assemble_paragraphs`
+                # reads `block.wrap is False` directly (Register C23, round
+                # 7's .aw off preservation) -- a bare `Block(lines=...)`
+                # defaults it back to unset, which would let a hand-
+                # positioned block's own plain run get re-split by the
+                # ordinary phase-1/phase-2 paragraph rules the .aw off
+                # marker exists specifically to bypass.
+                mini = Block(kind=b.kind, lines=list(plain_run_lines), wrap=b.wrap)
+                unit_convention_indent = (convention_indent
+                                          if plain_run_is_block_start else None)
+                unit_head_position = (head_position.get(id(b), False)
+                                      if plain_run_is_block_start else False)
+                for unit in assemble_paragraphs(
+                        mini, margin, head_position=unit_head_position,
+                        convention_indent=unit_convention_indent):
+                    first = _maybe_strip_align(b, list(unit[0].spans))
+                    indent_cols, first = split_leading_indent(first)
+                    if quote:
+                        # round 4 (2026-08-17): a quote GROUP's first-line
+                        # indent is computed ONCE, from its own first
+                        # paragraph, and reused for every paragraph in the
+                        # group -- not each paragraph's own raw typed column
+                        # count, which the source itself carries
+                        # inconsistently (see the block comment above
+                        # `quote_buffer`). Still relative, still reader-
+                        # proportional (ch); just no longer "absolute where it
+                        # must be relative."
+                        if quote_indent_cols is None:
+                            quote_indent_cols = indent_cols
+                        indent_cols = quote_indent_cols
+                    # rule (round 3 addendum, 2026-08-17): <br> is reserved for
+                    # a REAL deliberate line break -- a verified verse/stanza
+                    # unit. A multi-line unit that never got verse-verified (a
+                    # bare phase-1 flush-continuation grouping) is prose that
+                    # merely happens to carry more than one Line; it flows as
+                    # ONE paragraph, same as the ordinary single-line case,
+                    # rather than forcing a break neither the author nor
+                    # `looks_like_verse` ever asked for. Re-derives the SAME
+                    # verdict `assemble_paragraphs` used internally to build
+                    # this very unit (pure function, identical inputs).
+                    # round 7 (2026-08-17): a wrap=off block's unit is ALWAYS
+                    # treated as verse here too -- assemble_paragraphs already
+                    # returns it as one whole-block unit unconditionally, but
+                    # this is where a NON-verse multi-line unit gets flowed
+                    # into one line (round 3b); without the `not b.wrap` guard
+                    # that flow logic would still run on a hand-positioned
+                    # block's lines and destroy the layout via a different
+                    # mechanism. Register C23.
+                    is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
+                    rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
+                    for line in unit[1:]:
+                        spans = _maybe_strip_align(b, list(line.spans))
+                        if not is_verse:
+                            _, spans = split_leading_indent(spans)
+                        rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
+                    if len(unit) > 1 and not is_verse:
+                        para = ' '.join(t for t in rendered if t.strip())
+                    else:
+                        para = '<br>\n'.join(rendered)
+                    if not para.strip():
+                        continue
+                    # C16/C17: HTML can express all four alignments, so unlike the
+                    # plain-text renderer it does not have to collapse justify into
+                    # left. `left` is WordStar's default and gets no attribute, so
+                    # every document that never touches `.oc`/`.oj` emits byte-identical
+                    # HTML to before.
+                    style = _html_para_style(b.align, indent_cols)
+                    # C5: newspaper columns. CSS does this properly, so HTML is the one
+                    # format that can honour `.co` rather than merely record it. A gutter
+                    # is print columns at 10 CPI -> tenths of an inch. Columns are
+                    # excluded from structure classification (see
+                    # `_classify_modern_blocks`) -- a multi-column block's own lines
+                    # arrive here as ONE plain run (below), unaffected either way.
+                    p_html = f'<p{cls}{style}>{para}</p>'
+                    if b.columns and b.columns > 1:
+                        gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
+                               if b.column_gutter else '')
+                        col = f' style="column-count:{b.columns}{gap}"'
+                        p_html = f'<div{col}>{p_html}</div>'
+                    if quote:
+                        # rule 1 (round 3/4, 2026-08-17): quote-classified
+                        # styles become a real <blockquote> -- the style's own
+                        # margin-left/right (WS-absolute, sometimes 5+ inches)
+                        # no longer carries the visible inset at all
+                        # (`_style_css`, modern mode). CONSECUTIVE quote
+                        # paragraphs (same style, nothing intervening) share
+                        # ONE <blockquote> (round 4: was one per unit, which
+                        # rendered a multi-paragraph quotation as a stack of
+                        # separately-bordered, gapped boxes) -- buffered here,
+                        # closed by `_flush_quote` the moment the run ends.
+                        quote_buffer.append(p_html)
+                    else:
+                        builder.add_text(p_html)
+                plain_run_lines.clear()
+
+            # Columns (or defensively, any other block excluded from
+            # structure classification) never reach `block_rows` -- the
+            # whole block is one plain run, same shape assemble_paragraphs
+            # already gave it before structure rules existed.
+            rows = block_rows.get(bi)
+            if rows is None:
+                rows = [(line, None) for line in merged_lines(b)]
+            for line, s in rows:
+                if s is None or s['kind'] is None:
+                    # Only the untagged, spaces-padded mechanism is new
+                    # here (rule 3's second half) -- a real align=center/
+                    # right/justify tag already renders correctly via the
+                    # ordinary per-unit `style` above and is left exactly
+                    # as it was, so a document using only the tag stays
+                    # unaffected by structure classification entirely.
+                    if s is not None and s['centered'] and s['center_via'] == 'spaces':
+                        _flush_plain_run()
+                        plain_run_is_block_start = False
+                        _flush_quote()
+                        html = _html_centered_row(line, s, refs, keep, shown_map)
+                        if html.strip():
+                            builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
+                    else:
+                        plain_run_lines.append(line)
                     continue
-                # C16/C17: HTML can express all four alignments, so unlike the
-                # plain-text renderer it does not have to collapse justify into
-                # left. `left` is WordStar's default and gets no attribute, so
-                # every document that never touches `.oc`/`.oj` emits byte-identical
-                # HTML to before.
-                style = _html_para_style(b.align, indent_cols)
-                # C5: newspaper columns. CSS does this properly, so HTML is the one
-                # format that can honour `.co` rather than merely record it. A gutter
-                # is print columns at 10 CPI -> tenths of an inch.
-                p_html = f'<p{cls}{style}>{para}</p>'
-                if b.columns and b.columns > 1:
-                    gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
-                           if b.column_gutter else '')
-                    col = f' style="column-count:{b.columns}{gap}"'
-                    p_html = f'<div{col}>{p_html}</div>'
-                if quote:
-                    # rule 1 (round 3/4, 2026-08-17): quote-classified
-                    # styles become a real <blockquote> -- the style's own
-                    # margin-left/right (WS-absolute, sometimes 5+ inches)
-                    # no longer carries the visible inset at all
-                    # (`_style_css`, modern mode). CONSECUTIVE quote
-                    # paragraphs (same style, nothing intervening) share
-                    # ONE <blockquote> (round 4: was one per unit, which
-                    # rendered a multi-paragraph quotation as a stack of
-                    # separately-bordered, gapped boxes) -- buffered here,
-                    # closed by `_flush_quote` the moment the run ends.
-                    quote_buffer.append(p_html)
-                else:
-                    parts.append(p_html)
+                _flush_plain_run()
+                plain_run_is_block_start = False
+                _flush_quote()
+                if s['kind'] == 'bullet':
+                    raw = ''.join(sp.text for sp in line.spans)
+                    body = _html_slice(line, len(raw) - len(s['body']), None,
+                                       refs, keep, shown_map)
+                    builder.add_bullet(s['level'], cls, body)
+                else:  # 'def'
+                    raw = ''.join(sp.text for sp in line.spans)
+                    lead = len(raw) - len(raw.lstrip(' '))
+                    dt = _html_slice(line, lead, lead + len(s['label']),
+                                     refs, keep, shown_map)
+                    dd = _html_slice(line, len(raw) - len(s['body']), None,
+                                     refs, keep, shown_map)
+                    builder.add_def(s['level'], cls, dt, dd)
+            _flush_plain_run()
+    builder.flush(parts)
     _flush_quote()
     linked = (_REF_KINDS if shown_map is not None
               else tuple(k for k in _REF_KINDS if k != 'comment'))
