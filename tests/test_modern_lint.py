@@ -37,6 +37,15 @@ def ws7_block(cmd, content=b''):
     return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
 
 
+def ws7_note(cmd, text, number=1, line_count=1, number_format=3, convert_to=0):
+    """One footnote/endnote/annotation/comment note block (types 3-6) --
+    see test_ctrlkd.py's own copy for the field-by-field rationale."""
+    conv_flag = ((number_format & 0x0F) << 4) | (convert_to & 0x0F)
+    content = (line_count.to_bytes(2, 'little') + number.to_bytes(2, 'little') +
+               bytes([conv_flag]) + text)
+    return ws7_block(cmd, content)
+
+
 def _style_record(left=1800, just=0, right=None, attrs_on=0):
     """Trimmed 102-byte style record -- only the fields this file's tests
     read (left/right margin, justification, attrs-on); everything else
@@ -946,8 +955,26 @@ def _md_trailing_backslash_lines(md):
     literal backslash -- that was the OLD hard-break marker, replaced with
     two trailing spaces (classic Markdown/CommonMark) because Jon found
     some renderers show a trailing backslash literally, and it's text
-    that never existed in the WordStar source either way."""
-    return [l for l in md.split('\n') if l.endswith('\\')]
+    that never existed in the WordStar source either way.
+
+    Round 12: an ODD number of trailing backslashes is CommonMark's real
+    hard-break syntax (a single unescaped `\\` at end of line, or any
+    unpaired one after however many escaped `\\` pairs precede it) --
+    still forbidden here. An EVEN number is fully paired escape sequences
+    (`\\` -> one literal backslash character, per CommonMark's own escape
+    rule, verified against a real `commonmark` parser: no <br> emitted,
+    the backslash renders as itself) -- legitimate CONTENT the emitter
+    now escapes at every position (see emit.py's `_md_span` and the
+    round-12 fix to the note-definition path), not emitter syntax. A
+    character-reference document whose own lines legitimately end in a
+    literal backslash (fontcrib.ws, round 11/12) is exactly this shape:
+    every trailing run is an even, fully-escaped count."""
+    bad = []
+    for l in md.split('\n'):
+        n = len(l) - len(l.rstrip('\\'))
+        if n % 2 == 1:
+            bad.append(l)
+    return bad
 
 
 def _html_adjacent_blockquotes(h):
@@ -1660,6 +1687,61 @@ def test_round11_geometry_gate_ignores_prose_not_css():
     assert _html_bad_geometry(leaked_block) == ['width declared']
     leaked_inline = h.replace('<body>', '<body><p style="margin-left:5.8in">x</p>', 1)
     assert _html_bad_geometry(leaked_inline) == ['margin-left:5.8in']
+
+
+def test_round12_content_backslash_survives_markdown_unescaped_as_break():
+    """Round 12 (fontcrib.ws, a character-code reference document -- the
+    same self-documenting class as LJ6DTP/SCRIPT.WS/LAYOUT.WS -- whose own
+    lines legitimately end in a literal backslash, e.g. explaining what
+    byte 92 displays as): `_md_span` already doubles every content
+    backslash (`\\` -> `\\\\`), which CommonMark's own escape rule reads
+    back as ONE literal backslash character, not a break -- verified here
+    against a real `commonmark` parser when available (skips cleanly
+    otherwise, per this project's zero-dependency default): a body
+    paragraph ending in a raw backslash renders NO `<br />` and the
+    backslash itself survives into the HTML.
+
+    The gate itself (`_md_trailing_backslash_lines`) is fixed the same
+    round: it now counts trailing backslashes and flags only an ODD
+    count (a real unescaped break marker) -- an even, fully-paired count
+    is legal escaped content."""
+    doc = _typed_paragraph_doc([
+        b'     Byte 92 displays on screen as a literal backslash: \\',
+    ])
+    md = emit.emit_markdown(doc, mode='modern')
+    assert not _md_trailing_backslash_lines(md)
+    # the escaped pair survives as visible text, not vanished into syntax
+    assert '\\\\' in md
+    try:
+        import commonmark
+    except ImportError:
+        return                          # bonus verification only; not required
+    html = commonmark.HtmlRenderer().render(commonmark.Parser().parse(md))
+    assert '<br' not in html            # no spurious hard break
+    assert '\\' in html                 # the backslash itself rendered visibly
+
+
+def test_round12_note_text_backslash_escaped_in_definition():
+    """Round 12: a note's own text is embedded verbatim in its Markdown
+    footnote-style definition (`emit_markdown`'s `defs` list) -- the ONE
+    path in this emitter that bypassed `_md_span` entirely, so a content
+    backslash anywhere in a note (mid-word or trailing) reached CommonMark
+    unescaped. Found via a metrics-only corpus sweep: 8 private-corpus
+    documents, 55 notes, carry a literal backslash in their text (none
+    currently trailing, but CommonMark's escape rule applies to a
+    backslash at ANY position, not just end-of-line -- an unescaped `\\*`
+    would as easily have swallowed a following literal asterisk's own
+    meaning). Reproduced directly: a footnote whose text contains a
+    backslash mid-sentence."""
+    data = (ws7_block(0x00) + b'A claim needing a citation'
+            + ws7_note(0x03, rb'See the C:\WS\NOTES.TXT file for detail.',
+                      number=0)
+            + b' follows on.' + HARD)
+    doc = core.parse_ws(data)
+    md = emit.emit_markdown(doc, mode='modern', notes=emit.ALL_NOTE_KINDS)
+    definition = next(l for l in md.split('\n') if l.startswith('[^1]:'))
+    assert r'C:\\WS\\NOTES.TXT' in definition   # doubled, not raw single backslashes
+    assert not _md_trailing_backslash_lines(md)
 
 
 def _iter_private_fixtures():
