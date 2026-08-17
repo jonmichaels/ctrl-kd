@@ -392,6 +392,25 @@ def _ir_bad_paragraph_indent_opens(doc):
     return bad
 
 
+def _unit_is_glued(unit, dominant):
+    """The predicate at the heart of the tightened gate: does paragraph
+    UNIT contain an indented line anywhere but first, and if so, is the
+    unit actually a verified stanza (core.looks_like_verse)? Split out from
+    `_ir_glued_indented_paragraphs` so the check itself can be regression-
+    tested directly against a hand-built unit shape (see
+    `test_ir_glued_indented_paragraphs_gate_catches_round1_shape`), not
+    only through `assemble_paragraphs`, which no longer produces this
+    shape at all now that the fix has landed -- exercising the predicate
+    in isolation is what keeps a future weakening of the CHECK itself
+    (not the algorithm) from going unnoticed."""
+    if len(unit) < 2:
+        return False
+    interior_indented = any(
+        core.line_visible_text(l).startswith('     ')
+        for l in unit[1:])
+    return interior_indented and not core.looks_like_verse(unit, dominant)
+
+
 def _ir_glued_indented_paragraphs(doc):
     """The check that SHOULD have caught round 1's real defect and did
     not: `_ir_bad_paragraph_indent_opens` only asks whether a unit's own
@@ -399,11 +418,9 @@ def _ir_glued_indented_paragraphs(doc):
     construction, so it passed clean on round-1 output where 43 real
     paragraph-openings across OLDTIMES.rtf were glued onto the TAIL of the
     wrong paragraph as an indented interior `\\line`d line, never becoming
-    a unit's first line at all. This asks the actual question: does any
-    paragraph unit contain an INDENTED line anywhere but first, and if so,
-    is the unit actually a verified stanza (core.looks_like_verse)? Proven
-    to fail against round-1's real algorithm (see the branch's commit
-    history) before this fix landed."""
+    a unit's first line at all. This asks the actual question via
+    `_unit_is_glued`. Proven to fail against round-1's real algorithm (see
+    the branch's commit history) before this fix landed."""
     bad = []
     margin = doc.meta.get('margin_estimate') or 65
     for b in doc.blocks:
@@ -412,15 +429,48 @@ def _ir_glued_indented_paragraphs(doc):
         merged = core.merged_lines(b)
         dominant = core.block_dominant_styles(merged)
         for unit in core.assemble_paragraphs(b, margin):
-            if len(unit) < 2:
-                continue
-            interior_indented = any(
-                core.line_visible_text(l).startswith('     ')
-                for l in unit[1:])
-            if interior_indented and not core.looks_like_verse(unit, dominant):
+            if _unit_is_glued(unit, dominant):
                 bad.append((b.style_name,
                            [core.line_visible_text(l)[:30] for l in unit]))
     return bad
+
+
+def test_ir_glued_indented_paragraphs_gate_catches_round1_shape():
+    """Regression-proof the tightened gate itself (finish-list item 4,
+    2026-08-17): reproduce round 1's real defect SHAPE directly -- an
+    indented, decisively-prose paragraph-start line glued onto the TAIL of
+    a different unit as an interior line, never reaching its own unit at
+    all -- and confirm `_unit_is_glued` flags it. Built directly against
+    the unit-level predicate rather than through `assemble_paragraphs`,
+    which (as of this fix) never produces this shape any more; that's the
+    point -- this is a trip-wire on the CHECK, so a future change that
+    reintroduces round 1's algorithm still gets caught even though no real
+    fixture can exercise it end-to-end any more.
+
+    Companion assertion: the same predicate must NOT flag a genuine
+    verified stanza (an indented interior line that IS part of a real
+    verse run) -- the gate exists to catch a bypass of the verse check,
+    not to veto every indented interior line outright."""
+    # Round-1 shape: two complete, terminally-punctuated, unstyled prose
+    # sentences -- decisively NOT verse by every looks_like_verse signal --
+    # with the second glued in as an indented INTERIOR line of the first's
+    # unit instead of starting its own.
+    glued_unit = [
+        core.Line([core.Span('     Fenn walked to the door and stopped there.',
+                             frozenset())]),
+        core.Line([core.Span('     He turned the handle very slowly indeed today.',
+                             frozenset())]),
+    ]
+    assert _unit_is_glued(glued_unit, frozenset())
+
+    # Companion: a real 2-line stanza (short, non-terminal, enjambed) with
+    # its second line indented -- must NOT be flagged; that shape is
+    # legitimate verse, not round 1's defect.
+    verse_unit = [
+        core.Line([core.Span('     Winter light upon the pane', frozenset())]),
+        core.Line([core.Span('     shadows learning how to fall', frozenset())]),
+    ]
+    assert not _unit_is_glued(verse_unit, frozenset())
 
 
 def _assert_lint_gates(name, doc):
