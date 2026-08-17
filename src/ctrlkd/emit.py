@@ -10,7 +10,8 @@ Two rendering philosophies, chosen by the caller:
 import html as _html
 import re
 
-from .core import merged_lines, Span, trailing_blank_lines
+from .core import (merged_lines, Span, trailing_blank_lines, coalesce_spans,
+                   assemble_paragraphs, split_leading_indent)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -216,6 +217,14 @@ def _align_lines(lines, align, block):
     return out
 
 
+def _doc_margin(doc):
+    """The block's own measured wrap point -- see PARAGRAPH_JOIN_SLACK's
+    docstring. `lines_pass` always resolves and stores this (core.py's own
+    65-column floor applies), but a synthetically built Document (most unit
+    fixtures) has no `meta` at all -- fall back to the same floor."""
+    return doc.meta.get('margin_estimate') or 65
+
+
 def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
@@ -225,40 +234,53 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         # printed is always silent about comments (ruling 2026-08-06):
         # WordStar printed nothing for them, sections included
         keep = keep - {'comment'}
+    margin = _doc_margin(doc)
+
+    def render(line):
+        seg = []
+        for s in line.spans:
+            pctl = next((t for t in s.styles if t.startswith('pctl')), None)
+            if pctl is not None:
+                # screen-only display string: printed pads the declared
+                # width, modern shows nothing (M4 extended, 2026-08-06)
+                if printed:
+                    seg.append(' ' * round(int(pctl[4:]) / 180))
+                continue
+            note, label = (_resolve_ref(refs, s.text)
+                           if 'fnref' in s.styles else (None, None))
+            if note is not None:
+                # comments are never marked inline in plain text: the
+                # kind has no printed identity (word scheme = markless);
+                # opted-in comments appear in the Comments section
+                if note.kind in keep and note.kind != 'comment':
+                    seg.append(f'[{label}]')
+            else:
+                seg.append(s.text)
+        return ''.join(seg)
+
     out = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
-        lines = []
-        # printed: PHYSICAL lines (soft returns broke the line on paper);
-        # modern: logical lines, soft runs joined back (core.merged_lines)
-        for line in (b.lines if printed else merged_lines(b)):
-            seg = []
-            for s in line.spans:
-                pctl = next((t for t in s.styles if t.startswith('pctl')),
-                            None)
-                if pctl is not None:
-                    # screen-only display string: printed pads the declared
-                    # width, modern shows nothing (M4 extended, 2026-08-06)
-                    if printed:
-                        seg.append(' ' * round(int(pctl[4:]) / 180))
-                    continue
-                note, label = (_resolve_ref(refs, s.text)
-                               if 'fnref' in s.styles else (None, None))
-                if note is not None:
-                    # comments are never marked inline in plain text: the
-                    # kind has no printed identity (word scheme = markless);
-                    # opted-in comments appear in the Comments section
-                    if note.kind in keep and note.kind != 'comment':
-                        seg.append(f'[{label}]')
-                else:
-                    seg.append(s.text)
-            lines.append(''.join(seg))
-        lines = _align_lines(lines, b.align, b)
-        para = '\n'.join(lines)
-        if para.strip() or mode == 'printed':
-            out.append(para)
+        if printed:
+            # PHYSICAL lines: soft returns broke the line on paper
+            lines = _align_lines([render(l) for l in b.lines], b.align, b)
+            para = '\n'.join(lines)
+            if para.strip() or mode == 'printed':
+                out.append(para)
+        else:
+            # Modern: one `out` entry per PARAGRAPH UNIT, not per block, so
+            # the blank-line join below (unchanged) now separates typed
+            # paragraphs from each other, not just Blocks from each other.
+            # Within a unit, lines still join with a bare newline -- exactly
+            # today's same-paragraph separator (a deliberate short line, a
+            # poem's stanza, stays a forced line break, never reflowed).
+            for unit in assemble_paragraphs(b, margin):
+                lines = _align_lines([render(l) for l in unit], b.align, b)
+                para = '\n'.join(lines)
+                if para.strip():
+                    out.append(para)
     text = ('\n'.join(out) if mode == 'printed' or _printed(doc)
             else '\n\n'.join(o for o in out if o.strip()))
     sections = [('footnote', 'Footnotes'), ('endnote', 'Endnotes'),
@@ -333,6 +355,24 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS):
             core = f'<{t}>{core}</{t}>'
     return lead + core + trail
 
+def _md_unit_lines(unit, refs, keep):
+    """One paragraph unit's Lines rendered to Markdown text, first-line
+    indent dropped (Markdown paragraphs carry no first-line-indent concept
+    -- the paragraph gap itself is the "new paragraph" signal, the
+    Markdown-native way to say it; a literal leading run would also risk
+    CommonMark reading 4+ columns as an indented code block). Only the
+    FIRST line's own indent is dropped: an interior deliberate line (a
+    poem's second verse) keeps whatever indentation it was typed with --
+    that is content, not a paragraph-start marker."""
+    out = []
+    for i, line in enumerate(unit):
+        text = ''.join(_md_span(s, refs, keep) for s in line.spans)
+        if i == 0:
+            text = text.lstrip(' ')
+        out.append(text)
+    return out
+
+
 def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
     keep = frozenset(notes)
     if mode == 'printed' or _printed(doc):
@@ -341,18 +381,35 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         return '```\n' + body.rstrip('\n') + '\n```\n'
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
+    margin = _doc_margin(doc)
     out = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             out.append('---')
             continue
-        lines = [''.join(_md_span(s, refs, keep) for s in line.spans)
-                 for line in merged_lines(b)]          # logical lines: soft wraps joined
-        para = '\\\n'.join(l for l in lines)          # hard breaks: trailing backslash
-        if b.heading and para.strip():
-            para = '#' * b.heading + ' ' + para.strip()
-        if para.strip():
-            out.append(para)
+        if b.heading:
+            # a heading is a logical unit, not reflowed prose -- unaffected
+            # by paragraph assembly, same as before
+            lines = [''.join(_md_span(s, refs, keep) for s in line.spans)
+                     for line in merged_lines(b)]
+            para = '\\\n'.join(lines)
+            if para.strip():
+                out.append('#' * b.heading + ' ' + para.strip())
+            continue
+        quote = _is_quote_style(b)
+        for unit in assemble_paragraphs(b, margin):
+            lines = _md_unit_lines(unit, refs, keep)
+            if not any(l.strip() for l in lines):
+                continue
+            if quote:
+                # rule D: style-carried blockquote material keeps its own
+                # handling -- Markdown's only way to say "quoted" is '>'
+                out.append('\n'.join('> ' + l if l else '>' for l in lines))
+            else:
+                # within-unit: unchanged hard-break join (trailing
+                # backslash) -- a deliberate short line (a poem's stanza)
+                # stays a forced line break, never reflowed into prose
+                out.append('\\\n'.join(lines))
     md = '\n\n'.join(out)
     defs = [f'[^{_md_note_id(n.kind, label)}]: {n.text}'
             for n, label in pairs if n.kind in keep]
@@ -449,9 +506,15 @@ def _html_note_ref(note, label, shown=None):
     return (f'<sup><a id="{ref_id}" href="#{target_id}" role="doc-noteref">'
             f'{_html.escape(shown if shown is not None else label)}</a></sup>')
 
-def _html_line(line, refs, keep, keep_ws=False, shown_map=None):
+def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
+    """Render one already-decided list of Spans (a logical line, or one
+    Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
+    identically-styled spans unconditionally: cheap, idempotent for a
+    caller that already coalesced (Modern's merged_lines), and the ONE
+    place Printed's own physical-line spans get the same fix (item e of
+    the overhaul -- the fragmentation gap applies there too)."""
     out = []
-    for s in line.spans:
+    for s in coalesce_spans(spans):
         pctl = next((t for t in s.styles if t.startswith('pctl')), None)
         if pctl is not None:
             if keep_ws:                        # the printed physical layer
@@ -496,9 +559,20 @@ def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
             f'<ol>{"".join(lis)}</ol></section>')
     return sections
 
-_HTML_ALIGN = {'center': ' style="text-align:center"',
-               'right': ' style="text-align:right"',
-               'justify': ' style="text-align:justify"'}
+_HTML_ALIGN_CSS = {'center': 'text-align:center', 'right': 'text-align:right',
+                   'justify': 'text-align:justify'}
+
+def _html_para_style(align, indent_cols=0):
+    """One combined `style="..."` attribute for a Modern <p> -- alignment
+    and first-line indent both live there, so a centred, indented paragraph
+    doesn't need two competing style attributes (HTML allows only one)."""
+    props = []
+    css = _HTML_ALIGN_CSS.get(align)
+    if css:
+        props.append(css)
+    if indent_cols:
+        props.append(f'text-indent:{indent_cols}ch')
+    return f' style="{";".join(props)}"' if props else ''
 
 # RTF paragraph-alignment controls. `\ql` is the default and is emitted only to
 # CLOSE a previous alignment, since RTF alignment persists across \par.
@@ -589,7 +663,14 @@ def _style_css(doc):
             w, h, ts = font
             if h:
                 props.append('font-size:%.4gpt' % (h / 20.0))
-            props.append(f'--ws-typestyle:{ts & 0x01FF}')
+            # `ts & 0x01FF` is the raw WS5+ font-record typestyle-index
+            # bitfield -- internal wire format, not a rendering instruction
+            # any CSS consumer can act on. It used to leak out as a literal
+            # `--ws-typestyle:N` custom property (implementation state
+            # escaping into a document a human or editor might open and
+            # read); nothing in this project ever consumed it, so it is
+            # simply not emitted rather than exposed on the CSS custom-
+            # property namespace.
         if props:
             rules.append(f'.{_style_slug(entry)} {{ {"; ".join(props)} }}')
     for idx, f in enumerate(doc.fonts):
@@ -625,6 +706,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # mark text only; ids and sections are structural and stay put
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
+    margin = _doc_margin(doc)
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             parts.append('<hr class="pb">')
@@ -632,26 +714,47 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         cls = style_class.get(b.style_id, '')
         if b.heading:
             # merged either mode: a heading is a logical unit, and joining its
-            # logical lines with a space is what this always rendered
-            txt = ' '.join(_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)).strip()
+            # logical lines with a space is what this always rendered.
+            # Alignment-space stripping applies here too now (defect b: a
+            # centred heading used to keep its baked spaces as visible
+            # &nbsp; runs on top of the CSS that already centres it).
+            txt = ' '.join(_html_line(_maybe_strip_align(b, list(line.spans)),
+                                      refs, keep, shown_map=shown_map)
+                           for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
             continue
         if printed:
             # PHYSICAL lines: inside <pre>, a soft return is a real line break
-            body = '\n'.join(_html_line(line, refs, keep, keep_ws=True, shown_map=shown_map) for line in b.lines)
+            body = '\n'.join(_html_line(list(line.spans), refs, keep,
+                                        keep_ws=True, shown_map=shown_map)
+                             for line in b.lines)
             if body.strip():
                 parts.append(f'<pre{cls}>{body}</pre>')
         else:
-            lines = [_html_line(line, refs, keep, shown_map=shown_map) for line in merged_lines(b)]
-            para = '<br>\n'.join(lines)
-            if para.strip():
+            # Modern: one <p> per PARAGRAPH UNIT, not per block. A unit's
+            # own first line loses its typed/machine indent to a real
+            # text-indent property (rule C: no literal leading indent
+            # whitespace); every other line in the unit is untouched --
+            # `_html_span`'s own &nbsp; idiom still renders ITS leading
+            # run visibly, which is exactly right for a poem's second
+            # verse (content, not a paragraph-start marker).
+            for unit in assemble_paragraphs(b, margin):
+                first = _maybe_strip_align(b, list(unit[0].spans))
+                indent_cols, first = split_leading_indent(first)
+                rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
+                for line in unit[1:]:
+                    spans = _maybe_strip_align(b, list(line.spans))
+                    rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
+                para = '<br>\n'.join(rendered)
+                if not para.strip():
+                    continue
                 # C16/C17: HTML can express all four alignments, so unlike the
                 # plain-text renderer it does not have to collapse justify into
                 # left. `left` is WordStar's default and gets no attribute, so
                 # every document that never touches `.oc`/`.oj` emits byte-identical
                 # HTML to before.
-                style = _HTML_ALIGN.get(b.align, '')
+                style = _html_para_style(b.align, indent_cols)
                 # C5: newspaper columns. CSS does this properly, so HTML is the one
                 # format that can honour `.co` rather than merely record it. A gutter
                 # is print columns at 10 CPI -> tenths of an inch.
@@ -878,6 +981,35 @@ def _strip_align_spaces(spans):
     return out
 
 
+def _maybe_strip_align(b, spans):
+    """`_strip_align_spaces(spans)` when this block's own alignment tag will
+    already render the same visual effect, spans unchanged otherwise.
+
+    Shared by every Modern body AND heading path so a centred heading and a
+    centred paragraph are never treated differently -- `emit_html`'s
+    heading branch used to call `_html_span` directly and skip this
+    entirely (the double-centering defect: a centred `<h1>` kept its baked
+    centering spaces as visible `&nbsp;` runs ON TOP of the CSS that
+    already centres it); Modern RTF's heading branch got the fix only by
+    accident of loop order (it re-used `lines`, already built by the body
+    loop just above it, which DID call this). Same helper, called
+    explicitly by both paths and both formats now."""
+    if b.align in ('center', 'right') and spans:
+        return _strip_align_spaces(spans)
+    return spans
+
+
+def _is_quote_style(b):
+    """Whether this block's own WordStar paragraph style names it as quoted
+    material (e.g. 'Double-Indented Quote', 'MS Double-Indented Quote') --
+    the signal Modern Markdown uses to add '>' blockquote prefixes (rule D).
+    RTF/HTML already carry the style's own margins as CSS/`\\li`/`\\ri`
+    (`_style_css`/`_rtf_stylesheet`, pass-through from the style record)
+    with no change needed here; Markdown has no margin concept, so '>' is
+    its only way to say the same thing."""
+    return 'quote' in (b.style_name or '').lower()
+
+
 # WordStar print-toggle bytes that legitimately appear inside header/footer
 # TEXT (a `.h1` line carries them raw -- LJ6DTP's is `^B^BLJ6DTP ... ^B`).
 # Interpreted minimally here: toggles flip a style, every other control byte
@@ -963,6 +1095,36 @@ def _rtf_running_heads(doc):
     return out
 
 
+def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False):
+    """Append one `\\par`-terminated paragraph to `parts`.
+
+    RTF paragraph properties -- alignment AND first-line indent alike --
+    PERSIST across `\\par` until changed, so both must be tracked and
+    re-emitted (even back to 0/`\\ql`) whenever they differ from what is
+    still in force, or a later plain paragraph would silently inherit an
+    earlier one's `\\fi`. `rtf_state` is the running {'align', 'fi'} a
+    single `emit_rtf` call threads through every block (printed, heading,
+    and Modern body paragraphs alike -- only Modern body paragraphs ever
+    pass a nonzero `fi_cols`, but every OTHER paragraph still needs the
+    chance to reset it back to 0)."""
+    para = r'\line '.join(lines)
+    if not para.strip() and not force:
+        return
+    if b.align != rtf_state['align']:
+        parts.append(_RTF_ALIGN[b.align])
+        rtf_state['align'] = b.align
+    fi = fi_cols * 144                  # 10 CPI: 1440 twips/in / 10 = 144/col
+    if fi != rtf_state['fi']:
+        parts.append(r'\fi%d ' % fi)
+        rtf_state['fi'] = fi
+    if b.style_id in rtf_state['styled_slots']:
+        # style pass-through: tag the paragraph with its \sN so a
+        # consumer can act on the named style (the visible formatting
+        # is still carried inline, as RTF readers expect)
+        parts.append(r'\s%d ' % (b.style_id + 1))
+    parts.append(para + r'\par ')
+
+
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', note_refs='word', **_options):
     keep = frozenset(notes)
@@ -985,47 +1147,53 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
     parts = []
-    rtf_align = 'left'          # RTF alignment persists across \par
+    rtf_state = {'align': 'left', 'fi': 0, 'styled_slots': styled_slots}
+    margin = _doc_margin(doc)
+
+    def rtf_seg(spans):
+        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
+                       for sp in coalesce_spans(spans))
+
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             parts.append(r'\page ')
             continue
-        lines = []
-        # printed: physical lines (\line at every printed break, soft or hard);
-        # modern: logical lines only
-        for line in (b.lines if printed else merged_lines(b)):
-            spans = line.spans
-            if not printed and b.align in ('center', 'right') and spans:
-                # editor-time alignment: the spaces implemented the tag;
-                # keeping both aligns twice (ruling 2026-08-06)
-                spans = _strip_align_spaces(spans)
-            seg = ''.join(_rtf_span(sp, refs, keep, fontctl, printed,
-                                    shown_map)
-                          for sp in spans)
-            lines.append(seg)
+        if printed:
+            # physical lines: \line at every printed break, soft or hard
+            lines = [rtf_seg(line.spans) for line in b.lines]
+            if b.heading:
+                lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
+            _rtf_emit_para(parts, rtf_state, b, lines, force=True)
+            continue
         if b.heading:
+            # a heading is a logical unit, not reflowed prose -- unaffected
+            # by paragraph assembly, same as before. Alignment stripping now
+            # goes through the shared helper explicitly (it used to inherit
+            # the fix only by accident of loop order).
+            lines = [rtf_seg(_maybe_strip_align(b, list(line.spans)))
+                     for line in merged_lines(b)]
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
-        joiner = r'\line ' if not printed else r'\line '
-        para = joiner.join(lines)
-        if para.strip() or printed:
-            # C16/C17. RTF alignment PERSISTS across \par, so a block must emit its
-            # control whenever the alignment differs from the one still in force --
-            # including `\ql` to return to flush left. Tracking the running value
-            # keeps a document that never aligns anything byte-identical to before.
-            if b.align != rtf_align:
-                parts.append(_RTF_ALIGN[b.align])
-                rtf_align = b.align
-            if b.style_id in styled_slots:
-                # style pass-through: tag the paragraph with its \sN so a
-                # consumer can act on the named style (the visible formatting
-                # is still carried inline, as RTF readers expect)
-                parts.append(r'\s%d ' % (b.style_id + 1))
-            parts.append(para + r'\par ')
-        if not printed:
-            # Only the author's own blank lines make space (ruling
-            # 2026-08-06): a block boundary is often just a dot command,
-            # and command codes are invisible.
+            _rtf_emit_para(parts, rtf_state, b, lines)
             parts.extend([r'\par '] * trailing_blank_lines(b))
+            continue
+        # Modern body: one \par per PARAGRAPH UNIT (was: one \par per
+        # BLOCK, with every hard-terminated typed paragraph inside it
+        # collapsed to a forced \line). A unit's own first line loses its
+        # typed/machine indent to a real \fi (rule B: no literal leading
+        # indent whitespace); every other line in the unit keeps its
+        # literal leading spaces exactly as before (a poem's second verse
+        # is content, not a paragraph-start marker).
+        for unit in assemble_paragraphs(b, margin):
+            first = _maybe_strip_align(b, list(unit[0].spans))
+            indent_cols, first = split_leading_indent(first)
+            lines = [rtf_seg(first)]
+            lines.extend(rtf_seg(_maybe_strip_align(b, list(line.spans)))
+                        for line in unit[1:])
+            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols)
+        # Only the author's own blank lines make space (ruling
+        # 2026-08-06): a block boundary is often just a dot command,
+        # and command codes are invisible.
+        parts.extend([r'\par '] * trailing_blank_lines(b))
     body = '\n'.join(parts)
     # The sophisticated body (Jon's specimen ruling, 2026-08-05): text with
     # no font information reads in Georgia 14 under Modern -- "like reading

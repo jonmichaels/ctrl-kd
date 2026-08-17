@@ -149,7 +149,7 @@ def test_emit_markdown_styles():
 def test_emit_html_poem_breaks():
     poem = b'     line one,' + SOFT + b'     line two.' + HARD
     h = emit.emit_html(core.parse_ws(poem), mode='modern')
-    assert '<br>' in h and '<p>' in h
+    assert '<br>' in h and '<p' in h
 
 def test_emit_html_printed_pre():
     data = b'A    B    C\r\nD    E    F\r\n'
