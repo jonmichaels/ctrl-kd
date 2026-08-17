@@ -762,7 +762,8 @@ def _font_ctl_rtf(doc, target='office'):
     for idx, f in enumerate(doc.fonts):
         parts = ''
         fam = _font_family(f.get('typestyle_name'))
-        primary, falt = rtf_fonts(fam, f.get('generic_style'), target)
+        primary, falt = rtf_fonts(fam, f.get('generic_style'), target,
+                                  f.get('proportional'))
         if primary:
             if primary not in prim_to_k:
                 prim_to_k[primary] = next_k
@@ -872,8 +873,13 @@ def _style_css(doc, printed=True):
     for idx, f in enumerate(doc.fonts):
         props = []
         fam = _font_family(f.get('typestyle_name'))
-        if fam:
-            stack = font_stack(fam, f.get('generic_style'))
+        # round 9: an UNNAMED typestyle number (no TYPESTYLE_NAMES entry)
+        # still carries a real proportional bit -- `fam` alone being empty
+        # must not skip the monospace-or-not decision, or a nameless
+        # proportional=False record would silently inherit whatever
+        # proportional face the surrounding context has.
+        if fam or f.get('proportional') is False:
+            stack = font_stack(fam, f.get('generic_style'), f.get('proportional'))
             css = ', '.join(n if ' ' not in n and n.islower() else f"'{n}'"
                             for n in stack)
             props.append(f'font-family:{css}')

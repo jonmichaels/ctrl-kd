@@ -505,18 +505,39 @@ def _pdf_family(entry):
       1. the font's own symbol-map/name verdict (symbolmap.font_translit_kind)
          -- 'math' IS Symbol, 'symbols' IS ZapfDingbats, and those two we can
          reproduce exactly rather than approximate;
-      2. fixed-pitch names -> Courier (see MONO_FAMILIES for why this beats
-         the bits);
-      3. the font block's own generic-style bits: serif -> Times, sans ->
+      2. THE PROPORTIONAL BIT, decisive (round 9, Jon's ruling, tier-1
+         evidence): `entry['proportional'] is False` -> Courier, full stop,
+         REGARDLESS of the typestyle's own name. This is the record's own
+         declared pitch, not a name-based guess -- WSFORMAT's generic
+         Non-PostScript typestyles 103/104 ("NPS SansSer Qual"/"NPS Serif
+         Qual") are letter-quality dot-matrix categories, not real
+         PostScript serif/sans faces, and a document can decl. proportional
+         =False for ANY typestyle name, mono-sounding or not. Promoting one
+         of these to Times/Helvetica was Jon's field-reviewed "crazy fat"
+         defect (SCRIPT.WS, round 8/9): wrong weight (a full commercial
+         proportional face reads heavier than the era's NLQ approximation)
+         AND wrong advance widths (the existing HMI/Tz grid machinery
+         already renders proportional=False content at its own true pitch
+         -- Courier is the only base-14 family that grid can be honest at).
+         Checked with `is False`, not falsy, so a dict that genuinely lacks
+         the key (see 4) falls through instead of matching here by accident;
+      3. fixed-pitch NAMES -> Courier (MONO_FAMILIES) -- tier-2, for a
+         record whose own proportional bit is UNAVAILABLE rather than
+         False (a style-record font field or other construction that
+         doesn't carry the full WSFORMAT typestyle word -- WS4 has no font
+         records at all and hits the `not entry` return above instead, so
+         this tier is for anything else still short a clean bit);
+      4. the font block's own generic-style bits: serif -> Times, sans ->
          Helvetica. 'script' also lands on Times and 'display' on Helvetica
          (Jon: "I don't think we have any option for script... maybe just
          Times"); the base-14 set has no chancery and no poster face, and the
          era's display typestyles are overwhelmingly sans-shaped, so those are
          the honest neighbours rather than an italic/bold pretence;
-      4. anything unresolvable -> Courier, the emitter's own default.
+      5. anything unresolvable -> Courier, the emitter's own default.
 
     Bold and italic are NEVER decided here -- they come from the span's own
-    b/i styles, exactly as they always have."""
+    b/i styles, exactly as they always have (a proportional=False record
+    that's ALSO span-bold still renders Courier-Bold, never Times-Bold)."""
     if not entry:
         return 'Courier'
     kind = font_translit_kind(entry)
@@ -524,6 +545,8 @@ def _pdf_family(entry):
         return 'Symbol'
     if kind == 'symbols':
         return 'ZapfDingbats'
+    if entry.get('proportional') is False:
+        return 'Courier'
     fam = _font_family(entry.get('typestyle_name')).lower()
     if any(fam.startswith(m) for m in MONO_FAMILIES):
         return 'Courier'

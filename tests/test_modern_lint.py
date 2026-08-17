@@ -1250,6 +1250,35 @@ def test_lint_gates_over_private_corpus():
         _assert_lint_gates(name, doc)
 
 
+def test_lint_no_proportional_face_over_private_corpus():
+    """Corpus-driven twin of test_ctrlkd.py's synthetic gate (round 9):
+    every REAL font record in the private corpus with `proportional`
+    False must resolve to a genuinely fixed-pitch PDF base-14 face --
+    never Times/Helvetica (the "crazy fat" defect a magazine article's
+    own generic Non-PostScript letter-quality typestyles, 103/104,
+    tripped: SCRIPT.WS, Jon's field review). Metrics only: typestyle
+    number/name and the resolved family, never document text."""
+    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    if not root:
+        return
+    from ctrlkd.pdf import _pdf_family
+    from ctrlkd.symbolmap import font_translit_kind
+    proportional_base14 = {'Times', 'Helvetica', 'Symbol', 'ZapfDingbats'}
+    checked = 0
+    for name, doc in _iter_private_fixtures():
+        for entry in doc.fonts:
+            if entry.get('proportional') is not False:
+                continue
+            if font_translit_kind(entry) in ('math', 'symbols'):
+                continue
+            fam = _pdf_family(entry)
+            assert fam not in proportional_base14, (
+                entry.get('typestyle_number'), entry.get('typestyle_name'), fam)
+            checked += 1
+    if checked:
+        print(f'{checked} proportional=False font records verified fixed-pitch')
+
+
 def test_lint_par_line_ratio_advisory_report():
     """Gate 5 (advisory, never fails): for a prose-heavy document, \\par
     should not be drastically outnumbered by \\line -- the inverse of the
