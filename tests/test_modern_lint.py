@@ -9,6 +9,7 @@ every real fixture in CTRLKD_PRIVATE_FIXTURES when that env var is set
 private fixtures present, the synthetic-only gates still run and the
 corpus-driven ones skip cleanly.
 """
+import copy
 import os
 import re
 
@@ -1047,6 +1048,61 @@ def _rtf_modern_vertical_space_leak(doc):
         bad.append('sb')
     if re.search(r'\\sa-?\d+[ }]', r):
         bad.append('sa')
+def _wrap_off_issues(doc):
+    """Round 7 (2026-08-17): every wrap=off (`.aw off`) block must
+    assemble into EXACTLY ONE paragraph unit containing ALL of its own
+    merged lines -- Register C23, "a reflowing consumer must NOT re-wrap
+    them or the layout is destroyed." Checked directly against the
+    MODEL (`core.assemble_paragraphs`'s own return value), not rendered
+    text, so it catches the core regression regardless of any single
+    format's own rendering quirks."""
+    margin = doc.meta.get('margin_estimate') or 65
+    ci, hp = core.paragraph_layout_context(doc)
+    bad = []
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines or b.wrap is not False:
+            continue
+        merged = core.merged_lines(b)
+        units = core.assemble_paragraphs(b, margin, head_position=hp.get(id(b), False),
+                                         convention_indent=ci)
+        if len(units) != 1 or sum(len(u) for u in units) != len(merged):
+            bad.append((b.style_name, len(merged), [len(u) for u in units]))
+    return bad
+
+
+def _wrap_off_rendering_issues(doc):
+    """Round 7: a MULTI-line wrap=off block renders as one structural
+    paragraph with a forced break between every line, in HTML and RTF --
+    the two formats with unambiguous structural markup for "paragraph"
+    (`<p>`/`\\par`) versus "forced break" (`<br>`/`\\line`). Markdown and
+    Text are deliberately not asserted here at the same per-line-break
+    precision: a genuinely BLANK line inside a hand-positioned block
+    (found for real, MARKUP.WS -- a spacer row in the middle of a
+    10-line table-ish block) renders as an empty string, and a plain-text
+    join has no way to say "that blank was CONTENT, not a paragraph
+    separator" -- an inherent limitation of those two formats' own
+    vocabulary, not something this round introduces or can fix. RTF's own
+    `\\par` count allows >= 1 rather than == 1: a block's own TRAILING
+    author blank lines still echo as extra bare `\\par`s (pre-existing,
+    unrelated mechanism -- `trailing_blank_lines`), which is correct and
+    not a paragraph split; `\\line` count, unaffected by that mechanism,
+    is the precise signal."""
+    bad = []
+    for b in doc.blocks:
+        if b.kind != 'para' or not b.lines or b.wrap is not False:
+            continue
+        merged = core.merged_lines(b)
+        if len(merged) < 2:
+            continue
+        mini = copy.copy(doc)
+        mini.blocks = [b]
+        expected = len(merged) - 1
+        h = emit.emit_html(mini, mode='modern')
+        if h.count('<p') != 1 or h.count('<br>') != expected:
+            bad.append(('html', h.count('<p'), h.count('<br>'), expected))
+        r = emit.emit_rtf(mini, mode='modern')
+        if r.count(r'\par') < 1 or r.count(r'\line') != expected:
+            bad.append(('rtf', r.count(r'\par'), r.count(r'\line'), expected))
     return bad
 
 
@@ -1103,6 +1159,11 @@ def _assert_lint_gates(name, doc):
     #     direct token (round 6)
     assert not _rtf_printed_vertical_space_issues(doc), \
         (name, 'printed rtf vertical-space gap', _rtf_printed_vertical_space_issues(doc))
+    # 18. wrap=off (.aw off) blocks assemble into ONE preserved unit,
+    #     every line kept -- Register C23 (round 7)
+    assert not _wrap_off_issues(doc), (name, 'wrap=off split', _wrap_off_issues(doc))
+    assert not _wrap_off_rendering_issues(doc), \
+        (name, 'wrap=off rendering', _wrap_off_rendering_issues(doc))
 
     # 1. no un-coalesced adjacent runs (IR-level -- see _ir_bad_adjacent_spans)
     assert not _ir_bad_adjacent_spans(doc), (name, 'un-coalesced adjacent spans')
@@ -1355,6 +1416,44 @@ def test_round6_psa_psb_land_as_direct_sb_sa_in_printed_rtf():
     md = emit.emit_markdown(doc, mode='modern')
     t = emit.emit_text(doc, mode='modern')
     assert h.strip() and md.strip() and t.strip()
+def test_round7_wrap_off_block_never_splits_in_any_modern_format():
+    """Direct regression test for round 7 (2026-08-17): a REGRESSION the
+    register re-audit found in this whole overhaul -- `.aw off`
+    (`Block.wrap = False`) was honored before `assemble_paragraphs`
+    existed (Modern simply never reflowed anything back then), but the
+    new paragraph-assembly path never learned to check it, so a hand-
+    positioned block could get torn apart at its own column headers. The
+    classic case: a small table, one row typed flush (its own header)
+    then a row typed with a stray 5-space indent -- phase 1's own
+    "indent starts a new paragraph" rule (correct for ordinary prose)
+    would otherwise split the header from the rows it's paired with.
+    Proven against the PRE-fix algorithm (this exact fixture, run through
+    the branch's own base commit): units == [1, 2], a real split. Fixed:
+    the whole block is ONE preserved unit, every line kept, in all four
+    Modern formats -- Register C23, same family as verse (deliberate line
+    positions survive)."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+        + b'.aw off' + HARD
+        + b'Name          Score' + HARD
+        + b'     Alice          95' + HARD
+        + b'Bob             87' + HARD)
+    assert doc.blocks[0].wrap is False
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 1 and sum(len(u) for u in units) == 3, \
+        [len(u) for u in units]
+    assert not _wrap_off_issues(doc)
+    assert not _wrap_off_rendering_issues(doc)
+
+    h = emit.emit_html(doc, mode='modern')
+    r = emit.emit_rtf(doc, mode='modern')
+    md = emit.emit_markdown(doc, mode='modern')
+    t = emit.emit_text(doc, mode='modern')
+    assert h.count('<p') == 1 and h.count('<br>') == 2
+    assert r.count(r'\par') == 1 and r.count(r'\line') == 2
+    assert md.count('\n\n') == 0 and md.count('  \n') == 2
+    assert t.count('\n\n') == 0 and t.strip().count('\n') == 2
 
 
 def _iter_private_fixtures():
