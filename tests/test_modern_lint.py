@@ -20,6 +20,15 @@ HARD = b'\x0d\x0a'
 SOFT = b'\x8d\x0a'
 
 
+def ws4_word(w):
+    """WS4 sets bit 7 on the last character of each word."""
+    return w[:-1] + bytes([w[-1] | 0x80])
+
+
+def ws4_text(s):
+    return b' '.join(ws4_word(w.encode()) for w in s.split(' '))
+
+
 def ws7_block(cmd, content=b''):
     """One WS7 symmetrical sequence -- see test_ctrlkd.py's own copy for the
     field-by-field rationale (WordStar 7.0 file format spec)."""
@@ -131,6 +140,66 @@ def test_assemble_paragraphs_long_indented_lines_each_split():
     margin = doc.meta.get('margin_estimate') or 65
     units = core.assemble_paragraphs(doc.blocks[0], margin)
     assert len(units) == 3
+    assert all(len(u) == 1 for u in units)
+
+
+def test_ws4_multi_stanza_poem_survives_with_no_attributes_or_styles():
+    """Round 2 (2026-08-17): a WS4 document has NEITHER the WS5+ symmetric-
+    block machinery NOR (here) any inline b/i/u toggle -- so the attribute-
+    shift signal `looks_like_verse` can use is silent by construction, and
+    stanza preservation has to stand on terminal-punctuation/quote-opening
+    alone. Two four-line stanzas (separated by the author's own blank
+    line, same as a real poem), each line typed-indented, none ending in
+    terminal punctuation (the enjambment shape real verse was found to
+    have) -- both stanzas must stay a tight single unit."""
+    stanza1 = [
+        'Winter light upon the pane',
+        'shadows learning how to fall',
+        'something waits beyond the rain',
+        'patient at the garden wall',
+    ]
+    stanza2 = [
+        'Morning comes without a sound',
+        'grey and folded like a page',
+        'footsteps circling worn ground',
+        'marking time against the age',
+    ]
+    body = b''
+    for stanza in (stanza1, stanza2):
+        for line in stanza:
+            body += b'     ' + ws4_text(line) + HARD
+        body += HARD                    # the author's own blank line
+    assert core.detect(body)['variant'] == 'ws4'
+    doc = core.parse_ws(body)
+    stanza_blocks = [b for b in doc.blocks if b.kind == 'para' and b.lines]
+    assert len(stanza_blocks) == 2
+    margin = doc.meta.get('margin_estimate') or 65
+    for b in stanza_blocks:
+        units = core.assemble_paragraphs(b, margin)
+        assert len(units) == 1, [l.text() for u in units for l in u]
+        assert sum(len(u) for u in units) == 4
+
+
+def test_ws4_dialogue_run_does_not_false_positive_as_stanza():
+    """The companion fixture: six short, typed-indented, hard-terminated
+    WS4 lines shaped like rapid dialogue/narrative beats (quote-opening
+    and/or terminal punctuation on every line, no attributes available
+    either) -- each must become its OWN paragraph, not get glued into a
+    false stanza by run-length alone."""
+    lines = [
+        'Wait.',
+        '"Where are you going?"',
+        'Nothing here.',
+        'He turned around.',
+        '"I already told you."',
+        'Gone.',
+    ]
+    body = b''.join(b'     ' + ws4_text(l) + HARD for l in lines)
+    assert core.detect(body)['variant'] == 'ws4'
+    doc = core.parse_ws(body)
+    margin = doc.meta.get('margin_estimate') or 65
+    units = core.assemble_paragraphs(doc.blocks[0], margin)
+    assert len(units) == 6, [l.text() for u in units for l in u]
     assert all(len(u) == 1 for u in units)
 
 
@@ -267,6 +336,37 @@ def _ir_bad_paragraph_indent_opens(doc):
     return bad
 
 
+def _ir_glued_indented_paragraphs(doc):
+    """The check that SHOULD have caught round 1's real defect and did
+    not: `_ir_bad_paragraph_indent_opens` only asks whether a unit's own
+    first line still opens with literal spaces after extraction -- true by
+    construction, so it passed clean on round-1 output where 43 real
+    paragraph-openings across OLDTIMES.rtf were glued onto the TAIL of the
+    wrong paragraph as an indented interior `\\line`d line, never becoming
+    a unit's first line at all. This asks the actual question: does any
+    paragraph unit contain an INDENTED line anywhere but first, and if so,
+    is the unit actually a verified stanza (core.looks_like_verse)? Proven
+    to fail against round-1's real algorithm (see the branch's commit
+    history) before this fix landed."""
+    bad = []
+    margin = doc.meta.get('margin_estimate') or 65
+    for b in doc.blocks:
+        if b.kind != 'para' or b.heading:
+            continue
+        merged = core.merged_lines(b)
+        dominant = core.block_dominant_styles(merged)
+        for unit in core.assemble_paragraphs(b, margin):
+            if len(unit) < 2:
+                continue
+            interior_indented = any(
+                core.line_visible_text(l).startswith('     ')
+                for l in unit[1:])
+            if interior_indented and not core.looks_like_verse(unit, dominant):
+                bad.append((b.style_name,
+                           [core.line_visible_text(l)[:30] for l in unit]))
+    return bad
+
+
 def _assert_lint_gates(name, doc):
     # Rendering all four Modern formats here is also the corpus smoke test
     # (item I): every real fixture must convert without crashing, whether
@@ -282,6 +382,11 @@ def _assert_lint_gates(name, doc):
     # 2. no literal multi-space indent opening a Modern paragraph
     #    (Markdown drops it entirely; HTML/RTF use a real indent property)
     assert not _ir_bad_paragraph_indent_opens(doc), (name, 'paragraph-opening indent')
+    # 2b. tightened (round 2): no indented line glued mid-paragraph unless
+    #     the whole unit is a verified stanza -- this is the check that
+    #     should have caught round 1's real defect (43 glued paragraph
+    #     opens in OLDTIMES.rtf alone) and, with gate 2 alone, did not.
+    assert not _ir_glued_indented_paragraphs(doc), (name, 'indented line glued mid-paragraph')
 
     # 3. no <pre> in Modern HTML for a non-columnar, non-printstream document
     if doc.meta.get('variant') != 'printstream' and not doc.meta.get('columnar'):

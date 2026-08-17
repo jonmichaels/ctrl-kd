@@ -147,7 +147,16 @@ def test_emit_markdown_styles():
     assert '**Bold**' in md and '*ital*' in md
 
 def test_emit_html_poem_breaks():
-    poem = b'     line one,' + SOFT + b'     line two.' + HARD
+    # Round 2 (2026-08-17): the paragraph-assembly heuristic now reads
+    # verse from a run's SHAPE (terminal punctuation, quote-opening,
+    # attribute shift -- see core.looks_like_verse), not merely "short and
+    # indented" -- a comma/period-terminated pair like the original
+    # 'line one,'/'line two.' reads as two finished, if terse, prose
+    # sentences (correctly, per the same signal real short dialogue relies
+    # on) and is no longer this test's fixture. Neither line here ends in
+    # terminal punctuation, matching the enjambment shape real verse in
+    # the corpus was found to have.
+    poem = b'     line one --' + SOFT + b'     line two --' + HARD
     h = emit.emit_html(core.parse_ws(poem), mode='modern')
     assert '<br>' in h and '<p' in h
 
