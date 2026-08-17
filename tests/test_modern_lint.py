@@ -451,10 +451,12 @@ def test_modern_rtf_poem_stays_one_par_with_line_breaks():
 
 
 def test_modern_markdown_poem_stays_one_paragraph_with_hard_breaks():
-    """Companion to the HTML/RTF poem tests, for Markdown (round 3b,
-    2026-08-17): a verified stanza still gets a real forced break --
-    Markdown's own vocabulary for one, a trailing backslash -- between
-    each of its lines."""
+    """Companion to the HTML/RTF poem tests, for Markdown: a verified
+    stanza still gets a real forced break -- classic Markdown/CommonMark's
+    own vocabulary for one, two TRAILING SPACES before the newline (round
+    4, 2026-08-17: was a trailing backslash, replaced because some
+    renderers show it literally and it's text that never existed in the
+    WordStar source either way)."""
     lines = [
         b'     Line one is short,',
         b'     line two also short --',
@@ -464,7 +466,8 @@ def test_modern_markdown_poem_stays_one_paragraph_with_hard_breaks():
     doc = _typed_paragraph_doc(lines)
     md = emit.emit_markdown(doc, mode='modern')
     assert md.count('\n\n') == 0
-    assert md.count('\\\n') == 3
+    assert md.count('  \n') == 3
+    assert not any(l.endswith('\\') for l in md.split('\n'))
 
 
 def test_modern_text_poem_stays_one_paragraph_with_line_breaks():
@@ -732,10 +735,13 @@ def _rtf_bad_geometry(r):
     1440 twips (1in) -- ordinary styles lose page geometry outright (no
     \\li/\\ri at all); a quote style's own override is a flat 720-twip
     (0.5in) inset (`_RTF_MODERN_QUOTE_INSET`), comfortably under this
-    bound. Scoped to the `\\stylesheet` group specifically -- `\\li`/`\\ri`
-    only ever appear there in this project's own output, but scoping
-    avoids any risk of a false match against unrelated control words."""
-    m = re.search(r'\{\\stylesheet.*?\}\{\\f0', r, re.S)
+    bound. Scoped to the `\\stylesheet` group specifically (see
+    `_rtf_body_only`'s docstring for the correct `\\paperw` boundary --
+    an earlier version of this lookahead used `{\\f0`, which sits BEFORE
+    `\\stylesheet` in `emit_rtf`'s own output order, so it silently never
+    matched at all and this check spent the whole round validating an
+    empty string)."""
+    m = re.search(r'\{\\stylesheet.*?\}(?=\\paperw)', r, re.S)
     sheet = m.group(0) if m else ''
     bad = []
     for mm in re.finditer(r'\\(li|ri)(\d+)', sheet):
@@ -756,6 +762,94 @@ def _md_deep_indent_lines(md):
     return [l for l in md.split('\n') if l[:4] == '    ']
 
 
+def _md_trailing_backslash_lines(md):
+    """Round 4 (2026-08-17): no line in Modern Markdown may end with a
+    literal backslash -- that was the OLD hard-break marker, replaced with
+    two trailing spaces (classic Markdown/CommonMark) because Jon found
+    some renderers show a trailing backslash literally, and it's text
+    that never existed in the WordStar source either way."""
+    return [l for l in md.split('\n') if l.endswith('\\')]
+
+
+def _html_adjacent_blockquotes(h):
+    """Round 4 (2026-08-17): no `</blockquote>` may be immediately
+    followed by a `<blockquote>` across only whitespace -- that shape is
+    exactly the round-3 defect (one <blockquote> per paragraph UNIT
+    instead of per CONSECUTIVE quote-style run), which rendered a real
+    multi-paragraph quotation as a stack of separately bordered, gapped
+    boxes instead of one continuous quote block."""
+    return re.findall(r'</blockquote>\s*<blockquote>', h)
+
+
+def _html_blockquote_indent_variance(h):
+    """Round 4: every <p>'s own `text-indent` INSIDE one <blockquote> must
+    be the same value -- the group's own first paragraph sets it (see
+    `emit_html`'s `quote_indent_cols`), reused for every paragraph in the
+    group rather than each one's own (source-inconsistent) raw column
+    count. Returns blockquotes with more than one distinct value found."""
+    bad = []
+    for bq in re.findall(r'<blockquote>(.*?)</blockquote>', h, re.S):
+        indents = set(re.findall(r'text-indent:(\d+)ch', bq))
+        if len(indents) > 1:
+            bad.append(indents)
+    return bad
+
+
+def _rtf_body_only(r):
+    """`r` with the `\\stylesheet` group removed -- state-replay checks
+    (`_rtf_state_issues`) must scan only the BODY's own direct formatting
+    tokens; the stylesheet definition legitimately contains the same
+    `\\li`/`\\ri` control words for an entirely different reason (Word's
+    named-style definition) and would corrupt a naive token replay if
+    left in. `\\stylesheet` is emitted right after the `\\fonttbl` group
+    (BEFORE `{\\f0` in `_rtf_stylesheet`'s own document position -- not
+    after it, which a first attempt at this lookahead got backwards and
+    silently matched nothing at all) and always immediately precedes
+    `emit_rtf`'s own page-setup block, which always opens with the fixed
+    `\\paperw` token -- that boundary is unambiguous."""
+    return re.sub(r'\{\\stylesheet.*?\}(?=\\paperw)', '', r, flags=re.S)
+
+
+def _rtf_state_issues(r, doc, printed=False):
+    """Replay Modern RTF's own body as a reader that skips `\\stylesheet`
+    entirely would (Pages, TextEdit, most non-Word readers -- round 4,
+    2026-08-17): track li/ri/fi as direct-formatting state, token by
+    token, and flag two hazards this round exists to close:
+
+    - a paragraph referencing a stylesheet style (`\\sN`) whose style-
+      table margins (`_rtf_style_margins`) don't match the DIRECT state
+      active at that point -- the precise shape of "stylesheet-only",
+      invisible outside Word.
+    - a quote-classified paragraph's own `\\fi` outside a sane bound
+      (1440 twips/1in) -- scoped to quote styles specifically; an
+      ordinary body paragraph's own (potentially large, genuinely typed)
+      indent is real content this round never touched or verified."""
+    margins = {e['slot']: emit._rtf_style_margins(e, printed)
+              for e in doc.styles if 'attrs_on' in e}
+    quote_slots = {e['slot'] for e in doc.styles
+                   if 'attrs_on' in e and emit._is_quote_name(e.get('name'))}
+    body = _rtf_body_only(r)
+    tokens = re.findall(r'\\li(-?\d+)|\\ri(-?\d+)|\\fi(-?\d+)|\\s(\d+) ', body)
+    li = ri = fi = 0
+    bad = []
+    for li_t, ri_t, fi_t, s_t in tokens:
+        if li_t:
+            li = int(li_t)
+        if ri_t:
+            ri = int(ri_t)
+        if fi_t:
+            fi = int(fi_t)
+        if s_t:
+            slot = int(s_t) - 1
+            if slot in margins:
+                exp = margins[slot]
+                if (li, ri) != exp:
+                    bad.append(f'\\s{s_t}: direct(li={li},ri={ri}) != style{exp}')
+                if slot in quote_slots and abs(fi) > 1440:
+                    bad.append(f'\\s{s_t}: fi={fi} exceeds 1440-twip bound')
+    return bad
+
+
 def _assert_lint_gates(name, doc):
     # Rendering all four Modern formats here is also the corpus smoke test
     # (item I): every real fixture must convert without crashing, whether
@@ -774,6 +868,19 @@ def _assert_lint_gates(name, doc):
     # 9. Modern Markdown has no 4+-space-opening content line (verse included)
     assert not _md_deep_indent_lines(md), (name, 'markdown deep indent',
                                            _md_deep_indent_lines(md)[:5])
+    # 10. Modern Markdown has no trailing-backslash hard break (round 4)
+    assert not _md_trailing_backslash_lines(md), \
+        (name, 'markdown trailing backslash', _md_trailing_backslash_lines(md)[:5])
+    # 11. no adjacent sibling <blockquote>s in Modern HTML (round 4)
+    assert not _html_adjacent_blockquotes(h), (name, 'adjacent blockquotes')
+    # 12. uniform text-indent across every <p> inside one <blockquote> (round 4)
+    assert not _html_blockquote_indent_variance(h), \
+        (name, 'blockquote text-indent variance', _html_blockquote_indent_variance(h))
+    # 13. Modern RTF: every styled paragraph carries its style's li/ri as
+    #     DIRECT tokens (not stylesheet-only), and no quote paragraph's own
+    #     \fi exceeds a sane bound (round 4)
+    assert not _rtf_state_issues(r, doc, printed=False), \
+        (name, 'rtf direct-formatting gap', _rtf_state_issues(r, doc, printed=False))
 
     # 1. no un-coalesced adjacent runs (IR-level -- see _ir_bad_adjacent_spans)
     assert not _ir_bad_adjacent_spans(doc), (name, 'un-coalesced adjacent spans')
@@ -866,6 +973,67 @@ def test_round3_geometry_normalization_and_quote_distinction():
     # Markdown: '>' prefix on the quote, not on body; no deep indent anywhere
     assert any(l.startswith('> ') for l in md.split('\n'))
     assert not _md_deep_indent_lines(md)
+
+
+def test_round4_quote_group_merges_across_styles_and_units():
+    """Direct regression test for round 4 (2026-08-17): consecutive
+    quote-classified paragraphs are ONE quote block, whether the
+    "consecutive" comes from multiple typed paragraphs inside a single
+    indent-only-convention WordStar Block (OLDTIMES's real shape: 5 units,
+    was 5 separate bordered <blockquote>s) OR from two DIFFERENT quote
+    STYLE NAMES back to back with nothing between them (NOVEL.WS's real
+    shape: 'MS Quote Introductory' immediately followed by 'MS Quote
+    Credit', an epigraph and its own attribution line -- grouping by exact
+    style name alone missed this and still produced adjacent boxes).
+    Also covers the "absolute where it must be relative" first-line-indent
+    fix: the two typed quote paragraphs open at deliberately DIFFERENT raw
+    columns (6 and 9), same shape as OLDTIMES's real 7-vs-12 inconsistency."""
+    quote_rec = _style_record(left=1260, just=0)
+    credit_rec = _style_record(left=1260, just=0)
+    lib = _style_library([
+        ('WordStar Defaults', False, None),
+        ('WordStar Defaults', False, None),
+        ('Double-Indented Quote', True, quote_rec),
+        ('MS Quote Credit', True, credit_rec),
+    ])
+    header = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+    body = (header
+            + _style_handle(2)
+            + b'      First quoted paragraph carries real sentence text.' + HARD
+            + b'         Second quoted paragraph typed at a different depth.' + HARD
+            + HARD
+            + _style_handle(3)
+            + b'     Attribution credit line follows immediately after.' + HARD
+            + HARD
+            + _style_handle(1)
+            + b'     An ordinary body paragraph comes after the quote group.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    doc = core.parse_ws(bytes(data))
+
+    h = emit.emit_html(doc, mode='modern')
+    r = emit.emit_rtf(doc, mode='modern')
+
+    # HTML: ONE <blockquote> spans BOTH quote styles, containing all 3
+    # quote paragraphs, all sharing the SAME text-indent -- the group's
+    # own first paragraph's value, not each one's own raw column count.
+    # The trailing body paragraph is NOT inside it.
+    assert h.count('<blockquote') == 1, h
+    bq = re.search(r'<blockquote>(.*?)</blockquote>', h, re.S).group(1)
+    assert bq.count('<p') == 3
+    indents = set(re.findall(r'text-indent:(\d+)ch', bq))
+    assert len(indents) == 1, indents
+    assert not _html_adjacent_blockquotes(h)
+    assert not _html_blockquote_indent_variance(h)
+
+    # RTF: every quote paragraph carries direct \li720\ri720 (round 4:
+    # not stylesheet-only -- a reader that ignores \stylesheet entirely
+    # still renders the inset), and the trailing body paragraph resets
+    # both back to 0. No gap gets introduced between the two DIFFERENT
+    # quote styles either.
+    assert not _rtf_state_issues(r, doc, printed=False)
+    assert r.count(r'\li720\ri720') >= 1
 
 
 def _iter_private_fixtures():

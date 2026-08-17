@@ -455,7 +455,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # paragraphs).
             lines = [''.join(_md_span(s, refs, keep) for s in line.spans).lstrip(' ')
                      for line in merged_lines(b)]
-            para = '\\\n'.join(lines)
+            para = '  \n'.join(lines)
             if para.strip():
                 out.append('#' * b.heading + ' ' + para.strip())
             continue
@@ -467,11 +467,11 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             lines = _md_unit_lines(unit, refs, keep)
             if not any(l.strip() for l in lines):
                 continue
-            # round 3b (2026-08-17): a trailing-backslash break is reserved
-            # for a REAL deliberate line break -- a verified verse/stanza
-            # unit -- matching HTML/RTF/Text's own same-rule fix. A
-            # multi-line unit that never got verse-verified (bare phase-1
-            # flush-continuation) flows as ONE line instead; every line was
+            # round 3b (2026-08-17): a hard break is reserved for a REAL
+            # deliberate line break -- a verified verse/stanza unit --
+            # matching HTML/RTF/Text's own same-rule fix. A multi-line
+            # unit that never got verse-verified (bare phase-1 flush-
+            # continuation) flows as ONE line instead; every line was
             # already stripped of its own leading indent by
             # `_md_unit_lines`, so a plain space join is enough.
             if len(unit) > 1 and not looks_like_verse(unit, dominant):
@@ -481,7 +481,13 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 # handling -- Markdown's only way to say "quoted" is '>'
                 out.append('\n'.join('> ' + l if l else '>' for l in lines))
             else:
-                out.append('\\\n'.join(lines))
+                # round 4 (2026-08-17): a hard break is two TRAILING
+                # SPACES before the newline (classic Markdown/CommonMark),
+                # not a trailing backslash -- Jon's field report: some
+                # renderers show the backslash literally, and it's text
+                # that never existed in the WordStar source either way.
+                # Invisible in the raw text, which a backslash is not.
+                out.append('  \n'.join(lines))
     md = '\n\n'.join(out)
     # A note's own raw text is embedded verbatim below -- never routed
     # through `_md_unit_lines`, so a multi-line WordStar comment/footnote
@@ -518,6 +524,7 @@ font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
 .ws-native{white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
 hr.pb{border:none;border-top:1px dashed #bbb;margin:2rem 0}
 blockquote{margin:1em 2em;padding-left:1em;border-left:2px solid #ccc}
+blockquote p{margin:0}
 section[role=doc-endnotes]{margin-top:2rem}
 section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
@@ -828,12 +835,51 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                  if note_refs == 'prefixed' and not printed else None)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Quote-block CONTINUITY (Jon's ruling, round 4, 2026-08-17): consecutive
+    # units in the same quote-classified style are ONE quote block, not one
+    # <blockquote> per paragraph UNIT (the round-3 code) nor even one per
+    # WordStar Block -- a real multi-paragraph newspaper quotation is often a
+    # single indent-only-convention Block with several typed paragraphs
+    # INSIDE it (OLDTIMES's own 'MS Double-Indented Quote' block: 5 units,
+    # was rendering as 5 separate bordered <blockquote>s with vertical gaps).
+    # The GROUPING key is "quote-classified at all", not the exact style
+    # NAME: a real fixture (NOVEL.WS) alternates 'MS Quote Introductory'
+    # and 'MS Quote Credit' block to block (an epigraph immediately
+    # followed by its own attribution line) -- two DIFFERENT quote styles
+    # with nothing between them read as one continuous quotation just as
+    # much as OLDTIMES's single-style run does, and rendering them as two
+    # adjacent boxes is the identical "stack of gapped boxes" defect.
+    # `quote_buffer` accumulates <p> strings across units AND across
+    # Blocks as long as SOME quote style keeps matching and nothing else
+    # intervenes; `_flush_quote` closes it into one <blockquote> the
+    # moment it doesn't. `quote_indent_cols` is the GROUP's own first-line
+    # indent, computed once from the group's first paragraph and reused
+    # for every paragraph in it (round 4: the source's own typed indent is
+    # NOT reliable per paragraph -- OLDTIMES's own quote block opens its
+    # first typed paragraph at column 7 and every later one at column 12,
+    # a real inconsistency in the source, not a rendering choice -- so the
+    # first paragraph's own value is what every paragraph in the group
+    # uses, never each one's own raw count).
+    quote_buffer = []
+    quote_open = False
+    quote_indent_cols = None
+
+    def _flush_quote():
+        nonlocal quote_open, quote_indent_cols
+        if quote_buffer:
+            parts.append('<blockquote>' + ''.join(quote_buffer) + '</blockquote>')
+            quote_buffer.clear()
+        quote_open = False
+        quote_indent_cols = None
+
     for b in doc.blocks:
         if b.kind == 'pagebreak':
+            _flush_quote()
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
         if b.heading:
+            _flush_quote()
             # merged either mode: a heading is a logical unit, and joining its
             # logical lines with a space is what this always rendered.
             # Alignment-space stripping applies here too now (defect b: a
@@ -846,6 +892,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
             continue
         if printed:
+            _flush_quote()
             # PHYSICAL lines, normal flow (Jon's ruling, round 3 addendum,
             # 2026-08-17 -- retires the earlier <pre> wrapper): a <pre> box
             # implies a WIDTH-CONSTRAINING monospace grid, which is exactly
@@ -873,12 +920,29 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # run visibly, which is exactly right for a poem's second
             # verse (content, not a paragraph-start marker).
             quote = _is_quote_style(b)
+            if quote:
+                quote_open = True
+            else:
+                _flush_quote()
             dominant = block_dominant_styles(merged_lines(b))
             for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
                 first = _maybe_strip_align(b, list(unit[0].spans))
                 indent_cols, first = split_leading_indent(first)
+                if quote:
+                    # round 4 (2026-08-17): a quote GROUP's first-line
+                    # indent is computed ONCE, from its own first
+                    # paragraph, and reused for every paragraph in the
+                    # group -- not each paragraph's own raw typed column
+                    # count, which the source itself carries
+                    # inconsistently (see the block comment above
+                    # `quote_buffer`). Still relative, still reader-
+                    # proportional (ch); just no longer "absolute where it
+                    # must be relative."
+                    if quote_indent_cols is None:
+                        quote_indent_cols = indent_cols
+                    indent_cols = quote_indent_cols
                 # rule (round 3 addendum, 2026-08-17): <br> is reserved for
                 # a REAL deliberate line break -- a verified verse/stanza
                 # unit. A multi-line unit that never got verse-verified (a
@@ -918,15 +982,20 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     col = f' style="column-count:{b.columns}{gap}"'
                     p_html = f'<div{col}>{p_html}</div>'
                 if quote:
-                    # rule 1 (round 3, 2026-08-17): quote-classified styles
-                    # become a real <blockquote> -- the style's own
+                    # rule 1 (round 3/4, 2026-08-17): quote-classified
+                    # styles become a real <blockquote> -- the style's own
                     # margin-left/right (WS-absolute, sometimes 5+ inches)
                     # no longer carries the visible inset at all
-                    # (`_style_css`, modern mode); this structural wrap plus
-                    # the base stylesheet's modest `blockquote` rule is what
-                    # makes a quote visibly read as one now.
-                    p_html = f'<blockquote>{p_html}</blockquote>'
-                parts.append(p_html)
+                    # (`_style_css`, modern mode). CONSECUTIVE quote
+                    # paragraphs (same style, nothing intervening) share
+                    # ONE <blockquote> (round 4: was one per unit, which
+                    # rendered a multi-paragraph quotation as a stack of
+                    # separately-bordered, gapped boxes) -- buffered here,
+                    # closed by `_flush_quote` the moment the run ends.
+                    quote_buffer.append(p_html)
+                else:
+                    parts.append(p_html)
+    _flush_quote()
     linked = (_REF_KINDS if shown_map is not None
               else tuple(k for k in _REF_KINDS if k != 'comment'))
     sections = _html_notes_sections(pairs, keep, linked)
@@ -1093,22 +1162,51 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
 
 _RTF_MODERN_QUOTE_INSET = 720   # 0.5in each side -- Jon's explicit ask, round 3
 
+def _rtf_style_margins(entry, printed):
+    """(li, ri) twips for ONE style-table entry -- the single source of
+    truth `_rtf_stylesheet`'s own definition AND every body paragraph's
+    DIRECT formatting both read (round 4, 2026-08-17: a property that
+    exists only in the `\\stylesheet` group is invisible to Pages,
+    TextEdit, and most non-Word RTF readers, which honour direct
+    formatting only and ignore stylesheet definitions outright -- Jon's
+    "visibly inset" claim for quotes failed in the field for exactly this
+    reason). PRINTED keeps the WS4-absolute geometry verbatim -- Printed
+    IS that geometry. MODERN drops it for ordinary body styles (full
+    measure) and replaces a quote-classified style's own -- however large
+    or lopsided in the source -- with a small FIXED symmetric inset
+    (`_RTF_MODERN_QUOTE_INSET` each side)."""
+    if printed:
+        li = (round(entry['left_margin_hmi'] / 1800.0 * 1440)
+              if entry.get('left_margin_hmi') else 0)
+        ri = (round(entry['right_margin_hmi'] / 1800.0 * 1440)
+              if entry.get('right_margin_hmi') else 0)
+        return li, ri
+    if _is_quote_name(entry.get('name')):
+        return _RTF_MODERN_QUOTE_INSET, _RTF_MODERN_QUOTE_INSET
+    return 0, 0
+
+
+def _rtf_direct_margins(doc, printed):
+    """{slot: (li, ri)} for every real style-table entry -- computed once
+    per `emit_rtf` call so every paragraph referencing a style can carry
+    its li/ri as DIRECT formatting (see `_rtf_style_margins`), not only
+    via the `\\sN` stylesheet reference."""
+    return {entry['slot']: _rtf_style_margins(entry, printed)
+            for entry in doc.styles if 'attrs_on' in entry}
+
+
 def _rtf_stylesheet(doc, printed=True):
     """An RTF \\stylesheet group derived from the style records -- the same
     pass-through rule as the HTML CSS: properties come from the file's own
     data, names are carried verbatim, nothing is hardwired. \\sN numbers are
     slot+1 (RTF style 0 is reserved for Normal).
 
-    PRINTED keeps `\\li`/`\\ri` verbatim from the WS4-absolute geometry --
-    Printed IS that geometry. MODERN (Jon's ruling, round 3, 2026-08-17)
-    drops it for ordinary body styles (full measure, no page-relative
-    margins) and replaces a quote-classified style's own -- however large
-    or lopsided in the source -- with a small FIXED symmetric inset
-    (`_RTF_MODERN_QUOTE_INSET` each side): Jon's explicit ask is that a
-    quote paragraph in Pages/Word visibly reads as quoted material at all
-    -- indentation is RTF's only quoting vocabulary, so it can shrink, but
-    it can't disappear the way it would if quotes got the same "no
-    geometry" treatment as body text."""
+    Kept for WORD'S benefit (round 4, 2026-08-17): Word and other style-
+    aware readers still get named, editable styles. Every property here
+    that must actually RENDER is also emitted as direct formatting on each
+    referencing paragraph (`_rtf_emit_para`'s own `li`/`ri` args, sourced
+    from `_rtf_direct_margins`) -- this definition is no longer the only
+    place li/ri exists."""
     entries = []
     for entry in doc.styles:
         if 'attrs_on' not in entry:
@@ -1116,13 +1214,11 @@ def _rtf_stylesheet(doc, printed=True):
         props = ''
         props += {'center': r'\qc', 'right': r'\qr',
                   'justify': r'\qj'}.get(entry.get('justification'), '')
-        if printed:
-            if entry.get('left_margin_hmi'):
-                props += r'\li%d' % round(entry['left_margin_hmi'] / 1800.0 * 1440)
-            if entry.get('right_margin_hmi'):
-                props += r'\ri%d' % round(entry['right_margin_hmi'] / 1800.0 * 1440)
-        elif _is_quote_name(entry.get('name')):
-            props += r'\li%d\ri%d' % (_RTF_MODERN_QUOTE_INSET, _RTF_MODERN_QUOTE_INSET)
+        li, ri = _rtf_style_margins(entry, printed)
+        if li:
+            props += r'\li%d' % li
+        if ri:
+            props += r'\ri%d' % ri
         a = entry.get('attrs', frozenset())
         for tag, ctl in (('b', r'\b'), ('i', r'\i'), ('u', r'\ul'),
                          ('strike', r'\strike')):
@@ -1278,18 +1374,28 @@ def _rtf_running_heads(doc):
     return out
 
 
-def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False):
+def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=0):
     """Append one `\\par`-terminated paragraph to `parts`.
 
-    RTF paragraph properties -- alignment AND first-line indent alike --
-    PERSIST across `\\par` until changed, so both must be tracked and
-    re-emitted (even back to 0/`\\ql`) whenever they differ from what is
-    still in force, or a later plain paragraph would silently inherit an
-    earlier one's `\\fi`. `rtf_state` is the running {'align', 'fi'} a
-    single `emit_rtf` call threads through every block (printed, heading,
-    and Modern body paragraphs alike -- only Modern body paragraphs ever
-    pass a nonzero `fi_cols`, but every OTHER paragraph still needs the
-    chance to reset it back to 0)."""
+    RTF paragraph properties -- alignment, first-line indent, AND left/
+    right inset alike -- PERSIST across `\\par` until changed, so all
+    THREE must be tracked and re-emitted (even back to 0/`\\ql`) whenever
+    they differ from what is still in force, or a later plain paragraph
+    would silently inherit an earlier one's `\\fi`/`\\li`/`\\ri`.
+    `rtf_state` is the running {'align', 'fi', 'li', 'ri'} a single
+    `emit_rtf` call threads through every block (printed, heading, and
+    Modern body paragraphs alike -- only Modern body paragraphs ever pass
+    a nonzero `fi_cols`/`li`/`ri`, but every OTHER paragraph still needs
+    the chance to reset them back to 0).
+
+    `li`/`ri` are DIRECT formatting (round 4, 2026-08-17), not just the
+    `\\sN` stylesheet reference below -- most non-Word RTF readers ignore
+    `\\stylesheet` definitions entirely and honour only direct paragraph
+    formatting, so a property that exists ONLY in the stylesheet is
+    invisible to them. Same persistence-across-\\par optimisation as
+    `\\fi`: only re-emitted when the value actually changes, which is
+    also what keeps a run of consecutive quote paragraphs reading as one
+    continuous inset block with no reset in between."""
     para = r'\line '.join(lines)
     if not para.strip() and not force:
         return
@@ -1300,10 +1406,17 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False):
     if fi != rtf_state['fi']:
         parts.append(r'\fi%d ' % fi)
         rtf_state['fi'] = fi
+    if li != rtf_state['li']:
+        parts.append(r'\li%d ' % li)
+        rtf_state['li'] = li
+    if ri != rtf_state['ri']:
+        parts.append(r'\ri%d ' % ri)
+        rtf_state['ri'] = ri
     if b.style_id in rtf_state['styled_slots']:
         # style pass-through: tag the paragraph with its \sN so a
-        # consumer can act on the named style (the visible formatting
-        # is still carried inline, as RTF readers expect)
+        # consumer can act on the named style (Word can still edit it by
+        # name) -- the visible formatting above is now ALSO direct, so a
+        # reader that ignores \sN entirely still renders correctly.
         parts.append(r'\s%d ' % (b.style_id + 1))
     parts.append(para + r'\par ')
 
@@ -1329,10 +1442,31 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                               if styles else ('', {}))
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
+    # round 4 (2026-08-17): li/ri per style, looked up per paragraph so
+    # they can ride along as DIRECT formatting -- see _rtf_direct_margins.
+    direct_margins = _rtf_direct_margins(doc, printed) if styles else {}
     parts = []
-    rtf_state = {'align': 'left', 'fi': 0, 'styled_slots': styled_slots}
+    rtf_state = {'align': 'left', 'fi': 0, 'li': 0, 'ri': 0,
+                 'styled_slots': styled_slots}
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Quote-group first-line indent (round 4, mirrors emit_html): computed
+    # once from the group's own first paragraph, reused for every
+    # paragraph in a run of CONSECUTIVE quote-classified blocks -- the
+    # source's own typed indent is NOT reliable per paragraph (OLDTIMES's
+    # own quote block: 7 columns on its first typed paragraph, 12 on
+    # every later one, a real inconsistency in the source). Grouped by
+    # "quote-classified at all", not the exact style name -- a real
+    # fixture (NOVEL.WS) alternates 'MS Quote Introductory' and 'MS Quote
+    # Credit' block to block (an epigraph immediately followed by its own
+    # attribution line), which reads as one continuous quotation despite
+    # the style-name change, same as emit_html's identical fix. CONTINUITY
+    # itself (Jon's "one continuous inset block") needs no separate
+    # buffering the way HTML's <blockquote> DOM does -- li/ri already
+    # come from each block's OWN style, so consecutive quote paragraphs
+    # already carry their own correct inset; only \fi needed normalizing.
+    quote_open = False
+    quote_fi_cols = None
 
     def rtf_seg(spans):
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
@@ -1340,16 +1474,21 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
 
     for b in doc.blocks:
         if b.kind == 'pagebreak':
+            quote_open = False
+            quote_fi_cols = None
             parts.append(r'\page ')
             continue
+        li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
             # physical lines: \line at every printed break, soft or hard
             lines = [rtf_seg(line.spans) for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
-            _rtf_emit_para(parts, rtf_state, b, lines, force=True)
+            _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri)
             continue
         if b.heading:
+            quote_open = False
+            quote_fi_cols = None
             # a heading is a logical unit, not reflowed prose -- unaffected
             # by paragraph assembly, same as before. Alignment stripping now
             # goes through the shared helper explicitly (it used to inherit
@@ -1357,9 +1496,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             lines = [rtf_seg(_maybe_strip_align(b, list(line.spans)))
                      for line in merged_lines(b)]
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
-            _rtf_emit_para(parts, rtf_state, b, lines)
+            _rtf_emit_para(parts, rtf_state, b, lines, li=li, ri=ri)
             parts.extend([r'\par '] * trailing_blank_lines(b))
             continue
+        quote = _is_quote_style(b)
+        if quote:
+            quote_open = True
+        else:
+            quote_open = False
+            quote_fi_cols = None
         # Modern body: one \par per PARAGRAPH UNIT (was: one \par per
         # BLOCK, with every hard-terminated typed paragraph inside it
         # collapsed to a forced \line). A unit's own first line loses its
@@ -1379,6 +1524,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                     convention_indent=convention_indent):
             first = _maybe_strip_align(b, list(unit[0].spans))
             indent_cols, first = split_leading_indent(first)
+            if quote:
+                # round 4: same relative-not-absolute fix as HTML -- the
+                # quote GROUP's own first paragraph sets \fi for every
+                # paragraph in the group, not each one's own raw column
+                # count (see the block comment above `quote_open`).
+                if quote_fi_cols is None:
+                    quote_fi_cols = indent_cols
+                indent_cols = quote_fi_cols
             is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
             rendered = [rtf_seg(first)]
             for line in unit[1:]:
@@ -1390,7 +1543,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 lines = [' '.join(t for t in rendered if t.strip())]
             else:
                 lines = rendered
-            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols)
+            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri)
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
         # and command codes are invisible.
