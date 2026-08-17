@@ -250,13 +250,28 @@ TARGET_FONTS = {
 }
 
 
-def rtf_fonts(family, generic_style=None, target='office'):
+def rtf_fonts(family, generic_style=None, target='office', proportional=None):
     """(primary, falt_or_None) for an RTF fonttbl entry, from the FINAL
     RULED FONT TABLE. A family with no table entry gets the target's
     generic primary from the font block's own style bits (a primary that
     RESOLVES beats a period name Cocoa/Docs cannot -- the verbatim era
     name stays first-class in doc.fonts and the HTML stacks), falling all
-    the way back to the family's own name when even the bits are absent."""
+    the way back to the family's own name when even the bits are absent.
+
+    `proportional=False` (round 9, Jon's ruling, tier-1 evidence) is
+    DECISIVE and short-circuits all of the above: WSFORMAT's generic
+    Non-PostScript typestyles (typestyle_name "NPS SansSer Qual"/"NPS
+    Serif Qual" and friends) have no real installable face, genuine or
+    fallback -- their OWN table lookups miss, and the generic-style-bits
+    fallback would promote them to Arial/Times New Roman, a real
+    proportional face this record's own bit says it is NOT. Routed
+    through the SAME per-target 'courier' table entry every genuine mono
+    family already resolves through (single source for the target's mono
+    face -- Courier New for office/mac/google, the URW clone for linux),
+    never a family-name or falt garnish: there is no honest mono-flavored
+    alternate for a generic NLQ category, so none is invented."""
+    if proportional is False:
+        return TARGET_FONTS.get(target, TARGET_FONTS['office'])['courier']
     fam_key = (family or '').lower()
     pair = TARGET_FONTS.get(target, TARGET_FONTS['office']).get(fam_key)
     if pair:
@@ -271,13 +286,23 @@ def rtf_fonts(family, generic_style=None, target='office'):
     return primary, falt
 
 
-def font_stack(family, generic_style=None):
+def font_stack(family, generic_style=None, proportional=None):
     """CSS-style ordered list: original family first, then modern
-    alternates, then the generic from the font block's own style bits."""
+    alternates, then the generic from the font block's own style bits.
+
+    `proportional=False` (round 9) keeps the verbatim family name as
+    harmless first-choice garnish (a browser just skips an unresolvable
+    name) but TERMINATES the stack at the CSS generic `monospace` instead
+    of whatever `generic_style`'s sans/serif/script/display bits would
+    otherwise pick -- the same "never promote to a proportional face"
+    rule as `rtf_fonts`, honoured for HTML's own fallback mechanism."""
     stack = [family] if family else []
     for alt in FONT_ALTS.get((family or '').lower(), []):
         if alt not in stack:
             stack.append(alt)
+    if proportional is False:
+        stack.append('monospace')
+        return stack
     generic = _GENERIC_CSS.get(generic_style or '')
     if generic:
         stack.append(generic)

@@ -2907,8 +2907,12 @@ def test_font_changes_render_as_runs():
     h = emit.emit_html(doc, mode='modern')
     assert "class=\"ws-font-0\"" in h
     # CSS stack: original first (pass-through), modern alternate, then the
-    # generic from the font block's own style bits
-    assert "font-family:'Courier', 'Courier New', sans-serif" in h
+    # terminal generic -- round 9: 'Courier' has NO proportional bit set
+    # here (style_bits defaults to 0 above), so the honest terminal is CSS
+    # `monospace`, not the generic-style bits' incidental 'sans' reading
+    # (typestyle 3's raw word sets no generic-style bits either -- they
+    # only matter for a genuinely proportional record).
+    assert "font-family:'Courier', 'Courier New', monospace" in h
     assert 'font-size:14pt' in h
     assert 'ws-font-0' not in emit.emit_html(doc, mode='modern', styles=False).split('<body>')[0]
 
@@ -2946,7 +2950,12 @@ def test_fonts_target_selects_primaries_and_generic_coverage():
     from ctrlkd.typestyles import TYPESTYLE_NAMES
     ag = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('avant garde'))
     zc = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('zapfchancery'))
-    def font(n, style_bits=0):
+    # round 9: Avant Garde and Zapf Chancery are genuinely proportional
+    # display/script faces -- the proportional bit (0x8000) is part of a
+    # realistic record for either, and now decisive for family selection
+    # (a real WordStar file naming these WOULD set it), so the default
+    # here is no longer bit-less the way it could be before that mattered.
+    def font(n, style_bits=0x8000):
         ts = (n & 0x01FF) | style_bits
         return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
                          + ts.to_bytes(2, 'little') + bytes(6))
@@ -2970,9 +2979,11 @@ def test_linux_target_uses_urw_base35_clones():
     from ctrlkd.typestyles import TYPESTYLE_NAMES
     ag = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('avant garde'))
     zc = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('zapfchancery'))
+    # round 9: proportional bit set -- see the same note in
+    # test_fonts_target_selects_primaries_and_generic_coverage.
     def font(n):
         return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
-                         + (n & 0x01FF).to_bytes(2, 'little') + bytes(6))
+                         + ((n & 0x01FF) | 0x8000).to_bytes(2, 'little') + bytes(6))
     data = (ws7_block(0x00) +
             b'Prose padding for detection, a perfectly ordinary sentence.\r\n' +
             font(ag) + b'Geometric. ' + font(zc) + b'Scripted.' + HARD +
@@ -3091,11 +3102,13 @@ def test_pdf_printed_renders_the_documents_own_font_and_size():
     """Typestyle 4 is 'Helv' with the block's own generic bits saying sans, at
     14pt (height word 280 VMI = 14 points). Printed mode is a facsimile: it
     sets that run in Helvetica at 14, from the file's own words. Modern mode
-    is Courier by ruling and must show neither."""
+    is Courier by ruling and must show neither. Proportional bit set (round
+    9): a real 'Helv' record is genuinely proportional, and that flag is
+    now what decides Helvetica vs Courier -- not the name alone."""
     from ctrlkd.pdf import emit_pdf
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.'
-            + HARD + b'Before. ' + _font_block(4, 14.0) + b'After.' + HARD +
+            + HARD + b'Before. ' + _font_block(4, 14.0, style_bits=0x8000) + b'After.' + HARD +
             b'A closing line of ordinary prose keeps the byte ratio honest.'
             + HARD)
     doc = core.parse_ws(data)
@@ -3122,6 +3135,61 @@ def test_pdf_printed_renders_the_documents_own_font_and_size():
     assert any(sz == 14 and b'After.' in t for f, sz, t in m_shown)
     assert any(b'Times-Roman' in modern.split(b'/BaseFont /')[i][:12]
                for i in range(1, modern.count(b'/BaseFont /') + 1))
+
+
+def test_lint_no_proportional_face_ever_selected_for_a_proportional_false_record():
+    """Round 9, Jon's ruling, tier-1 evidence: `entry['proportional']` is
+    the AUTHORITY on whether a font block is fixed-pitch, and a False
+    record renders as the fixed-pitch face at its own declared pitch and
+    size -- regardless of what its typestyle NAME says. Root cause (SCRIPT
+    .WS, Jon's field review, "crazy fat"): typestyles 103/104 ("NPS
+    SansSer Qual"/"NPS Serif Qual" -- WSFORMAT's generic Non-PostScript
+    letter-quality categories, not real PostScript faces) were falling
+    through pdf.py's NAME-based MONO_FAMILIES check to Helvetica/Times --
+    wrong weight AND wrong (proportional) advance widths, since the
+    existing HMI/Tz grid machinery already renders proportional=False
+    content at its true pitch and only base-14 family selection was blind
+    to the flag.
+
+    This is the PERMANENT gate: for EVERY typestyle name in the spec's own
+    245-entry table (mono-sounding or not -- the point is the flag
+    overrides the name in both directions), a proportional=False record
+    must resolve to a genuinely fixed-pitch face in all three consumers --
+    PDF's base-14 (never Times/Helvetica/Symbol/ZapfDingbats), RTF's
+    fonttbl primary (never a proportional name), and HTML's CSS stack
+    terminal (never sans-serif/serif/cursive/fantasy). A record that DOES
+    carry proportional=True is untouched by this gate -- name-based
+    resolution for a genuinely proportional face is unaffected."""
+    from ctrlkd.pdf import _pdf_family
+    from ctrlkd.fontmap import rtf_fonts, font_stack
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    from ctrlkd.emit import _font_family
+    PROPORTIONAL_BASE14 = {'Times', 'Helvetica', 'Symbol', 'ZapfDingbats'}
+    PROPORTIONAL_CSS_GENERIC = {'sans-serif', 'serif', 'cursive', 'fantasy'}
+    from ctrlkd.symbolmap import font_translit_kind
+    checked = 0
+    for number, name in TYPESTYLE_NAMES.items():
+        entry = core._font_entry(180, 240, (number & 0x01FF), None)
+        assert entry['proportional'] is False        # sanity: no style bits set
+        # Symbol/ZapfDingbats typestyles are exempt from every check below:
+        # `_pdf_family` picks them FIRST, decisively, ahead of (and
+        # unrelated to) the proportional check -- a byte set in one of
+        # these is a GLYPH INDEX, not prose, transliterated to Unicode at
+        # parse time, and correctly reproduced via the exact base-14
+        # Symbol/ZapfDingbats face regardless of any pitch flag.
+        if font_translit_kind(entry) in ('math', 'symbols'):
+            continue
+        fam = _font_family(name)
+        pdf_fam = _pdf_family(entry)
+        assert pdf_fam not in PROPORTIONAL_BASE14, (number, name, pdf_fam)
+        primary, _falt = rtf_fonts(fam, entry.get('generic_style'), 'office',
+                                   entry.get('proportional'))
+        assert primary not in ('Times New Roman', 'Arial', 'Century Gothic',
+                               'Monotype Corsiva', 'Impact'), (number, name, primary)
+        stack = font_stack(fam, entry.get('generic_style'), entry.get('proportional'))
+        assert stack[-1] not in PROPORTIONAL_CSS_GENERIC, (number, name, stack)
+        checked += 1
+    assert checked > 200                              # the gate actually ran the table
 
 
 def test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes():
@@ -3276,24 +3344,32 @@ def test_printed_x_comes_from_wordstars_own_hmi_arithmetic():
 
 def test_tz_matches_a_proportional_span_to_the_hmi_grid():
     """Times/Helvetica do not set a word in the width WordStar reserved for
-    it, so each span is scaled horizontally (Tz) until it does. The percentage
-    is the ratio of WordStar's own reserved width to the face's natural width
-    from the AFM tables -- computed, never tabulated here."""
-    from ctrlkd.pdf import emit_pdf, _printed_left
-    from ctrlkd.afm import string_width_pt
+    it, so a genuinely proportional span (round 9: `proportional=True` is
+    what puts it on this path at all -- see pdf._pdf_family) is scaled
+    horizontally (Tz) until it does. Round 9 also surfaced that the scale
+    is FACE-CONSTANT (`_face_tz`), not a per-span exact match -- one
+    percentage per (face, pitch, size), chosen so the face's AVERAGE
+    lowercase character lands on the document's own HMI grid, so a lone
+    wide glyph is never crushed (Jon's ruling, 2026-08-05: "a lone (c)
+    squeezed to 70% is not a circle"). Computed, never tabulated here."""
+    from ctrlkd.pdf import emit_pdf, _printed_left, _face_tz
     helv = _helv_typestyle()
+    # round 9: proportional bit set -- a real 'Helv' record IS proportional,
+    # and that flag now decides Helvetica vs Courier (see pdf._pdf_family).
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
-            _font_block(helv, 12.0, width=180) + b'AAAA' + HARD +
+            _font_block(helv, 12.0, width=180, style_bits=0x8000) + b'AAAA' + HARD +
             b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
     doc = core.parse_ws(data)
     span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
-    target = 4 * 180 / 25.0                              # 180 HMI = 7.2pt per char
-    natural = string_width_pt('AAAA', 'Helvetica', 12)   # 4 x 667/1000 em
-    assert span[2] == round(target / natural * 100.0, 2)
-    assert 80.0 < span[2] < 100.0        # Helvetica's cap A (667/1000 em) is WIDER
-                                          # than WordStar's 10-CPI cell, so it is
-                                          # squeezed onto the grid, not stretched
+    expected = _face_tz('Helvetica', 180 / 25.0, 12)     # 180 HMI = 7.2pt pitch
+    assert span[2] == expected
+    assert 100.0 < span[2] < 250.0       # Helvetica's AVERAGE lowercase glyph is
+                                          # NARROWER than WordStar's 10-CPI cell, so
+                                          # the constant STRETCHES it to the grid,
+                                          # not squeezes it (contrast a single "AAAA"
+                                          # span's own wide caps, irrelevant here --
+                                          # the scale is the face's, not the span's)
 
 
 def test_tz_is_100_for_courier_by_arithmetic_not_by_special_case():
@@ -3318,10 +3394,24 @@ def test_tz_is_100_for_courier_by_arithmetic_not_by_special_case():
 def test_tz_clamp_falls_back_to_the_natural_advance():
     """A ratio outside [40, 250] means the file's HMI and the substituted
     base-14 face disagree pathologically -- a typestyle we can only
-    approximate, a printer pitch with nothing to do with Helvetica. Scaling to
-    obey it would produce glyphs stretched past legibility in the name of
-    fidelity, so the span keeps its natural advance instead and the following
-    span moves with it."""
+    approximate, a printer pitch with nothing to do with the face it
+    resolved to. Scaling to obey it would produce glyphs stretched past
+    legibility in the name of fidelity, so the span keeps its natural
+    advance instead and the following span moves with it.
+
+    Round 9: this is `_tz_scale`'s OWN per-span clamp, exercised through
+    the real pdf.py pipeline via a record with `proportional=False` (style
+    _bits left at the default 0 -- unlike the OTHER Tz tests, this one
+    deliberately does NOT set 0x8000). A genuinely proportional record
+    (Helv with the bit set) never reaches `_tz_scale` at all any more --
+    see `_line_ops_printed`'s own proportional branch, which routes to the
+    face-constant `_face_tz` instead and has no natural-advance fallback of
+    its own (it clamps to a constant scale, it does not give up). The
+    still-real, still-reachable mismatch this test demonstrates is a
+    proportional=False record (typestyle number irrelevant -- the name
+    plays no part once the bit says False) whose OWN declared HMI is
+    absurd relative to Courier's real metrics, e.g. a 1-inch-per-character
+    pitch: even Courier's arithmetic disagrees with that pathologically."""
     from ctrlkd.pdf import emit_pdf, _tz_scale, _printed_left, TZ_MIN, TZ_MAX
     from ctrlkd.afm import string_width_pt
     helv = _helv_typestyle()
@@ -3333,9 +3423,12 @@ def test_tz_clamp_falls_back_to_the_natural_advance():
         None, string_width_pt('AA', 'Helvetica', 12))
     assert TZ_MIN == 40.0 and TZ_MAX == 250.0
 
-    # 1800 HMI at 12pt asks for 72pt per character where Helvetica sets 8 --
-    # a 900% stretch. The span is left alone and the next one follows it at
-    # its NATURAL width, not on the abandoned grid.
+    # 1800 HMI at 12pt asks for 72pt per character where Courier sets ~7.2
+    # -- a 900% stretch. The span is left alone and the next one follows it
+    # at its NATURAL width, not on the abandoned grid. `helv`'s typestyle
+    # NUMBER is reused only for convenience (it exists in the table); the
+    # proportional bit is what matters, and it is False here (the default),
+    # so `_pdf_family` selects Courier regardless of the "Helv" name.
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
             _font_block(helv, 12.0, width=1800) + b'AA' +
@@ -3347,7 +3440,7 @@ def test_tz_clamp_falls_back_to_the_natural_advance():
     aa = next(s for s in spans if s[5] == b'AA')
     b = next(s for s in spans if s[5] == b'B')
     assert aa[2] is None                                  # no scaling written
-    assert b[3] == round(left + string_width_pt('AA', 'Helvetica', 12), 1)
+    assert b[3] == round(left + string_width_pt('AA', 'Courier', 12), 1)
 
 
 def test_tz_is_written_only_when_it_changes_because_it_is_text_state():
@@ -3355,24 +3448,34 @@ def test_tz_is_written_only_when_it_changes_because_it_is_text_state():
     85 set on a banner would silently scale every following span in the same
     content stream, so the operator is written on CHANGE only -- which is also
     why a document that never needs it emits none (see the byte-identity
-    digests)."""
+    digests).
+
+    Round 9: for a genuinely proportional record, Tz is FACE-CONSTANT
+    (`_face_tz`, keyed on face+pitch+size) -- two spans in the SAME font
+    block get the identical value regardless of which characters they
+    hold (unlike the old per-span `_tz_scale` model this test originally
+    exercised, where a caps-heavy span and a lowercase span could differ).
+    "Changes" now genuinely means the (face, pitch, size) key changed --
+    demonstrated here with a second font block at a DIFFERENT declared
+    pitch, still Helv, still proportional."""
     from ctrlkd.pdf import emit_pdf
     helv = _helv_typestyle()
+    # round 9: proportional bit set, as above.
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
-            _font_block(helv, 12.0, width=180) + b'Wide' +
-            _font_block(helv, 12.0, width=180) + b'Wide' + HARD +
-            b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
+            _font_block(helv, 12.0, width=180, style_bits=0x8000) + b'Wide' +
+            _font_block(helv, 12.0, width=180, style_bits=0x8000) + b'Wide' + HARD +
+            _font_block(helv, 12.0, width=240, style_bits=0x8000) + b'Different' + HARD)
     spans = _content_spans(emit_pdf(core.parse_ws(data), 'printed'))
     scaled = [s for s in spans if s[5] == b'Wide']
     assert len(scaled) == 2
     assert scaled[0][2] is not None                       # first sets the scaling
-    assert scaled[1][2] is None                           # same value: nothing to say
-    # ...and the next span that needs a DIFFERENT scaling states it again --
-    # lowercase Helvetica is narrower than caps, so the closing line's ratio
-    # is not the banner's and is written out rather than inherited.
-    closing = next(s for s in spans if s[5].startswith(b'A closing'))
-    assert closing[2] is not None and closing[2] != scaled[0][2]
+    assert scaled[1][2] is None                           # same (face, pitch, size)
+                                                            # key: nothing to say
+    # ...and the next span at a DIFFERENT declared pitch (240 vs 180 HMI)
+    # gets its own face-constant Tz, written out rather than inherited.
+    different = next(s for s in spans if s[5] == b'Different')
+    assert different[2] is not None and different[2] != scaled[0][2]
 
 
 def test_leading_tab_indent_measures_in_print_columns_not_the_font():
