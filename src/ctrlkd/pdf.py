@@ -164,6 +164,20 @@ def _printed_lead(doc):
         return LEAD
     return _lead_pt(page.get('lh_48', 8.0)) or LEAD
 
+def _printed_roll_pt(doc):
+    """The `.sr` sub/superscript roll for printed mode, in points -- ONE
+    document-wide value (round 17, RULINGS-LEDGER row 3, register C22).
+    Not stateful per-line like `.lh`: `.sr` re-selects mid-document have no
+    evidence behind per-position tracking the way `.lh`'s own archive
+    banner example does, and the ruling itself only asks that the file's
+    OWN roll finally be read at all (previously byte-identical across
+    `.sr 0`/`.sr 40`/absent). Default 3 (WSFORMAT's own stated `.sr`
+    default, 3/48in) whenever the file never sets it, converted the same
+    way every other 1/48in value is (round 6: 1/48in = 1.5pt)."""
+    roll_48 = doc.meta.get('formatting', {}).get('sub_super_roll_48', 3.0)
+    return roll_48 * 1.5
+
+
 def _printed_size(doc):
     """Type size in points for printed mode, from .cw: character width in
     1/120in units, and Courier advances 0.6em, so a pitch of cw/120in per
@@ -1200,14 +1214,26 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     return ops
 
 
-def _sized(styles, size):
+def _sized(styles, size, roll_pt=None):
     """(point size, baseline rise) for a span set at `size`. Superscript is
     raised and reduced to 2/3 -- 8pt at the default 12, the ratio this emitter
-    has always used."""
+    has always used.
+
+    `roll_pt` (round 17, RULINGS-LEDGER row 3, register C22): the declared
+    `.sr` roll, ALREADY converted to points -- Printed's own domain only.
+    `None` (every Modern call site, and any caller that predates this)
+    keeps the exact prior fixed 3/-2 rise, same "reader owns presentation"
+    doctrine as every other Printed-only vertical-space item. WSFORMAT's
+    own text: "[.SR] The increments... which the carriage is to roll up
+    OR DOWN for subscript and superscript printing" -- ONE symmetric
+    amount, so a real `.sr` corrects BOTH the sup rise (the old hardcoded
+    +3 happened to already look plausible) and the sub rise (the old -2
+    was never spec-derived at all -- confirmed empirically byte-identical
+    across `.sr 0`/`.sr 40`/absent, i.e. never actually read)."""
     if 'sup' in styles:
-        return max(1, round(size * 2 / 3)), 3
+        return max(1, round(size * 2 / 3)), (roll_pt if roll_pt is not None else 3)
     if 'sub' in styles:
-        return max(1, round(size * 2 / 3)), -2
+        return max(1, round(size * 2 / 3)), (-roll_pt if roll_pt is not None else -2)
     return size, 0
 
 
@@ -1326,7 +1352,7 @@ def _split_indent(segs):
 
 
 def _line_ops_printed(segs, left, y, size, res, tz_state,
-                      col_state=None, colour_map=None):
+                      col_state=None, colour_map=None, roll_pt=None):
     """One laid-out line, on the document's own horizontal grid.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -1382,7 +1408,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         if pctl:
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
-        pt, rise = _sized(styles, size_here)
+        pt, rise = _sized(styles, size_here, roll_pt)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         # Driver-aware colour: a span tagged colourN under a driver whose
@@ -1485,7 +1511,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
 
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
-                 colour_map=None):
+                 colour_map=None, roll_pt=None):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -1527,7 +1553,7 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                 text, styles, fonts, size)
             segs.append((written, styles, family, size_here, entry))
         ops += _line_ops_printed(segs, left, y, size, res, tz_state,
-                                 col_state, colour_map or {})
+                                 col_state, colour_map or {}, roll_pt)
     return b'\n'.join(ops)
 
 
@@ -1953,6 +1979,7 @@ def _emit_pdf_inner(doc, printed, options):
         lead = _printed_lead(doc)
         size = _printed_size(doc)
         left = _printed_left(doc, size)
+        roll_pt = _printed_roll_pt(doc)
         page_h = _resolved_page_height(doc, printed)
         fonts = doc.fonts
         colour_map = _COLOUR_GRAY_LJ6DTP if (
@@ -1966,7 +1993,7 @@ def _emit_pdf_inner(doc, printed, options):
                                    headers=getattr(pl, 'headers', None),
                                    footers=getattr(pl, 'footers', None))
             streams.append(_page_stream(pl, top, page_h, lead, size, left,
-                                        running, fonts, res, colour_map))
+                                        running, fonts, res, colour_map, roll_pt))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,

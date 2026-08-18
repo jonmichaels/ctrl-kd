@@ -1539,7 +1539,8 @@ def _rtf_comment_dest(note):
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
-def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
+def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
+              roll_half_pt=None):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -1576,6 +1577,18 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
         return ''
     styles = sorted(st for st in sp.styles if st != 'fnref')
     ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
+    if printed and roll_half_pt is not None:
+        # Explicit DIRECT override of whatever rise a reader's own default
+        # \super/\sub metrics would otherwise pick -- WordStar's `.sr` is a
+        # real, page-declared value, not a suggestion (round 17, ledger row
+        # 3). `\super`/`\sub` above still carry the SEMANTIC tag (reflow/
+        # accessibility); `\up`/`\dn` is the direct-formatting doctrine's
+        # own answer for the exact rise amount, same relationship `\fi`
+        # already has with `.pm` (round 6).
+        if 'sup' in styles:
+            ctl += r'\up%d ' % roll_half_pt
+        elif 'sub' in styles:
+            ctl += r'\dn%d ' % roll_half_pt
     if fontctl:
         ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
     if _is_graphic_text(sp.text):
@@ -1994,6 +2007,17 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # round 4 (2026-08-17): li/ri per style, looked up per paragraph so
     # they can ride along as DIRECT formatting -- see _rtf_direct_margins.
     direct_margins = _rtf_direct_margins(doc, printed) if styles else {}
+    # round 17 (RULINGS-LEDGER row 3, register C22): `.sr`'s roll, in
+    # half-points -- Printed only (`\super`/`\sub` alone, unchanged, still
+    # carry Modern's sup/sub semantics; a reader's own default rise is
+    # exactly the "reader owns presentation" doctrine every other Printed-
+    # only vertical-space item already follows). 1/48in -> half-points:
+    # 1/48in is 1.5pt (round 6's own conversion), half-points are 2x
+    # points, so 1/48in-units * 3 = half-points. WSFORMAT's own default
+    # (3, absent `.sr`) applies exactly like every other page-dot default.
+    roll_half_pt = (round(doc.meta.get('formatting', {})
+                          .get('sub_super_roll_48', 3.0) * 3)
+                    if printed else None)
     # round 6 (2026-08-17): .psa/.psb are ONE document-wide value each
     # (see _rtf_doc_spacing_twips) -- resolved once, not per block. Only
     # ever non-(None,None) for a WordTsar-produced file (a real WordStar
@@ -2042,7 +2066,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # HTML's identical step in `_html_line` (round 8): splitting first
         # would just get re-glued back onto the prose beside it the moment
         # both share a style.
-        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
+        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map, roll_half_pt)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
     for b in doc.blocks:

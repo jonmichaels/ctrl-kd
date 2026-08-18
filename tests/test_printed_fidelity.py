@@ -14,7 +14,7 @@ ctrl-kd's). Modern must stay untouched throughout (asserted per item).
 import copy
 import re
 
-from ctrlkd import core, emit
+from ctrlkd import core, emit, pdf
 
 HARD = b'\x0d\x0a'
 SOFT = b'\x8d\x0a'
@@ -93,6 +93,66 @@ def test_style_margin_still_wins_over_dot_state_in_printed_rtf():
     r_printed = emit.emit_rtf(doc, mode='printed')
     body_only = _rtf_body_only(r_printed)
     assert r'\li2880' in body_only               # 3600 hmi / 1800 * 1440
+
+
+# --------------------------------------------------------------- ledger row 3
+# `.sr` sub/superscript roll: `state['sub_super_roll_48']` was parsed and
+# recorded but never read -- PDF hardcoded rise 3 (sup) / -2 (sub) regardless
+# of the file's own `.sr`; RTF carried no explicit rise override at all
+# (`\super`/`\sub` alone, a reader's own default). WSFORMAT.TXT: "[.SR] The
+# increments (in 1/48ths of an inch) which the carriage is to roll up or down
+# for subscript and superscript printing. Default is 3."
+
+def _sup_sub_doc(sr_line=b''):
+    return core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + sr_line
+        + b'Water' + b'\x14' + b'2' + b'\x14' + b'O and CO' + b'\x16' + b'2' + b'\x16'
+        + b' gas.' + HARD)
+
+
+def test_sr_roll_drives_printed_pdf_rise():
+    doc = _sup_sub_doc(b'.sr 10' + HARD)
+    assert doc.meta['formatting']['sub_super_roll_48'] == 10.0
+    out = pdf.emit_pdf(doc, mode='printed')
+    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out)}
+    # 10/48in * 1.5 pt/48in-unit = 15pt, symmetric per WSFORMAT's own text
+    assert 15 in rises and -15 in rises
+    assert 3 not in rises and -2 not in rises   # the old hardcoded pair is gone
+
+
+def test_sr_absent_uses_the_wsformat_default_not_the_old_hardcode():
+    doc = _sup_sub_doc()
+    assert 'sub_super_roll_48' not in doc.meta['formatting']
+    out = pdf.emit_pdf(doc, mode='printed')
+    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out)}
+    # WSFORMAT's own stated default (3/48in = 4.5pt, rounds to 4) -- NOT the
+    # emitter's old, spec-unrelated fixed 3/-2 pair.
+    assert 4 in rises and -4 in rises
+
+
+def test_sr_roll_drives_printed_rtf_up_dn_alongside_super_sub():
+    doc = _sup_sub_doc(b'.sr 10' + HARD)
+    r = emit.emit_rtf(doc, mode='printed')
+    body = _rtf_body_only(r)
+    assert r'\super' in body and r'\sub' in body   # semantic tag still present
+    assert r'\up30 ' in body    # 10 * 3 half-points/48in-unit
+    assert r'\dn30 ' in body
+
+
+def test_sr_roll_never_reaches_modern_rtf_or_pdf():
+    """Modern must remain untouched -- the reader owns presentation, same
+    doctrine as every other Printed-only vertical-space item."""
+    doc = _sup_sub_doc(b'.sr 10' + HARD)
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    assert r'\up30' not in r_modern and r'\dn30' not in r_modern
+    assert r'\super' in r_modern and r'\sub' in r_modern   # semantic tag intact
+
+    out_modern = pdf.emit_pdf(doc, mode='modern')
+    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out_modern)}
+    # Modern PDF keeps the exact prior fixed pair, unaffected by `.sr 10`
+    assert 3 in rises and -2 in rises
+    assert 15 not in rises and -15 not in rises
 
 
 # ---------------------------------------------------- style-library helpers
