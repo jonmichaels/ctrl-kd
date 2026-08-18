@@ -4,11 +4,13 @@ paths are exercised directly; the real-corpus embed/export acceptance
 tests live alongside the format-specific tests (test_ctrlkd.py /
 test_pix.py), gated on the real WS7 tree being present.
 """
+import os
 import struct
+import tempfile
 
 import pytest
 
-from ctrlkd import pictures
+from ctrlkd import core, emit, pictures
 
 
 def _tiny_pix_bytes(gcols=8, grows=1, prt_options_raw=None):
@@ -176,3 +178,106 @@ def test_physical_size_is_none_when_print_options_absent(tmp_path):
     assert r.ok
     assert r.width_in is None
     assert r.height_in is None
+
+
+# ======================================================= emitter wiring
+
+def _ws_pix_block(payload, jump=None):
+    if jump is None:
+        jump = len(payload) + 4
+    j = jump.to_bytes(2, 'little')
+    return b'\x1d' + j + bytes([0x10]) + payload + j + b'\x1d'
+
+
+def _doc_with_one_pix(tmp_path, payload=br'C:\PIX\FIGURE1.PIX',
+                      pix_bytes=None, name='FIGURE1.PIX'):
+    """A parsed doc with one pix tag, its .PIX file written next to a
+    fake source document 'DOC.WS' under tmp_path -- resolve_document_
+    pictures walks from there. Returns (doc, pix_results, docpath)."""
+    if pix_bytes is None:
+        pix_bytes = _tiny_pix_bytes()
+    (tmp_path / name).write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    block = _ws_pix_block(payload)
+    doc = core.parse_ws(b'Before. ' + block + b' After.\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    return doc, results, docpath
+
+
+def test_rtf_off_mode_is_byte_identical_to_no_pix_results(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    without = emit.emit_rtf(doc, mode='modern')
+    off = emit.emit_rtf(doc, mode='modern', pictures='off', pix_results=results)
+    assert without == off
+    assert '[image: FIGURE1.PIX]' in off
+
+
+def test_rtf_embed_replaces_placeholder_with_native_pict():
+    with tempfile.TemporaryDirectory() as d:
+        import pathlib
+        doc, results, _ = _doc_with_one_pix(pathlib.Path(d))
+        rtf = emit.emit_rtf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert r'\pict\pngblip' in rtf
+    assert '[image: FIGURE1.PIX]' not in rtf
+
+
+def test_rtf_embed_uses_print_options_size_when_present(tmp_path):
+    prt = struct.pack('<15h', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      1440, 4680, 0) + bytes(range(16))
+    doc, results, _ = _doc_with_one_pix(
+        tmp_path, pix_bytes=_tiny_pix_bytes(prt_options_raw=prt))
+    rtf = emit.emit_rtf(doc, mode='modern', pictures='embed', pix_results=results)
+    # 6.5in -> 9360 twips, 2.0in -> 2880 twips
+    assert r'\picwgoal9360' in rtf
+    assert r'\pichgoal2880' in rtf
+
+
+def test_rtf_miss_keeps_placeholder_even_with_pictures_embed(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    assert results[0].error == 'unresolved'
+    rtf = emit.emit_rtf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert '[image: NOPE.PIX]' in rtf
+    assert r'\pict' not in rtf
+
+
+def test_html_off_mode_is_byte_identical_to_no_pix_results(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    without = emit.emit_html(doc, mode='modern')
+    off = emit.emit_html(doc, mode='modern', pictures='off', pix_results=results)
+    assert without == off
+
+
+def test_html_embed_uses_data_uri():
+    with tempfile.TemporaryDirectory() as d:
+        import pathlib
+        doc, results, _ = _doc_with_one_pix(pathlib.Path(d))
+        html = emit.emit_html(doc, mode='modern', pictures='embed', pix_results=results)
+    assert 'data:image/png;base64,' in html
+    assert '[image: FIGURE1.PIX]' not in html
+
+
+def test_html_export_uses_relative_link_from_image_links(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    html = emit.emit_html(doc, mode='modern', pictures='export', pix_results=results,
+                          image_links={0: 'DOC-images/FIGURE1.png'})
+    assert 'src="DOC-images/FIGURE1.png"' in html
+    assert 'data:image/png;base64,' not in html
+
+
+def test_html_miss_keeps_placeholder(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    html = emit.emit_html(doc, mode='modern', pictures='embed', pix_results=results)
+    assert '[image: NOPE.PIX]' in html
+
+
+def test_html_embed_sets_explicit_size_from_print_options(tmp_path):
+    prt = struct.pack('<15h', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      1440, 4680, 0) + bytes(range(16))
+    doc, results, _ = _doc_with_one_pix(
+        tmp_path, pix_bytes=_tiny_pix_bytes(prt_options_raw=prt))
+    html = emit.emit_html(doc, mode='modern', pictures='embed', pix_results=results)
+    assert 'width:6.500in' in html
+    assert 'height:2.000in' in html

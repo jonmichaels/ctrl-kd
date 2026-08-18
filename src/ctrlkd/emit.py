@@ -750,7 +750,30 @@ def _html_note_ref(note, label, shown=None):
     return (f'<sup><a id="{ref_id}" href="#{target_id}" role="doc-noteref">'
             f'{_html.escape(shown if shown is not None else label)}</a></sup>')
 
-def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True):
+def _pix_alt(raw_path):
+    return raw_path.replace('\\', '/').rsplit('/', 1)[-1] or raw_path
+
+
+def _html_img(r, pictures, image_links, idx):
+    """One <img> for a resolved, decoded PixResult -- a data URI in embed
+    mode, a relative link (from `image_links`, built by the caller via
+    ctrlkd.pictures.write_export_images) in export mode. Explicit
+    width/height only when the print-options record gave a real physical
+    size (round 19); otherwise the browser's own native-pixel default
+    applies, same fallback doctrine as RTF's 96dpi goal size."""
+    alt = _html.escape(_pix_alt(r.raw_path))
+    style = (' style="width:%.3fin;height:%.3fin"' % (r.width_in, r.height_in)
+            if r.width_in and r.height_in else '')
+    if pictures == 'export' and image_links and idx in image_links:
+        src = _html.escape(image_links[idx])
+    else:
+        import base64
+        src = 'data:image/png;base64,' + base64.b64encode(r.png).decode('ascii')
+    return f'<img src="{src}" alt="{alt}"{style}>'
+
+
+def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True,
+               pix_map=None, pictures='off', image_links=None):
     """Render one already-decided list of Spans (a logical line, or one
     Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
     identically-styled spans unconditionally: cheap, idempotent for a
@@ -768,6 +791,16 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=
             if keep_ws:                        # the printed physical layer
                 out.append(' ' * round(int(pctl[4:]) / 180))
             continue
+        # Round 19 (PIX images RULED IN, ledger PIX row): same doctrine as
+        # RTF's own pix-tag branch (_rtf_span) -- off, or a miss, falls
+        # straight through to the unchanged placeholder <span> below via
+        # the normal _html_span() call at the end of this loop.
+        pix_tag = next((t for t in s.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+        if pix_tag is not None and pictures in ('embed', 'export'):
+            r = (pix_map or {}).get(int(pix_tag[3:]))
+            if r is not None and r.ok:
+                out.append(_html_img(r, pictures, image_links, r.index))
+                continue
         if 'fnref' in s.styles:
             note, label = _resolve_ref(refs, s.text)
             if note is not None:
@@ -1161,7 +1194,8 @@ def _classify_modern_blocks(doc):
     return by_block
 
 
-def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True):
+def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
+                pix_map=None, pictures='off', image_links=None):
     # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
     # spans LIST directly (the b23 overhaul's own signature -- it runs
     # `coalesce_spans`/`split_graphic_spans` over its argument), not a
@@ -1170,10 +1204,12 @@ def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True):
     # shim that used to bridge the two is gone; there is nothing left to
     # bridge.
     return _html_line(_slice_spans(line.spans, start, end),
-                      refs, keep, shown_map=shown_map, inline_styling=inline_styling)
+                      refs, keep, shown_map=shown_map, inline_styling=inline_styling,
+                      pix_map=pix_map, pictures=pictures, image_links=image_links)
 
 
-def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True):
+def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
+                       pix_map=None, pictures='off', image_links=None):
     """The centred line's own text with its alignment padding sliced off
     (both mechanisms: a real align=center tag already had the M3 strip
     upstream, so lead/trail are 0 and this is a no-op; spaces-only
@@ -1181,7 +1217,8 @@ def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True):
     raw = ''.join(sp.text for sp in line.spans)
     lead = len(raw) - len(raw.lstrip(' '))
     trail = len(raw) - len(raw.rstrip(' '))
-    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling)
+    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling,
+                       pix_map, pictures, image_links)
 
 
 def _html_toc_index(doc):
@@ -1213,7 +1250,14 @@ def _html_toc_index(doc):
 
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
               styles=True, note_refs='word', inline_styling=True, toc=False,
+              pictures='off', pix_results=None, image_links=None,
               **_options):
+    # Round 19 (PIX images RULED IN): see emit_rtf's identical comment.
+    # `image_links` ({index: relative-path-string}) is only consulted in
+    # export mode -- built by the caller via
+    # ctrlkd.pictures.write_export_images, since only the caller knows the
+    # output file's own destination directory.
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     style_class = {}
     if styles:
@@ -1311,7 +1355,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # &nbsp; runs on top of the CSS that already centres it).
             txt = ' '.join(_html_line(_maybe_strip_align(b, list(line.spans)),
                                       refs, keep, shown_map=shown_map,
-                                      inline_styling=inline_styling)
+                                      inline_styling=inline_styling,
+                                      pix_map=pix_map, pictures=pictures,
+                                      image_links=image_links)
                            for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
@@ -1331,7 +1377,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # (the fixed 65-column look stays Printed/PDF's own domain).
             lines = [_html_line(list(line.spans), refs, keep,
                                 keep_ws=True, shown_map=shown_map,
-                                inline_styling=inline_styling)
+                                inline_styling=inline_styling,
+                                pix_map=pix_map, pictures=pictures,
+                                image_links=image_links)
                      for line in b.lines]
             body = '<br>\n'.join(lines)
             if body.strip():
@@ -1419,13 +1467,17 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # mechanism. Register C23.
                     is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
                     rendered = [_html_line(first, refs, keep, shown_map=shown_map,
-                                           inline_styling=inline_styling)]
+                                           inline_styling=inline_styling,
+                                           pix_map=pix_map, pictures=pictures,
+                                           image_links=image_links)]
                     for line in unit[1:]:
                         spans = _maybe_strip_align(b, list(line.spans))
                         if not is_verse:
                             _, spans = split_leading_indent(spans)
                         rendered.append(_html_line(spans, refs, keep, shown_map=shown_map,
-                                                   inline_styling=inline_styling))
+                                                   inline_styling=inline_styling,
+                                                   pix_map=pix_map, pictures=pictures,
+                                                   image_links=image_links))
                     if len(unit) > 1 and not is_verse:
                         para = ' '.join(t for t in rendered if t.strip())
                     else:
@@ -1485,7 +1537,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         _flush_plain_run()
                         plain_run_is_block_start = False
                         _flush_quote()
-                        html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling)
+                        html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling,
+                                                  pix_map, pictures, image_links)
                         if html.strip():
                             builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
                     else:
@@ -1497,15 +1550,18 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 if s['kind'] == 'bullet':
                     raw = ''.join(sp.text for sp in line.spans)
                     body = _html_slice(line, len(raw) - len(s['body']), None,
-                                       refs, keep, shown_map, inline_styling)
+                                       refs, keep, shown_map, inline_styling,
+                                       pix_map, pictures, image_links)
                     builder.add_bullet(s['level'], cls, body)
                 else:  # 'def'
                     raw = ''.join(sp.text for sp in line.spans)
                     lead = len(raw) - len(raw.lstrip(' '))
                     dt = _html_slice(line, lead, lead + len(s['label']),
-                                     refs, keep, shown_map, inline_styling)
+                                     refs, keep, shown_map, inline_styling,
+                                     pix_map, pictures, image_links)
                     dd = _html_slice(line, len(raw) - len(s['body']), None,
-                                     refs, keep, shown_map, inline_styling)
+                                     refs, keep, shown_map, inline_styling,
+                                     pix_map, pictures, image_links)
                     builder.add_def(s['level'], cls, dt, dd)
             _flush_plain_run()
     builder.flush(parts)
@@ -1703,7 +1759,8 @@ def _rtf_comment_dest(note):
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
 def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
-              roll_half_pt=None, ul_continuous=True, inline_styling=True):
+              roll_half_pt=None, ul_continuous=True, inline_styling=True,
+              pix_map=None, pictures='off'):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -1738,6 +1795,34 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
             pad = ' ' * round(int(pctl[4:]) / 180)
             return '{' + pad + '}' if pad else ''
         return ''
+    # Round 19 (PIX images RULED IN, ledger PIX row): a pix placeholder
+    # span ('pix<N>' from core.py's mark -- see its own docstring) becomes
+    # a native RTF picture destination when the flag is live and the tag
+    # actually resolved to a real, decoded image; otherwise (off, or a
+    # miss) it falls straight through to the unchanged placeholder text
+    # below -- "off: today's placeholder behavior exactly" (ruled) and
+    # "never fail, placeholder kept" on a miss (ruled) both fall out of
+    # doing nothing special here.
+    pix_tag = next((t for t in sp.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+    if pix_tag is not None and pictures in ('embed', 'export'):
+        r = (pix_map or {}).get(int(pix_tag[3:]))
+        if r is not None and r.ok:
+            # RTF/PDF always embed regardless of embed/export (ruled: "no
+            # portable reference mechanism a recipient could resolve
+            # portably") -- export ADDITIONALLY writes the PNG to disk,
+            # a side effect the caller (not this renderer) handles.
+            if r.width_in and r.height_in:
+                goal_w = round(r.width_in * 1440)      # inches -> twips
+                goal_h = round(r.height_in * 1440)
+            else:
+                # No authoritative print-options size: render at the
+                # common 96dpi screen reference (1440 twips/in / 96 =
+                # 15 twips/px) rather than force a page-fit measure RTF
+                # has no single geometry for outside Printed.
+                goal_w = (r.gcols or 1) * 15
+                goal_h = (r.grows or 1) * 15
+            return (r'{\pict\pngblip\picw%d\pich%d\picwgoal%d\pichgoal%d %s}'
+                    % (r.gcols or 1, r.grows or 1, goal_w, goal_h, r.png.hex()))
     styles = sorted(st for st in sp.styles if st != 'fnref')
 
     def build_ctl(these_styles):
@@ -2226,7 +2311,13 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', note_refs='word', headers=True,
-             line_numbers=True, inline_styling=True, toc=False, **_options):
+             line_numbers=True, inline_styling=True, toc=False,
+             pictures='off', pix_results=None, **_options):
+    # Round 19 (PIX images RULED IN): resolved/decoded doc.graphics entries
+    # (ctrlkd.pictures.resolve_document_pictures, called once by the
+    # caller -- library or CLI -- and handed to every emit_* call for this
+    # doc). {index: PixResult} for O(1) lookup from a span's 'pix<N>' tag.
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -2325,7 +2416,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # would just get re-glued back onto the prose beside it the moment
         # both share a style.
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map,
-                                 roll_half_pt, ul_continuous, inline_styling)
+                                 roll_half_pt, ul_continuous, inline_styling,
+                                 pix_map, pictures)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
     # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own gutter
