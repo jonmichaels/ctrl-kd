@@ -14,7 +14,8 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    assemble_paragraphs, split_leading_indent,
                    paragraph_layout_context, looks_like_verse,
                    block_dominant_styles, effective_span_styles,
-                   DEFAULT_LH_48, GRAPHIC_CHARS, split_graphic_spans)
+                   DEFAULT_LH_48, GRAPHIC_CHARS, split_graphic_spans,
+                   compile_toc, compile_index, detect_screenplay_blocks)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -33,6 +34,22 @@ from .fontmap import font_stack, rtf_fonts
 
 _REGISTRY = {}          # name -> {'fn': callable, 'ext': '.xyz'}
 _ALIASES = {'txt': 'text', 'md': 'markdown'}
+
+# Round 20 (slate item 4): verse-classified units and wrapped centered
+# units read cramped at the document's own default reading line-height
+# (HTML body: 1.6; RTF style/reader default is comparably loose) --
+# poetry and centered material (titles, dedications, verse) conventionally
+# sets SINGLE-spaced internally regardless of the surrounding prose's own
+# spacing. A single named constant, not a hardcoded literal at each call
+# site, is "the mechanism" Jon asked to land now -- he sees the actual
+# multiplier and picks a final value later; every consumer (HTML's own
+# `line-height`, RTF's `\sl`/`\slmult`) reads this ONE place.
+VERSE_LINE_HEIGHT = 1.15                    # HTML CSS line-height multiplier
+VERSE_LINE_HEIGHT_TWIPS = None              # None = derive from VERSE_LINE_HEIGHT
+                                            # per span (RTF \sl needs absolute
+                                            # twips, resolved against the
+                                            # paragraph's own font size --
+                                            # see _rtf_tight_spacing below)
 
 def emitter(name, ext=None, aliases=()):
     """Register an output format. Usable as a decorator."""
@@ -228,7 +245,7 @@ def _doc_margin(doc):
     return doc.meta.get('margin_estimate') or 65
 
 
-def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_options):
     # RULED EXCLUSION (round 5, 2026-08-17, attribute-surface audit): plain
     # text has no character-attribute vocabulary at all -- no bold, no
     # italic, no underline/strikeout, no sub/superscript, style-declared
@@ -249,6 +266,12 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         keep = keep - {'comment'}
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): screenplay-detected regions get the SAME
+    # verse-class (line-structure-preserving) treatment as a verified
+    # verse/stanza unit -- computed once per document, not printed (a
+    # facsimile already preserves every line's own position; detection
+    # only changes REFLOW behavior).
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
 
     def render(line):
         seg = []
@@ -273,7 +296,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         return ''.join(seg)
 
     out = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
@@ -306,7 +329,8 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
                 # that flow logic would still run on a hand-positioned
                 # block's lines and destroy the layout via a different
                 # mechanism. Register C23.
-                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
+                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant)
+                                              or bi in screenplay_blocks)
                 if len(unit) > 1 and not is_verse:
                     # only the unit's own FIRST line keeps its typed indent
                     # (the paragraph-start marker, unchanged from the
@@ -344,6 +368,14 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         if items:
             text += (f'\n\n{title}:\n'
                      + '\n'.join(f'[{label}] {t}' for label, t in items))
+    # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
+    # end, gated by `--toc` (default off). Text is a non-paged format
+    # even in its own "printed" mode (a physical-line facsimile, not a
+    # page model) -- no page references, ever.
+    if toc:
+        toc_lines = _plain_toc_index_lines(doc)
+        if toc_lines:
+            text += '\n\n' + '\n'.join(toc_lines)
     return text + '\n'
 
 # ---------------------------------------------------------------- markdown
@@ -388,9 +420,26 @@ def _resolve_ref(refs, text):
     return None, None
 
 
-def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
+def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
+            pix_map=None, pictures='off', image_links=None):
     if any(t.startswith('pctl') for t in s.styles):
         return ''                  # screen-only print-control display string
+    # Round 19 (PIX images RULED IN, ledger PIX row): MD has NO true embed
+    # (ruled) -- both 'embed' and 'export' render the same relative link
+    # here; the CLI ALWAYS writes the PNG for MD regardless of which mode
+    # was asked (embed additionally gets a one-line stderr degradation
+    # note, printed by the CLI -- this function stays silent, same
+    # convention as every other emit_* function). A miss, 'off', or a
+    # library caller that built `pix_map`/`pictures` but never wrote the
+    # files (no `image_links` entry) all fall straight through to the
+    # unchanged placeholder text below -- never a link to a file that was
+    # never written.
+    pix_tag = next((t for t in s.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+    if pix_tag is not None and pictures in ('embed', 'export'):
+        r = (pix_map or {}).get(int(pix_tag[3:]))
+        if r is not None and r.ok and image_links and r.index in image_links:
+            alt = _pix_alt(r.raw_path).replace('[', '\\[').replace(']', '\\]')
+            return f'![{alt}]({image_links[r.index]})'
     text = s.text
     if 'fnref' in s.styles:
         note, label = _resolve_ref(refs, text)
@@ -440,7 +489,7 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
 _MARKER_MAX_LEN = 5
 
 
-def _md_unit_lines(unit, refs, keep, b):
+def _md_unit_lines(unit, refs, keep, b, pix_map=None, pictures='off', image_links=None):
     """One paragraph unit's Lines rendered to Markdown text, EVERY line's
     own leading indent dropped (Jon's ruling, round 3, 2026-08-17 --
     widened from "first line only" after real screenshots showed both
@@ -478,23 +527,51 @@ def _md_unit_lines(unit, refs, keep, b):
         plain = (bool(stripped) and len(stripped) <= _MARKER_MAX_LEN
                 and not any(c.isalpha() for c in raw))
         spans = [Span(s.text, effective_span_styles(s, b)) for s in line.spans]
-        text = ''.join(_md_span(s, refs, keep, plain=plain) for s in spans)
+        text = ''.join(_md_span(s, refs, keep, plain=plain, pix_map=pix_map,
+                                pictures=pictures, image_links=image_links)
+                      for s in spans)
         out.append(text.lstrip(' '))
     return out
 
 
-def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
+def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
+                  pictures='off', pix_results=None, image_links=None,
+                  **_options):
+    # Round 19: see emit_rtf's identical comment. Printed mode's own body
+    # is emit_text's output inside a code fence (see below) -- a fenced
+    # verbatim block is the emitter saying "this is exact text", so
+    # pix_map/pictures are never consulted there at all (same "TXT: skip
+    # entirely" scope cut, inherited for free rather than special-cased).
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     if mode == 'printed' or _printed(doc):
         # alignment is the content: a fenced block is the honest representation
         body = emit_text(doc, 'printed', notes=notes)
-        return '```\n' + body.rstrip('\n') + '\n```\n'
+        out = '```\n' + body.rstrip('\n') + '\n```\n'
+        # round 18 (RULINGS-LEDGER row 4): OUTSIDE the fence -- TOC/Index
+        # is ADDED content, not part of the verbatim facsimile the fence
+        # itself promises. Markdown is non-paged even here (printed mode
+        # is a physical-line facsimile, not a page model): no page
+        # references, ever (round 17b's own fence-scoping lesson applies
+        # to the gate that reads this, not to what this emitter writes).
+        if toc:
+            toc_lines = _plain_toc_index_lines(doc)
+            if toc_lines:
+                out += '\n' + '\n\n'.join(
+                    ('# ' + l if l in ('TABLE OF CONTENTS', 'INDEX') else l)
+                    for l in toc_lines if l)
+                out += '\n'
+        return out
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): reached only in Modern mode (printed
+    # returns above, inside its own fenced-facsimile branch) -- see
+    # emit_text's identical comment for the doctrine.
+    screenplay_blocks = detect_screenplay_blocks(doc)
     out = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             out.append('---')
             continue
@@ -509,7 +586,9 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # hazard `_md_unit_lines` already guards against for ordinary
             # paragraphs).
             lines = [''.join(_md_span(Span(s.text, effective_span_styles(s, b)),
-                                      refs, keep) for s in line.spans).lstrip(' ')
+                                      refs, keep, pix_map=pix_map, pictures=pictures,
+                                      image_links=image_links)
+                             for s in line.spans).lstrip(' ')
                      for line in merged_lines(b)]
             para = '  \n'.join(lines)
             if para.strip():
@@ -520,7 +599,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
         for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
-            lines = _md_unit_lines(unit, refs, keep, b)
+            lines = _md_unit_lines(unit, refs, keep, b, pix_map, pictures, image_links)
             if not any(l.strip() for l in lines):
                 continue
             # round 3b (2026-08-17): a hard break is reserved for a REAL
@@ -532,7 +611,8 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             # `_md_unit_lines`, so a plain space join is enough. round 7
             # (2026-08-17): `not b.wrap` short-circuits this for a hand-
             # positioned (.aw off) block -- never flowed, Register C23.
-            if len(unit) > 1 and not (not b.wrap or looks_like_verse(unit, dominant)):
+            if len(unit) > 1 and not (not b.wrap or looks_like_verse(unit, dominant)
+                                      or bi in screenplay_blocks):
                 lines = [' '.join(l for l in lines if l.strip())]
             if quote:
                 # rule D: style-carried blockquote material keeps its own
@@ -575,6 +655,14 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, **_options):
             for n, label in pairs if n.kind in keep]
     if defs:
         md += '\n\n' + '\n'.join(defs)
+    # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
+    # end, gated by `--toc` (default off). Non-paged: no page references.
+    if toc:
+        toc_lines = _plain_toc_index_lines(doc)
+        if toc_lines:
+            md += '\n\n' + '\n\n'.join(
+                ('# ' + l if l in ('TABLE OF CONTENTS', 'INDEX') else l)
+                for l in toc_lines if l)
     return md + '\n'
 
 # ---------------------------------------------------------------- html
@@ -662,7 +750,7 @@ def _is_graphic_text(text):
     stripped = text.replace(' ', '')
     return bool(stripped) and all(c in GRAPHIC_CHARS for c in stripped)
 
-def _html_span(s, keep_ws=False):
+def _html_span(s, keep_ws=False, inline_styling=True):
     text = _html.escape(s.text)
     if keep_ws:
         pass
@@ -678,6 +766,17 @@ def _html_span(s, keep_ws=False):
     classes = []
     if font:
         classes.append('ws-' + font.replace('font', 'font-'))
+    # round 18 (RULINGS-LEDGER row 10): inline colour -- `.ws-colour-N`
+    # matches `_style_css`'s own generated rule (N is the raw palette
+    # index, not an array index). `--inline-styling off` never applies
+    # the class -- no rule exists for it either (`_style_css` skips the
+    # whole loop), so this stays inert either way, but skipping here too
+    # keeps --no-styles's own "classes only, CSS decides" contract honest.
+    if inline_styling:
+        colour = next((st for st in s.styles
+                      if st.startswith('colour') and st[6:].isdigit()), None)
+        if colour:
+            classes.append('ws-' + colour.replace('colour', 'colour-'))
     if _is_graphic_text(s.text):
         # `span.ws-graphic` (element+class) outranks the plain-class
         # `.ws-font-N` rule regardless of stylesheet order, so a box-
@@ -708,7 +807,30 @@ def _html_note_ref(note, label, shown=None):
     return (f'<sup><a id="{ref_id}" href="#{target_id}" role="doc-noteref">'
             f'{_html.escape(shown if shown is not None else label)}</a></sup>')
 
-def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
+def _pix_alt(raw_path):
+    return raw_path.replace('\\', '/').rsplit('/', 1)[-1] or raw_path
+
+
+def _html_img(r, pictures, image_links, idx):
+    """One <img> for a resolved, decoded PixResult -- a data URI in embed
+    mode, a relative link (from `image_links`, built by the caller via
+    ctrlkd.pictures.write_export_images) in export mode. Explicit
+    width/height only when the print-options record gave a real physical
+    size (round 19); otherwise the browser's own native-pixel default
+    applies, same fallback doctrine as RTF's 96dpi goal size."""
+    alt = _html.escape(_pix_alt(r.raw_path))
+    style = (' style="width:%.3fin;height:%.3fin"' % (r.width_in, r.height_in)
+            if r.width_in and r.height_in else '')
+    if pictures == 'export' and image_links and idx in image_links:
+        src = _html.escape(image_links[idx])
+    else:
+        import base64
+        src = 'data:image/png;base64,' + base64.b64encode(r.png).decode('ascii')
+    return f'<img src="{src}" alt="{alt}"{style}>'
+
+
+def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True,
+               pix_map=None, pictures='off', image_links=None):
     """Render one already-decided list of Spans (a logical line, or one
     Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
     identically-styled spans unconditionally: cheap, idempotent for a
@@ -726,6 +848,16 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
             if keep_ws:                        # the printed physical layer
                 out.append(' ' * round(int(pctl[4:]) / 180))
             continue
+        # Round 19 (PIX images RULED IN, ledger PIX row): same doctrine as
+        # RTF's own pix-tag branch (_rtf_span) -- off, or a miss, falls
+        # straight through to the unchanged placeholder <span> below via
+        # the normal _html_span() call at the end of this loop.
+        pix_tag = next((t for t in s.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+        if pix_tag is not None and pictures in ('embed', 'export'):
+            r = (pix_map or {}).get(int(pix_tag[3:]))
+            if r is not None and r.ok:
+                out.append(_html_img(r, pictures, image_links, r.index))
+                continue
         if 'fnref' in s.styles:
             note, label = _resolve_ref(refs, s.text)
             if note is not None:
@@ -739,7 +871,7 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
                              if shown_map is not None else None)
                     out.append(_html_note_ref(note, label, shown))
                 continue
-        out.append(_html_span(s, keep_ws))
+        out.append(_html_span(s, keep_ws, inline_styling))
     return ''.join(out)
 
 def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
@@ -768,16 +900,22 @@ def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
 _HTML_ALIGN_CSS = {'center': 'text-align:center', 'right': 'text-align:right',
                    'justify': 'text-align:justify'}
 
-def _html_para_style(align, indent_cols=0):
-    """One combined `style="..."` attribute for a Modern <p> -- alignment
-    and first-line indent both live there, so a centred, indented paragraph
-    doesn't need two competing style attributes (HTML allows only one)."""
+def _html_para_style(align, indent_cols=0, tight=False):
+    """One combined `style="..."` attribute for a Modern <p> -- alignment,
+    first-line indent, and (round 20, slate item 4) verse/centered tight
+    line-height all live there, so a centred, indented, tight paragraph
+    doesn't need three competing style attributes (HTML allows only one).
+    `tight` -- a verse-classified unit or any centered paragraph (which
+    may itself wrap in the reader, "wrapped centered units") -- sets
+    line-height to VERSE_LINE_HEIGHT instead of the document default."""
     props = []
     css = _HTML_ALIGN_CSS.get(align)
     if css:
         props.append(css)
     if indent_cols:
         props.append(f'text-indent:{indent_cols}ch')
+    if tight:
+        props.append(f'line-height:{VERSE_LINE_HEIGHT}')
     return f' style="{";".join(props)}"' if props else ''
 
 # RTF paragraph-alignment controls. `\ql` is the default and is emitted only to
@@ -793,7 +931,7 @@ def _font_family(name):
     return (name or '').split(' (')[0].strip()
 
 
-def _font_ctl_rtf(doc, target='office'):
+def _font_ctl_rtf(doc, target='office', inline_styling=True):
     """(fonttbl_extra, {'fontN': control}) for RTF: one \fK per DISTINCT
     resolved primary (starting at \f2), plus \fs from the block's own height
     word.
@@ -824,7 +962,14 @@ def _font_ctl_rtf(doc, target='office'):
                 next_k += 1
             parts += '\\f%d' % prim_to_k[primary]
         pts = f.get('points')
-        if pts:
+        # round 18 (RULINGS-LEDGER row 10): gated ONLY for a genuinely
+        # INLINE (mid-text) font change -- `f['offset']` is the byte
+        # position of a REAL symmetric type-2 block, None for a font that
+        # came from a paragraph STYLE's own record instead (round 9's own
+        # two-producer model). A style's declared size is document
+        # formatting, not "the author's own inline styling", and stays
+        # unconditional -- `--inline-styling off` never touches it.
+        if pts and (inline_styling or f.get('offset') is None):
             parts += '\\fs%d' % round(pts * 2)
         if parts:
             ctl['font%d' % idx] = parts + ' '
@@ -849,7 +994,21 @@ def _add_html_class(cls_attr, extra):
     return cls_attr[:-1] + f' {extra}"'
 
 
-def _style_css(doc, printed=True):
+def _html_colour_used(doc):
+    """Every WordStar colour INDEX (0-15, the raw palette value -- unlike
+    `fontN`, `colourN`'s own N is not an array index into anything) that
+    appears as a span tag anywhere in the document, sorted."""
+    used = set()
+    for b in doc.blocks:
+        for line in b.lines:
+            for sp in line.spans:
+                for st in sp.styles:
+                    if st.startswith('colour') and st[6:].isdigit():
+                        used.add(int(st[6:]))
+    return sorted(used)
+
+
+def _style_css(doc, printed=True, inline_styling=True):
     """CSS rules derived from the style records themselves -- a PASS-THROUGH
     of the file's own data (Jon, 2026-08-04: never hardwire a style name to
     a font or size; expose the data so a consumer can attach its own). Every
@@ -932,10 +1091,18 @@ def _style_css(doc, printed=True):
             css = ', '.join(n if ' ' not in n and n.islower() else f"'{n}'"
                             for n in stack)
             props.append(f'font-family:{css}')
-        if f.get('points'):
+        # round 18 (RULINGS-LEDGER row 10): same "genuinely inline, not
+        # style-derived" gate as RTF's own `_font_ctl_rtf` (a paragraph
+        # STYLE's own declared size is document formatting, not the
+        # author's inline styling choice, and stays unconditional).
+        if f.get('points') and (inline_styling or f.get('offset') is None):
             props.append('font-size:%.4gpt' % f['points'])
         if props:
             rules.append(f'.ws-font-{idx} {{ {"; ".join(props)} }}')
+    if inline_styling:
+        for n in _html_colour_used(doc):
+            rules.append('.ws-colour-%d { color:#%02x%02x%02x }'
+                         % ((n,) + _CGA_PALETTE[n % 16]))
     return '\n'.join(rules)
 
 
@@ -1090,7 +1257,8 @@ def _classify_modern_blocks(doc):
     return by_block
 
 
-def _html_slice(line, start, end, refs, keep, shown_map):
+def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
+                pix_map=None, pictures='off', image_links=None):
     # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
     # spans LIST directly (the b23 overhaul's own signature -- it runs
     # `coalesce_spans`/`split_graphic_spans` over its argument), not a
@@ -1099,10 +1267,12 @@ def _html_slice(line, start, end, refs, keep, shown_map):
     # shim that used to bridge the two is gone; there is nothing left to
     # bridge.
     return _html_line(_slice_spans(line.spans, start, end),
-                      refs, keep, shown_map=shown_map)
+                      refs, keep, shown_map=shown_map, inline_styling=inline_styling,
+                      pix_map=pix_map, pictures=pictures, image_links=image_links)
 
 
-def _html_centered_row(line, s, refs, keep, shown_map):
+def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
+                       pix_map=None, pictures='off', image_links=None):
     """The centred line's own text with its alignment padding sliced off
     (both mechanisms: a real align=center tag already had the M3 strip
     upstream, so lead/trail are 0 and this is a no-op; spaces-only
@@ -1110,11 +1280,47 @@ def _html_centered_row(line, s, refs, keep, shown_map):
     raw = ''.join(sp.text for sp in line.spans)
     lead = len(raw) - len(raw.lstrip(' '))
     trail = len(raw) - len(raw.rstrip(' '))
-    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map)
+    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling,
+                       pix_map, pictures, image_links)
+
+
+def _html_toc_index(doc):
+    """`<section>`/`<nav>` for the compiled TOC/Index (round 18,
+    RULINGS-LEDGER row 4) -- TOC before Index, each clearly headed.
+    Non-paged: page_numbers=None, honest text and ordering only. A `.tc`
+    level becomes a `margin-left` indent (an ordered-list NESTED per
+    level would be the more "correct" DOM, but a document's own levels
+    are not always well-nested -- e.g. a lone `.tc3` with no `.tc2`
+    parent -- and a flat, indented list degrades honestly either way;
+    the simpler shape)."""
+    toc = compile_toc(doc, None)
+    idx = compile_index(doc, None)
+    if not toc and not idx:
+        return ''
+    parts = []
+    if toc:
+        items = ''.join(
+            f'<li style="margin-left:{max(0, level - 1) * 1.5}em">{_html.escape(text)}</li>'
+            for level, text in toc)
+        parts.append(f'<nav aria-label="Table of Contents"><h2>Table of Contents</h2>'
+                     f'<ol>{items}</ol></nav>')
+    if idx:
+        items = ''.join(f'<li>{_html.escape(text)}</li>' for text in idx)
+        parts.append(f'<section aria-label="Index"><h2>Index</h2>'
+                     f'<ul>{items}</ul></section>')
+    return ''.join(parts)
 
 
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
-              styles=True, note_refs='word', **_options):
+              styles=True, note_refs='word', inline_styling=True, toc=False,
+              pictures='off', pix_results=None, image_links=None,
+              **_options):
+    # Round 19 (PIX images RULED IN): see emit_rtf's identical comment.
+    # `image_links` ({index: relative-path-string}) is only consulted in
+    # export mode -- built by the caller via
+    # ctrlkd.pictures.write_export_images, since only the caller knows the
+    # output file's own destination directory.
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     style_class = {}
     if styles:
@@ -1133,6 +1339,11 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                  if note_refs == 'prefixed' and not printed else None)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): screenplay-detected regions get verse-
+    # class (line/indent-preserving) treatment -- see emit_text's
+    # identical comment for the doctrine. Not printed: a facsimile
+    # already preserves every line's own position.
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
     # Quote-block CONTINUITY (Jon's ruling, round 4, 2026-08-17): consecutive
     # units in the same quote-classified style are ONE quote block, not one
     # <blockquote> per paragraph UNIT (the round-3 code) nor even one per
@@ -1211,7 +1422,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # centred heading used to keep its baked spaces as visible
             # &nbsp; runs on top of the CSS that already centres it).
             txt = ' '.join(_html_line(_maybe_strip_align(b, list(line.spans)),
-                                      refs, keep, shown_map=shown_map)
+                                      refs, keep, shown_map=shown_map,
+                                      inline_styling=inline_styling,
+                                      pix_map=pix_map, pictures=pictures,
+                                      image_links=image_links)
                            for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
@@ -1230,7 +1444,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # so a long physical line still wraps at the READER's window
             # (the fixed 65-column look stays Printed/PDF's own domain).
             lines = [_html_line(list(line.spans), refs, keep,
-                                keep_ws=True, shown_map=shown_map)
+                                keep_ws=True, shown_map=shown_map,
+                                inline_styling=inline_styling,
+                                pix_map=pix_map, pictures=pictures,
+                                image_links=image_links)
                      for line in b.lines]
             body = '<br>\n'.join(lines)
             if body.strip():
@@ -1316,13 +1533,20 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # that flow logic would still run on a hand-positioned
                     # block's lines and destroy the layout via a different
                     # mechanism. Register C23.
-                    is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
-                    rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
+                    is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant)
+                                                  or bi in screenplay_blocks)
+                    rendered = [_html_line(first, refs, keep, shown_map=shown_map,
+                                           inline_styling=inline_styling,
+                                           pix_map=pix_map, pictures=pictures,
+                                           image_links=image_links)]
                     for line in unit[1:]:
                         spans = _maybe_strip_align(b, list(line.spans))
                         if not is_verse:
                             _, spans = split_leading_indent(spans)
-                        rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
+                        rendered.append(_html_line(spans, refs, keep, shown_map=shown_map,
+                                                   inline_styling=inline_styling,
+                                                   pix_map=pix_map, pictures=pictures,
+                                                   image_links=image_links))
                     if len(unit) > 1 and not is_verse:
                         para = ' '.join(t for t in rendered if t.strip())
                     else:
@@ -1334,7 +1558,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # left. `left` is WordStar's default and gets no attribute, so
                     # every document that never touches `.oc`/`.oj` emits byte-identical
                     # HTML to before.
-                    style = _html_para_style(b.align, indent_cols)
+                    style = _html_para_style(b.align, indent_cols,
+                                             tight=is_verse or b.align == 'center')
                     # C5: newspaper columns. CSS does this properly, so HTML is the one
                     # format that can honour `.co` rather than merely record it. A gutter
                     # is print columns at 10 CPI -> tenths of an inch. Columns are
@@ -1382,9 +1607,15 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         _flush_plain_run()
                         plain_run_is_block_start = False
                         _flush_quote()
-                        html = _html_centered_row(line, s, refs, keep, shown_map)
+                        html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling,
+                                                  pix_map, pictures, image_links)
                         if html.strip():
-                            builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
+                            # round 20 (slate item 4): a "wrapped centered
+                            # unit" -- same tight spacing as verse, same
+                            # single named constant.
+                            builder.add_text(
+                                f'<p{cls} style="text-align:center;'
+                                f'line-height:{VERSE_LINE_HEIGHT}">{html}</p>')
                     else:
                         plain_run_lines.append(line)
                     continue
@@ -1394,15 +1625,18 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 if s['kind'] == 'bullet':
                     raw = ''.join(sp.text for sp in line.spans)
                     body = _html_slice(line, len(raw) - len(s['body']), None,
-                                       refs, keep, shown_map)
+                                       refs, keep, shown_map, inline_styling,
+                                       pix_map, pictures, image_links)
                     builder.add_bullet(s['level'], cls, body)
                 else:  # 'def'
                     raw = ''.join(sp.text for sp in line.spans)
                     lead = len(raw) - len(raw.lstrip(' '))
                     dt = _html_slice(line, lead, lead + len(s['label']),
-                                     refs, keep, shown_map)
+                                     refs, keep, shown_map, inline_styling,
+                                     pix_map, pictures, image_links)
                     dd = _html_slice(line, len(raw) - len(s['body']), None,
-                                     refs, keep, shown_map)
+                                     refs, keep, shown_map, inline_styling,
+                                     pix_map, pictures, image_links)
                     builder.add_def(s['level'], cls, dt, dd)
             _flush_plain_run()
     builder.flush(parts)
@@ -1415,9 +1649,18 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         parts.extend(sections)
     css = _CSS
     if styles:
-        extra = _style_css(doc, printed)
+        extra = _style_css(doc, printed, inline_styling)
         if extra:
             css = css + '\n' + extra
+    # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
+    # end, gated by `--toc` (default off). HTML is non-paged: no page
+    # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's
+    # own `.tc` outline levels (nested by level, matching a real table of
+    # contents' own structure rather than a flat indented list).
+    if toc:
+        toc_html = _html_toc_index(doc)
+        if toc_html:
+            parts.append(toc_html)
     return ('<!doctype html><html><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{_html.escape(title)}</title><style>{css}</style></head>\n'
@@ -1436,6 +1679,57 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
 # attributes included.
 _RTF_ON = {'b': r'\b ', 'i': r'\i ', 'u': r'\ul ', 'sup': r'\super ',
            'sub': r'\sub ', 'strike': r'\strike '}
+
+# round 18 (RULINGS-LEDGER row 10): WordStar's own inline colour (symmetric
+# type 1) is a PALETTE INDEX 0-15, the standard 16-colour CGA/EGA screen
+# palette every DOS-era text program shared -- not a driver-specific table
+# like LJ6DTP's own PDF gray mapping (pdf.py's `_COLOUR_GRAY_LJ6DTP`, a
+# DIFFERENT, print-driver-defined set of indices left untouched by this
+# round). Index 0 (Black) never reaches a span as a tag at all (core.py's
+# own decode: "colour 0 = Black, the default: no tag"), so the table only
+# needs to answer for 1-15, but is defined for all 16 for completeness.
+_CGA_PALETTE = [
+    (0, 0, 0), (0, 0, 170), (0, 170, 0), (0, 170, 170),
+    (170, 0, 0), (170, 0, 170), (170, 85, 0), (170, 170, 170),
+    (85, 85, 85), (85, 85, 255), (85, 255, 85), (85, 255, 255),
+    (255, 85, 85), (255, 85, 255), (255, 255, 85), (255, 255, 255),
+]
+
+_RTF_COLOURTBL = ('{\\colortbl;' + ''.join(
+    '\\red%d\\green%d\\blue%d;' % rgb for rgb in _CGA_PALETTE) + '}')
+
+
+def _rtf_colour_num(tag):
+    """`'colour4'` -> 4, matching `_CGA_PALETTE`'s own 0-based index --
+    `\\colortbl`'s FIRST real entry (index 0, "Black") is `\\cf1` (RTF
+    colour numbers are 1-based; index 0 before the first `;` is the
+    reader's own "automatic" colour), so WordStar's own index N is
+    `\\cf(N+1)`."""
+    return int(tag[6:]) + 1
+
+
+def _plain_toc_index_lines(doc):
+    """Plain-text TOC/Index lines (round 18, RULINGS-LEDGER row 4) -- TOC
+    before Index, each clearly headed, a `.tc` entry indented two spaces
+    per level. Every non-paged format (Text, Markdown, HTML, Modern RTF)
+    shares this same page_numbers=None reading: honest text and ordering,
+    no page reference a non-paged format could ever resolve (Printed
+    PDF/RTF alone borrow a REAL paginator -- see `pdf._toc_page_numbers`/
+    `emit._rtf_toc_index`)."""
+    toc = compile_toc(doc, None)
+    idx = compile_index(doc, None)
+    lines = []
+    if toc:
+        lines.append('TABLE OF CONTENTS')
+        lines.append('')
+        lines.extend('  ' * max(0, level - 1) + text for level, text in toc)
+        lines.append('')
+    if idx:
+        lines.append('INDEX')
+        lines.append('')
+        lines.extend(idx)
+    return lines
+
 
 _RTF_COMMENT_AUTHOR = 'ctrl-kd'   # public repo: a tool name, not a person
 
@@ -1539,7 +1833,9 @@ def _rtf_comment_dest(note):
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
-def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
+def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
+              roll_half_pt=None, ul_continuous=True, inline_styling=True,
+              pix_map=None, pictures='off'):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -1574,17 +1870,99 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None):
             pad = ' ' * round(int(pctl[4:]) / 180)
             return '{' + pad + '}' if pad else ''
         return ''
+    # Round 19 (PIX images RULED IN, ledger PIX row): a pix placeholder
+    # span ('pix<N>' from core.py's mark -- see its own docstring) becomes
+    # a native RTF picture destination when the flag is live and the tag
+    # actually resolved to a real, decoded image; otherwise (off, or a
+    # miss) it falls straight through to the unchanged placeholder text
+    # below -- "off: today's placeholder behavior exactly" (ruled) and
+    # "never fail, placeholder kept" on a miss (ruled) both fall out of
+    # doing nothing special here.
+    pix_tag = next((t for t in sp.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+    if pix_tag is not None and pictures in ('embed', 'export'):
+        r = (pix_map or {}).get(int(pix_tag[3:]))
+        if r is not None and r.ok:
+            # RTF/PDF always embed regardless of embed/export (ruled: "no
+            # portable reference mechanism a recipient could resolve
+            # portably") -- export ADDITIONALLY writes the PNG to disk,
+            # a side effect the caller (not this renderer) handles.
+            if r.width_in and r.height_in:
+                goal_w = round(r.width_in * 1440)      # inches -> twips
+                goal_h = round(r.height_in * 1440)
+            else:
+                # No authoritative print-options size: render at the
+                # common 96dpi screen reference (1440 twips/in / 96 =
+                # 15 twips/px) rather than force a page-fit measure RTF
+                # has no single geometry for outside Printed.
+                goal_w = (r.gcols or 1) * 15
+                goal_h = (r.grows or 1) * 15
+            return (r'{\pict\pngblip\picw%d\pich%d\picwgoal%d\pichgoal%d %s}'
+                    % (r.gcols or 1, r.grows or 1, goal_w, goal_h, r.png.hex()))
     styles = sorted(st for st in sp.styles if st != 'fnref')
-    ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
-    if fontctl:
-        ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
-    if _is_graphic_text(sp.text):
-        # \f1 (Courier New) is ALWAYS in the font table (see the \fonttbl
-        # literal in `emit_rtf`) regardless of the document's own fonts --
-        # same reasoning as HTML's `ws-graphic` override, appended last so
-        # it wins the font-table reference while any \fs size already
-        # chosen above is left alone (round 8).
-        ctl += r'\f1 '
+
+    def build_ctl(these_styles):
+        c = ''.join(_RTF_ON.get(st, '') for st in these_styles)
+        if printed and roll_half_pt is not None:
+            # Explicit DIRECT override of whatever rise a reader's own
+            # default \super/\sub metrics would otherwise pick -- WordStar's
+            # `.sr` is a real, page-declared value, not a suggestion (round
+            # 17, ledger row 3). `\super`/`\sub` above still carry the
+            # SEMANTIC tag (reflow/accessibility); `\up`/`\dn` is the
+            # direct-formatting doctrine's own answer for the exact rise
+            # amount, same relationship `\fi` already has with `.pm`
+            # (round 6).
+            if 'sup' in these_styles:
+                c += r'\up%d ' % roll_half_pt
+            elif 'sub' in these_styles:
+                c += r'\dn%d ' % roll_half_pt
+        if fontctl:
+            c += ''.join(fontctl.get(st, '') for st in these_styles if st.startswith('font'))
+        if inline_styling:
+            # round 18 (RULINGS-LEDGER row 10): WordStar's own inline
+            # colour (symmetric type 1) -- direct `\cfN` against the fixed
+            # 16-colour CGA table (`_RTF_COLOURTBL`/`_rtf_colour_num`), the
+            # same "the author's own styling shows by default" doctrine as
+            # inline font-size (`fontctl`'s own `\fs`, already built --
+            # round 9). `--inline-styling off` strips this AND the font-
+            # size half of `fontctl` (see `_font_ctl_rtf`'s own gate) but
+            # never the font FAMILY switch, which is document rendering,
+            # not an author styling CHOICE.
+            colour_tag = next((st for st in these_styles if st.startswith('colour')), None)
+            if colour_tag:
+                c += r'\cf%d ' % _rtf_colour_num(colour_tag)
+        if _is_graphic_text(sp.text):
+            # \f1 (Courier New) is ALWAYS in the font table (see the
+            # \fonttbl literal in `emit_rtf`) regardless of the document's
+            # own fonts -- same reasoning as HTML's `ws-graphic` override,
+            # appended last so it wins the font-table reference while any
+            # \fs size already chosen above is left alone (round 8).
+            c += r'\f1 '
+        return c
+
+    ctl = build_ctl(styles)
+    # round 17b (RULINGS-LEDGER row 5/6, register C21): WS3.3's own honest
+    # default -- see `_rules`'s own docstring (pdf.py) for the manual
+    # citation, ported here for RTF's own `\ul`. Splits the span at each
+    # run of space characters, wrapping ONLY the non-space runs in `\ul`
+    # (via `build_ctl` on the style set minus 'u') when `.ul` is off --
+    # every OTHER attribute (bold, font, roll) still applies uniformly
+    # across the whole span, unaffected.
+    if ('u' in styles and not ul_continuous and sp.text.strip()
+            and ' ' in sp.text):
+        ctl_no_u = build_ctl([st for st in styles if st != 'u'])
+        parts, text, i, n = [], sp.text, 0, len(sp.text)
+        while i < n:
+            j = i
+            if text[i] == ' ':
+                while j < n and text[j] == ' ':
+                    j += 1
+                parts.append('{' + ctl_no_u + _rtf_escape(text[i:j]) + '}')
+            else:
+                while j < n and text[j] != ' ':
+                    j += 1
+                parts.append('{' + ctl + _rtf_escape(text[i:j]) + '}')
+            i = j
+        return ''.join(parts)
     return '{' + ctl + _rtf_escape(sp.text) + '}'
 
 _RTF_MODERN_QUOTE_INSET = 720   # 0.5in each side -- Jon's explicit ask, round 3
@@ -1801,6 +2179,42 @@ def _rtf_running_heads(doc):
     return out
 
 
+def _rtf_toc_index(doc, printed):
+    """A `\\page`-separated TOC/Index section at the document's own end
+    (round 18, RULINGS-LEDGER row 4) -- TOC before Index, each clearly
+    headed, an entry indented `\\li` per `.tc` level. Printed RTF borrows
+    PDF's own REAL paginator (`pdf._toc_page_numbers`, a lazy import --
+    `pdf.py` itself imports FROM this module, so a top-level import here
+    would cycle) for page numbers: RTF itself has no page-fitting model
+    of its own (a reader's own margins/fonts decide where pages actually
+    fall), so this is a borrowed APPROXIMATION, not a second independent
+    paginator -- the same page numbers Printed PDF's own TOC would show
+    for the identical document. Modern RTF gets entries with no page
+    reference at all (page_numbers=None), same as every other non-paged
+    format."""
+    page_numbers = None
+    if printed:
+        from .pdf import _toc_page_numbers
+        page_numbers = _toc_page_numbers(doc)
+    toc = compile_toc(doc, page_numbers)
+    idx = compile_index(doc, page_numbers)
+    if not toc and not idx:
+        return ''
+    parts = [r'\page ']
+    if toc:
+        parts.append(r'{\pard\plain\qc\b\fs28 TABLE OF CONTENTS\par}')
+        for level, text in toc:
+            li = max(0, level - 1) * 360
+            parts.append(r'{\pard\li%d %s\par}' % (li, _rtf_escape(text)))
+    if idx:
+        if toc:
+            parts.append(r'\page ')
+        parts.append(r'{\pard\plain\qc\b\fs28 INDEX\par}')
+        for text in idx:
+            parts.append(r'{\pard %s\par}' % _rtf_escape(text))
+    return ''.join(parts)
+
+
 # ------------------------------------------------------- printed vertical space
 #
 # Jon's ruling (2026-08-17, branch printed-vertical-space): line spacing/
@@ -1855,6 +2269,19 @@ def _rtf_sl_twips(lead_48):
     faithful translation, not the bare positive `\\slN` a first reading of
     "double-spaced" might suggest."""
     return -round(lead_48 * _RTF_LEAD_TWIPS_PER_48)
+
+
+def _rtf_verse_tight_sl_twips():
+    """`\\sl` for a Modern verse/centered unit (round 20, slate item 4) --
+    POSITIVE (a MINIMUM, not the negative/EXACT convention `_rtf_sl_twips`
+    uses for Printed's own physical `.lh`): Modern is reflowed prose, not
+    a fixed print position, so a taller inline font mid-stanza should
+    still get room to breathe rather than clip. Derived from the SAME
+    VERSE_LINE_HEIGHT constant HTML's own line-height reads, against
+    Modern's own fixed body size (MODERN_BODY_SIZE, fontmap.py) -- one
+    named multiplier, both formats."""
+    from .fontmap import MODERN_BODY_SIZE
+    return round(VERSE_LINE_HEIGHT * MODERN_BODY_SIZE * 20)   # 20 twips/pt
 
 
 def _rtf_pm_fi_twips(b, li_twips):
@@ -1918,11 +2345,15 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
     earlier one's. `rtf_state` is the running {'align', 'fi', 'li', 'ri',
     'sl', 'sb', 'sa'} a single `emit_rtf` call threads through every block
     (printed, heading, and Modern body paragraphs alike -- only Modern
-    body paragraphs ever pass a nonzero `fi_cols`/`li`/`ri`, and only
-    PRINTED paragraphs ever pass a nonzero `sl`/`sb`/`sa` -- round 6,
-    2026-08-17, "the other formats [TXT/MD/HTML] probably shouldn't deal
-    with line spacing", Modern RTF included -- but every OTHER paragraph
-    still needs the chance to reset any of these back to 0).
+    body paragraphs ever pass a nonzero `fi_cols`/`li`/`ri`. `sb`/`sa`
+    stay Printed-only (round 6, 2026-08-17, "the other formats [TXT/MD/
+    HTML] probably shouldn't deal with line spacing", Modern RTF
+    included). `sl` gained ONE scoped Modern exception (round 20, slate
+    item 4): a verse-classified or centered unit passes a nonzero,
+    POSITIVE `sl` (`_rtf_verse_tight_sl_twips`) for its own tighter
+    internal spacing -- every OTHER Modern paragraph still passes 0,
+    and every paragraph (Printed or Modern) still needs the chance to
+    reset any of these six back to 0 when it doesn't apply).
 
     `li`/`ri`/`sl`/`sb`/`sa` are all DIRECT formatting (round 4 established
     this for li/ri; round 6 extends the same doctrine to vertical space),
@@ -1971,7 +2402,14 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             fonts_target='office', note_refs='word', **_options):
+             fonts_target='office', note_refs='word', headers=True,
+             line_numbers=True, inline_styling=True, toc=False,
+             pictures='off', pix_results=None, **_options):
+    # Round 19 (PIX images RULED IN): resolved/decoded doc.graphics entries
+    # (ctrlkd.pictures.resolve_document_pictures, called once by the
+    # caller -- library or CLI -- and handed to every emit_* call for this
+    # doc). {index: PixResult} for O(1) lookup from a span's 'pix<N>' tag.
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -1985,15 +2423,44 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # the facsimile shows what WordStar printed.
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
+    # Round 20b (slate item 13): see emit_text's identical comment.
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc, printed) if styles else ''
-    fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target)
+    fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target, inline_styling)
                               if styles else ('', {}))
+    # round 18 (RULINGS-LEDGER row 10): the colour table only needs to
+    # exist when a span will actually reference it -- an unconditional
+    # \colortbl on every RTF this project has ever produced would be a
+    # silent, permanent byte-shape change to files with no inline colour
+    # at all. `--inline-styling off` also skips it (nothing will emit
+    # \cfN either way).
+    colourtbl = (_RTF_COLOURTBL
+                if inline_styling and any(st.startswith('colour')
+                                          for b in doc.blocks for line in b.lines
+                                          for sp in line.spans for st in sp.styles)
+                else '')
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
     # round 4 (2026-08-17): li/ri per style, looked up per paragraph so
     # they can ride along as DIRECT formatting -- see _rtf_direct_margins.
     direct_margins = _rtf_direct_margins(doc, printed) if styles else {}
+    # round 17 (RULINGS-LEDGER row 3, register C22): `.sr`'s roll, in
+    # half-points -- Printed only (`\super`/`\sub` alone, unchanged, still
+    # carry Modern's sup/sub semantics; a reader's own default rise is
+    # exactly the "reader owns presentation" doctrine every other Printed-
+    # only vertical-space item already follows). 1/48in -> half-points:
+    # 1/48in is 1.5pt (round 6's own conversion), half-points are 2x
+    # points, so 1/48in-units * 3 = half-points. WSFORMAT's own default
+    # (3, absent `.sr`) applies exactly like every other page-dot default.
+    roll_half_pt = (round(doc.meta.get('formatting', {})
+                          .get('sub_super_roll_48', 3.0) * 3)
+                    if printed else None)
+    # round 17b (RULINGS-LEDGER row 5/6, register C21): WS3.3's own honest
+    # default -- Printed only, same doctrine as `.sr`. Rides in
+    # doc.meta['formatting'] for free, same as `.sr`/`.pr`.
+    ul_continuous = (bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+                     if printed else True)
     # round 6 (2026-08-17): .psa/.psb are ONE document-wide value each
     # (see _rtf_doc_spacing_twips) -- resolved once, not per block. Only
     # ever non-(None,None) for a WordTsar-produced file (a real WordStar
@@ -2042,10 +2509,31 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # HTML's identical step in `_html_line` (round 8): splitting first
         # would just get re-glued back onto the prose beside it the moment
         # both share a style.
-        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map)
+        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map,
+                                 roll_half_pt, ul_continuous, inline_styling,
+                                 pix_map, pictures)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
-    for b in doc.blocks:
+    # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own gutter
+    # for Printed RTF -- flag-gated (default ON, same shape as `headers`;
+    # fires only when the document itself declared `.l#`). RTF has no page
+    # object of its own to reset a per-page count against (unlike PDF's
+    # separate Page streams), so numbering runs from the DOCUMENT'S start,
+    # a deliberate, simpler choice for this continuous-text format -- a
+    # true per-page reset would need RTF's own pagination model, which
+    # this format doesn't have and isn't being built here.
+    line_no_interval = (doc.meta.get('line_numbering')
+                        if printed and line_numbers else None)
+    line_no = [0]
+
+    def numbered(rendered_line, has_text):
+        line_no[0] += 1
+        if line_no_interval and has_text and line_no[0] % line_no_interval == 0:
+            return ('{' + _rtf_escape(str(line_no[0]).rjust(4)) + r'\tab }'
+                    + rendered_line)
+        return rendered_line
+
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             quote_open = False
             quote_fi_cols = None
@@ -2053,8 +2541,25 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             continue
         li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
+            # round 17 (RULINGS-LEDGER row 8, register C9b/2026-08-17 point 8):
+            # `direct_margins` is keyed by STYLE SLOT only (`_rtf_direct_margins`
+            # reads `left_margin_hmi`/`right_margin_hmi` off `doc.styles`
+            # entries) -- a WS4 document (no style table at all) or a WS5+
+            # document setting bare `.lm`/`.rm` with no style selected got
+            # li=ri=0 here regardless of the running dot-state. `b.left_margin`/
+            # `right_margin` are the block's own RESOLVED column value
+            # (`core.py`'s `_new_block`: `style_fmt.get(..., fmt.get(...))` --
+            # style already wins over dot-state there), so falling back to them
+            # ONLY when the style lookup produced nothing keeps that precedence
+            # while finally consuming the running state Printed RTF ignored.
+            if not li and b.left_margin:
+                li = round(b.left_margin * _RTF_TWIPS_PER_COL)
+            if not ri and b.right_margin:
+                ri = round(b.right_margin * _RTF_TWIPS_PER_COL)
             # physical lines: \line at every printed break, soft or hard
-            lines = [rtf_seg(line.spans, b) for line in b.lines]
+            lines = [numbered(rtf_seg(line.spans, b),
+                             any(sp.text.strip() for sp in line.spans))
+                    for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
             # round 6 (2026-08-17): line spacing/.pm/.psa+.psb -- Printed
@@ -2112,7 +2617,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 if quote_fi_cols is None:
                     quote_fi_cols = indent_cols
                 indent_cols = quote_fi_cols
-            is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+            is_verse = len(unit) > 1 and (looks_like_verse(unit, dominant)
+                                          or bi in screenplay_blocks)
             rendered = [rtf_seg(first, b)]
             for line in unit[1:]:
                 spans = _maybe_strip_align(b, list(line.spans))
@@ -2123,7 +2629,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 lines = [' '.join(t for t in rendered if t.strip())]
             else:
                 lines = rendered
-            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri)
+            # round 20 (slate item 4): verse-classified units and
+            # centered units (which may themselves wrap in the reader,
+            # "wrapped centered units") get tighter internal spacing --
+            # a deliberate, scoped exception to round 6's "Modern RTF
+            # doesn't do line spacing" rule, exactly as disclosed there.
+            tight_sl = _rtf_verse_tight_sl_twips() if (is_verse or b.align == 'center') else 0
+            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri,
+                           sl=tight_sl)
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
         # and command codes are invisible.
@@ -2149,6 +2662,20 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # filled by the mode's own page (Modern: 1in Letter; Printed: the era
     # page from doc.meta, which core already resolved with its defaults).
     page = doc.meta.get('page') or {}
+    # round 17 (RULINGS-LEDGER row 2, register C18, Paged-surface doctrine
+    # point 2): `.pr or=l` swaps the PAPER dimensions only -- height_in/
+    # pw_in, which is all `\paperh`/`\paperw` below read. `.mt`/`.mb`/`.po`-
+    # derived margins are left exactly as declared (still top/bottom/left
+    # relative to the text, same as WordStar's own driver-level rotation
+    # never re-interpreted them either) -- only the CANVAS they sit against
+    # changes shape. Printed only: Modern's page is its own fixed Letter
+    # regardless of the document's declared orientation (same doctrine as
+    # every other Printed-only geometry item).
+    landscape = printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape'
+    if landscape:
+        page = dict(page)
+        page['height_in'], page['pw_in'] = (
+            float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
     def _twips_lines(key, default_lines):
         v = page.get(key, default_lines)
         return int(round(float(v) * 240))            # 1 line at 6 LPI = 240 twips
@@ -2172,13 +2699,26 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     paperw = int(round(float(page.get('pw_in', 8.5)) * 1440))
     pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
                  % (paperw, paperh, margl, margl, margt, margb))
-    running = '' if printed else _rtf_running_heads(doc)
+    if landscape:
+        pagesetup += r'\landscape'
+    # round 17 (RULINGS-LEDGER row 1, register B1/B2 + Paged-surface doctrine
+    # point 1): Printed RTF was the one paged surface `_rtf_running_heads`
+    # never reached (Printed PDF and Modern RTF both already rendered
+    # headers/footers/page numbers) -- the function itself has no printed-
+    # specific behavior to add; it was simply never called for `printed`.
+    # `headers` (default True per the ruled flag defaults) now gates BOTH
+    # modes uniformly, closing the "+ toggle flag" half of the ruling too.
+    running = _rtf_running_heads(doc) if headers else ''
+    # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
+    # gated by `--toc` (default off, the ruled default).
+    toc_index = _rtf_toc_index(doc, printed) if toc else ''
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
+            + colourtbl
             + stylesheet
             + pagesetup
             + running
-            + '\n' + font + body_fs + ' ' + '\n' + body + '\n}\n')
+            + '\n' + font + body_fs + ' ' + '\n' + body + toc_index + '\n}\n')
 
 # built-ins register through the same door plugins use
 emitter('text', ext='.txt')(emit_text)

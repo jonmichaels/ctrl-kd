@@ -19,6 +19,8 @@ Styles: bold/italic map to the family's variants, underline is drawn,
 superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
 import re as _re
+import zlib as _zlib
+from . import pix as _pixdecode
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines, \
     effective_span_styles as _effective_span_styles
@@ -53,6 +55,23 @@ FOOTNOTE_FLOOR = 3               # "A minimum of three lines of regular text
                                   # are printed on a page regardless of the
                                   # size of the footnote area" (except the
                                   # last page of the document)
+
+def _landscape_page(page):
+    """A copy of the page dict with height_in/pw_in SWAPPED -- `.pr or=l`
+    (round 17, RULINGS-LEDGER row 2, register C18, Paged-surface doctrine
+    point 2: "honor .pr or=l landscape in all paged surfaces"). Swapping
+    at this single source lets every existing height_in/pw_in consumer
+    (pagination capacity, top margin, the MediaBox itself) cascade
+    correctly with no per-site change -- a landscape page is genuinely
+    SHORTER top-to-bottom (fewer text lines fit) as well as wider, exactly
+    what real landscape printing does. `.mt`/`.mb`/`.po`-derived margins
+    are left untouched -- still top/bottom/left relative to the text, same
+    as WordStar's own driver-level rotation never re-interpreted them."""
+    eff = dict(page)
+    eff['height_in'], eff['pw_in'] = (
+        float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
+    return eff
+
 
 def _resolved_page_height(doc, printed):
     """Page height in points for THIS document. Printed mode honours the
@@ -163,6 +182,55 @@ def _printed_lead(doc):
     if page is None:
         return LEAD
     return _lead_pt(page.get('lh_48', 8.0)) or LEAD
+
+def _printed_roll_pt(doc):
+    """The `.sr` sub/superscript roll for printed mode, in points -- ONE
+    document-wide value (round 17, RULINGS-LEDGER row 3, register C22).
+    Not stateful per-line like `.lh`: `.sr` re-selects mid-document have no
+    evidence behind per-position tracking the way `.lh`'s own archive
+    banner example does, and the ruling itself only asks that the file's
+    OWN roll finally be read at all (previously byte-identical across
+    `.sr 0`/`.sr 40`/absent). Default 3 (WSFORMAT's own stated `.sr`
+    default, 3/48in) whenever the file never sets it, converted the same
+    way every other 1/48in value is (round 6: 1/48in = 1.5pt)."""
+    roll_48 = doc.meta.get('formatting', {}).get('sub_super_roll_48', 3.0)
+    return roll_48 * 1.5
+
+
+_PDF_PT_PER_COL = 7.2   # print columns at 10 CPI: 72pt/in / 10 col/in = 7.2pt/col
+                        # -- the SAME unit .lm/.rm/.pm/.po all share, and the
+                        # exact value MAX_COLS itself already derives from
+                        # (SIZE * 0.6 == 7.2 at the default SIZE=12).
+
+
+def _printed_pm_fi_pt(block):
+    """First-line indent in points from `.pm` -- mirrors `_rtf_pm_fi_twips`
+    (round 6, RULINGS-LEDGER row 5/7), relative to li=0: Printed PDF has no
+    per-block `.lm`/`.rm` margin of its own (that gap is Printed RTF's own
+    ledger row 8, a SEPARATE item this one doesn't reach), so the baseline
+    this indent sits against is the document's own left edge -- the same
+    li=0 an unstyled/WS4 Printed RTF paragraph already gets from the SAME
+    round 6 code. None when the block never set `.pm`."""
+    if block.para_margin is None:
+        return None
+    return block.para_margin * _PDF_PT_PER_COL
+
+
+def _printed_doc_spacing_pt(doc):
+    """(sb, sa) in points from WordTsar's own `.psa`/`.psb` extensions --
+    mirrors `_rtf_doc_spacing_twips` (round 6) exactly, converted to points
+    via the document's own DEFAULT leading (the same quantity PageLine.lead
+    already carries) instead of twips. (None, None) when neither command
+    was ever seen."""
+    sb_lines = doc.meta.get('space_before_lines')
+    sa_lines = doc.meta.get('space_after_lines')
+    if sb_lines is None and sa_lines is None:
+        return None, None
+    lead_pt = _printed_lead(doc)
+    sb = sb_lines * lead_pt if sb_lines is not None else None
+    sa = sa_lines * lead_pt if sa_lines is not None else None
+    return sb, sa
+
 
 def _printed_size(doc):
     """Type size in points for printed mode, from .cw: character width in
@@ -353,8 +421,22 @@ PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
                '▌': (0, 0, 0.5, 1), '▐': (0.5, 0, 0.5, 1),
                # cp437 0xFE: the PC-8 black square, WordStar-era bullet of
                # choice (Sawyer's -README list markers). Centered small
-               # block, per the IBM glyph.
-               '■': (0.12, 0.18, 0.72, 0.55)}
+               # block, per the IBM glyph -- a TRUE square (fw == fh),
+               # meaningful now that SQUARE_PART_BLOCKS scales both axes
+               # by the same `sq = min(pitch, h)` reference (round 20,
+               # slate item 8). The old (0.12, 0.18, 0.72, 0.55) pair was
+               # tuned by eye against the un-squared rendering (pitch for
+               # x, h for y independently) and came out 5.2x7.3pt on a
+               # 12pt Courier cell -- visibly taller than wide, the
+               # "squashed" defect reported. 0.65 keeps the same rough
+               # visual weight ("centered small block") as a real square.
+               '■': (0.175, 0.175, 0.65, 0.65)}
+# ▀▄▌▐ are genuinely CELL-shaped (a "half block" means half the actual
+# advance-width/line-height cell, whatever its aspect) -- only ■ is
+# authored to look like a regular, roughly-square dot, so only it gets
+# the square-cell correction _graphic_ops applies to SYMBOL_SHAPES
+# (round 20, slate item 8: squashed cp437 vector glyphs).
+SQUARE_PART_BLOCKS = frozenset('■')
 # cp437 control-position symbol glyphs (Jon's ruling, 2026-08-11, extending
 # the 2026-08-10 box ruling: "the card suits, etc. show up everywhere").
 # LJ6DTP p3's "Shows on screen as" column is literal bytes 02-06/0F/F0 — on
@@ -369,7 +451,10 @@ PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
 # Scope is exactly the ruled seven; the rest of CP437_GRAPHICS (arrows,
 # music notes …) still degrades until a document surfaces them.
 SYMBOL_SHAPES = {
-    '♦': [('poly', [(0.50, 0.92), (0.88, 0.50), (0.50, 0.08), (0.12, 0.50)])],
+    # Round 20 (slate item 8): symmetric span (0.8 both axes -- was
+    # 0.76w/0.84h, a minor pre-existing asymmetry harmless before the
+    # pitch/h aspect fix made shape authoring finally square-meaningful).
+    '♦': [('poly', [(0.50, 0.90), (0.90, 0.50), (0.50, 0.10), (0.10, 0.50)])],
     '♥': [('disc', 0.32, 0.62, 0.21), ('disc', 0.68, 0.62, 0.21),
           ('poly', [(0.09, 0.56), (0.91, 0.56), (0.50, 0.08)])],
     '♠': [('poly', [(0.50, 0.94), (0.22, 0.52), (0.78, 0.52)]),
@@ -421,24 +506,42 @@ def _graphic_ops(text, x, y, pitch, pt):
         ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
                    % (cx + k, cy - r, cx + r, cy - k, cx + r, cy))
         ops.append(b'f')
+    # Round 20 (slate item 8): a symbol glyph's fractional coordinates are
+    # authored to look REGULAR (a round dot, a true diamond, a circular
+    # sun) -- not cell-shaped like a box-drawing arm or a half-block.
+    # Scaling x by `pitch` and y by `h` independently only reproduces
+    # that intent when the two happen to be equal; a real printed cell
+    # never is (12pt Courier: pitch 7.2pt advance, h 13.2pt) -- disc()'s
+    # own radius already used `min(pitch, h)` (bisected b22-pin 142f478
+    # vs current on CONVERT.WS: BYTE-IDENTICAL, so this was never a
+    # regression -- the mismatch has always been there, just never
+    # applied to poly/rect). `sq` and cell-CENTER-relative offsets make
+    # every shape kind use the same single, consistent scale: a strict
+    # generalization that reproduces the exact prior output whenever
+    # pitch == h (the poly/rect formulas below reduce algebraically to
+    # `x0 + fx*pitch, yb + fy*h` in that case) and only corrects the
+    # aspect when it doesn't.
+    sq = min(pitch, h)
     def symbol_shape(shape, x0):
+        cx, cy = x0 + pitch / 2.0, yb + h / 2.0
         kind = shape[0]
         if kind == 'white':
             ops.append(b'q 1 g')
             symbol_shape(shape[1], x0)
             ops.append(b'Q')
         elif kind == 'poly':
-            pts = [(x0 + fx * pitch, yb + fy * h) for fx, fy in shape[1]]
+            pts = [(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq)
+                  for fx, fy in shape[1]]
             ops.append(b'%.1f %.1f m' % pts[0])
             for p in pts[1:]:
                 ops.append(b'%.1f %.1f l' % p)
             ops.append(b'h f')
         elif kind == 'disc':
             _, fx, fy, fr = shape
-            disc(x0 + fx * pitch, yb + fy * h, fr * min(pitch, h))
+            disc(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq, fr * sq)
         elif kind == 'rect':
             _, fx, fy, fw, fh = shape
-            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
+            rect(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq, fw * sq, fh * sq)
     for n, ch in enumerate(text):
         x0 = x + n * pitch
         if ch == ' ':
@@ -454,7 +557,12 @@ def _graphic_ops(text, x, y, pitch, pt):
             ops.append(b'Q')
         elif ch in PART_BLOCKS:
             fx, fy, fw, fh = PART_BLOCKS[ch]
-            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
+            if ch in SQUARE_PART_BLOCKS:
+                cx, cy = x0 + pitch / 2.0, yb + h / 2.0
+                rect(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq,
+                     fw * sq, fh * sq)
+            else:
+                rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
         else:
             u, dn, l, r = BOX_ARMS[ch]
             mx = x0 + pitch / 2.0
@@ -918,16 +1026,46 @@ class PageLine(list):
     layout loop never has to know about 48ths. Lines this emitter MAKES rather
     than reads (footnote areas, wrapped Modern text, blank fillers) leave it
     None by construction: they are the emitter's own furniture and belong on
-    the document's default lead."""
+    the document's default lead.
 
-    __slots__ = ('soft', 'lead', 'overprint')
+    `fi` (added round 17, ledger row 5/7): this line's own first-line-indent
+    override in POINTS, or None -- `.pm`'s effect (mirrors RTF's `\fi` from
+    round 6), set ONLY on a `.para` block's own first content line. `.psa`/
+    `.psb` reuse `lead` itself rather than a new field: WordTsar's space-
+    before/after is exactly one MORE baseline-to-baseline distance to spend
+    before a line prints, the same quantity `lead` already carries -- `sb`
+    is added into the block's own first line's `lead`, `sa` into whatever
+    PageLine comes next after the block ends (pending_sa in
+    `_doc_to_pagelines`), so the existing pagination cost model
+    (`_cost`/`spent`/`budget`) accounts for both with no change to itself."""
 
-    def __init__(self, segments=(), soft=False, lead=None, overprint=False):
+    # `bi` (round 18, ledger row 4): the source Block's own index in
+    # doc.blocks, for `_toc_page_numbers` to resolve which page a
+    # `.tc`/`.ix` entry's own block landed on -- the REAL paginator's
+    # answer, not an estimate. None for a line this emitter MAKES rather
+    # than reads (matches `lead`'s own "furniture" convention).
+    #
+    # `image` (round 19, PIX images RULED IN, ledger PIX row): (pix_index,
+    # width_pt, height_pt) when this PageLine IS a resolved, embedded
+    # picture rather than text -- `segments` is empty by construction and
+    # `_page_stream` draws the XObject instead of running text ops. `lead`
+    # is set to height_pt (+ any `.psb`/`.psa` spacing, same as an
+    # ordinary line) so the existing budget/cost model (`_cost` in
+    # `_doc_to_pagelines`) accounts for the image's vertical footprint
+    # with NO change of its own -- reusing exactly the mechanism round 17
+    # built for `.psa`/`.psb`.
+    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image')
+
+    def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
+                bi=None, image=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
                                         # at THIS line's baseline
         self.lead = lead
+        self.bi = bi
+        self.fi = fi
+        self.image = image
 
 
 class Page(list):
@@ -944,8 +1082,22 @@ class Page(list):
         self.footers = {}
 
 
-def _doc_to_pagelines(doc, printed):
-    """IR -> list of pages, each a list of segment-lines."""
+def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
+    """IR -> list of pages, each a list of segment-lines.
+
+    `pix_results`/`pictures` (round 19, PIX images RULED IN): when
+    embedding is live (printed only -- Modern PDF is a separate rendering
+    pipeline, `_modern_streams`, not this function; a documented scope cut
+    this round, same class as `_paginate_printed_notes` below) and a
+    physical line's ONLY real content is a single resolved, decoded pix
+    placeholder (the real-corpus shape: a picture reference standing
+    alone on its own paragraph, confirmed against all 5 acceptance
+    documents), that PageLine becomes an image line instead of a text
+    one. If a hypothetical pix tag ever shares a line with OTHER real
+    text, this deliberately does NOT substitute -- text content is never
+    silently dropped, so that occurrence renders as the ordinary
+    unresolved-equivalent placeholder text instead (still correct, just
+    not embedded)."""
     if printed and _has_placeable_notes(doc):
         cap = _printed_cap(doc)
         pages = _paginate_printed_notes(doc, cap, MAX_COLS)
@@ -972,6 +1124,43 @@ def _doc_to_pagelines(doc, printed):
     hf_by_block = {}
     for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
         hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
+    # round 17 (RULINGS-LEDGER row 5/7): `.pm`/`.psa`/`.psb` extend round 6's
+    # RTF vertical-space model to Printed PDF, same relative-computation
+    # rules, Printed only (Modern's own `else` branch below never reads
+    # either helper). `pending_sa` carries a block's own `sa` forward to
+    # whatever PageLine gets appended NEXT (which may be several `lines`
+    # entries away across an intervening `.hf`/pagebreak/condpage sentinel)
+    # -- applied the moment a real PageLine is built, regardless of source.
+    doc_sb, doc_sa = _printed_doc_spacing_pt(doc) if printed else (None, None)
+    pending_sa = None
+    default_lead_pt = _printed_lead(doc) if printed else LEAD
+    embed_images = printed and pictures in ('embed', 'export') and pix_results
+    pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
+    if embed_images:
+        _measure_size = _printed_size(doc)
+        _measure_left = _printed_left(doc, _measure_size)
+        _page_w_pt = float((doc.meta.get('page') or {}).get('pw_in', 8.5)) * 72.0
+        # "fit to text measure" (ruled fallback/cap): Printed PDF has no
+        # per-block .rm resolved in points anywhere else in this emitter
+        # (physical lines are pre-wrapped by the parser at authoring
+        # time), so the right inset is mirrored from the left one -- a
+        # disclosed approximation, same class as this round's other
+        # documented simplifications (RTF's borrowed TOC page numbers,
+        # the `.l#` gutter as a text prefix).
+        text_width_pt = max(72.0, _page_w_pt - 2 * _measure_left)
+
+    def _image_dims_pt(r):
+        if r.width_in and r.height_in:
+            w_pt, h_pt = r.width_in * 72.0, r.height_in * 72.0
+        else:
+            w_pt = text_width_pt
+            h_pt = w_pt * (r.grows / r.gcols) if r.gcols else 0.0
+        if w_pt > text_width_pt and w_pt > 0:
+            scale = text_width_pt / w_pt
+            w_pt *= scale
+            h_pt *= scale
+        return w_pt, h_pt
+
     lines = []                                            # None = forced page break
     for bi, b in enumerate(doc.blocks):
         for ev in hf_by_block.get(bi, ()):
@@ -987,6 +1176,8 @@ def _doc_to_pagelines(doc, printed):
             # that knows how full the page is, can decide.
             lines.append(('cond', b.heading or 1))
             continue
+        fi_pt = _printed_pm_fi_pt(b) if printed else None
+        first_line_of_block = True
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
         # core.merged_lines, the 2.0.0 split)
@@ -998,14 +1189,60 @@ def _doc_to_pagelines(doc, printed):
             if printed:
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
-                lines.append(PageLine(spans, soft=line.soft,
-                                      lead=_lead_pt(line.lead_48),
-                                      overprint=line.overprint))
+                own_lead = _lead_pt(line.lead_48)
+                extra = 0.0
+                if pending_sa is not None:
+                    extra += pending_sa
+                    pending_sa = None
+                if first_line_of_block and doc_sb and bi > 0:
+                    # no space-before on the document's own opening paragraph
+                    # -- nothing above it to space away from.
+                    extra += doc_sb
+                if extra:
+                    own_lead = (own_lead if own_lead is not None else default_lead_pt) + extra
+                # Round 19: exactly one pix tag, no other real text on this
+                # physical line (see _doc_to_pagelines's own docstring) ->
+                # an image PageLine instead of a text one. own_lead becomes
+                # the image's own height (+ whatever .psb/.psa extra was
+                # already computed above), reusing the pagination budget
+                # model unchanged.
+                pix_idx, other_text = None, False
+                if embed_images:
+                    for _text, _styles in spans:
+                        _tag = next((t for t in _styles if t[:3] == 'pix'
+                                    and t[3:].isdigit()), None)
+                        if _tag:
+                            if pix_idx is not None:
+                                pix_idx, other_text = None, True   # >1 tag: bail
+                                break
+                            pix_idx = int(_tag[3:])
+                        elif _text.strip():
+                            other_text = True
+                    r = pix_map.get(pix_idx) if pix_idx is not None else None
+                    if r is not None and r.ok and not other_text:
+                        w_pt, h_pt = _image_dims_pt(r)
+                        pl = PageLine([], soft=line.soft,
+                                     lead=h_pt + extra, overprint=line.overprint,
+                                     bi=bi, image=(pix_idx, w_pt, h_pt))
+                        lines.append(pl)
+                        first_line_of_block = False
+                        continue
+                pl = PageLine(spans, soft=line.soft, lead=own_lead,
+                             overprint=line.overprint,
+                             fi=(fi_pt if first_line_of_block else None), bi=bi)
+                lines.append(pl)
+                first_line_of_block = False
             else:
                 lines.extend(PageLine(w, soft=line.soft)
                              for w in _wrap_line(spans, MAX_COLS))
         if not printed and b.lines:
             lines.append([])                              # blank line between paragraphs
+        if printed and doc_sa and b.lines and not first_line_of_block:
+            # `not first_line_of_block`: this block actually appended at
+            # least one real PageLine (an empty-text block leaves it True,
+            # nothing to space away from). Carried to whatever PageLine
+            # comes next, however many sentinel entries away that is.
+            pending_sa = doc_sa
     if doc.footnotes and not printed:
         # Printed mode's own layout is handled above (period-authentic,
         # per-page); this end-of-document dump is Modern-only -- explicitly
@@ -1029,6 +1266,13 @@ def _doc_to_pagelines(doc, printed):
     # line pushed onto its own page ahead of a `.pa`.)
     default_lead = _printed_lead(doc) if printed else LEAD
     budget = (cap - 1) * default_lead
+    # round 17b (RULINGS-LEDGER row 5/6, register C8): `.sb` suppresses
+    # blank lines specifically at the TOP of a page -- WordStar's own
+    # pagination concern, not a text-content one, so it belongs in THIS
+    # loop (the only place that knows a page just started) rather than
+    # `_doc_to_pagelines`'s line-building pass above. `.sb` rides in
+    # doc.meta['formatting'] for free, same as every other item this round.
+    suppress_blanks = printed and bool(doc.meta.get('formatting', {}).get('suppress_blanks', False))
     pages, page, spent = [], [], 0.0
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
@@ -1066,6 +1310,9 @@ def _doc_to_pagelines(doc, printed):
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             if l is None:
                 continue
+        if (suppress_blanks and not page and not getattr(l, 'image', None)
+                and not any(t.strip() for t, _ in l)):
+            continue          # `.sb`: a blank line at the top of a page doesn't print
         if printed:
             spent += _cost(l)
         page.append(l)
@@ -1076,9 +1323,19 @@ def _doc_to_pagelines(doc, printed):
     # must survive: the MACHINE margin is uniform on every page, so strip only
     # the minimum leading-blank count seen on pages 2+ — anything beyond it on
     # any page is the author's layout. Trailing blanks are always machine.
+    # Round 19 (PIX images RULED IN): an image PageLine has no text
+    # segments (`[]`, by construction -- see the substitution above), so
+    # the blank-line tests below must check `.image` FIRST or an embedded
+    # picture sitting last in a short document (the real-corpus shape:
+    # every acceptance document's own pix tag is its own final content)
+    # reads as a trailing machine blank and gets silently popped off the
+    # page it was just placed on.
+    def _is_blank(l):
+        return not getattr(l, 'image', None) and not any(t.strip() for t, _ in l)
+
     def leading(pg):
         n = 0
-        while n < len(pg) and not any(t.strip() for t, _ in pg[n]):
+        while n < len(pg) and _is_blank(pg[n]):
             n += 1
         return n
     # ...but ONLY for a PRINT STREAM. Corrected 2026-08-03: this repair was
@@ -1094,17 +1351,17 @@ def _doc_to_pagelines(doc, printed):
                   else leading(pages[0])
         for pg in pages:
             del pg[:min(machine, leading(pg))]
-            while pg and not any(t.strip() for t, _ in pg[-1]):
+            while pg and _is_blank(pg[-1]):
                 pg.pop()
     elif printed and pages:
         # A document: keep leading blanks (authorial), drop trailing (machine).
         for pg in pages:
-            while pg and not any(t.strip() for t, _ in pg[-1]):
+            while pg and _is_blank(pg[-1]):
                 pg.pop()
     else:
         for pg in pages:
             del pg[:leading(pg)]
-            while pg and not any(t.strip() for t, _ in pg[-1]):
+            while pg and _is_blank(pg[-1]):
                 pg.pop()
     # Trailing empty pages produce blank sheets. The pop must run AFTER the
     # blank-stripping above — stripping is what hollows out a final page that
@@ -1113,6 +1370,62 @@ def _doc_to_pagelines(doc, printed):
     while len(pages) > 1 and not pages[-1]:
         pages.pop()
     return pages or [[]]
+
+
+def _toc_page_numbers(doc, pix_results=None, pictures='off'):
+    """{block_index: page_number} -- the REAL paginator's own answer for
+    which page each block's FIRST printed line landed on (round 18,
+    RULINGS-LEDGER row 4). `start_no` matches whatever page number
+    actually prints in the corner (`_emit_pdf_inner`'s own convention). A
+    `.tc`/`.ix` entry whose own block never reached a printed page (a
+    stray or malformed dot line, or an empty block) simply gets no entry
+    here -- `compile_toc`/`compile_index` (core.py) treat a missing key
+    as "no page number available", not a crash. Re-runs the SAME
+    `_doc_to_pagelines` pass emit_pdf's own printed branch uses -- one
+    extra pagination pass, paid once per TOC/Index-enabled conversion,
+    not per entry.
+
+    `pix_results`/`pictures` (round 19): threaded through so an embedded
+    picture's own vertical footprint shifts these page numbers exactly
+    the way it shifts the real render -- without this, TOC page numbers
+    could disagree with where the real PDF put things."""
+    pages = _doc_to_pagelines(doc, True, pix_results=pix_results, pictures=pictures)
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+    resolved = {}
+    for page_index, pg in enumerate(pages):
+        for ln in pg:
+            bi = getattr(ln, 'bi', None)
+            if bi is not None and bi not in resolved:
+                resolved[bi] = start_no + page_index
+    return resolved
+
+
+def _toc_index_pagelines(doc, page_numbers):
+    """Plain PageLines for the compiled TOC/Index section -- TOC before
+    Index (round 18, RULINGS-LEDGER row 4), each clearly headed, a TOC
+    entry indented two columns per level (`.tc`/`.tc1`-`.tc9`, WSFORMAT's
+    own outline levels). A page-number column is right-justified onto the
+    print measure when the resolved page number is not already inline
+    (an entry with no literal `#` got its number appended by
+    `core.compile_toc`/`compile_index`, plain text -- no special alignment
+    beyond what's already there; this keeps the simple case simple)."""
+    from .core import compile_toc, compile_index
+    lines = []
+    toc = compile_toc(doc, page_numbers)
+    if toc:
+        lines.append(PageLine([('TABLE OF CONTENTS', frozenset({'b'}))]))
+        lines.append(PageLine([]))
+        for level, text in toc:
+            lines.append(PageLine([('  ' * max(0, level - 1) + text, frozenset())]))
+        lines.append(PageLine([]))
+    idx = compile_index(doc, page_numbers)
+    if idx:
+        lines.append(PageLine([('INDEX', frozenset({'b'}))]))
+        lines.append(PageLine([]))
+        for text in idx:
+            lines.append(PageLine([(text, frozenset())]))
+    return lines
+
 
 def _coalesce(line):
     """Merge adjacent same-style segments into single text runs."""
@@ -1200,27 +1513,72 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     return ops
 
 
-def _sized(styles, size):
+def _sized(styles, size, roll_pt=None):
     """(point size, baseline rise) for a span set at `size`. Superscript is
     raised and reduced to 2/3 -- 8pt at the default 12, the ratio this emitter
-    has always used."""
+    has always used.
+
+    `roll_pt` (round 17, RULINGS-LEDGER row 3, register C22): the declared
+    `.sr` roll, ALREADY converted to points -- Printed's own domain only.
+    `None` (every Modern call site, and any caller that predates this)
+    keeps the exact prior fixed 3/-2 rise, same "reader owns presentation"
+    doctrine as every other Printed-only vertical-space item. WSFORMAT's
+    own text: "[.SR] The increments... which the carriage is to roll up
+    OR DOWN for subscript and superscript printing" -- ONE symmetric
+    amount, so a real `.sr` corrects BOTH the sup rise (the old hardcoded
+    +3 happened to already look plausible) and the sub rise (the old -2
+    was never spec-derived at all -- confirmed empirically byte-identical
+    across `.sr 0`/`.sr 40`/absent, i.e. never actually read)."""
     if 'sup' in styles:
-        return max(1, round(size * 2 / 3)), 3
+        return max(1, round(size * 2 / 3)), (roll_pt if roll_pt is not None else 3)
     if 'sub' in styles:
-        return max(1, round(size * 2 / 3)), -2
+        return max(1, round(size * 2 / 3)), (-roll_pt if roll_pt is not None else -2)
     return size, 0
 
 
-def _rules(styles, text, x, y, w):
+def _rules(styles, text, x, y, w, continuous=True):
     """Underline / strikethrough as stroked paths (PDF has no text attribute
-    for either), for a span occupying `w` points from `x`."""
+    for either), for a span occupying `w` points from `x`.
+
+    `continuous` (round 17b, RULINGS-LEDGER row 5/6, register C21): WS3.3's
+    own Reference Manual, ch.7 "Underscoring": "Use ^PS before and after any
+    letters, words, or phrases that you want underlined... ^PS does NOT
+    underline blank spaces" -- the plain toggle's HONEST default is
+    characters only. ".UL ON" is the file's own request for the manual's
+    OWN "continuous underlining of both characters and spaces" ("second
+    method": typing underline characters INTO the spaces, which `.UL`
+    automates at print time). Modern's own call site never passes this
+    (stays `True`, its prior and only behavior, unaffected either way) --
+    Printed's own two call sites pass the document's actual `.ul` state,
+    previously read nowhere (confirmed empirically byte-identical across
+    `.ul on`/`.ul off`/absent)."""
     ops = []
     if not text.strip():
         return ops
-    if 'u' in styles:
-        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
     if 'strike' in styles:
         ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
+    if 'u' not in styles:
+        return ops
+    if continuous or ' ' not in text:
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
+        return ops
+    # Break the rule at each run of space characters -- approximated by
+    # character-count proportion of `w` (WordStar printed text is fixed-
+    # pitch or near-uniform within one styled run; sub-point imprecision at
+    # a word boundary is not visible on paper or screen).
+    n = len(text)
+    per_char = w / n
+    i = 0
+    while i < n:
+        if text[i] == ' ':
+            i += 1
+            continue
+        j = i
+        while j < n and text[j] != ' ':
+            j += 1
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
+                   % (x + i * per_char, y - 1.5, x + j * per_char, y - 1.5))
+        i = j
     return ops
 
 
@@ -1326,7 +1684,8 @@ def _split_indent(segs):
 
 
 def _line_ops_printed(segs, left, y, size, res, tz_state,
-                      col_state=None, colour_map=None):
+                      col_state=None, colour_map=None, roll_pt=None, fi=None,
+                      ul_continuous=False):
     """One laid-out line, on the document's own horizontal grid.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -1366,7 +1725,12 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     (The exception only fires for a span that HAS a font block: without one
     the run's pitch already IS the document's, so it cannot change a fontless
     byte.)"""
-    ops, x = [], left
+    # round 17 (RULINGS-LEDGER row 5/7): `.pm`'s first-line indent -- a
+    # column position in the SAME absolute frame `.lm`/`.po` use (WSFORMAT
+    # semantics, matching round 6's own RTF `\fi` reading), so it shifts the
+    # line's own STARTING point; the typed leading-whitespace handling below
+    # still measures relative to wherever the line begins.
+    ops, x = [], left + (fi or 0)
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
         # LJ6DTP -- the same gate covers its character substitutions.
@@ -1382,7 +1746,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         if pctl:
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
-        pt, rise = _sized(styles, size_here)
+        pt, rise = _sized(styles, size_here, roll_pt)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         # Driver-aware colour: a span tagged colourN under a driver whose
@@ -1458,7 +1822,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                    (font.encode(), pt, rise, want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
-                ops += _rules(styles, piece, x, y, pw)
+                ops += _rules(styles, piece, x, y, pw, ul_continuous)
                 x += pw
             continue
         if indent:
@@ -1478,14 +1842,15 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
                        (font.encode(), pt, rise, want, x, y, _esc(text)))
             tz_state[0] = want
-        ops += _rules(styles, text, x, y, w)
+        ops += _rules(styles, text, x, y, w, ul_continuous)
         x += w
     return ops
 
 
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
-                 colour_map=None):
+                 colour_map=None, roll_pt=None, ul_continuous=False,
+                 line_no_interval=None):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -1519,6 +1884,35 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         if n and not prev_overprint:
             y -= getattr(line, 'lead', None) or lead
         prev_overprint = getattr(line, 'overprint', False)
+        # Round 19 (PIX images RULED IN, ledger PIX row): an image
+        # PageLine (see _doc_to_pagelines) draws its XObject instead of
+        # text -- `y` has already advanced by the image's own full height
+        # (its `lead`, above) so the image exactly fills the gap that
+        # advance just created: bottom edge at the CURRENT y, top edge
+        # `h_pt` above it. `/Im<N>` is registered in every page's
+        # /XObject resources by emit_pdf (round 19), one entry per
+        # embedded pix index, shared exactly like the /Font dict already is.
+        img = getattr(line, 'image', None)
+        if img is not None:
+            pix_idx, w_pt, h_pt = img
+            ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
+                      % (w_pt, h_pt, left, y, pix_idx))
+            continue
+        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
+        # gutter -- every Nth physical line on the page (1-based, N =
+        # doc.meta['line_numbering']'s interval, WordStar's own numbering
+        # convention -- `.l# 5` numbers lines 5, 10, 15...), right-aligned
+        # a few points left of the text margin. Blank lines are never
+        # numbered (nothing to count on paper). Printed only; the gutter
+        # itself never shifts `left` -- it draws in the margin WordStar's
+        # own `.po`/`.lm` already reserved, same as a running head does.
+        if (line_no_interval and (n + 1) % line_no_interval == 0
+                and any(t.strip() for t, _ in _coalesce(line))):
+            label = str(n + 1)
+            gutter_font = res.ref('Courier')
+            gx = left - 4 - len(label) * size * 0.6
+            ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET'
+                      % (gutter_font.encode(), size, gx, y, label.encode()))
         segs = []
         for text, styles in _coalesce(line):
             if not text:
@@ -1527,7 +1921,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                 text, styles, fonts, size)
             segs.append((written, styles, family, size_here, entry))
         ops += _line_ops_printed(segs, left, y, size, res, tz_state,
-                                 col_state, colour_map or {})
+                                 col_state, colour_map or {}, roll_pt,
+                                 getattr(line, 'fi', None), ul_continuous)
     return b'\n'.join(ops)
 
 
@@ -1935,10 +2330,18 @@ def emit_pdf(doc, mode='printed', **options):
     printed = mode == 'printed' or _printed(doc)
     page_settings = options.get('page_settings')
     saved_page = None
-    if page_settings and doc.meta.get('page') is not None:
-        from .core import effective_page
-        saved_page = doc.meta['page']
-        doc.meta['page'] = effective_page(saved_page, page_settings)
+    if doc.meta.get('page') is not None:
+        page = doc.meta['page']
+        if page_settings:
+            from .core import effective_page
+            page = effective_page(page, page_settings)
+        # round 17 (RULINGS-LEDGER row 2): `.pr or=l` -- Printed only, same
+        # doctrine as every other Printed-only geometry item.
+        if printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape':
+            page = _landscape_page(page)
+        if page is not doc.meta['page']:
+            saved_page = doc.meta['page']
+            doc.meta['page'] = page
     try:
         return _emit_pdf_inner(doc, printed, options)
     finally:
@@ -1947,12 +2350,41 @@ def emit_pdf(doc, mode='printed', **options):
 
 
 def _emit_pdf_inner(doc, printed, options):
+    # round 17 (RULINGS-LEDGER row 1): the "+ toggle flag" half of the
+    # headers/footers/page-numbers ruling -- default ON per the ruled
+    # flag defaults (register, "Flag UI + defaults" entry: "headers/
+    # footers ON"). `_running_ops` already treats `headers=None`/
+    # `footers=None` as "nothing to render" (its own default), so turning
+    # the flag off just means never passing the real values through.
+    show_headers = options.get('headers', True)
+    # Round 19 (PIX images RULED IN, ledger PIX row): PRINTED PDF only --
+    # Modern PDF is `_modern_streams`, a wholly separate reflow pipeline
+    # (mirrors Modern RTF); embedding there is a documented scope cut this
+    # round, not attempted. `pictures` off (or no results) costs nothing:
+    # `_doc_to_pagelines` skips the whole substitution when embed_images
+    # is falsy, byte-identical to before this round.
+    pictures = options.get('pictures', 'off')
+    pix_results = options.get('pix_results') or []
     if printed:
-        pages = _doc_to_pagelines(doc, printed)
+        pages = _doc_to_pagelines(doc, printed, pix_results=pix_results, pictures=pictures)
         top = _printed_top(doc)
         lead = _printed_lead(doc)
         size = _printed_size(doc)
         left = _printed_left(doc, size)
+        roll_pt = _printed_roll_pt(doc)
+        # round 17b (RULINGS-LEDGER row 5/6, register C21): the HONEST
+        # default -- see `_rules`'s own docstring for the WS3.3 manual
+        # citation. `.ul` rides in doc.meta['formatting'] for free, same as
+        # `.sr`/`.pr` (no exclusion in the formatting-dict comprehension).
+        ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
+        # interval, flag-gated -- default ON (same shape as `--headers`),
+        # but the FEATURE only ever fires when the document itself
+        # declared `.l#` (line_numbering is None otherwise): the flag's
+        # job is letting a caller SUPPRESS what the file asked for, not
+        # inventing numbering a silent file never requested.
+        line_no_interval = (doc.meta.get('line_numbering')
+                            if options.get('line_numbers', True) else None)
         page_h = _resolved_page_height(doc, printed)
         fonts = doc.fonts
         colour_map = _COLOUR_GRAY_LJ6DTP if (
@@ -1963,10 +2395,31 @@ def _emit_pdf_inner(doc, printed, options):
         for page_index, pl in enumerate(pages):
             running = _running_ops(doc, start_no + page_index, page_h, lead,
                                    size, left, printed,
-                                   headers=getattr(pl, 'headers', None),
-                                   footers=getattr(pl, 'footers', None))
+                                   headers=(getattr(pl, 'headers', None) if show_headers else {}),
+                                   footers=(getattr(pl, 'footers', None) if show_headers else {}))
             streams.append(_page_stream(pl, top, page_h, lead, size, left,
-                                        running, fonts, res, colour_map))
+                                        running, fonts, res, colour_map, roll_pt,
+                                        ul_continuous, line_no_interval))
+        # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
+        # pages at the document's own end (Jon: "It should probably export
+        # in all formats even though non-paged ones couldn't be
+        # referenced"), TOC before Index. `--toc off` (the ruled default)
+        # leaves the page count exactly as it always was. These extra
+        # pages carry no running head/footer of their own -- a documented
+        # simplification, not the document's own running content replayed
+        # past its last real page.
+        if options.get('toc', False) and (doc.toc_entries or doc.index_entries):
+            toc_lines = _toc_index_pagelines(
+                doc, _toc_page_numbers(doc, pix_results=pix_results, pictures=pictures))
+            cap = max(1, _printed_cap(doc))
+            for chunk_start in range(0, len(toc_lines), cap):
+                chunk = toc_lines[chunk_start:chunk_start + cap]
+                page_index = len(streams)
+                running = _running_ops(doc, start_no + page_index, page_h, lead,
+                                       size, left, printed, headers={}, footers={})
+                streams.append(_page_stream(chunk, top, page_h, lead, size, left,
+                                            running, fonts, res, colour_map, roll_pt,
+                                            ul_continuous, None))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,
@@ -2006,6 +2459,41 @@ def _emit_pdf_inner(doc, printed, options):
         next_num += 1
     font_dict = b' '.join(b'/%s %d 0 R' % (f.encode(), n) for f, n in font_objs.items())
 
+    # Round 19 (PIX images RULED IN, ledger PIX row): one Image XObject per
+    # embedded pix result, built from pix.decode()'s own RGB rows (NOT the
+    # PNG bytes RTF/HTML use -- PDF's native image mechanism needs no PNG
+    # container at all, and this avoids writing a PNG decoder just to
+    # re-read what pix.py already decoded once). Always DeviceRGB/8bpc
+    # (even for a mono source) -- simpler and correct for every source
+    # depth; a real size optimisation (1-bit for mono, mirroring to_png's
+    # own choice) is left for later, noted rather than silently assumed.
+    # Shared across every page exactly like `font_dict` already is --
+    # an XObject unused on a given page costs nothing per the PDF spec.
+    image_objs = {}                                       # pix index -> obj num
+    if printed and pictures in ('embed', 'export') and pix_results:
+        for r in pix_results:
+            if not r.ok or r.raw_bytes is None:
+                continue
+            try:
+                gcols, grows, rgb_rows = _pixdecode.decode(r.raw_bytes)
+            except _pixdecode.PixFormatError:
+                continue
+            raw = bytearray()
+            for row in rgb_rows:
+                for px in row:
+                    raw += bytes(px)
+            compressed = _zlib.compress(bytes(raw), 6)
+            objs.append((next_num,
+                        b'<< /Type /XObject /Subtype /Image /Width %d /Height %d '
+                        b'/ColorSpace /DeviceRGB /BitsPerComponent 8 '
+                        b'/Filter /FlateDecode /Length %d >>\nstream\n%s\nendstream'
+                        % (gcols, grows, len(compressed), compressed)))
+            image_objs[r.index] = next_num
+            next_num += 1
+    xobject_dict = (b' /XObject << %s >>' % b' '.join(
+                        b'/Im%d %d 0 R' % (idx, n) for idx, n in image_objs.items())
+                   if image_objs else b'')
+
     page_nums, content_nums = [], []
     for _ in range(n_pages):
         page_nums.append(next_num); next_num += 1
@@ -2018,8 +2506,8 @@ def _emit_pdf_inner(doc, printed, options):
     for pnum, cnum, stream in zip(page_nums, content_nums, streams):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
-                     b'/Resources << /Font << %s >> >> /Contents %d 0 R >>'
-                     % (page_w, page_h, font_dict, cnum)))
+                     b'/Resources << /Font << %s >>%s >> /Contents %d 0 R >>'
+                     % (page_w, page_h, font_dict, xobject_dict, cnum)))
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))
 

@@ -21,7 +21,7 @@ BANNER = r"""        __       __      __       __
 # because the name never changes; no .flf machinery needed.
 
 
-from . import core, emit
+from . import core, emit, pictures
 from .convert import DEFAULT_NOTE_KINDS   # module attr, not the re-exported convert()
 
 def diagnose(path, data):
@@ -103,6 +103,38 @@ def main(argv=None):
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
+    ap.add_argument('--headers', choices=('on', 'off'), default='on',
+                    help='headers, footers, and page numbers in the paged '
+                         'surfaces (Printed/Native PDF and RTF). Default: on')
+    ap.add_argument('--line-numbers', choices=('on', 'off'), default='on',
+                    help="the document's own .l# line-number gutter in the "
+                         'paged surfaces (Printed/Native PDF and RTF); no '
+                         'effect on a document that never set .l#. Default: on')
+    ap.add_argument('--toc', choices=('on', 'off'), default='off',
+                    help='compile a Table of Contents (.tc) and Index (.ix) '
+                         'section at the document end, in every format; the '
+                         'two paged surfaces (Printed PDF and RTF) resolve '
+                         'each entry to a real page number, every other '
+                         'format lists entries without one. Default: off')
+    ap.add_argument('--inline-styling', choices=('on', 'off'), default='on',
+                    help='inline colour (^A) and font-size (^B... a symmetric '
+                         'type-2 font block) changes the author placed mid-'
+                         'text -- RTF gets \\cf from a 16-colour screen '
+                         'palette and \\fsN; HTML gets a span with color/'
+                         'font-size. Default: on')
+    ap.add_argument('--pictures', choices=('off', 'embed', 'export'), default='embed',
+                    help='WS5+ PIX image references (register, "PIX images '
+                         'RULED IN"). embed (DEFAULT): RTF/PDF native '
+                         'embedding, HTML data URI, MD exports files + a '
+                         'one-line stderr note (MD has no true embed). '
+                         'export: PNG files under <docname>-images/ beside '
+                         'the output, relative links from HTML/MD; RTF/PDF '
+                         'still embed (no portable reference mechanism) AND '
+                         'the PNGs are also written. off: the plain '
+                         '[image: NAME] placeholder, as before this flag '
+                         'existed. A missing/unreadable .PIX is reported on '
+                         'stderr (name + probed locations) and never fails '
+                         'the conversion; the placeholder is kept either way.')
     ap.add_argument('--no-notes', action='store_true',
                     help='omit footnotes, endnotes and annotations from the output')
     ap.add_argument('--comments', action='store_true',
@@ -223,11 +255,21 @@ def main(argv=None):
             doc.meta['page'] = core.effective_page(doc.meta['page'],
                                                    page_settings)
         base = os.path.splitext(os.path.basename(path))[0]
+        # Round 19 (PIX images RULED IN, ledger PIX row): resolved/decoded
+        # ONCE per document, reused across every requested format (each
+        # PIX file is read and decoded at most once regardless of how
+        # many -t flags this run carries). `path` is the real filesystem
+        # location resolution searches near -- the CLI always has one; a
+        # library caller without a real path passes None (every tag then
+        # reports 'unresolved', ctrlkd.pictures' own documented behavior).
+        pix_results = (pictures.resolve_document_pictures(doc, path)
+                       if doc.graphics else [])
+        if pix_results and a.pictures != 'off':
+            # 'off' means the user doesn't want the feature at all -- no
+            # point reporting misses for pictures nothing will render.
+            pictures.report_misses(pix_results, path, path)
         for fmt in formats:
             reg = emit.get_emitter(fmt)
-            out = reg['fn'](doc, a.mode, title=base, notes=notes,
-                            styles=not a.no_styles, fonts_target=a.fonts,
-                            note_refs=a.note_refs)
             if a.output:
                 dest = a.output
             else:
@@ -235,6 +277,42 @@ def main(argv=None):
                                     base + reg['ext'])
                 if a.outdir:
                     os.makedirs(a.outdir, exist_ok=True)
+            # --pictures export writes PNG files beside the output for
+            # every applicable format; MD's own embed mode degrades to
+            # the same export-and-link behavior (ruled: MD has no true
+            # embed) -- ONE stderr note for that degradation, here, not
+            # inside emit_markdown (library functions stay silent, same
+            # convention as every other emit_* degradation this session).
+            image_links = None
+            # MD's embed-degrades-to-export only matters in MODERN mode --
+            # a Printed-mode MD body is emit_text's fenced facsimile
+            # (never consults image_links at all, by design: a fence is
+            # the emitter's own "verbatim" promise), so exporting files
+            # and printing the degradation note for it would be pure
+            # waste, not a correctness issue but a confusing one.
+            need_export = (a.pictures == 'export'
+                          or (fmt == 'md' and a.pictures == 'embed'
+                              and a.mode == 'modern'))
+            if need_export and any(r.ok for r in pix_results):
+                images_dir = os.path.join(os.path.dirname(dest) or '.',
+                                          base + '-images')
+                written = pictures.write_export_images(pix_results, images_dir)
+                image_links = {i: f'{base}-images/{name}'
+                               for i, name in written.items()}
+                if fmt == 'md' and a.pictures == 'embed' and written:
+                    print(f'ctrl-kd: {path}: Markdown has no true image '
+                          f'embedding -- exporting {len(written)} PNG '
+                          f"file(s) to {os.path.basename(images_dir)}/ "
+                          f'and linking to them instead (degradation per '
+                          f'the pictures flag ruling)', file=sys.stderr)
+            out = reg['fn'](doc, a.mode, title=base, notes=notes,
+                            styles=not a.no_styles, fonts_target=a.fonts,
+                            note_refs=a.note_refs, headers=a.headers == 'on',
+                            line_numbers=a.line_numbers == 'on',
+                            toc=a.toc == 'on',
+                            inline_styling=a.inline_styling == 'on',
+                            pictures=a.pictures, pix_results=pix_results,
+                            image_links=image_links)
             if isinstance(out, bytes):           # binary formats (e.g. pdf)
                 with open(dest, 'wb') as f:
                     f.write(out)

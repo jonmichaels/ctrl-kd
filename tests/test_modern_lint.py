@@ -946,8 +946,34 @@ def _md_deep_indent_lines(md):
     is the general form of the hazard class; it covers verse/stanza lines
     (uniformly flush per the follow-up ruling) the same way it covers a
     centred block's stripped padding -- one check, not a special case per
-    content type."""
-    return [l for l in md.split('\n') if l[:4] == '    ']
+    content type.
+
+    Round 17b (printed-fidelity, the third gate-matches-content instance
+    after LAYOUT.WS's width-in-prose and fontcrib's backslash-in-prose):
+    a FENCED block (```` ``` ````...```` ``` ````) is the emitter's OWN
+    "this is verbatim" declaration -- `emit_markdown`'s printed/
+    printstream branch wraps the WHOLE document in one such fence. Content
+    INSIDE a fence is exempt: the fence already tells a CommonMark reader
+    not to read anything inside it as a nested indented-code-block signal,
+    and a verbatim reference table (ASCII art, a byte-value chart) can
+    legitimately open with 4+ spaces as W4P3 of what it is showing. The
+    gate must scope to the FORMAT'S OWN syntax (a line that is exactly
+    ` ``` `, CommonMark's own fence marker) rather than pattern-matching
+    content that merely looks indented -- same root fix both prior
+    instances made, generalised here rather than special-cased to this
+    one document's own shape."""
+    lines = md.split('\n')
+    out = []
+    in_fence = False
+    for l in lines:
+        if l == '```':
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if l[:4] == '    ':
+            out.append(l)
+    return out
 
 
 def _md_trailing_backslash_lines(md):
@@ -1198,7 +1224,14 @@ def _rtf_printed_vertical_space_expected(doc):
             continue
         sl_values.add(emit._rtf_sl_twips(emit._rtf_block_lead_48(doc, b)))
         if b.para_margin is not None:
+            # round 17 (ledger row 8): the style-slot lookup alone went
+            # stale the moment emit_rtf's own printed branch gained the
+            # b.left_margin/right_margin fallback for a WS4/dot-state-only
+            # margin -- mirrored here so this gate checks what the emitter
+            # ACTUALLY does, not what it did before that round.
             li = margins.get(b.style_id, (0, 0))[0]
+            if not li and b.left_margin:
+                li = round(b.left_margin * emit._RTF_TWIPS_PER_COL)
             fi_values.add(emit._rtf_pm_fi_twips(b, li))
     sb, sa = emit._rtf_doc_spacing_twips(doc)
     return sl_values, fi_values, (sb, sa)

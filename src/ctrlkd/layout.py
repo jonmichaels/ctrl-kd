@@ -373,7 +373,21 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
             items.append({'kind': 'hf', 'which': kind, 'line': lno,
                           'text': txt})
         if b.kind == 'pagebreak':
-            items.append({'kind': 'break'})
+            # Round 20 (slate items 5/11, engine half -- Modern layout
+            # marks): `b.origin` ('ff' for a literal form-feed byte, None
+            # for an ordinary `.pa`/DOT_PAGEBREAK dot command) already
+            # existed on the Block object but was dropped here -- a
+            # renderer's own Show Invisibles couldn't tell "the author
+            # typed .pa" from "this was a raw ^L in a print stream" for a
+            # Modern-flow break, even though the PRINTED path (doc.blocks
+            # itself) always had the answer. The wire string matches
+            # sr's own AnnotatedLayout.swift convention exactly (its
+            # InkKind.pageBreakOrigin: "\u{0C}" for .ff, ".pa" otherwise)
+            # so the two engines' layout JSON stays parity-testable as
+            # data (this module's own standing contract, see the file
+            # header) -- not just internally consistent within one engine.
+            items.append({'kind': 'break',
+                          'origin': '\x0c' if b.origin == 'ff' else '.pa'})
             continue
         if b.kind == 'condpage':
             items.append({'kind': 'cond', 'lines': b.heading or 1})

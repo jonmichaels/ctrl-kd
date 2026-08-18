@@ -497,6 +497,78 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     return term_frac < VERSE_TERMINAL_FRACTION
 
 
+# Round 20b (slate item 13): a screenplay slugline -- WSFORMAT gives no
+# dot command for one; real screenplays convention it ALL CAPS at a
+# line's own start, an optional 1-4-digit scene number, and an optional
+# WordStar merge-var scene marker (`&n/s&`, `&scene&`, ...) sitting just
+# before it (slate's "merge-var scene markers" signal folded into the
+# SAME anchor rather than treated as an independent trigger -- see
+# detect_screenplay_blocks's own docstring for why). Case-SENSITIVE: the
+# convention is uppercase; a lowercase "int." is not this and must not
+# match.
+_SCREENPLAY_SLUGLINE_RE = re.compile(
+    r'^[ \t]*\d{0,4}[ \t]*(?:&[^&\r\n]{1,24}&[ \t]*)?'
+    r'(?:INT\.|EXT\.|INT\.?/EXT\.|I/E\.)[ \t]')
+
+# How many blocks a confirmed slugline's own scene REGION can grow across
+# before the detector gives up looking for a closing signal (the next
+# slugline, or a heading). Generous on purpose -- see the false-positive
+# argument in detect_screenplay_blocks's own docstring for why a large
+# number here is still safe.
+_SCREENPLAY_MAX_REGION_BLOCKS = 40
+
+
+def _block_has_slugline(b: Block) -> bool:
+    for line in b.lines:
+        text = ''.join(sp.text for sp in line.spans)
+        if _SCREENPLAY_SLUGLINE_RE.match(text):
+            return True
+    return False
+
+
+def detect_screenplay_blocks(doc: Document) -> frozenset:
+    """Block indices that read as part of a screenplay-formatted scene,
+    for Modern's verse-class (ladder-preserving) treatment -- slate item
+    13. The ANCHOR is a genuine slugline (`_block_has_slugline`); once
+    found, its scene's REGION grows forward to cover the
+    centered-CHARACTER/indented-dialogue/parenthetical ladder and the
+    action lines around it, without separately re-checking each of THOSE
+    blocks' own shape against the other three named signals (centered-
+    character-over-dialogue, `.rr`/`.lm`/`.rm` churn) -- Jon's own ruling
+    when this was scoped: "a partial detector (sluglines-only, say) that
+    clears zero-FP beats a clever one that doesn't." Region growth stops
+    at the NEXT slugline (a new scene, covered by its own iteration), a
+    heading block (the containing article's own section break), a
+    pagebreak/condpage block, or `_SCREENPLAY_MAX_REGION_BLOCKS` blocks,
+    whichever comes first.
+
+    FALSE-POSITIVE ARGUMENT for why the region can afford to be broad:
+    region-growing NEVER RUNS at all in a document that never matched a
+    slugline in the first place -- and the slugline pattern itself is
+    corpus-swept (2026-08-18, the full 86-file Sawyer WS7 tree) to match
+    EXACTLY ONE real document (SCRIPT.WS, an article about scripting
+    WordStar for screenplays, containing two worked-example scenes) and
+    nothing else. A false positive in the region logic is therefore only
+    reachable inside a document that independently, and separately,
+    contains a real slugline-shaped line -- there is no path to one in
+    ordinary prose."""
+    slugline_bi = {bi for bi, b in enumerate(doc.blocks)
+                   if b.kind == 'para' and _block_has_slugline(b)}
+    if not slugline_bi:
+        return frozenset()
+    region = set()
+    n = len(doc.blocks)
+    for start in slugline_bi:
+        region.add(start)
+        end = min(n, start + 1 + _SCREENPLAY_MAX_REGION_BLOCKS)
+        for bi in range(start + 1, end):
+            b = doc.blocks[bi]
+            if b.kind != 'para' or b.heading or bi in slugline_bi:
+                break
+            region.add(bi)
+    return frozenset(region)
+
+
 def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = False,
                         convention_indent: int = None) -> list:
     """`merged_lines(block)` grouped into Modern paragraph units.
@@ -2199,7 +2271,8 @@ def _font_entry(w, h, style, offset):
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
-                  font_at=(), fonts=(), pctl_at=(), colour_at=()) -> list:
+                  font_at=(), fonts=(), pctl_at=(), colour_at=(),
+                  pix_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -2238,6 +2311,11 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     # renderers can replace it with the width the control declares while
     # reading modes show it verbatim.
     pending_pctl = sorted(pctl_at)
+    # pix (inset graphic) placeholders, same mechanism as pctl: one span for
+    # the whole "[image: NAME]" string, tagged 'pix<N>' where N indexes
+    # doc.graphics -- a renderer that wants to embed the real image finds
+    # both the span (to replace) and the path (to resolve/decode) this way.
+    pending_pix = sorted(pix_at)
     i = 0
     while i < len(raw) or pending or pending_fonts or pending_colours:
         while pending_pctl and pending_pctl[0][0] <= i < len(raw):
@@ -2245,6 +2323,12 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             flush()
             text = raw[i:i + count].decode(encoding, 'replace')
             spans.append(Span(text, frozenset(active | {'pctl%d' % hmi})))
+            i += count
+        while pending_pix and pending_pix[0][0] <= i < len(raw):
+            _, idx, count = pending_pix.pop(0)
+            flush()
+            text = raw[i:i + count].decode(encoding, 'replace')
+            spans.append(Span(text, frozenset(active | {'pix%d' % idx})))
             i += count
         while pending_fonts and pending_fonts[0][0] <= i:
             _, fidx = pending_fonts.pop(0)
@@ -2832,9 +2916,19 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 path = bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                idx = len(graphics)
                 graphics.append(path)
                 name = path.replace('\\', '/').rsplit('/', 1)[-1] or path
-                out += b'[image: ' + name.encode(encoding, 'replace') + b']'
+                # Marked exactly like a 0x0F print control's display string
+                # (see the pctl mark below): one span tagged 'pix<N>' so a
+                # renderer can find BOTH the placeholder text and, via N,
+                # the resolved .PIX path in doc.graphics -- reading modes
+                # (and any format/mode combination that can't or won't
+                # embed) show the placeholder verbatim, the same text as
+                # before this mark existed. Round 19 (PIX images RULED IN).
+                placeholder = b'[image: ' + name.encode(encoding, 'replace') + b']'
+                marks.setdefault(len(out), []).append(('pix', idx, len(placeholder)))
+                out += placeholder
             elif cmd == 0x0E:                                     # index item
                 # An inline indexed PHRASE. WordStar prints the phrase in the
                 # body -- the index ENTRY is the non-printing part -- so
@@ -3577,6 +3671,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         font_at = []
         pctl_at = []
         colour_at = []
+        pix_at = []
         for rel, m in line_marks:
             if m[0] == 'softpage':
                 # NOT a block, NOT a break: the editor drops these wherever the
@@ -3643,9 +3738,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 pctl_at.append((rel, m[1], m[2]))
             elif m[0] == 'colour':
                 colour_at.append((rel, m[1]))
+            elif m[0] == 'pix':
+                pix_at.append((rel, m[1], m[2]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
-                              pctl_at, colour_at)
+                              pctl_at, colour_at, pix_at)
         if pending_marks and spans:
             # a content line arrived: deferred dot-comment marks land at
             # its head, the position the comment line occupied
@@ -4059,6 +4156,41 @@ def effective_page(page, settings):
         eff.get('pl_lines', DEFAULT_PL_LINES), eff.get('mt_lines', DEFAULT_MT_LINES),
         eff.get('mb_lines', DEFAULT_MB_LINES), eff.get('lh_48', DEFAULT_LH_48))
     return eff
+
+
+def _toc_index_display(text, block_index, page_numbers):
+    """One entry's display text -- WSFORMAT's own `#` convention for `.tc`
+    ("A '#' indicates where the page number is to go in the entry"),
+    applied to `.ix` too for the same reason (an index entry that happens
+    to carry a literal `#` gets the same substitution; one that doesn't
+    still gets its page number appended, matching the common index
+    convention "Term ... 42"). `page_numbers` ({block_index: page number},
+    from the REAL paginator) is None for every non-paged format (HTML,
+    Markdown, Text, Modern RTF) -- `#` is simply dropped there: honest
+    text and ordering, no page reference a non-paged format could ever
+    resolve."""
+    if page_numbers is None:
+        return text.replace('#', '').rstrip()
+    pn = page_numbers.get(block_index)
+    if '#' in text:
+        return text.replace('#', str(pn) if pn is not None else '')
+    if pn is not None:
+        return f'{text} {pn}'
+    return text
+
+
+def compile_toc(doc, page_numbers=None):
+    """[(level, display_text)] from `doc.toc_entries`. Register C7."""
+    return [(level, _toc_index_display(text, block_index, page_numbers))
+           for level, text, block_index in doc.toc_entries]
+
+
+def compile_index(doc, page_numbers=None):
+    """[display_text] from `doc.index_entries` -- same `#`/page-number
+    resolution as `compile_toc`, flattened (an index entry carries no
+    level). Register C6."""
+    return [_toc_index_display(text, block_index, page_numbers)
+           for text, block_index in doc.index_entries]
 
 
 def trailing_blank_lines(block) -> int:
