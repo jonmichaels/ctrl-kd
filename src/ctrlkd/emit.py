@@ -2053,6 +2053,21 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             continue
         li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
+            # round 17 (RULINGS-LEDGER row 8, register C9b/2026-08-17 point 8):
+            # `direct_margins` is keyed by STYLE SLOT only (`_rtf_direct_margins`
+            # reads `left_margin_hmi`/`right_margin_hmi` off `doc.styles`
+            # entries) -- a WS4 document (no style table at all) or a WS5+
+            # document setting bare `.lm`/`.rm` with no style selected got
+            # li=ri=0 here regardless of the running dot-state. `b.left_margin`/
+            # `right_margin` are the block's own RESOLVED column value
+            # (`core.py`'s `_new_block`: `style_fmt.get(..., fmt.get(...))` --
+            # style already wins over dot-state there), so falling back to them
+            # ONLY when the style lookup produced nothing keeps that precedence
+            # while finally consuming the running state Printed RTF ignored.
+            if not li and b.left_margin:
+                li = round(b.left_margin * _RTF_TWIPS_PER_COL)
+            if not ri and b.right_margin:
+                ri = round(b.right_margin * _RTF_TWIPS_PER_COL)
             # physical lines: \line at every printed break, soft or hard
             lines = [rtf_seg(line.spans, b) for line in b.lines]
             if b.heading:
