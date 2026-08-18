@@ -997,14 +997,20 @@ class PageLine(list):
     `_doc_to_pagelines`), so the existing pagination cost model
     (`_cost`/`spent`/`budget`) accounts for both with no change to itself."""
 
-    __slots__ = ('soft', 'lead', 'overprint', 'fi')
+    # `bi` (round 18, ledger row 4): the source Block's own index in
+    # doc.blocks, for `_toc_page_numbers` to resolve which page a
+    # `.tc`/`.ix` entry's own block landed on -- the REAL paginator's
+    # answer, not an estimate. None for a line this emitter MAKES rather
+    # than reads (matches `lead`'s own "furniture" convention).
+    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi')
 
-    def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None):
+    def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None, bi=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
                                         # at THIS line's baseline
         self.lead = lead
+        self.bi = bi
         self.fi = fi
 
 
@@ -1101,7 +1107,7 @@ def _doc_to_pagelines(doc, printed):
                     own_lead = (own_lead if own_lead is not None else default_lead_pt) + extra
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
-                             fi=(fi_pt if first_line_of_block else None))
+                             fi=(fi_pt if first_line_of_block else None), bi=bi)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -1231,6 +1237,57 @@ def _doc_to_pagelines(doc, printed):
     while len(pages) > 1 and not pages[-1]:
         pages.pop()
     return pages or [[]]
+
+
+def _toc_page_numbers(doc):
+    """{block_index: page_number} -- the REAL paginator's own answer for
+    which page each block's FIRST printed line landed on (round 18,
+    RULINGS-LEDGER row 4). `start_no` matches whatever page number
+    actually prints in the corner (`_emit_pdf_inner`'s own convention). A
+    `.tc`/`.ix` entry whose own block never reached a printed page (a
+    stray or malformed dot line, or an empty block) simply gets no entry
+    here -- `compile_toc`/`compile_index` (core.py) treat a missing key
+    as "no page number available", not a crash. Re-runs the SAME
+    `_doc_to_pagelines` pass emit_pdf's own printed branch uses -- one
+    extra pagination pass, paid once per TOC/Index-enabled conversion,
+    not per entry."""
+    pages = _doc_to_pagelines(doc, True)
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+    resolved = {}
+    for page_index, pg in enumerate(pages):
+        for ln in pg:
+            bi = getattr(ln, 'bi', None)
+            if bi is not None and bi not in resolved:
+                resolved[bi] = start_no + page_index
+    return resolved
+
+
+def _toc_index_pagelines(doc, page_numbers):
+    """Plain PageLines for the compiled TOC/Index section -- TOC before
+    Index (round 18, RULINGS-LEDGER row 4), each clearly headed, a TOC
+    entry indented two columns per level (`.tc`/`.tc1`-`.tc9`, WSFORMAT's
+    own outline levels). A page-number column is right-justified onto the
+    print measure when the resolved page number is not already inline
+    (an entry with no literal `#` got its number appended by
+    `core.compile_toc`/`compile_index`, plain text -- no special alignment
+    beyond what's already there; this keeps the simple case simple)."""
+    from .core import compile_toc, compile_index
+    lines = []
+    toc = compile_toc(doc, page_numbers)
+    if toc:
+        lines.append(PageLine([('TABLE OF CONTENTS', frozenset({'b'}))]))
+        lines.append(PageLine([]))
+        for level, text in toc:
+            lines.append(PageLine([('  ' * max(0, level - 1) + text, frozenset())]))
+        lines.append(PageLine([]))
+    idx = compile_index(doc, page_numbers)
+    if idx:
+        lines.append(PageLine([('INDEX', frozenset({'b'}))]))
+        lines.append(PageLine([]))
+        for text in idx:
+            lines.append(PageLine([(text, frozenset())]))
+    return lines
+
 
 def _coalesce(line):
     """Merge adjacent same-style segments into single text runs."""
@@ -2183,6 +2240,25 @@ def _emit_pdf_inner(doc, printed, options):
             streams.append(_page_stream(pl, top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_interval))
+        # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
+        # pages at the document's own end (Jon: "It should probably export
+        # in all formats even though non-paged ones couldn't be
+        # referenced"), TOC before Index. `--toc off` (the ruled default)
+        # leaves the page count exactly as it always was. These extra
+        # pages carry no running head/footer of their own -- a documented
+        # simplification, not the document's own running content replayed
+        # past its last real page.
+        if options.get('toc', False) and (doc.toc_entries or doc.index_entries):
+            toc_lines = _toc_index_pagelines(doc, _toc_page_numbers(doc))
+            cap = max(1, _printed_cap(doc))
+            for chunk_start in range(0, len(toc_lines), cap):
+                chunk = toc_lines[chunk_start:chunk_start + cap]
+                page_index = len(streams)
+                running = _running_ops(doc, start_no + page_index, page_h, lead,
+                                       size, left, printed, headers={}, footers={})
+                streams.append(_page_stream(chunk, top, page_h, lead, size, left,
+                                            running, fonts, res, colour_map, roll_pt,
+                                            ul_continuous, None))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,

@@ -132,6 +132,114 @@ def test_inline_styling_never_reaches_pdf_colour_beyond_lj6dtp():
     assert out == out_off      # the flag makes zero PDF byte difference
 
 
+# --------------------------------------------------------------- ledger row 4
+# TOC/Index compilation, all formats. Paged surfaces (Printed PDF, Printed/
+# Native RTF) resolve entries to REAL page numbers via the paginator;
+# non-paged formats (HTML, Markdown, Text, Modern RTF) list entries with no
+# page reference. Placement: document end, TOC before Index, clearly headed.
+
+def _toc_doc():
+    body = (b'.tc Chapter One #' + HARD
+            + b'Chapter one body text.' + HARD
+            + b'.pa' + HARD
+            + b'.tc Chapter Two #' + HARD
+            + b'.ix Important Term' + HARD
+            + b'Chapter two body text.' + HARD)
+    return core.parse_ws(_header() + body)
+
+
+def test_toc_index_compiled_in_printed_pdf_with_real_page_numbers():
+    doc = _toc_doc()
+    assert doc.toc_entries == [(1, 'Chapter One #', 0), (1, 'Chapter Two #', 2)]
+    assert doc.index_entries == [('Important Term', 2)]
+    out = pdf.emit_pdf(doc, mode='printed', toc=True)
+    out_off = pdf.emit_pdf(doc, mode='printed', toc=False)
+    assert out.count(b'/Type /Page ') == out_off.count(b'/Type /Page ') + 1
+    assert b'TABLE OF CONTENTS' in out and b'INDEX' in out
+    assert b'Chapter One 1' in out    # real page 1
+    assert b'Chapter Two 2' in out    # real page 2 (after .pa)
+    # TOC precedes Index in the byte stream
+    assert out.index(b'TABLE OF CONTENTS') < out.index(b'INDEX')
+
+
+def test_toc_index_compiled_in_printed_rtf_with_real_page_numbers():
+    doc = _toc_doc()
+    r = emit.emit_rtf(doc, mode='printed', toc=True)
+    body = _rtf_body_only(r)
+    assert 'Chapter One 1' in body and 'Chapter Two 2' in body
+    assert 'TABLE OF CONTENTS' in r and 'INDEX' in r
+    assert r.index('TABLE OF CONTENTS') < r.index('INDEX')
+
+
+def test_toc_index_in_non_paged_formats_has_no_page_numbers():
+    doc = _toc_doc()
+    r = emit.emit_rtf(doc, mode='modern', toc=True)
+    assert 'Chapter One' in r and 'Chapter One 1' not in r
+    h = emit.emit_html(doc, mode='modern', toc=True)
+    assert 'Chapter One' in h and 'Chapter One 1' not in h
+    md = emit.emit_markdown(doc, mode='modern', toc=True)
+    assert 'Chapter One' in md and 'Chapter One 1' not in md
+    t = emit.emit_text(doc, mode='modern', toc=True)
+    assert 'Chapter One' in t and 'Chapter One 1' not in t
+    # TOC before Index, everywhere
+    assert h.index('Table of Contents') < h.index('Index')
+    assert md.index('TABLE OF CONTENTS') < md.index('INDEX')
+    assert t.index('TABLE OF CONTENTS') < t.index('INDEX')
+
+
+def test_toc_flag_defaults_off():
+    doc = _toc_doc()
+    assert 'TABLE OF CONTENTS' not in emit.emit_text(doc, mode='modern')
+    assert 'Table of Contents' not in emit.emit_html(doc, mode='modern')
+    assert 'TABLE OF CONTENTS' not in emit.emit_markdown(doc, mode='modern')
+    assert 'TABLE OF CONTENTS' not in emit.emit_rtf(doc, mode='modern')
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'TABLE OF CONTENTS' not in out
+
+
+def test_toc_absent_when_document_has_no_entries():
+    doc = core.parse_ws(_header() + b'Plain body, no .tc or .ix at all.' + HARD)
+    assert not doc.toc_entries and not doc.index_entries
+    out_with_toc_on = pdf.emit_pdf(doc, mode='printed', toc=True)
+    out_with_toc_off = pdf.emit_pdf(doc, mode='printed', toc=False)
+    assert out_with_toc_on == out_with_toc_off   # nothing to compile, no extra page
+
+
+# --------------------------------------------------------------- ledger row 4/10
+# DIAGNOSE discoverability completion.
+
+def test_diagnose_surfaces_toc_index_counts():
+    doc = _toc_doc()
+    d = info.document_info(_header() + b'.tc Chapter One #' + HARD
+                           + b'Chapter one.' + HARD + b'.ix Term' + HARD
+                           + b'More.' + HARD)
+    assert d['toc_index'] == {'toc_entries': 1, 'index_entries': 1}
+
+
+def test_diagnose_omits_toc_index_key_when_none_present():
+    d = info.document_info(_header() + b'Plain body, nothing special.' + HARD)
+    assert 'toc_index' not in d
+
+
+def test_diagnose_surfaces_inline_styling_counts():
+    doc_data = _header() + ws7_block(0x01, bytes([4, 0])) + b'Red text.' + HARD
+    d = info.document_info(doc_data)
+    assert d['inline_styling']['colour_spans'] >= 1
+
+
+def test_diagnose_inline_styling_excludes_style_declared_size():
+    """A paragraph STYLE's own font is document formatting, not inline
+    styling -- size_spans must stay 0 for a document whose only font
+    comes from a style record, matching --inline-styling's own scope."""
+    rec = _style_record_with_font(width=180, height=480, typestyle=0x8000)
+    lib = _style_library([('WordStar Defaults', None),
+                          ('WordStar Defaults', None),
+                          ('Big Style', rec)])
+    body = _style_ref(2) + b'Styled big paragraph.' + HARD
+    d = info.document_info(_doc_with_style_library(body, lib))
+    assert d.get('inline_styling', {}).get('size_spans', 0) == 0
+
+
 # ------------------------------------------------------------- helpers (local
 # copies of the style-library fixture builders, matching
 # test_printed_fidelity.py's own convention)

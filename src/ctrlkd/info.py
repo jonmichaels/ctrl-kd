@@ -105,6 +105,34 @@ def document_info(data, path=None):
         pm_blocks = sum(1 for b in doc.blocks if b.para_margin is not None)
         if pm_blocks:
             info['pm_blocks'] = pm_blocks
+        # round 18 (RULINGS-LEDGER row 4/10 DIAG): the standing
+        # discoverability rule again -- "someone can say: there's a TOC
+        # here, I should turn it on." Counts, not the entries themselves
+        # (matching `notes`'/`pm_blocks`'s own aggregate shape): a
+        # document-shape fact, not a content dump.
+        if doc.toc_entries or doc.index_entries:
+            info['toc_index'] = {
+                'toc_entries': len(doc.toc_entries),
+                'index_entries': len(doc.index_entries),
+            }
+        # inline colour (symmetric type 1) / size (a genuinely INLINE
+        # type-2 font block, `offset is not None` -- a style-declared
+        # font is document formatting, not authored inline styling, and
+        # is not counted here, matching round 18's own --inline-styling
+        # scope exactly).
+        colour_spans = sum(
+            1 for b in doc.blocks for line in b.lines for sp in line.spans
+            for st in sp.styles if st.startswith('colour') and st[6:].isdigit())
+        size_spans = sum(
+            1 for b in doc.blocks for line in b.lines for sp in line.spans
+            for st in sp.styles if st.startswith('font') and st[4:].isdigit()
+            and int(st[4:]) < len(doc.fonts)
+            and doc.fonts[int(st[4:])].get('offset') is not None)
+        if colour_spans or size_spans:
+            info['inline_styling'] = {
+                'colour_spans': colour_spans,
+                'size_spans': size_spans,
+            }
     elif det['variant'] == 'printstream':
         doc = core.parse(data)
         # damage WordStar itself introduced at print time (comments + the

@@ -4061,6 +4061,41 @@ def effective_page(page, settings):
     return eff
 
 
+def _toc_index_display(text, block_index, page_numbers):
+    """One entry's display text -- WSFORMAT's own `#` convention for `.tc`
+    ("A '#' indicates where the page number is to go in the entry"),
+    applied to `.ix` too for the same reason (an index entry that happens
+    to carry a literal `#` gets the same substitution; one that doesn't
+    still gets its page number appended, matching the common index
+    convention "Term ... 42"). `page_numbers` ({block_index: page number},
+    from the REAL paginator) is None for every non-paged format (HTML,
+    Markdown, Text, Modern RTF) -- `#` is simply dropped there: honest
+    text and ordering, no page reference a non-paged format could ever
+    resolve."""
+    if page_numbers is None:
+        return text.replace('#', '').rstrip()
+    pn = page_numbers.get(block_index)
+    if '#' in text:
+        return text.replace('#', str(pn) if pn is not None else '')
+    if pn is not None:
+        return f'{text} {pn}'
+    return text
+
+
+def compile_toc(doc, page_numbers=None):
+    """[(level, display_text)] from `doc.toc_entries`. Register C7."""
+    return [(level, _toc_index_display(text, block_index, page_numbers))
+           for level, text, block_index in doc.toc_entries]
+
+
+def compile_index(doc, page_numbers=None):
+    """[display_text] from `doc.index_entries` -- same `#`/page-number
+    resolution as `compile_toc`, flattened (an index entry carries no
+    level). Register C6."""
+    return [_toc_index_display(text, block_index, page_numbers)
+           for text, block_index in doc.index_entries]
+
+
 def trailing_blank_lines(block) -> int:
     """Hard blank lines at the END of a block -- the author's own paragraph
     spacing. merged_lines emits interior blanks and buffers trailing ones
