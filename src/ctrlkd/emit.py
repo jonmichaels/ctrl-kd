@@ -1540,7 +1540,7 @@ def _rtf_comment_dest(note):
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
 def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
-              roll_half_pt=None):
+              roll_half_pt=None, ul_continuous=True):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -1576,28 +1576,57 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
             return '{' + pad + '}' if pad else ''
         return ''
     styles = sorted(st for st in sp.styles if st != 'fnref')
-    ctl = ''.join(_RTF_ON.get(st, '') for st in styles)
-    if printed and roll_half_pt is not None:
-        # Explicit DIRECT override of whatever rise a reader's own default
-        # \super/\sub metrics would otherwise pick -- WordStar's `.sr` is a
-        # real, page-declared value, not a suggestion (round 17, ledger row
-        # 3). `\super`/`\sub` above still carry the SEMANTIC tag (reflow/
-        # accessibility); `\up`/`\dn` is the direct-formatting doctrine's
-        # own answer for the exact rise amount, same relationship `\fi`
-        # already has with `.pm` (round 6).
-        if 'sup' in styles:
-            ctl += r'\up%d ' % roll_half_pt
-        elif 'sub' in styles:
-            ctl += r'\dn%d ' % roll_half_pt
-    if fontctl:
-        ctl += ''.join(fontctl.get(st, '') for st in styles if st.startswith('font'))
-    if _is_graphic_text(sp.text):
-        # \f1 (Courier New) is ALWAYS in the font table (see the \fonttbl
-        # literal in `emit_rtf`) regardless of the document's own fonts --
-        # same reasoning as HTML's `ws-graphic` override, appended last so
-        # it wins the font-table reference while any \fs size already
-        # chosen above is left alone (round 8).
-        ctl += r'\f1 '
+
+    def build_ctl(these_styles):
+        c = ''.join(_RTF_ON.get(st, '') for st in these_styles)
+        if printed and roll_half_pt is not None:
+            # Explicit DIRECT override of whatever rise a reader's own
+            # default \super/\sub metrics would otherwise pick -- WordStar's
+            # `.sr` is a real, page-declared value, not a suggestion (round
+            # 17, ledger row 3). `\super`/`\sub` above still carry the
+            # SEMANTIC tag (reflow/accessibility); `\up`/`\dn` is the
+            # direct-formatting doctrine's own answer for the exact rise
+            # amount, same relationship `\fi` already has with `.pm`
+            # (round 6).
+            if 'sup' in these_styles:
+                c += r'\up%d ' % roll_half_pt
+            elif 'sub' in these_styles:
+                c += r'\dn%d ' % roll_half_pt
+        if fontctl:
+            c += ''.join(fontctl.get(st, '') for st in these_styles if st.startswith('font'))
+        if _is_graphic_text(sp.text):
+            # \f1 (Courier New) is ALWAYS in the font table (see the
+            # \fonttbl literal in `emit_rtf`) regardless of the document's
+            # own fonts -- same reasoning as HTML's `ws-graphic` override,
+            # appended last so it wins the font-table reference while any
+            # \fs size already chosen above is left alone (round 8).
+            c += r'\f1 '
+        return c
+
+    ctl = build_ctl(styles)
+    # round 17b (RULINGS-LEDGER row 5/6, register C21): WS3.3's own honest
+    # default -- see `_rules`'s own docstring (pdf.py) for the manual
+    # citation, ported here for RTF's own `\ul`. Splits the span at each
+    # run of space characters, wrapping ONLY the non-space runs in `\ul`
+    # (via `build_ctl` on the style set minus 'u') when `.ul` is off --
+    # every OTHER attribute (bold, font, roll) still applies uniformly
+    # across the whole span, unaffected.
+    if ('u' in styles and not ul_continuous and sp.text.strip()
+            and ' ' in sp.text):
+        ctl_no_u = build_ctl([st for st in styles if st != 'u'])
+        parts, text, i, n = [], sp.text, 0, len(sp.text)
+        while i < n:
+            j = i
+            if text[i] == ' ':
+                while j < n and text[j] == ' ':
+                    j += 1
+                parts.append('{' + ctl_no_u + _rtf_escape(text[i:j]) + '}')
+            else:
+                while j < n and text[j] != ' ':
+                    j += 1
+                parts.append('{' + ctl + _rtf_escape(text[i:j]) + '}')
+            i = j
+        return ''.join(parts)
     return '{' + ctl + _rtf_escape(sp.text) + '}'
 
 _RTF_MODERN_QUOTE_INSET = 720   # 0.5in each side -- Jon's explicit ask, round 3
@@ -1984,7 +2013,8 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             fonts_target='office', note_refs='word', headers=True, **_options):
+             fonts_target='office', note_refs='word', headers=True,
+             line_numbers=True, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -2018,6 +2048,11 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     roll_half_pt = (round(doc.meta.get('formatting', {})
                           .get('sub_super_roll_48', 3.0) * 3)
                     if printed else None)
+    # round 17b (RULINGS-LEDGER row 5/6, register C21): WS3.3's own honest
+    # default -- Printed only, same doctrine as `.sr`. Rides in
+    # doc.meta['formatting'] for free, same as `.sr`/`.pr`.
+    ul_continuous = (bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+                     if printed else True)
     # round 6 (2026-08-17): .psa/.psb are ONE document-wide value each
     # (see _rtf_doc_spacing_twips) -- resolved once, not per block. Only
     # ever non-(None,None) for a WordTsar-produced file (a real WordStar
@@ -2066,8 +2101,28 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # HTML's identical step in `_html_line` (round 8): splitting first
         # would just get re-glued back onto the prose beside it the moment
         # both share a style.
-        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map, roll_half_pt)
+        return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map,
+                                 roll_half_pt, ul_continuous)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
+
+    # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own gutter
+    # for Printed RTF -- flag-gated (default ON, same shape as `headers`;
+    # fires only when the document itself declared `.l#`). RTF has no page
+    # object of its own to reset a per-page count against (unlike PDF's
+    # separate Page streams), so numbering runs from the DOCUMENT'S start,
+    # a deliberate, simpler choice for this continuous-text format -- a
+    # true per-page reset would need RTF's own pagination model, which
+    # this format doesn't have and isn't being built here.
+    line_no_interval = (doc.meta.get('line_numbering')
+                        if printed and line_numbers else None)
+    line_no = [0]
+
+    def numbered(rendered_line, has_text):
+        line_no[0] += 1
+        if line_no_interval and has_text and line_no[0] % line_no_interval == 0:
+            return ('{' + _rtf_escape(str(line_no[0]).rjust(4)) + r'\tab }'
+                    + rendered_line)
+        return rendered_line
 
     for b in doc.blocks:
         if b.kind == 'pagebreak':
@@ -2093,7 +2148,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             if not ri and b.right_margin:
                 ri = round(b.right_margin * _RTF_TWIPS_PER_COL)
             # physical lines: \line at every printed break, soft or hard
-            lines = [rtf_seg(line.spans, b) for line in b.lines]
+            lines = [numbered(rtf_seg(line.spans, b),
+                             any(sp.text.strip() for sp in line.spans))
+                    for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
             # round 6 (2026-08-17): line spacing/.pm/.psa+.psb -- Printed

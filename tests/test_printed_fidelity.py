@@ -323,6 +323,98 @@ def test_pm_psa_psb_never_reach_modern_pdf():
     assert out_modern == out_modern_base
 
 
+# --------------------------------------------------------------- ledger row 5/6
+# `.ul` (continuous underline of inter-word blanks), `.sb` (suppress blank
+# lines at page top), `.l#` (line-number gutter). Register C8/C11/C21.
+
+def test_ul_honest_default_breaks_underline_at_spaces():
+    """WS3.3 Reference Manual ch.7 "Underscoring": "^PS does not underline
+    blank spaces." Absent `.ul`, the honest default underlines characters
+    only -- confirmed empirically pre-round: `.ul on`/`.ul off`/absent all
+    produced byte-identical PDF underline output (always continuous)."""
+    body = b'\x13AA BB\x13 plain.' + HARD
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    assert 'underline_blanks' not in doc.meta['formatting']
+    out = pdf.emit_pdf(doc, mode='printed')
+    rules = re.findall(rb'0\.6 w ([\d.]+) [\d.]+ m ([\d.]+) [\d.]+ l S', out)
+    assert len(rules) == 2      # "AA" and "BB" underlined separately
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r.count(r'\ul ') == 2
+
+
+def test_ul_on_draws_one_continuous_rule():
+    body = b'.ul on' + HARD + b'\x13AA BB\x13 plain.' + HARD
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    assert doc.meta['formatting']['underline_blanks'] is True
+    out = pdf.emit_pdf(doc, mode='printed')
+    rules = re.findall(rb'0\.6 w ([\d.]+) [\d.]+ m ([\d.]+) [\d.]+ l S', out)
+    assert len(rules) == 1
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r.count(r'\ul ') == 1
+
+
+def test_ul_never_reaches_modern_pdf_or_rtf():
+    body = b'.ul on' + HARD + b'\x13AA BB\x13 plain.' + HARD
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    import hashlib
+    baseline = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15)) + b'\x13AA BB\x13 plain.' + HARD)
+    assert (hashlib.sha256(pdf.emit_pdf(doc, mode='modern')).hexdigest()
+            == hashlib.sha256(pdf.emit_pdf(baseline, mode='modern')).hexdigest())
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    r_modern_base = emit.emit_rtf(baseline, mode='modern')
+    assert r_modern == r_modern_base
+
+
+def test_sb_suppresses_leading_blank_lines_at_page_top():
+    body = HARD + HARD + b'Actual content starts here.' + HARD
+    doc_default = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    doc_sb = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15)) + b'.sb on' + HARD + body)
+    assert doc_sb.meta['formatting']['suppress_blanks'] is True
+
+    def content_y(d):
+        out = pdf.emit_pdf(d, mode='printed')
+        m = re.search(rb'([\d.]+) ([\d.]+) Td \(Actual', out)
+        return float(m.group(2))
+
+    assert content_y(doc_default) == 720.0    # two 12pt blanks above it
+    assert content_y(doc_sb) == 744.0          # suppressed -- starts at the top
+
+
+def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
+    body = (b'.l# 2' + HARD
+            + HARD.join(b'Line %d text.' % i for i in range(1, 7)) + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    assert doc.meta['line_numbering'] == 2
+
+    out = pdf.emit_pdf(doc, mode='printed')
+    nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
+    assert nums == [b'2', b'4', b'6']
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r'2\tab' in r and r'4\tab' in r and r'6\tab' in r
+    assert r'1\tab' not in r and r'3\tab' not in r and r'5\tab' not in r
+
+
+def test_line_numbers_flag_off_suppresses_the_gutter():
+    body = (b'.l# 1' + HARD + b'One line only.' + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    out_off = pdf.emit_pdf(doc, mode='printed', line_numbers=False)
+    assert not re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \(\d+\) Tj ET', out_off)
+    r_off = emit.emit_rtf(doc, mode='printed', line_numbers=False)
+    assert r'\tab' not in r_off
+
+
+def test_line_numbers_never_reach_modern():
+    body = (b'.l# 1' + HARD + b'One line only.' + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    assert r'\tab' not in r_modern
+
+
 # ---------------------------------------------------- style-library helpers
 # Trimmed local copies -- see test_modern_lint.py's own `_style_record`/
 # `_style_library`/`_doc_with_style_library` for the field-by-field

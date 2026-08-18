@@ -1138,6 +1138,13 @@ def _doc_to_pagelines(doc, printed):
     # line pushed onto its own page ahead of a `.pa`.)
     default_lead = _printed_lead(doc) if printed else LEAD
     budget = (cap - 1) * default_lead
+    # round 17b (RULINGS-LEDGER row 5/6, register C8): `.sb` suppresses
+    # blank lines specifically at the TOP of a page -- WordStar's own
+    # pagination concern, not a text-content one, so it belongs in THIS
+    # loop (the only place that knows a page just started) rather than
+    # `_doc_to_pagelines`'s line-building pass above. `.sb` rides in
+    # doc.meta['formatting'] for free, same as every other item this round.
+    suppress_blanks = printed and bool(doc.meta.get('formatting', {}).get('suppress_blanks', False))
     pages, page, spent = [], [], 0.0
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
@@ -1175,6 +1182,8 @@ def _doc_to_pagelines(doc, printed):
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             if l is None:
                 continue
+        if suppress_blanks and not page and not any(t.strip() for t, _ in l):
+            continue          # `.sb`: a blank line at the top of a page doesn't print
         if printed:
             spent += _cost(l)
         page.append(l)
@@ -1332,16 +1341,49 @@ def _sized(styles, size, roll_pt=None):
     return size, 0
 
 
-def _rules(styles, text, x, y, w):
+def _rules(styles, text, x, y, w, continuous=True):
     """Underline / strikethrough as stroked paths (PDF has no text attribute
-    for either), for a span occupying `w` points from `x`."""
+    for either), for a span occupying `w` points from `x`.
+
+    `continuous` (round 17b, RULINGS-LEDGER row 5/6, register C21): WS3.3's
+    own Reference Manual, ch.7 "Underscoring": "Use ^PS before and after any
+    letters, words, or phrases that you want underlined... ^PS does NOT
+    underline blank spaces" -- the plain toggle's HONEST default is
+    characters only. ".UL ON" is the file's own request for the manual's
+    OWN "continuous underlining of both characters and spaces" ("second
+    method": typing underline characters INTO the spaces, which `.UL`
+    automates at print time). Modern's own call site never passes this
+    (stays `True`, its prior and only behavior, unaffected either way) --
+    Printed's own two call sites pass the document's actual `.ul` state,
+    previously read nowhere (confirmed empirically byte-identical across
+    `.ul on`/`.ul off`/absent)."""
     ops = []
     if not text.strip():
         return ops
-    if 'u' in styles:
-        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
     if 'strike' in styles:
         ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
+    if 'u' not in styles:
+        return ops
+    if continuous or ' ' not in text:
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y - 1.5, x + w, y - 1.5))
+        return ops
+    # Break the rule at each run of space characters -- approximated by
+    # character-count proportion of `w` (WordStar printed text is fixed-
+    # pitch or near-uniform within one styled run; sub-point imprecision at
+    # a word boundary is not visible on paper or screen).
+    n = len(text)
+    per_char = w / n
+    i = 0
+    while i < n:
+        if text[i] == ' ':
+            i += 1
+            continue
+        j = i
+        while j < n and text[j] != ' ':
+            j += 1
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
+                   % (x + i * per_char, y - 1.5, x + j * per_char, y - 1.5))
+        i = j
     return ops
 
 
@@ -1447,7 +1489,8 @@ def _split_indent(segs):
 
 
 def _line_ops_printed(segs, left, y, size, res, tz_state,
-                      col_state=None, colour_map=None, roll_pt=None, fi=None):
+                      col_state=None, colour_map=None, roll_pt=None, fi=None,
+                      ul_continuous=False):
     """One laid-out line, on the document's own horizontal grid.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -1584,7 +1627,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                    (font.encode(), pt, rise, want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
-                ops += _rules(styles, piece, x, y, pw)
+                ops += _rules(styles, piece, x, y, pw, ul_continuous)
                 x += pw
             continue
         if indent:
@@ -1604,14 +1647,15 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
                        (font.encode(), pt, rise, want, x, y, _esc(text)))
             tz_state[0] = want
-        ops += _rules(styles, text, x, y, w)
+        ops += _rules(styles, text, x, y, w, ul_continuous)
         x += w
     return ops
 
 
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
-                 colour_map=None, roll_pt=None):
+                 colour_map=None, roll_pt=None, ul_continuous=False,
+                 line_no_interval=None):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -1645,6 +1689,21 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         if n and not prev_overprint:
             y -= getattr(line, 'lead', None) or lead
         prev_overprint = getattr(line, 'overprint', False)
+        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
+        # gutter -- every Nth physical line on the page (1-based, N =
+        # doc.meta['line_numbering']'s interval, WordStar's own numbering
+        # convention -- `.l# 5` numbers lines 5, 10, 15...), right-aligned
+        # a few points left of the text margin. Blank lines are never
+        # numbered (nothing to count on paper). Printed only; the gutter
+        # itself never shifts `left` -- it draws in the margin WordStar's
+        # own `.po`/`.lm` already reserved, same as a running head does.
+        if (line_no_interval and (n + 1) % line_no_interval == 0
+                and any(t.strip() for t, _ in _coalesce(line))):
+            label = str(n + 1)
+            gutter_font = res.ref('Courier')
+            gx = left - 4 - len(label) * size * 0.6
+            ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET'
+                      % (gutter_font.encode(), size, gx, y, label.encode()))
         segs = []
         for text, styles in _coalesce(line):
             if not text:
@@ -1654,7 +1713,7 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
             segs.append((written, styles, family, size_here, entry))
         ops += _line_ops_printed(segs, left, y, size, res, tz_state,
                                  col_state, colour_map or {}, roll_pt,
-                                 getattr(line, 'fi', None))
+                                 getattr(line, 'fi', None), ul_continuous)
     return b'\n'.join(ops)
 
 
@@ -2096,6 +2155,19 @@ def _emit_pdf_inner(doc, printed, options):
         size = _printed_size(doc)
         left = _printed_left(doc, size)
         roll_pt = _printed_roll_pt(doc)
+        # round 17b (RULINGS-LEDGER row 5/6, register C21): the HONEST
+        # default -- see `_rules`'s own docstring for the WS3.3 manual
+        # citation. `.ul` rides in doc.meta['formatting'] for free, same as
+        # `.sr`/`.pr` (no exclusion in the formatting-dict comprehension).
+        ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
+        # interval, flag-gated -- default ON (same shape as `--headers`),
+        # but the FEATURE only ever fires when the document itself
+        # declared `.l#` (line_numbering is None otherwise): the flag's
+        # job is letting a caller SUPPRESS what the file asked for, not
+        # inventing numbering a silent file never requested.
+        line_no_interval = (doc.meta.get('line_numbering')
+                            if options.get('line_numbers', True) else None)
         page_h = _resolved_page_height(doc, printed)
         fonts = doc.fonts
         colour_map = _COLOUR_GRAY_LJ6DTP if (
@@ -2109,7 +2181,8 @@ def _emit_pdf_inner(doc, printed, options):
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}))
             streams.append(_page_stream(pl, top, page_h, lead, size, left,
-                                        running, fonts, res, colour_map, roll_pt))
+                                        running, fonts, res, colour_map, roll_pt,
+                                        ul_continuous, line_no_interval))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,

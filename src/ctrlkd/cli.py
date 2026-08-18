@@ -106,6 +106,10 @@ def main(argv=None):
     ap.add_argument('--headers', choices=('on', 'off'), default='on',
                     help='headers, footers, and page numbers in the paged '
                          'surfaces (Printed/Native PDF and RTF). Default: on')
+    ap.add_argument('--line-numbers', choices=('on', 'off'), default='on',
+                    help="the document's own .l# line-number gutter in the "
+                         'paged surfaces (Printed/Native PDF and RTF); no '
+                         'effect on a document that never set .l#. Default: on')
     ap.add_argument('--no-notes', action='store_true',
                     help='omit footnotes, endnotes and annotations from the output')
     ap.add_argument('--comments', action='store_true',
@@ -230,7 +234,8 @@ def main(argv=None):
             reg = emit.get_emitter(fmt)
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
                             styles=not a.no_styles, fonts_target=a.fonts,
-                            note_refs=a.note_refs, headers=a.headers == 'on')
+                            note_refs=a.note_refs, headers=a.headers == 'on',
+                            line_numbers=a.line_numbers == 'on')
             if a.output:
                 dest = a.output
             else:
