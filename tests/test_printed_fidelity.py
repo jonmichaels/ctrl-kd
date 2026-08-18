@@ -14,7 +14,7 @@ ctrl-kd's). Modern must stay untouched throughout (asserted per item).
 import copy
 import re
 
-from ctrlkd import core, emit, pdf
+from ctrlkd import core, emit, pdf, info
 
 HARD = b'\x0d\x0a'
 SOFT = b'\x8d\x0a'
@@ -413,6 +413,71 @@ def test_line_numbers_never_reach_modern():
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
     r_modern = emit.emit_rtf(doc, mode='modern')
     assert r'\tab' not in r_modern
+
+
+# --------------------------------------------------------------- ledger row 7
+# DIAGNOSE surfacing: `document_info()` (the library home of `--diagnose`)
+# never read `doc.meta['formatting']` at all -- the internal Document object
+# always carried `.pr`/`.sr`/`.ul`/`.sb`/`.ps`, but the actual diagnose
+# SURFACE showed none of it. Standing discoverability rule (register):
+# "everything these flags govern surfaces in Info/Diagnose regardless of
+# flag state."
+
+def _diag(body_after_header):
+    data = (ws7_block(0x00, bytes([0x70]) + bytes(15)) + body_after_header)
+    return info.document_info(data)
+
+
+def test_diagnose_surfaces_formatting_dict():
+    d = _diag(b'.pr or=l' + HARD + b'.sr 10' + HARD + b'.ul on' + HARD
+              + b'Body text.' + HARD)
+    assert d['formatting']['orientation'] == 'landscape'
+    assert d['formatting']['sub_super_roll_48'] == 10.0
+    assert d['formatting']['underline_blanks'] is True
+
+
+def test_diagnose_omits_formatting_key_when_nothing_was_set():
+    d = _diag(b'Plain body text, no dot commands at all.' + HARD)
+    assert 'formatting' not in d
+
+
+def test_diagnose_flags_ps_as_superseded():
+    d = _diag(b'.ps on' + HARD + b'Body text.' + HARD)
+    assert 'ps_note' in d and 'superseded' in d['ps_note']
+    assert d['formatting']['proportional'] is True
+
+
+def test_diagnose_surfaces_headers_footers_declared():
+    d = _diag(b'.h1 Sawyer / Old Times / #' + HARD + b'Body text.' + HARD)
+    assert d['headers'] == {1: 'Sawyer / Old Times / #'}
+    assert 'footers' not in d
+
+
+def test_diagnose_surfaces_line_numbering_interval():
+    d = _diag(b'.l# 5' + HARD + b'Body text.' + HARD)
+    assert d['line_numbering'] == 5
+
+
+def test_diagnose_tags_psa_psb_as_wordtsar_origin():
+    d = _diag(b'.PSB 1' + HARD + b'.PSA 2' + HARD + b'Body text.' + HARD)
+    assert d['vertical_spacing'] == {
+        'space_before_lines': 1.0, 'space_after_lines': 2.0, 'origin': 'wordtsar'}
+    assert d['producer'] == 'wordtsar'
+
+
+def test_diagnose_counts_pm_blocks():
+    d = _diag(b'.pm 5' + HARD + b'First paragraph.' + HARD + HARD
+              + b'Second paragraph, no .pm reset.' + HARD)
+    assert d['pm_blocks'] >= 1
+
+
+def test_diagnose_output_is_json_serializable():
+    import json
+    d = _diag(b'.pr or=l' + HARD + b'.sr 10' + HARD + b'.ul on' + HARD
+              + b'.ps on' + HARD + b'.l# 3' + HARD + b'.pm 5' + HARD
+              + b'.h1 Title / #' + HARD + b'.PSB 1' + HARD + b'.PSA 2' + HARD
+              + b'Body text.' + HARD)
+    json.dumps(d)   # must not raise
 
 
 # ---------------------------------------------------- style-library helpers
