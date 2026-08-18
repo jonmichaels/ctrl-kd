@@ -467,3 +467,127 @@ def test_real_corpus_acceptance_all_five_resolve_four_of_five_embed():
             assert b'WORDSTAR.PIX' in out    # placeholder still present, never fails
         else:
             assert embedded, label
+
+
+# ============================================================ diagnose (info)
+
+def test_diagnose_reports_resolved_pix_with_path_and_dimensions(tmp_path):
+    from ctrlkd import info
+    (tmp_path / 'INSET' / 'PIX').mkdir(parents=True)
+    (tmp_path / 'INSET' / 'PIX' / 'WORDSTAR.PIX').write_bytes(_tiny_pix_bytes(gcols=16, grows=4))
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\WORDSTAR.PIX')
+    data = b'Before. ' + block + b' After.\r\n'
+    docpath.write_bytes(data)
+    result = info.document_info(data, path=str(docpath))
+    assert result['pix'] == [{
+        'tag': 'WORDSTAR.PIX', 'resolved': True,
+        'path': os.path.join('INSET', 'PIX', 'WORDSTAR.PIX'),
+        'width': 16, 'height': 4,
+    }]
+
+
+def test_diagnose_reports_unresolved_pix_with_error(tmp_path):
+    from ctrlkd import info
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\PIX\NOPE.PIX')
+    data = b'Before. ' + block + b' After.\r\n'
+    docpath.write_bytes(data)
+    result = info.document_info(data, path=str(docpath))
+    assert result['pix'] == [{'tag': 'NOPE.PIX', 'resolved': False, 'error': 'unresolved'}]
+
+
+def test_diagnose_omits_pix_key_when_document_has_no_graphics():
+    from ctrlkd import info
+    data = b'Plain text, nothing special.\r\n'
+    result = info.document_info(data, path='/nonexistent/DOC.WS')
+    assert 'pix' not in result
+
+
+def test_diagnose_reports_pix_without_a_path_still_marks_unresolved():
+    # bytes-only caller (no filesystem location to search near) --
+    # ctrlkd.pictures' own documented behavior for doc_path=None.
+    from ctrlkd import info
+    block = _ws_pix_block(br'C:\PIX\WORDSTAR.PIX')
+    data = b'Before. ' + block + b' After.\r\n'
+    result = info.document_info(data, path=None)
+    assert result['pix'] == [{'tag': 'WORDSTAR.PIX', 'resolved': False, 'error': 'unresolved'}]
+
+
+# ================================================================ CLI wiring
+
+def test_cli_pictures_flag_defaults_to_embed_and_is_live(tmp_path, capsys):
+    from ctrlkd.cli import main
+    img_dir = tmp_path / 'INSET' / 'PIX'
+    img_dir.mkdir(parents=True)
+    (img_dir / 'WORDSTAR.PIX').write_bytes(_tiny_pix_bytes())
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\WORDSTAR.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    rc = main(['--mode', 'modern', '-t', 'html', str(docpath)])
+    assert rc == 0
+    out_html = (tmp_path / 'DOC.html').read_text()
+    assert 'data:image/png;base64,' in out_html    # default is embed, no flag needed
+
+
+def test_cli_pictures_off_shows_placeholder_and_stays_silent(tmp_path, capsys):
+    from ctrlkd.cli import main
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\NOPE.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    rc = main(['--mode', 'modern', '-t', 'html', '--pictures', 'off', str(docpath)])
+    assert rc == 0
+    out_html = (tmp_path / 'DOC.html').read_text()
+    assert 'NOPE.PIX' in out_html
+    captured = capsys.readouterr()
+    assert 'not found' not in captured.err
+
+
+def test_cli_pictures_reports_miss_on_stderr(tmp_path, capsys):
+    from ctrlkd.cli import main
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\NOPE.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    rc = main(['--mode', 'modern', '-t', 'html', str(docpath)])
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "NOPE.PIX' not found" in captured.err
+
+
+def test_cli_pictures_export_writes_images_dir_beside_output(tmp_path):
+    from ctrlkd.cli import main
+    img_dir = tmp_path / 'INSET' / 'PIX'
+    img_dir.mkdir(parents=True)
+    (img_dir / 'WORDSTAR.PIX').write_bytes(_tiny_pix_bytes())
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\WORDSTAR.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    rc = main(['--mode', 'modern', '-t', 'html', '--pictures', 'export', str(docpath)])
+    assert rc == 0
+    assert (tmp_path / 'DOC-images' / 'WORDSTAR.png').exists()
+    html = (tmp_path / 'DOC.html').read_text()
+    assert 'src="DOC-images/WORDSTAR.png"' in html
+
+
+def test_cli_pictures_md_embed_exports_and_notes_only_in_modern_mode(tmp_path, capsys):
+    from ctrlkd.cli import main
+    img_dir = tmp_path / 'INSET' / 'PIX'
+    img_dir.mkdir(parents=True)
+    (img_dir / 'WORDSTAR.PIX').write_bytes(_tiny_pix_bytes())
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\WORDSTAR.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    # printed mode: no export, no note (the fenced facsimile never uses it)
+    rc = main(['--mode', 'printed', '-t', 'md', str(docpath)])
+    assert rc == 0
+    assert not (tmp_path / 'DOC-images').exists()
+    captured = capsys.readouterr()
+    assert 'no true image embedding' not in captured.err
+    # modern mode: exports + notes, default embed mode
+    rc = main(['--mode', 'modern', '-t', 'md', '-o', str(tmp_path / 'DOC2.md'), str(docpath)])
+    assert rc == 0
+    assert (tmp_path / 'DOC-images' / 'WORDSTAR.png').exists()
+    captured = capsys.readouterr()
+    assert 'no true image embedding' in captured.err
+    md = (tmp_path / 'DOC2.md').read_text()
+    assert '![WORDSTAR.PIX](DOC-images/WORDSTAR.png)' in md

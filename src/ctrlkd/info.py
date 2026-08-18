@@ -10,6 +10,8 @@ Everything here is derived from one parse; the dict is JSON-safe by
 construction (the same discipline as layout.py's contract).
 """
 
+import os
+
 from . import core
 
 
@@ -133,6 +135,37 @@ def document_info(data, path=None):
                 'colour_spans': colour_spans,
                 'size_spans': size_spans,
             }
+        # Round 19 (PIX images RULED IN, ledger PIX row): pix tags,
+        # resolved-or-not, regardless of the caller's own --pictures value
+        # -- the standing discoverability rule again ("someone can say:
+        # there's a picture here, I should turn it on"). Resolution needs
+        # a real filesystem location to search near, same condition `path`
+        # already gates elsewhere in this function; without one every tag
+        # reports unresolved (ctrlkd.pictures' own documented behavior for
+        # a doc_path of None), which is still useful ("this file HAS pix
+        # tags") even when nothing can be located from bytes alone.
+        if doc.graphics:
+            from . import pictures as _pictures
+            results = _pictures.resolve_document_pictures(doc, path)
+            doc_dir = os.path.dirname(os.path.abspath(path)) if path else None
+            entries = []
+            for r in results:
+                name = r.raw_path.replace('\\', '/').rsplit('/', 1)[-1] or r.raw_path
+                entry = {'tag': name, 'resolved': r.ok}
+                if r.ok:
+                    rel = r.resolved_path
+                    if doc_dir:
+                        try:
+                            rel = os.path.relpath(r.resolved_path, doc_dir)
+                        except ValueError:
+                            pass          # different drive/root -- keep absolute
+                    entry['path'] = rel
+                    entry['width'] = r.gcols
+                    entry['height'] = r.grows
+                else:
+                    entry['error'] = r.error
+                entries.append(entry)
+            info['pix'] = entries
     elif det['variant'] == 'printstream':
         doc = core.parse(data)
         # damage WordStar itself introduced at print time (comments + the
