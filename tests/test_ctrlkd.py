@@ -2347,7 +2347,8 @@ def test_centering_actually_renders_in_every_format_that_can_show_it():
     assert centred.strip() == 'Centred.'
 
     html = emit_html(doc, mode='modern')
-    assert '<p style="text-align:center">' in html
+    # round 20 (slate item 4): centered units get tight line-height too.
+    assert '<p style="text-align:center;line-height:1.15">' in html
     assert '<p style="text-align:justify">' in html
 
     rtf = emit_rtf(doc, mode='modern')
@@ -4230,7 +4231,11 @@ def test_centered_by_spaces_detected_and_rendered():
     assert s['centered'] and s['center_via'] == 'spaces'
     assert s['center_text'] == title
     html = emit_html(doc, mode='modern')
-    assert '<p style="text-align:center">A Centered Title</p>' in html
+    # round 20 (slate item 4): a centered unit gets tighter internal
+    # line-height (VERSE_LINE_HEIGHT) alongside its alignment, same
+    # mechanism as a verse-classified unit.
+    assert ('<p style="text-align:center;line-height:1.15">'
+           'A Centered Title</p>') in html
 
 
 def test_centered_tag_also_classified_uniformly():
@@ -4267,7 +4272,11 @@ def test_ordinary_multiline_block_stays_one_paragraph():
     data = b'-- Robert J. Sawyer' + HARD + b'   sawyer@sfwriter.com' + HARD
     doc = _modern(data)
     html = emit_html(doc, mode='modern')
-    assert '<p>-- Robert J. Sawyer<br>\n   sawyer@sfwriter.com</p>' in html
+    # this <br>-joined shape means the paragraph-assembly heuristic already
+    # classified it verse-like (is_verse) -- round 20 (slate item 4) adds
+    # the tight line-height that classification now carries.
+    assert ('<p style="line-height:1.15">-- Robert J. Sawyer<br>\n'
+           '   sawyer@sfwriter.com</p>') in html
 
 
 def test_ordinary_prose_is_not_swept_into_a_list():

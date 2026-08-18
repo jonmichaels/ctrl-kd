@@ -35,6 +35,22 @@ from .fontmap import font_stack, rtf_fonts
 _REGISTRY = {}          # name -> {'fn': callable, 'ext': '.xyz'}
 _ALIASES = {'txt': 'text', 'md': 'markdown'}
 
+# Round 20 (slate item 4): verse-classified units and wrapped centered
+# units read cramped at the document's own default reading line-height
+# (HTML body: 1.6; RTF style/reader default is comparably loose) --
+# poetry and centered material (titles, dedications, verse) conventionally
+# sets SINGLE-spaced internally regardless of the surrounding prose's own
+# spacing. A single named constant, not a hardcoded literal at each call
+# site, is "the mechanism" Jon asked to land now -- he sees the actual
+# multiplier and picks a final value later; every consumer (HTML's own
+# `line-height`, RTF's `\sl`/`\slmult`) reads this ONE place.
+VERSE_LINE_HEIGHT = 1.15                    # HTML CSS line-height multiplier
+VERSE_LINE_HEIGHT_TWIPS = None              # None = derive from VERSE_LINE_HEIGHT
+                                            # per span (RTF \sl needs absolute
+                                            # twips, resolved against the
+                                            # paragraph's own font size --
+                                            # see _rtf_tight_spacing below)
+
 def emitter(name, ext=None, aliases=()):
     """Register an output format. Usable as a decorator."""
     def deco(fn):
@@ -872,16 +888,22 @@ def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
 _HTML_ALIGN_CSS = {'center': 'text-align:center', 'right': 'text-align:right',
                    'justify': 'text-align:justify'}
 
-def _html_para_style(align, indent_cols=0):
-    """One combined `style="..."` attribute for a Modern <p> -- alignment
-    and first-line indent both live there, so a centred, indented paragraph
-    doesn't need two competing style attributes (HTML allows only one)."""
+def _html_para_style(align, indent_cols=0, tight=False):
+    """One combined `style="..."` attribute for a Modern <p> -- alignment,
+    first-line indent, and (round 20, slate item 4) verse/centered tight
+    line-height all live there, so a centred, indented, tight paragraph
+    doesn't need three competing style attributes (HTML allows only one).
+    `tight` -- a verse-classified unit or any centered paragraph (which
+    may itself wrap in the reader, "wrapped centered units") -- sets
+    line-height to VERSE_LINE_HEIGHT instead of the document default."""
     props = []
     css = _HTML_ALIGN_CSS.get(align)
     if css:
         props.append(css)
     if indent_cols:
         props.append(f'text-indent:{indent_cols}ch')
+    if tight:
+        props.append(f'line-height:{VERSE_LINE_HEIGHT}')
     return f' style="{";".join(props)}"' if props else ''
 
 # RTF paragraph-alignment controls. `\ql` is the default and is emitted only to
@@ -1518,7 +1540,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # left. `left` is WordStar's default and gets no attribute, so
                     # every document that never touches `.oc`/`.oj` emits byte-identical
                     # HTML to before.
-                    style = _html_para_style(b.align, indent_cols)
+                    style = _html_para_style(b.align, indent_cols,
+                                             tight=is_verse or b.align == 'center')
                     # C5: newspaper columns. CSS does this properly, so HTML is the one
                     # format that can honour `.co` rather than merely record it. A gutter
                     # is print columns at 10 CPI -> tenths of an inch. Columns are
@@ -1569,7 +1592,12 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling,
                                                   pix_map, pictures, image_links)
                         if html.strip():
-                            builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
+                            # round 20 (slate item 4): a "wrapped centered
+                            # unit" -- same tight spacing as verse, same
+                            # single named constant.
+                            builder.add_text(
+                                f'<p{cls} style="text-align:center;'
+                                f'line-height:{VERSE_LINE_HEIGHT}">{html}</p>')
                     else:
                         plain_run_lines.append(line)
                     continue
@@ -2225,6 +2253,19 @@ def _rtf_sl_twips(lead_48):
     return -round(lead_48 * _RTF_LEAD_TWIPS_PER_48)
 
 
+def _rtf_verse_tight_sl_twips():
+    """`\\sl` for a Modern verse/centered unit (round 20, slate item 4) --
+    POSITIVE (a MINIMUM, not the negative/EXACT convention `_rtf_sl_twips`
+    uses for Printed's own physical `.lh`): Modern is reflowed prose, not
+    a fixed print position, so a taller inline font mid-stanza should
+    still get room to breathe rather than clip. Derived from the SAME
+    VERSE_LINE_HEIGHT constant HTML's own line-height reads, against
+    Modern's own fixed body size (MODERN_BODY_SIZE, fontmap.py) -- one
+    named multiplier, both formats."""
+    from .fontmap import MODERN_BODY_SIZE
+    return round(VERSE_LINE_HEIGHT * MODERN_BODY_SIZE * 20)   # 20 twips/pt
+
+
 def _rtf_pm_fi_twips(b, li_twips):
     """`\\fi` (RTF's first-line indent, relative to `\\li`) from `.pm` --
     `block.para_margin`, currently read by no emitter. WSFORMAT semantics,
@@ -2286,11 +2327,15 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
     earlier one's. `rtf_state` is the running {'align', 'fi', 'li', 'ri',
     'sl', 'sb', 'sa'} a single `emit_rtf` call threads through every block
     (printed, heading, and Modern body paragraphs alike -- only Modern
-    body paragraphs ever pass a nonzero `fi_cols`/`li`/`ri`, and only
-    PRINTED paragraphs ever pass a nonzero `sl`/`sb`/`sa` -- round 6,
-    2026-08-17, "the other formats [TXT/MD/HTML] probably shouldn't deal
-    with line spacing", Modern RTF included -- but every OTHER paragraph
-    still needs the chance to reset any of these back to 0).
+    body paragraphs ever pass a nonzero `fi_cols`/`li`/`ri`. `sb`/`sa`
+    stay Printed-only (round 6, 2026-08-17, "the other formats [TXT/MD/
+    HTML] probably shouldn't deal with line spacing", Modern RTF
+    included). `sl` gained ONE scoped Modern exception (round 20, slate
+    item 4): a verse-classified or centered unit passes a nonzero,
+    POSITIVE `sl` (`_rtf_verse_tight_sl_twips`) for its own tighter
+    internal spacing -- every OTHER Modern paragraph still passes 0,
+    and every paragraph (Printed or Modern) still needs the chance to
+    reset any of these six back to 0 when it doesn't apply).
 
     `li`/`ri`/`sl`/`sb`/`sa` are all DIRECT formatting (round 4 established
     this for li/ri; round 6 extends the same doctrine to vertical space),
@@ -2563,7 +2608,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 lines = [' '.join(t for t in rendered if t.strip())]
             else:
                 lines = rendered
-            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri)
+            # round 20 (slate item 4): verse-classified units and
+            # centered units (which may themselves wrap in the reader,
+            # "wrapped centered units") get tighter internal spacing --
+            # a deliberate, scoped exception to round 6's "Modern RTF
+            # doesn't do line spacing" rule, exactly as disclosed there.
+            tight_sl = _rtf_verse_tight_sl_twips() if (is_verse or b.align == 'center') else 0
+            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri,
+                           sl=tight_sl)
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
         # and command codes are invisible.
