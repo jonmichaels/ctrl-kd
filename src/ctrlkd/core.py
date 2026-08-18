@@ -497,6 +497,78 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     return term_frac < VERSE_TERMINAL_FRACTION
 
 
+# Round 20b (slate item 13): a screenplay slugline -- WSFORMAT gives no
+# dot command for one; real screenplays convention it ALL CAPS at a
+# line's own start, an optional 1-4-digit scene number, and an optional
+# WordStar merge-var scene marker (`&n/s&`, `&scene&`, ...) sitting just
+# before it (slate's "merge-var scene markers" signal folded into the
+# SAME anchor rather than treated as an independent trigger -- see
+# detect_screenplay_blocks's own docstring for why). Case-SENSITIVE: the
+# convention is uppercase; a lowercase "int." is not this and must not
+# match.
+_SCREENPLAY_SLUGLINE_RE = re.compile(
+    r'^[ \t]*\d{0,4}[ \t]*(?:&[^&\r\n]{1,24}&[ \t]*)?'
+    r'(?:INT\.|EXT\.|INT\.?/EXT\.|I/E\.)[ \t]')
+
+# How many blocks a confirmed slugline's own scene REGION can grow across
+# before the detector gives up looking for a closing signal (the next
+# slugline, or a heading). Generous on purpose -- see the false-positive
+# argument in detect_screenplay_blocks's own docstring for why a large
+# number here is still safe.
+_SCREENPLAY_MAX_REGION_BLOCKS = 40
+
+
+def _block_has_slugline(b: Block) -> bool:
+    for line in b.lines:
+        text = ''.join(sp.text for sp in line.spans)
+        if _SCREENPLAY_SLUGLINE_RE.match(text):
+            return True
+    return False
+
+
+def detect_screenplay_blocks(doc: Document) -> frozenset:
+    """Block indices that read as part of a screenplay-formatted scene,
+    for Modern's verse-class (ladder-preserving) treatment -- slate item
+    13. The ANCHOR is a genuine slugline (`_block_has_slugline`); once
+    found, its scene's REGION grows forward to cover the
+    centered-CHARACTER/indented-dialogue/parenthetical ladder and the
+    action lines around it, without separately re-checking each of THOSE
+    blocks' own shape against the other three named signals (centered-
+    character-over-dialogue, `.rr`/`.lm`/`.rm` churn) -- Jon's own ruling
+    when this was scoped: "a partial detector (sluglines-only, say) that
+    clears zero-FP beats a clever one that doesn't." Region growth stops
+    at the NEXT slugline (a new scene, covered by its own iteration), a
+    heading block (the containing article's own section break), a
+    pagebreak/condpage block, or `_SCREENPLAY_MAX_REGION_BLOCKS` blocks,
+    whichever comes first.
+
+    FALSE-POSITIVE ARGUMENT for why the region can afford to be broad:
+    region-growing NEVER RUNS at all in a document that never matched a
+    slugline in the first place -- and the slugline pattern itself is
+    corpus-swept (2026-08-18, the full 86-file Sawyer WS7 tree) to match
+    EXACTLY ONE real document (SCRIPT.WS, an article about scripting
+    WordStar for screenplays, containing two worked-example scenes) and
+    nothing else. A false positive in the region logic is therefore only
+    reachable inside a document that independently, and separately,
+    contains a real slugline-shaped line -- there is no path to one in
+    ordinary prose."""
+    slugline_bi = {bi for bi, b in enumerate(doc.blocks)
+                   if b.kind == 'para' and _block_has_slugline(b)}
+    if not slugline_bi:
+        return frozenset()
+    region = set()
+    n = len(doc.blocks)
+    for start in slugline_bi:
+        region.add(start)
+        end = min(n, start + 1 + _SCREENPLAY_MAX_REGION_BLOCKS)
+        for bi in range(start + 1, end):
+            b = doc.blocks[bi]
+            if b.kind != 'para' or b.heading or bi in slugline_bi:
+                break
+            region.add(bi)
+    return frozenset(region)
+
+
 def assemble_paragraphs(block: Block, margin: float = 65, head_position: bool = False,
                         convention_indent: int = None) -> list:
     """`merged_lines(block)` grouped into Modern paragraph units.
