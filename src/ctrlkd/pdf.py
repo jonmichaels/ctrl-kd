@@ -195,6 +195,41 @@ def _printed_roll_pt(doc):
     return roll_48 * 1.5
 
 
+_PDF_PT_PER_COL = 7.2   # print columns at 10 CPI: 72pt/in / 10 col/in = 7.2pt/col
+                        # -- the SAME unit .lm/.rm/.pm/.po all share, and the
+                        # exact value MAX_COLS itself already derives from
+                        # (SIZE * 0.6 == 7.2 at the default SIZE=12).
+
+
+def _printed_pm_fi_pt(block):
+    """First-line indent in points from `.pm` -- mirrors `_rtf_pm_fi_twips`
+    (round 6, RULINGS-LEDGER row 5/7), relative to li=0: Printed PDF has no
+    per-block `.lm`/`.rm` margin of its own (that gap is Printed RTF's own
+    ledger row 8, a SEPARATE item this one doesn't reach), so the baseline
+    this indent sits against is the document's own left edge -- the same
+    li=0 an unstyled/WS4 Printed RTF paragraph already gets from the SAME
+    round 6 code. None when the block never set `.pm`."""
+    if block.para_margin is None:
+        return None
+    return block.para_margin * _PDF_PT_PER_COL
+
+
+def _printed_doc_spacing_pt(doc):
+    """(sb, sa) in points from WordTsar's own `.psa`/`.psb` extensions --
+    mirrors `_rtf_doc_spacing_twips` (round 6) exactly, converted to points
+    via the document's own DEFAULT leading (the same quantity PageLine.lead
+    already carries) instead of twips. (None, None) when neither command
+    was ever seen."""
+    sb_lines = doc.meta.get('space_before_lines')
+    sa_lines = doc.meta.get('space_after_lines')
+    if sb_lines is None and sa_lines is None:
+        return None, None
+    lead_pt = _printed_lead(doc)
+    sb = sb_lines * lead_pt if sb_lines is not None else None
+    sa = sa_lines * lead_pt if sa_lines is not None else None
+    return sb, sa
+
+
 def _printed_size(doc):
     """Type size in points for printed mode, from .cw: character width in
     1/120in units, and Courier advances 0.6em, so a pitch of cw/120in per
@@ -949,16 +984,28 @@ class PageLine(list):
     layout loop never has to know about 48ths. Lines this emitter MAKES rather
     than reads (footnote areas, wrapped Modern text, blank fillers) leave it
     None by construction: they are the emitter's own furniture and belong on
-    the document's default lead."""
+    the document's default lead.
 
-    __slots__ = ('soft', 'lead', 'overprint')
+    `fi` (added round 17, ledger row 5/7): this line's own first-line-indent
+    override in POINTS, or None -- `.pm`'s effect (mirrors RTF's `\fi` from
+    round 6), set ONLY on a `.para` block's own first content line. `.psa`/
+    `.psb` reuse `lead` itself rather than a new field: WordTsar's space-
+    before/after is exactly one MORE baseline-to-baseline distance to spend
+    before a line prints, the same quantity `lead` already carries -- `sb`
+    is added into the block's own first line's `lead`, `sa` into whatever
+    PageLine comes next after the block ends (pending_sa in
+    `_doc_to_pagelines`), so the existing pagination cost model
+    (`_cost`/`spent`/`budget`) accounts for both with no change to itself."""
 
-    def __init__(self, segments=(), soft=False, lead=None, overprint=False):
+    __slots__ = ('soft', 'lead', 'overprint', 'fi')
+
+    def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
                                         # at THIS line's baseline
         self.lead = lead
+        self.fi = fi
 
 
 class Page(list):
@@ -1003,6 +1050,16 @@ def _doc_to_pagelines(doc, printed):
     hf_by_block = {}
     for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
         hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
+    # round 17 (RULINGS-LEDGER row 5/7): `.pm`/`.psa`/`.psb` extend round 6's
+    # RTF vertical-space model to Printed PDF, same relative-computation
+    # rules, Printed only (Modern's own `else` branch below never reads
+    # either helper). `pending_sa` carries a block's own `sa` forward to
+    # whatever PageLine gets appended NEXT (which may be several `lines`
+    # entries away across an intervening `.hf`/pagebreak/condpage sentinel)
+    # -- applied the moment a real PageLine is built, regardless of source.
+    doc_sb, doc_sa = _printed_doc_spacing_pt(doc) if printed else (None, None)
+    pending_sa = None
+    default_lead_pt = _printed_lead(doc) if printed else LEAD
     lines = []                                            # None = forced page break
     for bi, b in enumerate(doc.blocks):
         for ev in hf_by_block.get(bi, ()):
@@ -1018,6 +1075,8 @@ def _doc_to_pagelines(doc, printed):
             # that knows how full the page is, can decide.
             lines.append(('cond', b.heading or 1))
             continue
+        fi_pt = _printed_pm_fi_pt(b) if printed else None
+        first_line_of_block = True
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
         # core.merged_lines, the 2.0.0 split)
@@ -1029,14 +1088,33 @@ def _doc_to_pagelines(doc, printed):
             if printed:
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
-                lines.append(PageLine(spans, soft=line.soft,
-                                      lead=_lead_pt(line.lead_48),
-                                      overprint=line.overprint))
+                own_lead = _lead_pt(line.lead_48)
+                extra = 0.0
+                if pending_sa is not None:
+                    extra += pending_sa
+                    pending_sa = None
+                if first_line_of_block and doc_sb and bi > 0:
+                    # no space-before on the document's own opening paragraph
+                    # -- nothing above it to space away from.
+                    extra += doc_sb
+                if extra:
+                    own_lead = (own_lead if own_lead is not None else default_lead_pt) + extra
+                pl = PageLine(spans, soft=line.soft, lead=own_lead,
+                             overprint=line.overprint,
+                             fi=(fi_pt if first_line_of_block else None))
+                lines.append(pl)
+                first_line_of_block = False
             else:
                 lines.extend(PageLine(w, soft=line.soft)
                              for w in _wrap_line(spans, MAX_COLS))
         if not printed and b.lines:
             lines.append([])                              # blank line between paragraphs
+        if printed and doc_sa and b.lines and not first_line_of_block:
+            # `not first_line_of_block`: this block actually appended at
+            # least one real PageLine (an empty-text block leaves it True,
+            # nothing to space away from). Carried to whatever PageLine
+            # comes next, however many sentinel entries away that is.
+            pending_sa = doc_sa
     if doc.footnotes and not printed:
         # Printed mode's own layout is handled above (period-authentic,
         # per-page); this end-of-document dump is Modern-only -- explicitly
@@ -1369,7 +1447,7 @@ def _split_indent(segs):
 
 
 def _line_ops_printed(segs, left, y, size, res, tz_state,
-                      col_state=None, colour_map=None, roll_pt=None):
+                      col_state=None, colour_map=None, roll_pt=None, fi=None):
     """One laid-out line, on the document's own horizontal grid.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -1409,7 +1487,12 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     (The exception only fires for a span that HAS a font block: without one
     the run's pitch already IS the document's, so it cannot change a fontless
     byte.)"""
-    ops, x = [], left
+    # round 17 (RULINGS-LEDGER row 5/7): `.pm`'s first-line indent -- a
+    # column position in the SAME absolute frame `.lm`/`.po` use (WSFORMAT
+    # semantics, matching round 6's own RTF `\fi` reading), so it shifts the
+    # line's own STARTING point; the typed leading-whitespace handling below
+    # still measures relative to wherever the line begins.
+    ops, x = [], left + (fi or 0)
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
         # LJ6DTP -- the same gate covers its character substitutions.
@@ -1570,7 +1653,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                 text, styles, fonts, size)
             segs.append((written, styles, family, size_here, entry))
         ops += _line_ops_printed(segs, left, y, size, res, tz_state,
-                                 col_state, colour_map or {}, roll_pt)
+                                 col_state, colour_map or {}, roll_pt,
+                                 getattr(line, 'fi', None))
     return b'\n'.join(ops)
 
 

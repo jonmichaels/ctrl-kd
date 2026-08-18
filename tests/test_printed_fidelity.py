@@ -260,6 +260,69 @@ def test_headers_flag_never_disables_body_text():
     assert 'Body text of the document' in r
 
 
+# --------------------------------------------------------------- ledger row 5
+# PDF vertical space: `.pm` first-line indent + `.psa`/`.psb` spacing extend
+# round 6's RTF work to pdf.py, same relative-computation rules, Printed only.
+
+def test_pm_shifts_printed_pdf_first_line_start_x():
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pm 10' + HARD
+        + b'Some paragraph text without a typed indent at all.' + HARD)
+    assert doc.blocks[0].para_margin == 10.0
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    baseline = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'Some paragraph text without a typed indent at all.' + HARD)
+    out_base = pdf.emit_pdf(baseline, mode='printed')
+    m_base = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out_base)
+    assert float(m.group(1)) - float(m_base.group(1)) == 72.0   # 10 cols * 7.2pt/col
+
+
+def test_psa_psb_add_printed_pdf_vertical_space():
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.PSB 1' + HARD + b'.PSA 2' + HARD
+        + b'First paragraph line one.' + HARD + HARD
+        + b'Second paragraph after a blank line.' + HARD)
+    assert doc.meta['space_before_lines'] == 1.0
+    assert doc.meta['space_after_lines'] == 2.0
+    assert doc.meta['producer'] == 'wordtsar'
+
+    baseline = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'First paragraph line one.' + HARD + HARD
+        + b'Second paragraph after a blank line.' + HARD)
+
+    def gap(d):
+        out = pdf.emit_pdf(d, mode='printed')
+        ys = [float(y) for _, y in re.findall(rb'([\d.]+) ([\d.]+) Td', out)]
+        return ys[0] - ys[1]
+
+    # +1 line before (12pt) + 2 lines after (24pt) = 36pt more than baseline
+    assert gap(doc) - gap(baseline) == 36.0
+
+
+def test_pm_psa_psb_never_reach_modern_pdf():
+    """Modern must remain untouched -- the reader owns presentation, same
+    doctrine as every other Printed-only vertical-space item."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pm 10' + HARD + b'.PSB 1' + HARD + b'.PSA 2' + HARD
+        + b'First paragraph.' + HARD + HARD
+        + b'Second paragraph.' + HARD)
+    baseline = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'First paragraph.' + HARD + HARD
+        + b'Second paragraph.' + HARD)
+    out_modern = pdf.emit_pdf(doc, mode='modern')
+    out_modern_base = pdf.emit_pdf(baseline, mode='modern')
+    # Modern reflows anyway, but the point stands: .pm/.psa/.psb make zero
+    # difference to Modern's own byte output.
+    assert out_modern == out_modern_base
+
+
 # ---------------------------------------------------- style-library helpers
 # Trimmed local copies -- see test_modern_lint.py's own `_style_record`/
 # `_style_library`/`_doc_with_style_library` for the field-by-field
