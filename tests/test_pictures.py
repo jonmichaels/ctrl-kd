@@ -281,3 +281,58 @@ def test_html_embed_sets_explicit_size_from_print_options(tmp_path):
     html = emit.emit_html(doc, mode='modern', pictures='embed', pix_results=results)
     assert 'width:6.500in' in html
     assert 'height:2.000in' in html
+
+
+def test_md_modern_off_is_byte_identical_to_no_pix_results(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    for mode in ('modern', 'printed'):
+        without = emit.emit_markdown(doc, mode=mode)
+        off = emit.emit_markdown(doc, mode=mode, pictures='off', pix_results=results)
+        assert without == off
+
+
+def test_md_printed_fence_is_untouched_by_pictures_regardless_of_mode(tmp_path):
+    # a fenced facsimile is the emitter saying "verbatim" (round 17b's own
+    # fence-scoping lesson) -- pix substitution must never reach inside it,
+    # same "TXT: skip entirely" scope cut MD's own printed body inherits
+    # for free from emit_text.
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    printed_off = emit.emit_markdown(doc, mode='printed', pictures='off', pix_results=results)
+    printed_embed = emit.emit_markdown(doc, mode='printed', pictures='embed',
+                                       pix_results=results,
+                                       image_links={0: 'DOC-images/FIGURE1.png'})
+    assert printed_off == printed_embed
+    assert 'FIGURE1.PIX' in printed_off       # placeholder text still present
+
+
+def test_md_modern_embed_renders_relative_link_when_image_links_given(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    md = emit.emit_markdown(doc, mode='modern', pictures='embed', pix_results=results,
+                            image_links={0: 'DOC-images/FIGURE1.png'})
+    assert '![FIGURE1.PIX](DOC-images/FIGURE1.png)' in md
+
+
+def test_md_modern_export_renders_the_same_relative_link_shape(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    md = emit.emit_markdown(doc, mode='modern', pictures='export', pix_results=results,
+                            image_links={0: 'DOC-images/FIGURE1.png'})
+    assert '![FIGURE1.PIX](DOC-images/FIGURE1.png)' in md
+
+
+def test_md_modern_embed_without_image_links_falls_back_to_placeholder(tmp_path):
+    # a library caller that asked for 'embed' but never wrote the file
+    # (no image_links) must never get a link to a file that doesn't
+    # exist -- degrades to the unchanged placeholder text instead.
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    md = emit.emit_markdown(doc, mode='modern', pictures='embed', pix_results=results)
+    assert '![' not in md
+    assert 'FIGURE1.PIX' in md
+
+
+def test_md_modern_miss_keeps_placeholder(tmp_path):
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    md = emit.emit_markdown(doc, mode='modern', pictures='embed', pix_results=results,
+                            image_links={0: 'DOC-images/NOPE.png'})
+    assert '![' not in md
+    assert 'NOPE.PIX' in md

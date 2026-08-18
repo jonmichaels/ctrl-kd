@@ -397,9 +397,26 @@ def _resolve_ref(refs, text):
     return None, None
 
 
-def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
+def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
+            pix_map=None, pictures='off', image_links=None):
     if any(t.startswith('pctl') for t in s.styles):
         return ''                  # screen-only print-control display string
+    # Round 19 (PIX images RULED IN, ledger PIX row): MD has NO true embed
+    # (ruled) -- both 'embed' and 'export' render the same relative link
+    # here; the CLI ALWAYS writes the PNG for MD regardless of which mode
+    # was asked (embed additionally gets a one-line stderr degradation
+    # note, printed by the CLI -- this function stays silent, same
+    # convention as every other emit_* function). A miss, 'off', or a
+    # library caller that built `pix_map`/`pictures` but never wrote the
+    # files (no `image_links` entry) all fall straight through to the
+    # unchanged placeholder text below -- never a link to a file that was
+    # never written.
+    pix_tag = next((t for t in s.styles if t[:3] == 'pix' and t[3:].isdigit()), None)
+    if pix_tag is not None and pictures in ('embed', 'export'):
+        r = (pix_map or {}).get(int(pix_tag[3:]))
+        if r is not None and r.ok and image_links and r.index in image_links:
+            alt = _pix_alt(r.raw_path).replace('[', '\\[').replace(']', '\\]')
+            return f'![{alt}]({image_links[r.index]})'
     text = s.text
     if 'fnref' in s.styles:
         note, label = _resolve_ref(refs, text)
@@ -449,7 +466,7 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False):
 _MARKER_MAX_LEN = 5
 
 
-def _md_unit_lines(unit, refs, keep, b):
+def _md_unit_lines(unit, refs, keep, b, pix_map=None, pictures='off', image_links=None):
     """One paragraph unit's Lines rendered to Markdown text, EVERY line's
     own leading indent dropped (Jon's ruling, round 3, 2026-08-17 --
     widened from "first line only" after real screenshots showed both
@@ -487,12 +504,22 @@ def _md_unit_lines(unit, refs, keep, b):
         plain = (bool(stripped) and len(stripped) <= _MARKER_MAX_LEN
                 and not any(c.isalpha() for c in raw))
         spans = [Span(s.text, effective_span_styles(s, b)) for s in line.spans]
-        text = ''.join(_md_span(s, refs, keep, plain=plain) for s in spans)
+        text = ''.join(_md_span(s, refs, keep, plain=plain, pix_map=pix_map,
+                                pictures=pictures, image_links=image_links)
+                      for s in spans)
         out.append(text.lstrip(' '))
     return out
 
 
-def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_options):
+def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
+                  pictures='off', pix_results=None, image_links=None,
+                  **_options):
+    # Round 19: see emit_rtf's identical comment. Printed mode's own body
+    # is emit_text's output inside a code fence (see below) -- a fenced
+    # verbatim block is the emitter saying "this is exact text", so
+    # pix_map/pictures are never consulted there at all (same "TXT: skip
+    # entirely" scope cut, inherited for free rather than special-cased).
+    pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     if mode == 'printed' or _printed(doc):
         # alignment is the content: a fenced block is the honest representation
@@ -532,7 +559,9 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_o
             # hazard `_md_unit_lines` already guards against for ordinary
             # paragraphs).
             lines = [''.join(_md_span(Span(s.text, effective_span_styles(s, b)),
-                                      refs, keep) for s in line.spans).lstrip(' ')
+                                      refs, keep, pix_map=pix_map, pictures=pictures,
+                                      image_links=image_links)
+                             for s in line.spans).lstrip(' ')
                      for line in merged_lines(b)]
             para = '  \n'.join(lines)
             if para.strip():
@@ -543,7 +572,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_o
         for unit in assemble_paragraphs(
                     b, margin, head_position=head_position.get(id(b), False),
                     convention_indent=convention_indent):
-            lines = _md_unit_lines(unit, refs, keep, b)
+            lines = _md_unit_lines(unit, refs, keep, b, pix_map, pictures, image_links)
             if not any(l.strip() for l in lines):
                 continue
             # round 3b (2026-08-17): a hard break is reserved for a REAL
