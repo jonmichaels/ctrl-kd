@@ -45,7 +45,7 @@ import os
 import re
 from pathlib import Path
 
-__all__ = ['resolve_pix']
+__all__ = ['resolve_pix', 'probe_candidates']
 
 # Fixed probe locations tried (each relative to the document's own
 # directory, then each ancestor) once the DOS-path tail-suffix walk turns
@@ -162,3 +162,33 @@ def resolve_pix(tag_payload, doc_path, max_ancestors: int = 8) -> str | None:
                 return str(hit)
 
     return None
+
+
+def probe_candidates(tag_payload, doc_path, max_ancestors: int = 8) -> list[str]:
+    """Round 19: reconstruct, in the SAME order resolve_pix tries them, the
+    full candidate paths a miss was checked against -- for diagnostics only
+    (a failed resolve_pix already walked these; this just re-describes them
+    without touching the filesystem again, so it is safe to call even after
+    a resolve_pix(...) is None). Callers (the CLI's stderr report, ruled
+    2026-08-17: "proper error handling for missing/unreadable image files
+    is required") use this to say WHERE it looked, not just that it failed.
+
+    Returns [] if the payload parses to nothing (resolve_pix would have
+    returned None immediately too, before ever touching the filesystem)."""
+    parts = _parse_dos_path(tag_payload)
+    if not parts:
+        return []
+
+    doc_path = Path(doc_path)
+    doc_dir = doc_path if doc_path.is_dir() else doc_path.parent
+    ancestors = _ancestors(doc_dir, max_ancestors)
+
+    out = []
+    for anc in ancestors:
+        for suf in _tail_suffixes(parts):
+            out.append(str(anc.joinpath(*suf)))
+    basename = parts[-1]
+    for anc in ancestors:
+        for probe in _BASENAME_PROBES:
+            out.append(str(anc.joinpath(*probe, basename)))
+    return out
