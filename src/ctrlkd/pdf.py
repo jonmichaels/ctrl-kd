@@ -421,8 +421,22 @@ PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
                '▌': (0, 0, 0.5, 1), '▐': (0.5, 0, 0.5, 1),
                # cp437 0xFE: the PC-8 black square, WordStar-era bullet of
                # choice (Sawyer's -README list markers). Centered small
-               # block, per the IBM glyph.
-               '■': (0.12, 0.18, 0.72, 0.55)}
+               # block, per the IBM glyph -- a TRUE square (fw == fh),
+               # meaningful now that SQUARE_PART_BLOCKS scales both axes
+               # by the same `sq = min(pitch, h)` reference (round 20,
+               # slate item 8). The old (0.12, 0.18, 0.72, 0.55) pair was
+               # tuned by eye against the un-squared rendering (pitch for
+               # x, h for y independently) and came out 5.2x7.3pt on a
+               # 12pt Courier cell -- visibly taller than wide, the
+               # "squashed" defect reported. 0.65 keeps the same rough
+               # visual weight ("centered small block") as a real square.
+               '■': (0.175, 0.175, 0.65, 0.65)}
+# ▀▄▌▐ are genuinely CELL-shaped (a "half block" means half the actual
+# advance-width/line-height cell, whatever its aspect) -- only ■ is
+# authored to look like a regular, roughly-square dot, so only it gets
+# the square-cell correction _graphic_ops applies to SYMBOL_SHAPES
+# (round 20, slate item 8: squashed cp437 vector glyphs).
+SQUARE_PART_BLOCKS = frozenset('■')
 # cp437 control-position symbol glyphs (Jon's ruling, 2026-08-11, extending
 # the 2026-08-10 box ruling: "the card suits, etc. show up everywhere").
 # LJ6DTP p3's "Shows on screen as" column is literal bytes 02-06/0F/F0 — on
@@ -437,7 +451,10 @@ PART_BLOCKS = {'▀': (0, 0.5, 1, 0.5), '▄': (0, 0, 1, 0.5),
 # Scope is exactly the ruled seven; the rest of CP437_GRAPHICS (arrows,
 # music notes …) still degrades until a document surfaces them.
 SYMBOL_SHAPES = {
-    '♦': [('poly', [(0.50, 0.92), (0.88, 0.50), (0.50, 0.08), (0.12, 0.50)])],
+    # Round 20 (slate item 8): symmetric span (0.8 both axes -- was
+    # 0.76w/0.84h, a minor pre-existing asymmetry harmless before the
+    # pitch/h aspect fix made shape authoring finally square-meaningful).
+    '♦': [('poly', [(0.50, 0.90), (0.90, 0.50), (0.50, 0.10), (0.10, 0.50)])],
     '♥': [('disc', 0.32, 0.62, 0.21), ('disc', 0.68, 0.62, 0.21),
           ('poly', [(0.09, 0.56), (0.91, 0.56), (0.50, 0.08)])],
     '♠': [('poly', [(0.50, 0.94), (0.22, 0.52), (0.78, 0.52)]),
@@ -489,24 +506,42 @@ def _graphic_ops(text, x, y, pitch, pt):
         ops.append(b'%.1f %.1f %.1f %.1f %.1f %.1f c'
                    % (cx + k, cy - r, cx + r, cy - k, cx + r, cy))
         ops.append(b'f')
+    # Round 20 (slate item 8): a symbol glyph's fractional coordinates are
+    # authored to look REGULAR (a round dot, a true diamond, a circular
+    # sun) -- not cell-shaped like a box-drawing arm or a half-block.
+    # Scaling x by `pitch` and y by `h` independently only reproduces
+    # that intent when the two happen to be equal; a real printed cell
+    # never is (12pt Courier: pitch 7.2pt advance, h 13.2pt) -- disc()'s
+    # own radius already used `min(pitch, h)` (bisected b22-pin 142f478
+    # vs current on CONVERT.WS: BYTE-IDENTICAL, so this was never a
+    # regression -- the mismatch has always been there, just never
+    # applied to poly/rect). `sq` and cell-CENTER-relative offsets make
+    # every shape kind use the same single, consistent scale: a strict
+    # generalization that reproduces the exact prior output whenever
+    # pitch == h (the poly/rect formulas below reduce algebraically to
+    # `x0 + fx*pitch, yb + fy*h` in that case) and only corrects the
+    # aspect when it doesn't.
+    sq = min(pitch, h)
     def symbol_shape(shape, x0):
+        cx, cy = x0 + pitch / 2.0, yb + h / 2.0
         kind = shape[0]
         if kind == 'white':
             ops.append(b'q 1 g')
             symbol_shape(shape[1], x0)
             ops.append(b'Q')
         elif kind == 'poly':
-            pts = [(x0 + fx * pitch, yb + fy * h) for fx, fy in shape[1]]
+            pts = [(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq)
+                  for fx, fy in shape[1]]
             ops.append(b'%.1f %.1f m' % pts[0])
             for p in pts[1:]:
                 ops.append(b'%.1f %.1f l' % p)
             ops.append(b'h f')
         elif kind == 'disc':
             _, fx, fy, fr = shape
-            disc(x0 + fx * pitch, yb + fy * h, fr * min(pitch, h))
+            disc(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq, fr * sq)
         elif kind == 'rect':
             _, fx, fy, fw, fh = shape
-            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
+            rect(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq, fw * sq, fh * sq)
     for n, ch in enumerate(text):
         x0 = x + n * pitch
         if ch == ' ':
@@ -522,7 +557,12 @@ def _graphic_ops(text, x, y, pitch, pt):
             ops.append(b'Q')
         elif ch in PART_BLOCKS:
             fx, fy, fw, fh = PART_BLOCKS[ch]
-            rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
+            if ch in SQUARE_PART_BLOCKS:
+                cx, cy = x0 + pitch / 2.0, yb + h / 2.0
+                rect(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq,
+                     fw * sq, fh * sq)
+            else:
+                rect(x0 + fx * pitch, yb + fy * h, fw * pitch, fh * h)
         else:
             u, dn, l, r = BOX_ARMS[ch]
             mx = x0 + pitch / 2.0
