@@ -54,6 +54,23 @@ FOOTNOTE_FLOOR = 3               # "A minimum of three lines of regular text
                                   # size of the footnote area" (except the
                                   # last page of the document)
 
+def _landscape_page(page):
+    """A copy of the page dict with height_in/pw_in SWAPPED -- `.pr or=l`
+    (round 17, RULINGS-LEDGER row 2, register C18, Paged-surface doctrine
+    point 2: "honor .pr or=l landscape in all paged surfaces"). Swapping
+    at this single source lets every existing height_in/pw_in consumer
+    (pagination capacity, top margin, the MediaBox itself) cascade
+    correctly with no per-site change -- a landscape page is genuinely
+    SHORTER top-to-bottom (fewer text lines fit) as well as wider, exactly
+    what real landscape printing does. `.mt`/`.mb`/`.po`-derived margins
+    are left untouched -- still top/bottom/left relative to the text, same
+    as WordStar's own driver-level rotation never re-interpreted them."""
+    eff = dict(page)
+    eff['height_in'], eff['pw_in'] = (
+        float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
+    return eff
+
+
 def _resolved_page_height(doc, printed):
     """Page height in points for THIS document. Printed mode honours the
     file's own .pl-derived geometry (core.py's doc.meta['page']['height_in']
@@ -1961,10 +1978,18 @@ def emit_pdf(doc, mode='printed', **options):
     printed = mode == 'printed' or _printed(doc)
     page_settings = options.get('page_settings')
     saved_page = None
-    if page_settings and doc.meta.get('page') is not None:
-        from .core import effective_page
-        saved_page = doc.meta['page']
-        doc.meta['page'] = effective_page(saved_page, page_settings)
+    if doc.meta.get('page') is not None:
+        page = doc.meta['page']
+        if page_settings:
+            from .core import effective_page
+            page = effective_page(page, page_settings)
+        # round 17 (RULINGS-LEDGER row 2): `.pr or=l` -- Printed only, same
+        # doctrine as every other Printed-only geometry item.
+        if printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape':
+            page = _landscape_page(page)
+        if page is not doc.meta['page']:
+            saved_page = doc.meta['page']
+            doc.meta['page'] = page
     try:
         return _emit_pdf_inner(doc, printed, options)
     finally:

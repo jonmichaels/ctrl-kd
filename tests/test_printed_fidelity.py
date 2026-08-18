@@ -155,6 +155,60 @@ def test_sr_roll_never_reaches_modern_rtf_or_pdf():
     assert 15 not in rises and -15 not in rises
 
 
+# --------------------------------------------------------------- ledger row 2
+# `.pr or=l` landscape: `state['orientation']` was parsed, never consumed --
+# a landscape document always rendered portrait, no diagnostic. WSFORMAT/the
+# archive's real syntax: `.pr or=l` / `.pr or=p`.
+
+def _landscape_doc(orientation=b'l'):
+    return core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pr or=' + orientation + HARD
+        + b'A landscape-declared paragraph of body text.' + HARD)
+
+
+def test_pr_landscape_flips_printed_pdf_mediabox():
+    doc = _landscape_doc()
+    assert doc.meta['formatting']['orientation'] == 'landscape'
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out)
+    assert m is not None
+    w, h = int(m.group(1)), int(m.group(2))
+    assert (w, h) == (792, 612)     # wider than tall -- the swap landed
+
+
+def test_pr_portrait_explicit_keeps_the_ordinary_mediabox():
+    doc = _landscape_doc(orientation=b'p')
+    assert doc.meta['formatting']['orientation'] == 'portrait'
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out)
+    assert (int(m.group(1)), int(m.group(2))) == (612, 792)
+
+
+def test_pr_landscape_flips_printed_rtf_paper_and_sets_landscape_keyword():
+    doc = _landscape_doc()
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r'\landscape' in r
+    m = re.search(r'\\paperw(\d+)\\paperh(\d+)', r)
+    assert m is not None
+    paperw, paperh = int(m.group(1)), int(m.group(2))
+    assert paperw > paperh                    # 11in wide, 8.5in tall, in twips
+    assert paperw == 15840 and paperh == 12240
+
+
+def test_pr_landscape_never_reaches_modern_pdf_or_rtf():
+    """Modern must remain untouched -- its own fixed Letter page regardless
+    of the document's declared orientation, same doctrine as every other
+    Printed-only geometry item."""
+    doc = _landscape_doc()
+    out_modern = pdf.emit_pdf(doc, mode='modern')
+    m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out_modern)
+    assert (int(m.group(1)), int(m.group(2))) == (612, 792)
+
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    assert r'\landscape' not in r_modern
+
+
 # ---------------------------------------------------- style-library helpers
 # Trimmed local copies -- see test_modern_lint.py's own `_style_record`/
 # `_style_library`/`_doc_with_style_library` for the field-by-field

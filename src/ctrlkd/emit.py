@@ -2188,6 +2188,20 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # filled by the mode's own page (Modern: 1in Letter; Printed: the era
     # page from doc.meta, which core already resolved with its defaults).
     page = doc.meta.get('page') or {}
+    # round 17 (RULINGS-LEDGER row 2, register C18, Paged-surface doctrine
+    # point 2): `.pr or=l` swaps the PAPER dimensions only -- height_in/
+    # pw_in, which is all `\paperh`/`\paperw` below read. `.mt`/`.mb`/`.po`-
+    # derived margins are left exactly as declared (still top/bottom/left
+    # relative to the text, same as WordStar's own driver-level rotation
+    # never re-interpreted them either) -- only the CANVAS they sit against
+    # changes shape. Printed only: Modern's page is its own fixed Letter
+    # regardless of the document's declared orientation (same doctrine as
+    # every other Printed-only geometry item).
+    landscape = printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape'
+    if landscape:
+        page = dict(page)
+        page['height_in'], page['pw_in'] = (
+            float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
     def _twips_lines(key, default_lines):
         v = page.get(key, default_lines)
         return int(round(float(v) * 240))            # 1 line at 6 LPI = 240 twips
@@ -2211,6 +2225,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     paperw = int(round(float(page.get('pw_in', 8.5)) * 1440))
     pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
                  % (paperw, paperh, margl, margl, margt, margb))
+    if landscape:
+        pagesetup += r'\landscape'
     running = '' if printed else _rtf_running_heads(doc)
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
