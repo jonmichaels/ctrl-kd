@@ -336,3 +336,134 @@ def test_md_modern_miss_keeps_placeholder(tmp_path):
                             image_links={0: 'DOC-images/NOPE.png'})
     assert '![' not in md
     assert 'NOPE.PIX' in md
+
+
+# ============================================================== PDF wiring
+
+def test_pdf_printed_off_is_byte_identical_to_no_pix_results(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    without = pdf.emit_pdf(doc, mode='printed')
+    off = pdf.emit_pdf(doc, mode='printed', pictures='off', pix_results=results)
+    assert without == off
+
+
+def _doc_with_isolated_pix(tmp_path, pix_bytes=None):
+    """Like _doc_with_one_pix, but the pix tag sits ALONE on its own
+    paragraph (blank lines before and after) -- the real-corpus shape
+    (confirmed against all 5 acceptance documents: a picture reference is
+    never mid-sentence), and the shape PDF's own block-level substitution
+    requires (see _doc_to_pagelines's "other_text" safety check)."""
+    if pix_bytes is None:
+        pix_bytes = _tiny_pix_bytes()
+    (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    return doc, results, docpath
+
+
+def test_pdf_printed_embed_places_an_image_xobject(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_isolated_pix(tmp_path)
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'/Subtype /Image' in out
+    assert b'/Im0 Do' in out
+
+
+def test_pdf_printed_off_never_emits_an_xobject(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_isolated_pix(tmp_path)
+    out = pdf.emit_pdf(doc, mode='printed', pictures='off', pix_results=results)
+    assert b'/Subtype /Image' not in out
+    assert b'/Im0 Do' not in out
+
+
+def test_pdf_printed_miss_keeps_placeholder_text_no_xobject(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'/Im0 Do' not in out
+    assert b'NOPE.PIX' in out
+
+
+def test_pdf_printed_text_sharing_the_line_prevents_substitution(tmp_path):
+    # safety rule: never silently drop real text -- a pix tag that (in a
+    # hypothetical document) shares its physical line with other prose
+    # falls back to the ordinary placeholder-text rendering instead of
+    # embedding, rather than risk losing the prose.
+    from ctrlkd import pdf
+    pix_bytes = _tiny_pix_bytes()
+    (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Caption text ' + block + b'\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'/Im0 Do' not in out
+    assert b'FIGURE1.PIX' in out
+    assert b'Caption text' in out
+
+
+def test_pdf_modern_mode_pictures_flag_is_a_documented_scope_cut(tmp_path):
+    # Modern PDF is a separate reflow pipeline (_modern_streams); pix
+    # embedding is scoped to Printed PDF only this round -- verify the
+    # scope cut is real (byte-identical) rather than silently half-applied.
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_one_pix(tmp_path)
+    without = pdf.emit_pdf(doc, mode='modern')
+    on = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert without == on
+
+
+def test_pdf_printed_embed_scales_to_print_options_size(tmp_path):
+    from ctrlkd import pdf
+    prt = struct.pack('<15h', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      144, 288, 0) + bytes(range(16))    # 0.2in x 0.4in -- small, no cap
+    doc, results, _ = _doc_with_isolated_pix(
+        tmp_path, pix_bytes=_tiny_pix_bytes(prt_options_raw=prt))
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    # 0.4in -> 28.8pt width, 0.2in -> 14.4pt height in the `cm` operator
+    assert b'28.80 0 0 14.40' in out
+
+
+@pytest.mark.skipif(
+    not os.path.exists('<PRIVATE-SAWYER-ROOT>/WS/PREVIEW.WS'),
+    reason='real WS7 corpus not present on this machine')
+def test_real_corpus_acceptance_all_five_resolve_four_of_five_embed():
+    """Round 19 acceptance (RULINGS-LEDGER PIX row): the 5 real documents
+    that reference WORDSTAR.PIX -- -SCREEN.WS, PREVIEW.WS, and the 3
+    distinct -README.WS documents -- all resolve it via the ancestor walk
+    from their real tree positions. 4 of 5 actually EMBED (Printed PDF, the
+    main pagination path); -SCREEN.WS is a KNOWN, DOCUMENTED gap (its own
+    footnotes route it through `_paginate_printed_notes`, a structurally
+    different, line-count pagination path this round does not extend --
+    same class of documented gap as round 17b's .pm/.psa/.psb) -- it still
+    degrades safely to the placeholder text, never fails."""
+    from ctrlkd import pdf
+    paths = {
+        '-README.WS (root)': '<PRIVATE-SAWYER-ROOT>/WS/-README.WS',
+        '-SCREEN.WS': '<PRIVATE-SAWYER-ROOT>/WS/-SCREEN.WS',
+        'PREVIEW.WS': '<PRIVATE-SAWYER-ROOT>/WS/PREVIEW.WS',
+        '-README.WS (APP)': '<PRIVATE-SAWYER-ROOT>/WS/APP/-README.WS',
+        '-README.WS (APP/vDosPlus)':
+            '<PRIVATE-SAWYER-ROOT>/WS/APP/vDosPlus/-README.WS',
+    }
+    known_gap = {'-SCREEN.WS'}
+    for label, path in paths.items():
+        doc = core.parse(open(path, 'rb').read())
+        results = pictures.resolve_document_pictures(doc, path)
+        assert len(results) == 1, label
+        assert results[0].ok, (label, results[0].error)
+        assert results[0].resolved_path.upper().endswith('WORDSTAR.PIX'), label
+        out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+        embedded = b'/Im0 Do' in out
+        if label in known_gap:
+            assert not embedded, f'{label} unexpectedly embedded -- gap may be closed, update this test'
+            assert b'WORDSTAR.PIX' in out    # placeholder still present, never fails
+        else:
+            assert embedded, label
