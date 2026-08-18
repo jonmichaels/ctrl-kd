@@ -1984,7 +1984,7 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             fonts_target='office', note_refs='word', **_options):
+             fonts_target='office', note_refs='word', headers=True, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -2227,7 +2227,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                  % (paperw, paperh, margl, margl, margt, margb))
     if landscape:
         pagesetup += r'\landscape'
-    running = '' if printed else _rtf_running_heads(doc)
+    # round 17 (RULINGS-LEDGER row 1, register B1/B2 + Paged-surface doctrine
+    # point 1): Printed RTF was the one paged surface `_rtf_running_heads`
+    # never reached (Printed PDF and Modern RTF both already rendered
+    # headers/footers/page numbers) -- the function itself has no printed-
+    # specific behavior to add; it was simply never called for `printed`.
+    # `headers` (default True per the ruled flag defaults) now gates BOTH
+    # modes uniformly, closing the "+ toggle flag" half of the ruling too.
+    running = _rtf_running_heads(doc) if headers else ''
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
             + stylesheet

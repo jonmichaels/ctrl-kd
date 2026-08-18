@@ -1998,6 +1998,13 @@ def emit_pdf(doc, mode='printed', **options):
 
 
 def _emit_pdf_inner(doc, printed, options):
+    # round 17 (RULINGS-LEDGER row 1): the "+ toggle flag" half of the
+    # headers/footers/page-numbers ruling -- default ON per the ruled
+    # flag defaults (register, "Flag UI + defaults" entry: "headers/
+    # footers ON"). `_running_ops` already treats `headers=None`/
+    # `footers=None` as "nothing to render" (its own default), so turning
+    # the flag off just means never passing the real values through.
+    show_headers = options.get('headers', True)
     if printed:
         pages = _doc_to_pagelines(doc, printed)
         top = _printed_top(doc)
@@ -2015,8 +2022,8 @@ def _emit_pdf_inner(doc, printed, options):
         for page_index, pl in enumerate(pages):
             running = _running_ops(doc, start_no + page_index, page_h, lead,
                                    size, left, printed,
-                                   headers=getattr(pl, 'headers', None),
-                                   footers=getattr(pl, 'footers', None))
+                                   headers=(getattr(pl, 'headers', None) if show_headers else {}),
+                                   footers=(getattr(pl, 'footers', None) if show_headers else {}))
             streams.append(_page_stream(pl, top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt))
     else:

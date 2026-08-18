@@ -209,6 +209,57 @@ def test_pr_landscape_never_reaches_modern_pdf_or_rtf():
     assert r'\landscape' not in r_modern
 
 
+# --------------------------------------------------------------- ledger row 1
+# Headers/footers/page numbers in ALL paged surfaces + toggle flag. Pre-round
+# state (register B1/B2): renders in Printed PDF + Modern RTF only; Printed
+# RTF (the one RTF style that never got them) was the gap; no flag existed
+# at all.
+
+def _headed_doc(h1=b'Sawyer / Old Times / #'):
+    return core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.h1 ' + h1 + HARD
+        + b'Body text of the document, long enough to paginate sensibly.' + HARD)
+
+
+def test_printed_rtf_gains_header_footer_destinations_with_chpgn():
+    doc = _headed_doc()
+    assert doc.headers == {1: 'Sawyer / Old Times / #'}
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r'{\header' in r
+    assert r'\chpgn' in r          # `#` became RTF's own page-number field
+    assert 'Sawyer' in r and 'Old Times' in r
+
+
+def test_headers_flag_off_suppresses_printed_rtf_header():
+    doc = _headed_doc()
+    r = emit.emit_rtf(doc, mode='printed', headers=False)
+    assert r'{\header' not in r and 'Sawyer' not in r
+
+
+def test_headers_flag_off_suppresses_printed_pdf_running_content():
+    doc = _headed_doc()
+    on = pdf.emit_pdf(doc, mode='printed', headers=True)
+    off = pdf.emit_pdf(doc, mode='printed', headers=False)
+    assert b'Sawyer' in on
+    assert b'Sawyer' not in off
+
+
+def test_headers_flag_default_is_on():
+    """Ruled default (register, 'Flag UI + defaults' entry): headers ON."""
+    doc = _headed_doc()
+    r = emit.emit_rtf(doc, mode='printed')       # no explicit headers= at all
+    assert r'{\header' in r
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'Sawyer' in out
+
+
+def test_headers_flag_never_disables_body_text():
+    doc = _headed_doc()
+    r = emit.emit_rtf(doc, mode='printed', headers=False)
+    assert 'Body text of the document' in r
+
+
 # ---------------------------------------------------- style-library helpers
 # Trimmed local copies -- see test_modern_lint.py's own `_style_record`/
 # `_style_library`/`_doc_with_style_library` for the field-by-field

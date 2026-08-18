@@ -103,6 +103,9 @@ def main(argv=None):
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
+    ap.add_argument('--headers', choices=('on', 'off'), default='on',
+                    help='headers, footers, and page numbers in the paged '
+                         'surfaces (Printed/Native PDF and RTF). Default: on')
     ap.add_argument('--no-notes', action='store_true',
                     help='omit footnotes, endnotes and annotations from the output')
     ap.add_argument('--comments', action='store_true',
@@ -227,7 +230,7 @@ def main(argv=None):
             reg = emit.get_emitter(fmt)
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
                             styles=not a.no_styles, fonts_target=a.fonts,
-                            note_refs=a.note_refs)
+                            note_refs=a.note_refs, headers=a.headers == 'on')
             if a.output:
                 dest = a.output
             else:
