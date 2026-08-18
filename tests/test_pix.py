@@ -78,9 +78,22 @@ def build_tile_bytes(index_rows, page_rows, page_cols, gfore, n_rows_here):
     return bytes(out)
 
 
+def build_prt_options(pitch=100, scol=0, ecol=0, srow=0, erow=0, p_wid=0,
+                       siz=0, rotat=0, do_sw=0, res_1=0, res_2=0, pcolor=0,
+                       row_dp=0, col_dp=0, flags=0, ink_tab=None):
+    """A DataID-0x11 print-options blob: 15 signed SHORTs + 16-byte
+    ink_tab, matching the EGFF struct order (see pix.py's
+    _PRT_OPTIONS_FIELDS)."""
+    if ink_tab is None:
+        ink_tab = bytes(range(16))
+    return struct.pack('<15h', pitch, scol, ecol, srow, erow, p_wid, siz,
+                        rotat, do_sw, res_1, res_2, pcolor, row_dp, col_dp,
+                        flags) + bytes(ink_tab)
+
+
 def build_pix_bytes(gcols, grows, gfore, page_rows, page_cols, stp_rows, stp_cols,
                      index_img, palette_raw=None, htype=1,
-                     lintens=0, lred=0, lgreen=0, lblue=0):
+                     lintens=0, lred=0, lgreen=0, lblue=0, prt_options_raw=None):
     """Assemble a complete, structurally valid .PIX byte stream: header +
     index table + mode-data blob + palette blob + tile-info blob + one
     bitmap data item per tile, row-major. `index_img` is the full
@@ -119,6 +132,8 @@ def build_pix_bytes(gcols, grows, gfore, page_rows, page_cols, stp_rows, stp_col
                                            gfore, n_rows_here))
 
     items = [(0, bytes(mode_blob)), (1, palette_raw), (2, tile_info_blob)]
+    if prt_options_raw is not None:
+        items.append((0x11, prt_options_raw))
     items += [(0x8000 + i, tb) for i, tb in enumerate(tiles)]
 
     header = struct.pack('<HH', 3, len(items))
@@ -316,6 +331,76 @@ def test_decode_zero_dimension_raises_format_error():
                             stp_rows=1, stp_cols=1, index_img=[[0] * 8])
     with pytest.raises(pix.PixFormatError):
         pix.decode(data)
+
+
+# ==================================================== print-options sizing
+
+def _tiny_mono_pix(prt_options_raw=None):
+    return build_pix_bytes(gcols=8, grows=1, gfore=1, page_rows=1, page_cols=8,
+                            stp_rows=1, stp_cols=1, index_img=[[0] * 8],
+                            prt_options_raw=prt_options_raw)
+
+
+def test_physical_size_in_reads_row_dp_col_dp():
+    # 720 decipoints/inch -- 4680 dp = 6.5in, 1440 dp = 2.0in
+    data = _tiny_mono_pix(build_prt_options(row_dp=1440, col_dp=4680))
+    w, h = pix.physical_size_in(data)
+    assert w == pytest.approx(6.5)
+    assert h == pytest.approx(2.0)
+
+
+def test_physical_size_in_none_when_no_print_options_item():
+    assert pix.physical_size_in(_tiny_mono_pix()) is None
+
+
+def test_physical_size_in_none_when_zero_size():
+    data = _tiny_mono_pix(build_prt_options(row_dp=0, col_dp=0))
+    assert pix.physical_size_in(data) is None
+
+
+def test_physical_size_in_none_when_negative():
+    # row_dp/col_dp are signed SHORTs (max ~45.5in representable) -- a
+    # negative reading is the reachable "implausible" case; guarded by
+    # the same <=0 check as an all-zero record.
+    data = _tiny_mono_pix(build_prt_options(row_dp=1440, col_dp=-100))
+    assert pix.physical_size_in(data) is None
+
+
+def test_physical_size_in_none_on_malformed_data():
+    assert pix.physical_size_in(b'not a pix file') is None
+    assert pix.physical_size_in(b'') is None
+
+
+def test_physical_size_in_ignores_p_wid_and_siz():
+    # p_wid/siz are documented "not required"/"not used" -- a record that
+    # sets ONLY those, with row_dp/col_dp still zero, must still read as
+    # absent-size (None), never silently derive inches from them.
+    data = _tiny_mono_pix(build_prt_options(p_wid=80, siz=42))
+    assert pix.physical_size_in(data) is None
+
+
+# =================================================== real-corpus ground truth
+
+WORDSTAR_PIX = ('<PRIVATE-SAWYER-ROOT>/'
+                 'WS/INSET/PIX/WORDSTAR.PIX')
+
+
+@pytest.mark.skipif(not os.path.exists(WORDSTAR_PIX),
+                     reason='real WS7 corpus not present on this machine')
+def test_wordstar_pix_print_options_agrees_with_pixel_ground_truth():
+    """Jon's acceptance check (Round 19): the print-options record's
+    physical size and the fit-to-text-measure fallback (pixel count at the
+    period-standard 300dpi) must agree for WORDSTAR.PIX -- both land on
+    ~6.5in x ~1.03in, WordStar's own full text measure. This is the
+    validating cross-check for a struct with no vendor source."""
+    data = open(WORDSTAR_PIX, 'rb').read()
+    w_gcols, h_grows, _rows = pix.decode(data)
+    fallback_w_in = w_gcols / 300.0
+    fallback_h_in = h_grows / 300.0
+    w_in, h_in = pix.physical_size_in(data)
+    assert w_in == pytest.approx(fallback_w_in, abs=0.01)
+    assert h_in == pytest.approx(fallback_h_in, abs=0.01)
+    assert w_in == pytest.approx(6.5, abs=0.05)
 
 
 # ============================================================== PNG helpers

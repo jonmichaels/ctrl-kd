@@ -2453,6 +2453,34 @@ def test_a_document_with_no_graphics_reports_none():
     assert core.parse_ws(ws4_text('Plain.') + HARD).graphics == []
 
 
+def test_inset_graphic_placeholder_carries_a_pix_span_tag():
+    """Round 19 (PIX images RULED IN): an emitter that wants to replace the
+    placeholder with a real embedded image needs to find both the span AND
+    the resolved index into doc.graphics -- the placeholder text alone
+    (identical across documents that reuse a filename) can't disambiguate
+    which occurrence it is. Marked exactly like a 0x0F print control's
+    display string (pctl<hmi>): one span, tagged 'pix<N>'."""
+    block = _ws_block(0x10, br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Before. ' + block + b' After.\r\n')
+    tagged = [sp for b in doc.blocks for ln in getattr(b, 'lines', [])
+              for sp in ln.spans if any(t.startswith('pix') for t in sp.styles)]
+    assert len(tagged) == 1, tagged
+    assert tagged[0].text == '[image: FIGURE1.PIX]'
+    assert 'pix0' in tagged[0].styles
+
+
+def test_two_inset_graphics_get_distinct_pix_indices():
+    block1 = _ws_block(0x10, br'C:\PIX\ONE.PIX')
+    block2 = _ws_block(0x10, br'C:\PIX\TWO.PIX')
+    doc = core.parse_ws(b'A. ' + block1 + b' B. ' + block2 + b' C.\r\n')
+    assert doc.graphics == [r'C:\PIX\ONE.PIX', r'C:\PIX\TWO.PIX']
+    tagged = [sp for b in doc.blocks for ln in getattr(b, 'lines', [])
+              for sp in ln.spans if any(t.startswith('pix') for t in sp.styles)]
+    idxs = sorted(int(t[3:]) for sp in tagged for t in sp.styles
+                  if t.startswith('pix'))
+    assert idxs == [0, 1]
+
+
 # ------------------------------------------- Category C: pass 2
 
 def test_toc_and_index_entries_are_collected_with_a_position():

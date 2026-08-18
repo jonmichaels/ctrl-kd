@@ -129,7 +129,8 @@ from __future__ import annotations
 import struct
 import zlib
 
-__all__ = ['PixFormatError', 'PixTextModeUnsupported', 'decode', 'to_png']
+__all__ = ['PixFormatError', 'PixTextModeUnsupported', 'decode', 'to_png',
+           'physical_size_in']
 
 
 class PixFormatError(Exception):
@@ -194,6 +195,67 @@ def _parse_palette(data: bytes, items: dict):
         return bytes(4 * 16)
     dlen, dloc = items[1]
     return data[dloc:dloc + dlen]
+
+
+# ---- print-options record (DataID 0x11) -- physical size for embedding ----
+#
+# Struct per the EGFF (fileformat.info) secondary source: 15 signed SHORTs
+# followed by a 16-byte ink_tab. VALIDATED against the one real sample this
+# integration targets (WORDSTAR.PIX, referenced by all 5 real corpus
+# documents): its own ecol/erow (1948/307) equal gcols-1/grows-1 from the
+# image-info record (1949/308) exactly, and its row_dp/col_dp (739/4679
+# decipoints, i.e. 1/720in) work out to 1.027in x 6.498in -- matching the
+# pixel count interpreted at 300dpi (308/300, 1949/300 = 1.027in x 6.497in)
+# to within a rounding hair. That double agreement, on a struct with no
+# vendor source, is the validating evidence; per fileformat.info's own field
+# descriptions p_wid ("Printer width (not required, set to 0)") and siz
+# ("Size (not used, set to 0)") are NOT the authoritative size fields despite
+# their names -- row_dp/col_dp are ("Height/Width of image in decipoints"),
+# confirmed above -- so those two, not p_wid/siz, are what physical_size_in
+# reads. No independent second color-depth sample exists to widen this
+# validation (same caveat as the rest of this module).
+_PRT_OPTIONS_FIELDS = ('pitch', 'scol', 'ecol', 'srow', 'erow', 'p_wid',
+                       'siz', 'rotat', 'do_sw', 'res_1', 'res_2', 'pcolor',
+                       'row_dp', 'col_dp', 'flags')
+_DECIPOINTS_PER_INCH = 720.0
+
+
+def _parse_print_options(data: bytes, items: dict):
+    """DataID 0x11 -> a dict of its raw fields (see _PRT_OPTIONS_FIELDS)
+    plus `ink_tab` (16 raw bytes), or None if the item is absent or too
+    short to hold the full struct (15*2 + 16 = 46 bytes)."""
+    if 0x11 not in items:
+        return None
+    dlen, dloc = items[0x11]
+    blob = data[dloc:dloc + dlen]
+    if len(blob) < 30:
+        return None
+    fields = struct.unpack_from('<15h', blob, 0)
+    info = dict(zip(_PRT_OPTIONS_FIELDS, fields))
+    info['ink_tab'] = blob[30:46]
+    return info
+
+
+def physical_size_in(data: bytes):
+    """(width_in, height_in) from the print-options record's row_dp/col_dp,
+    or None when the record is absent, too short, or its size fields are
+    zero or implausible (<=0 or >100in -- guards a garbage/misaligned read
+    on a struct validated against only one real sample). Callers fall back
+    to fit-to-text-measure sizing when this returns None; on the one
+    validated sample (WORDSTAR.PIX) the two methods independently agree
+    (see the module comment above _PRT_OPTIONS_FIELDS)."""
+    try:
+        rev, items = _parse_index_table(data)
+    except PixFormatError:
+        return None
+    opts = _parse_print_options(data, items)
+    if opts is None:
+        return None
+    w = opts['col_dp'] / _DECIPOINTS_PER_INCH
+    h = opts['row_dp'] / _DECIPOINTS_PER_INCH
+    if w <= 0 or h <= 0 or w > 100 or h > 100:
+        return None
+    return (w, h)
 
 
 def _decode_plane(buf: bytes, pos: int, n_rows: int, row_bytes: int,

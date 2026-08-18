@@ -2199,7 +2199,8 @@ def _font_entry(w, h, style, offset):
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
-                  font_at=(), fonts=(), pctl_at=(), colour_at=()) -> list:
+                  font_at=(), fonts=(), pctl_at=(), colour_at=(),
+                  pix_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -2238,6 +2239,11 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     # renderers can replace it with the width the control declares while
     # reading modes show it verbatim.
     pending_pctl = sorted(pctl_at)
+    # pix (inset graphic) placeholders, same mechanism as pctl: one span for
+    # the whole "[image: NAME]" string, tagged 'pix<N>' where N indexes
+    # doc.graphics -- a renderer that wants to embed the real image finds
+    # both the span (to replace) and the path (to resolve/decode) this way.
+    pending_pix = sorted(pix_at)
     i = 0
     while i < len(raw) or pending or pending_fonts or pending_colours:
         while pending_pctl and pending_pctl[0][0] <= i < len(raw):
@@ -2245,6 +2251,12 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             flush()
             text = raw[i:i + count].decode(encoding, 'replace')
             spans.append(Span(text, frozenset(active | {'pctl%d' % hmi})))
+            i += count
+        while pending_pix and pending_pix[0][0] <= i < len(raw):
+            _, idx, count = pending_pix.pop(0)
+            flush()
+            text = raw[i:i + count].decode(encoding, 'replace')
+            spans.append(Span(text, frozenset(active | {'pix%d' % idx})))
             i += count
         while pending_fonts and pending_fonts[0][0] <= i:
             _, fidx = pending_fonts.pop(0)
@@ -2832,9 +2844,19 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
                 content = block[3:-3] if len(block) >= 6 else block[3:]
                 path = bytes(c & 0x7F for c in content
                              if 0x20 <= (c & 0x7F) < 0x7F).decode(encoding, 'replace')
+                idx = len(graphics)
                 graphics.append(path)
                 name = path.replace('\\', '/').rsplit('/', 1)[-1] or path
-                out += b'[image: ' + name.encode(encoding, 'replace') + b']'
+                # Marked exactly like a 0x0F print control's display string
+                # (see the pctl mark below): one span tagged 'pix<N>' so a
+                # renderer can find BOTH the placeholder text and, via N,
+                # the resolved .PIX path in doc.graphics -- reading modes
+                # (and any format/mode combination that can't or won't
+                # embed) show the placeholder verbatim, the same text as
+                # before this mark existed. Round 19 (PIX images RULED IN).
+                placeholder = b'[image: ' + name.encode(encoding, 'replace') + b']'
+                marks.setdefault(len(out), []).append(('pix', idx, len(placeholder)))
+                out += placeholder
             elif cmd == 0x0E:                                     # index item
                 # An inline indexed PHRASE. WordStar prints the phrase in the
                 # body -- the index ENTRY is the non-printing part -- so
@@ -3577,6 +3599,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         font_at = []
         pctl_at = []
         colour_at = []
+        pix_at = []
         for rel, m in line_marks:
             if m[0] == 'softpage':
                 # NOT a block, NOT a break: the editor drops these wherever the
@@ -3643,9 +3666,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 pctl_at.append((rel, m[1], m[2]))
             elif m[0] == 'colour':
                 colour_at.append((rel, m[1]))
+            elif m[0] == 'pix':
+                pix_at.append((rel, m[1], m[2]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
-                              pctl_at, colour_at)
+                              pctl_at, colour_at, pix_at)
         if pending_marks and spans:
             # a content line arrived: deferred dot-comment marks land at
             # its head, the position the comment line occupied
