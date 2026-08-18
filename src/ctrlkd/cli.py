@@ -110,6 +110,24 @@ def main(argv=None):
                     help="the document's own .l# line-number gutter in the "
                          'paged surfaces (Printed/Native PDF and RTF); no '
                          'effect on a document that never set .l#. Default: on')
+    ap.add_argument('--toc', choices=('on', 'off'), default='off',
+                    help='compile a Table of Contents (.tc) and Index (.ix) '
+                         'section at the document end, in every format; the '
+                         'two paged surfaces (Printed PDF and RTF) resolve '
+                         'each entry to a real page number, every other '
+                         'format lists entries without one. Default: off')
+    ap.add_argument('--inline-styling', choices=('on', 'off'), default='on',
+                    help='inline colour (^A) and font-size (^B... a symmetric '
+                         'type-2 font block) changes the author placed mid-'
+                         'text -- RTF gets \\cf from a 16-colour screen '
+                         'palette and \\fsN; HTML gets a span with color/'
+                         'font-size. Default: on')
+    ap.add_argument('--pictures', choices=('off', 'embed', 'export'), default=None,
+                    help='NOT YET WIRED -- reserved for the PIX image-'
+                         'inclusion flag (register, 2026-08-17 ruling). '
+                         'Parsing this now so the CLI surface is stable for '
+                         'sr/the app to port; using it refuses with an '
+                         'explanation rather than silently doing nothing.')
     ap.add_argument('--no-notes', action='store_true',
                     help='omit footnotes, endnotes and annotations from the output')
     ap.add_argument('--comments', action='store_true',
@@ -130,6 +148,9 @@ def main(argv=None):
         notes = set(DEFAULT_NOTE_KINDS) | ({'comment'} if a.comments else set())
     if a.output and (len(a.files) > 1 or len(formats) > 1):
         ap.error('-o works with a single input and a single format; use -d for batch')
+    if a.pictures is not None:
+        ap.error('--pictures is reserved but not yet wired -- PIX image '
+                 'inclusion lands in a later round; drop the flag for now')
 
     # --page-settings: a preset name, or raw values. "default" is the
     # explicit no-op (WordStar factory IS what an empty settings dict means).
@@ -235,7 +256,9 @@ def main(argv=None):
             out = reg['fn'](doc, a.mode, title=base, notes=notes,
                             styles=not a.no_styles, fonts_target=a.fonts,
                             note_refs=a.note_refs, headers=a.headers == 'on',
-                            line_numbers=a.line_numbers == 'on')
+                            line_numbers=a.line_numbers == 'on',
+                            toc=a.toc == 'on',
+                            inline_styling=a.inline_styling == 'on')
             if a.output:
                 dest = a.output
             else:

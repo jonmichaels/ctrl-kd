@@ -662,7 +662,7 @@ def _is_graphic_text(text):
     stripped = text.replace(' ', '')
     return bool(stripped) and all(c in GRAPHIC_CHARS for c in stripped)
 
-def _html_span(s, keep_ws=False):
+def _html_span(s, keep_ws=False, inline_styling=True):
     text = _html.escape(s.text)
     if keep_ws:
         pass
@@ -678,6 +678,17 @@ def _html_span(s, keep_ws=False):
     classes = []
     if font:
         classes.append('ws-' + font.replace('font', 'font-'))
+    # round 18 (RULINGS-LEDGER row 10): inline colour -- `.ws-colour-N`
+    # matches `_style_css`'s own generated rule (N is the raw palette
+    # index, not an array index). `--inline-styling off` never applies
+    # the class -- no rule exists for it either (`_style_css` skips the
+    # whole loop), so this stays inert either way, but skipping here too
+    # keeps --no-styles's own "classes only, CSS decides" contract honest.
+    if inline_styling:
+        colour = next((st for st in s.styles
+                      if st.startswith('colour') and st[6:].isdigit()), None)
+        if colour:
+            classes.append('ws-' + colour.replace('colour', 'colour-'))
     if _is_graphic_text(s.text):
         # `span.ws-graphic` (element+class) outranks the plain-class
         # `.ws-font-N` rule regardless of stylesheet order, so a box-
@@ -708,7 +719,7 @@ def _html_note_ref(note, label, shown=None):
     return (f'<sup><a id="{ref_id}" href="#{target_id}" role="doc-noteref">'
             f'{_html.escape(shown if shown is not None else label)}</a></sup>')
 
-def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
+def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True):
     """Render one already-decided list of Spans (a logical line, or one
     Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
     identically-styled spans unconditionally: cheap, idempotent for a
@@ -739,7 +750,7 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None):
                              if shown_map is not None else None)
                     out.append(_html_note_ref(note, label, shown))
                 continue
-        out.append(_html_span(s, keep_ws))
+        out.append(_html_span(s, keep_ws, inline_styling))
     return ''.join(out)
 
 def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS):
@@ -793,7 +804,7 @@ def _font_family(name):
     return (name or '').split(' (')[0].strip()
 
 
-def _font_ctl_rtf(doc, target='office'):
+def _font_ctl_rtf(doc, target='office', inline_styling=True):
     """(fonttbl_extra, {'fontN': control}) for RTF: one \fK per DISTINCT
     resolved primary (starting at \f2), plus \fs from the block's own height
     word.
@@ -824,7 +835,14 @@ def _font_ctl_rtf(doc, target='office'):
                 next_k += 1
             parts += '\\f%d' % prim_to_k[primary]
         pts = f.get('points')
-        if pts:
+        # round 18 (RULINGS-LEDGER row 10): gated ONLY for a genuinely
+        # INLINE (mid-text) font change -- `f['offset']` is the byte
+        # position of a REAL symmetric type-2 block, None for a font that
+        # came from a paragraph STYLE's own record instead (round 9's own
+        # two-producer model). A style's declared size is document
+        # formatting, not "the author's own inline styling", and stays
+        # unconditional -- `--inline-styling off` never touches it.
+        if pts and (inline_styling or f.get('offset') is None):
             parts += '\\fs%d' % round(pts * 2)
         if parts:
             ctl['font%d' % idx] = parts + ' '
@@ -849,7 +867,21 @@ def _add_html_class(cls_attr, extra):
     return cls_attr[:-1] + f' {extra}"'
 
 
-def _style_css(doc, printed=True):
+def _html_colour_used(doc):
+    """Every WordStar colour INDEX (0-15, the raw palette value -- unlike
+    `fontN`, `colourN`'s own N is not an array index into anything) that
+    appears as a span tag anywhere in the document, sorted."""
+    used = set()
+    for b in doc.blocks:
+        for line in b.lines:
+            for sp in line.spans:
+                for st in sp.styles:
+                    if st.startswith('colour') and st[6:].isdigit():
+                        used.add(int(st[6:]))
+    return sorted(used)
+
+
+def _style_css(doc, printed=True, inline_styling=True):
     """CSS rules derived from the style records themselves -- a PASS-THROUGH
     of the file's own data (Jon, 2026-08-04: never hardwire a style name to
     a font or size; expose the data so a consumer can attach its own). Every
@@ -932,10 +964,18 @@ def _style_css(doc, printed=True):
             css = ', '.join(n if ' ' not in n and n.islower() else f"'{n}'"
                             for n in stack)
             props.append(f'font-family:{css}')
-        if f.get('points'):
+        # round 18 (RULINGS-LEDGER row 10): same "genuinely inline, not
+        # style-derived" gate as RTF's own `_font_ctl_rtf` (a paragraph
+        # STYLE's own declared size is document formatting, not the
+        # author's inline styling choice, and stays unconditional).
+        if f.get('points') and (inline_styling or f.get('offset') is None):
             props.append('font-size:%.4gpt' % f['points'])
         if props:
             rules.append(f'.ws-font-{idx} {{ {"; ".join(props)} }}')
+    if inline_styling:
+        for n in _html_colour_used(doc):
+            rules.append('.ws-colour-%d { color:#%02x%02x%02x }'
+                         % ((n,) + _CGA_PALETTE[n % 16]))
     return '\n'.join(rules)
 
 
@@ -1090,7 +1130,7 @@ def _classify_modern_blocks(doc):
     return by_block
 
 
-def _html_slice(line, start, end, refs, keep, shown_map):
+def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True):
     # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
     # spans LIST directly (the b23 overhaul's own signature -- it runs
     # `coalesce_spans`/`split_graphic_spans` over its argument), not a
@@ -1099,10 +1139,10 @@ def _html_slice(line, start, end, refs, keep, shown_map):
     # shim that used to bridge the two is gone; there is nothing left to
     # bridge.
     return _html_line(_slice_spans(line.spans, start, end),
-                      refs, keep, shown_map=shown_map)
+                      refs, keep, shown_map=shown_map, inline_styling=inline_styling)
 
 
-def _html_centered_row(line, s, refs, keep, shown_map):
+def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True):
     """The centred line's own text with its alignment padding sliced off
     (both mechanisms: a real align=center tag already had the M3 strip
     upstream, so lead/trail are 0 and this is a no-op; spaces-only
@@ -1110,11 +1150,11 @@ def _html_centered_row(line, s, refs, keep, shown_map):
     raw = ''.join(sp.text for sp in line.spans)
     lead = len(raw) - len(raw.lstrip(' '))
     trail = len(raw) - len(raw.rstrip(' '))
-    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map)
+    return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling)
 
 
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
-              styles=True, note_refs='word', **_options):
+              styles=True, note_refs='word', inline_styling=True, **_options):
     keep = frozenset(notes)
     style_class = {}
     if styles:
@@ -1211,7 +1251,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # centred heading used to keep its baked spaces as visible
             # &nbsp; runs on top of the CSS that already centres it).
             txt = ' '.join(_html_line(_maybe_strip_align(b, list(line.spans)),
-                                      refs, keep, shown_map=shown_map)
+                                      refs, keep, shown_map=shown_map,
+                                      inline_styling=inline_styling)
                            for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
@@ -1230,7 +1271,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # so a long physical line still wraps at the READER's window
             # (the fixed 65-column look stays Printed/PDF's own domain).
             lines = [_html_line(list(line.spans), refs, keep,
-                                keep_ws=True, shown_map=shown_map)
+                                keep_ws=True, shown_map=shown_map,
+                                inline_styling=inline_styling)
                      for line in b.lines]
             body = '<br>\n'.join(lines)
             if body.strip():
@@ -1317,12 +1359,14 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # block's lines and destroy the layout via a different
                     # mechanism. Register C23.
                     is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
-                    rendered = [_html_line(first, refs, keep, shown_map=shown_map)]
+                    rendered = [_html_line(first, refs, keep, shown_map=shown_map,
+                                           inline_styling=inline_styling)]
                     for line in unit[1:]:
                         spans = _maybe_strip_align(b, list(line.spans))
                         if not is_verse:
                             _, spans = split_leading_indent(spans)
-                        rendered.append(_html_line(spans, refs, keep, shown_map=shown_map))
+                        rendered.append(_html_line(spans, refs, keep, shown_map=shown_map,
+                                                   inline_styling=inline_styling))
                     if len(unit) > 1 and not is_verse:
                         para = ' '.join(t for t in rendered if t.strip())
                     else:
@@ -1382,7 +1426,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         _flush_plain_run()
                         plain_run_is_block_start = False
                         _flush_quote()
-                        html = _html_centered_row(line, s, refs, keep, shown_map)
+                        html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling)
                         if html.strip():
                             builder.add_text(f'<p{cls} style="text-align:center">{html}</p>')
                     else:
@@ -1394,15 +1438,15 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 if s['kind'] == 'bullet':
                     raw = ''.join(sp.text for sp in line.spans)
                     body = _html_slice(line, len(raw) - len(s['body']), None,
-                                       refs, keep, shown_map)
+                                       refs, keep, shown_map, inline_styling)
                     builder.add_bullet(s['level'], cls, body)
                 else:  # 'def'
                     raw = ''.join(sp.text for sp in line.spans)
                     lead = len(raw) - len(raw.lstrip(' '))
                     dt = _html_slice(line, lead, lead + len(s['label']),
-                                     refs, keep, shown_map)
+                                     refs, keep, shown_map, inline_styling)
                     dd = _html_slice(line, len(raw) - len(s['body']), None,
-                                     refs, keep, shown_map)
+                                     refs, keep, shown_map, inline_styling)
                     builder.add_def(s['level'], cls, dt, dd)
             _flush_plain_run()
     builder.flush(parts)
@@ -1415,7 +1459,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         parts.extend(sections)
     css = _CSS
     if styles:
-        extra = _style_css(doc, printed)
+        extra = _style_css(doc, printed, inline_styling)
         if extra:
             css = css + '\n' + extra
     return ('<!doctype html><html><head><meta charset="utf-8">'
@@ -1436,6 +1480,34 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
 # attributes included.
 _RTF_ON = {'b': r'\b ', 'i': r'\i ', 'u': r'\ul ', 'sup': r'\super ',
            'sub': r'\sub ', 'strike': r'\strike '}
+
+# round 18 (RULINGS-LEDGER row 10): WordStar's own inline colour (symmetric
+# type 1) is a PALETTE INDEX 0-15, the standard 16-colour CGA/EGA screen
+# palette every DOS-era text program shared -- not a driver-specific table
+# like LJ6DTP's own PDF gray mapping (pdf.py's `_COLOUR_GRAY_LJ6DTP`, a
+# DIFFERENT, print-driver-defined set of indices left untouched by this
+# round). Index 0 (Black) never reaches a span as a tag at all (core.py's
+# own decode: "colour 0 = Black, the default: no tag"), so the table only
+# needs to answer for 1-15, but is defined for all 16 for completeness.
+_CGA_PALETTE = [
+    (0, 0, 0), (0, 0, 170), (0, 170, 0), (0, 170, 170),
+    (170, 0, 0), (170, 0, 170), (170, 85, 0), (170, 170, 170),
+    (85, 85, 85), (85, 85, 255), (85, 255, 85), (85, 255, 255),
+    (255, 85, 85), (255, 85, 255), (255, 255, 85), (255, 255, 255),
+]
+
+_RTF_COLOURTBL = ('{\\colortbl;' + ''.join(
+    '\\red%d\\green%d\\blue%d;' % rgb for rgb in _CGA_PALETTE) + '}')
+
+
+def _rtf_colour_num(tag):
+    """`'colour4'` -> 4, matching `_CGA_PALETTE`'s own 0-based index --
+    `\\colortbl`'s FIRST real entry (index 0, "Black") is `\\cf1` (RTF
+    colour numbers are 1-based; index 0 before the first `;` is the
+    reader's own "automatic" colour), so WordStar's own index N is
+    `\\cf(N+1)`."""
+    return int(tag[6:]) + 1
+
 
 _RTF_COMMENT_AUTHOR = 'ctrl-kd'   # public repo: a tool name, not a person
 
@@ -1540,7 +1612,7 @@ def _rtf_comment_dest(note):
             + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note.text) + '}')
 
 def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
-              roll_half_pt=None, ul_continuous=True):
+              roll_half_pt=None, ul_continuous=True, inline_styling=True):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -1594,6 +1666,19 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
                 c += r'\dn%d ' % roll_half_pt
         if fontctl:
             c += ''.join(fontctl.get(st, '') for st in these_styles if st.startswith('font'))
+        if inline_styling:
+            # round 18 (RULINGS-LEDGER row 10): WordStar's own inline
+            # colour (symmetric type 1) -- direct `\cfN` against the fixed
+            # 16-colour CGA table (`_RTF_COLOURTBL`/`_rtf_colour_num`), the
+            # same "the author's own styling shows by default" doctrine as
+            # inline font-size (`fontctl`'s own `\fs`, already built --
+            # round 9). `--inline-styling off` strips this AND the font-
+            # size half of `fontctl` (see `_font_ctl_rtf`'s own gate) but
+            # never the font FAMILY switch, which is document rendering,
+            # not an author styling CHOICE.
+            colour_tag = next((st for st in these_styles if st.startswith('colour')), None)
+            if colour_tag:
+                c += r'\cf%d ' % _rtf_colour_num(colour_tag)
         if _is_graphic_text(sp.text):
             # \f1 (Courier New) is ALWAYS in the font table (see the
             # \fonttbl literal in `emit_rtf`) regardless of the document's
@@ -2014,7 +2099,7 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', note_refs='word', headers=True,
-             line_numbers=True, **_options):
+             line_numbers=True, inline_styling=True, **_options):
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -2030,8 +2115,19 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                  if note_refs == 'prefixed' and not printed else None)
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc, printed) if styles else ''
-    fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target)
+    fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target, inline_styling)
                               if styles else ('', {}))
+    # round 18 (RULINGS-LEDGER row 10): the colour table only needs to
+    # exist when a span will actually reference it -- an unconditional
+    # \colortbl on every RTF this project has ever produced would be a
+    # silent, permanent byte-shape change to files with no inline colour
+    # at all. `--inline-styling off` also skips it (nothing will emit
+    # \cfN either way).
+    colourtbl = (_RTF_COLOURTBL
+                if inline_styling and any(st.startswith('colour')
+                                          for b in doc.blocks for line in b.lines
+                                          for sp in line.spans for st in sp.styles)
+                else '')
     styled_slots = ({s['slot'] for s in doc.styles if 'attrs_on' in s}
                     if styles else set())
     # round 4 (2026-08-17): li/ri per style, looked up per paragraph so
@@ -2102,7 +2198,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # would just get re-glued back onto the prose beside it the moment
         # both share a style.
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map,
-                                 roll_half_pt, ul_continuous)
+                                 roll_half_pt, ul_continuous, inline_styling)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
     # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own gutter
@@ -2294,6 +2390,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     running = _rtf_running_heads(doc) if headers else ''
     return (r'{\rtf1\ansi\deff0{\fonttbl' + f0 + r'{\f1 Courier New;}'
             + fonttbl_extra + '}'
+            + colourtbl
             + stylesheet
             + pagesetup
             + running
