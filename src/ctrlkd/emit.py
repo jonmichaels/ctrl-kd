@@ -15,7 +15,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    paragraph_layout_context, looks_like_verse,
                    block_dominant_styles, effective_span_styles,
                    DEFAULT_LH_48, GRAPHIC_CHARS, split_graphic_spans,
-                   compile_toc, compile_index)
+                   compile_toc, compile_index, detect_screenplay_blocks)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -266,6 +266,12 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_optio
         keep = keep - {'comment'}
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): screenplay-detected regions get the SAME
+    # verse-class (line-structure-preserving) treatment as a verified
+    # verse/stanza unit -- computed once per document, not printed (a
+    # facsimile already preserves every line's own position; detection
+    # only changes REFLOW behavior).
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
 
     def render(line):
         seg = []
@@ -290,7 +296,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_optio
         return ''.join(seg)
 
     out = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
@@ -323,7 +329,8 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False, **_optio
                 # that flow logic would still run on a hand-positioned
                 # block's lines and destroy the layout via a different
                 # mechanism. Register C23.
-                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
+                is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant)
+                                              or bi in screenplay_blocks)
                 if len(unit) > 1 and not is_verse:
                     # only the unit's own FIRST line keeps its typed indent
                     # (the paragraph-start marker, unchanged from the
@@ -559,8 +566,12 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     refs = _ref_pairs(pairs)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): reached only in Modern mode (printed
+    # returns above, inside its own fenced-facsimile branch) -- see
+    # emit_text's identical comment for the doctrine.
+    screenplay_blocks = detect_screenplay_blocks(doc)
     out = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             out.append('---')
             continue
@@ -600,7 +611,8 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
             # `_md_unit_lines`, so a plain space join is enough. round 7
             # (2026-08-17): `not b.wrap` short-circuits this for a hand-
             # positioned (.aw off) block -- never flowed, Register C23.
-            if len(unit) > 1 and not (not b.wrap or looks_like_verse(unit, dominant)):
+            if len(unit) > 1 and not (not b.wrap or looks_like_verse(unit, dominant)
+                                      or bi in screenplay_blocks):
                 lines = [' '.join(l for l in lines if l.strip())]
             if quote:
                 # rule D: style-carried blockquote material keeps its own
@@ -1327,6 +1339,11 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                  if note_refs == 'prefixed' and not printed else None)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # Round 20b (slate item 13): screenplay-detected regions get verse-
+    # class (line/indent-preserving) treatment -- see emit_text's
+    # identical comment for the doctrine. Not printed: a facsimile
+    # already preserves every line's own position.
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
     # Quote-block CONTINUITY (Jon's ruling, round 4, 2026-08-17): consecutive
     # units in the same quote-classified style are ONE quote block, not one
     # <blockquote> per paragraph UNIT (the round-3 code) nor even one per
@@ -1516,7 +1533,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # that flow logic would still run on a hand-positioned
                     # block's lines and destroy the layout via a different
                     # mechanism. Register C23.
-                    is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant))
+                    is_verse = len(unit) > 1 and (not b.wrap or looks_like_verse(unit, dominant)
+                                                  or bi in screenplay_blocks)
                     rendered = [_html_line(first, refs, keep, shown_map=shown_map,
                                            inline_styling=inline_styling,
                                            pix_map=pix_map, pictures=pictures,
@@ -2405,6 +2423,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # the facsimile shows what WordStar printed.
     shown_map = (note_ref_labels(pairs, 'prefixed')
                  if note_refs == 'prefixed' and not printed else None)
+    # Round 20b (slate item 13): see emit_text's identical comment.
+    screenplay_blocks = detect_screenplay_blocks(doc) if not printed else frozenset()
     font = r'\f1' if printed else r'\f0'
     stylesheet = _rtf_stylesheet(doc, printed) if styles else ''
     fonttbl_extra, fontctl = (_font_ctl_rtf(doc, fonts_target, inline_styling)
@@ -2513,7 +2533,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                     + rendered_line)
         return rendered_line
 
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             quote_open = False
             quote_fi_cols = None
@@ -2597,7 +2617,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 if quote_fi_cols is None:
                     quote_fi_cols = indent_cols
                 indent_cols = quote_fi_cols
-            is_verse = len(unit) > 1 and looks_like_verse(unit, dominant)
+            is_verse = len(unit) > 1 and (looks_like_verse(unit, dominant)
+                                          or bi in screenplay_blocks)
             rendered = [rtf_seg(first, b)]
             for line in unit[1:]:
                 spans = _maybe_strip_align(b, list(line.spans))
