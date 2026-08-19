@@ -807,7 +807,67 @@ def _note_wrap(marker, text, width):
     so this only ever wraps plain text."""
     return _wrap_line([(marker, frozenset()), (text, frozenset())], width) or [[]]
 
-def _body_stream_printed(doc):
+def _pix_dims_pt(r, max_w_pt):
+    """An embedded pix image's (width_pt, height_pt) -- the ONE sizing rule
+    every PDF path shares (round 22 factored it out of `_doc_to_pagelines`
+    so the Modern and notes-pagination paths size identically to the plain
+    Printed path): the print-options record's physical size when the .PIX
+    file carries one, else fit-to-text-measure at the source aspect ratio;
+    either way capped at `max_w_pt` (the requesting path's own text
+    measure)."""
+    if r.width_in and r.height_in:
+        w_pt, h_pt = r.width_in * 72.0, r.height_in * 72.0
+    else:
+        w_pt = max_w_pt
+        h_pt = w_pt * (r.grows / r.gcols) if r.gcols else 0.0
+    if w_pt > max_w_pt and w_pt > 0:
+        scale = max_w_pt / w_pt
+        w_pt *= scale
+        h_pt *= scale
+    return w_pt, h_pt
+
+
+def _spans_pix_substitution(spans, pix_map, max_w_pt):
+    """(pix_index, w_pt, h_pt) when `spans` [(text, styles), ...] is exactly
+    ONE resolved, decoded pix placeholder and nothing else with real text --
+    the round-19 substitution rule, shared verbatim by every PDF path: text
+    content is never silently dropped, so a (hypothetical) pix tag sharing
+    its line with other prose renders as the ordinary placeholder text
+    instead. None when no substitution applies (off / miss / shared line);
+    the caller keeps the placeholder text unchanged."""
+    pix_idx = None
+    for text, styles in spans:
+        tag = next((t for t in styles if t[:3] == 'pix' and t[3:].isdigit()),
+                   None)
+        if tag:
+            if pix_idx is not None:
+                return None                       # >1 tag on one line: bail
+            pix_idx = int(tag[3:])
+        elif text.strip():
+            return None                           # real prose shares the line
+    if pix_idx is None:
+        return None
+    r = pix_map.get(pix_idx)
+    if r is None or not r.ok:
+        return None
+    w_pt, h_pt = _pix_dims_pt(r, max_w_pt)
+    return pix_idx, w_pt, h_pt
+
+
+def _printed_text_width_pt(doc):
+    """The Printed text measure in points, for pix fit/cap sizing: Printed
+    PDF has no per-block .rm resolved in points anywhere in this emitter
+    (physical lines are pre-wrapped by the parser at authoring time), so
+    the right inset is mirrored from the left one -- a disclosed
+    approximation (round 19), same class as RTF's borrowed TOC page
+    numbers."""
+    size = _printed_size(doc)
+    left = _printed_left(doc, size)
+    page_w_pt = float((doc.meta.get('page') or {}).get('pw_in', 8.5)) * 72.0
+    return max(72.0, page_w_pt - 2 * left)
+
+
+def _body_stream_printed(doc, pix_results=None, pictures='off'):
     """Printed-mode body content as a flat stream for the layout loop below:
     each item is either None (a forced page break -- .pa/.cp or WordStar's
     own softpage) or (spans, refs), spans being one verbatim IR line (printed
@@ -826,8 +886,18 @@ def _body_stream_printed(doc):
     _display_number. A bare superscript '1' can therefore legitimately mean
     footnote 1 OR endnote 1 in the body text -- WordStar resolved that
     ambiguity in the NOTE AREA via mark style ('1.' vs '(1)'), not by
-    inventing a combined number, so the same label is used in both places."""
+    inventing a combined number, so the same label is used in both places.
+
+    `pix_results`/`pictures` (round 22, closing round 19's documented
+    scope cut): the same single-pix-placeholder substitution
+    `_doc_to_pagelines` performs on the plain path -- a physical line
+    whose only real content is one resolved, decoded pix tag becomes an
+    image PageLine (empty segments, `.image` set, `.lead` = the image's
+    height so the drawing loop's y-advance covers it exactly)."""
     refs_all = _ref_pairs(_annotated_notes(doc))
+    embed_images = pictures in ('embed', 'export') and pix_results
+    pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
+    text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
     stream = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
@@ -850,6 +920,19 @@ def _body_stream_printed(doc):
                             refs.append((label, note))
                         continue
                 spans.append((s.text, styles))
+            # Round 22: exactly one resolved pix tag, no other real text on
+            # this physical line -> an image PageLine (same substitution,
+            # sizing and never-drop-text rule as `_doc_to_pagelines`).
+            # `refs` still travels: a comment reference sharing the line
+            # contributes no text and queues nothing, so nothing is lost.
+            if embed_images:
+                sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
+                if sub is not None:
+                    _idx, _w_pt, _h_pt = sub
+                    stream.append((PageLine([], soft=line.soft, lead=_h_pt,
+                                            overprint=line.overprint,
+                                            image=sub), refs))
+                    continue
             # A PageLine, not a bare list, so the line's own `.lh` survives the
             # footnote paginator too -- body lines keep their lead whether or
             # not the document has notes.
@@ -923,18 +1006,35 @@ def _footnote_ceiling(cap, body_len, is_terminal):
     room = cap - body_len
     return room if is_terminal else min(room, cap - FOOTNOTE_FLOOR)
 
-def _paginate_printed_notes(doc, cap, width):
+def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     """The WS5-manual algorithm: paginate the body verbatim (references never
     move), growing each page's footnote area to hold whatever was referenced
     on it, splitting overflow into the next page's area (marked continued),
     floored at FOOTNOTE_FLOOR lines of body -- except on the page holding the
     last line of regular text, where the floor lifts and any leftover prints
     at the top of a fresh page instead of continuing to a bottom area that
-    doesn't exist."""
-    stream = _body_stream_printed(doc)
+    doesn't exist.
+
+    `pix_results`/`pictures` (round 22, closing round 19's documented
+    scope cut): an embedded image PageLine (built by `_body_stream_printed`)
+    costs its own height in default-lead-sized lines against this
+    paginator's line-count budget -- the image's vertical footprint enters
+    the page-capacity model the same way `.lh` does in `_doc_to_pagelines`'s
+    points model, just quantised to this algorithm's own line unit."""
+    stream = _body_stream_printed(doc, pix_results=pix_results,
+                                  pictures=pictures)
+    default_lead = _printed_lead(doc)
+
+    def _line_cost(pl):
+        img = getattr(pl, 'image', None)
+        if img is None:
+            return 1
+        return max(1, int(-(-img[2] // default_lead)))    # ceil(h_pt / lead)
+
     last_idx = -1
     for i, item in enumerate(stream):
-        if item is not None and any(t.strip() for t, _ in item[0]):
+        if item is not None and (item[0].image is not None
+                                 or any(t.strip() for t, _ in item[0])):
             last_idx = i
 
     pages = []
@@ -944,23 +1044,30 @@ def _paginate_printed_notes(doc, cap, width):
     i, n = 0, len(stream)
     while i < n:
         body, entries, is_terminal = [], [], False
+        body_len = 0                             # in line units, images > 1
         _admit_footnotes(entries, queue,
-                         _footnote_ceiling(cap, len(body), is_terminal))   # carry-over first
+                         _footnote_ceiling(cap, body_len, is_terminal))   # carry-over first
         while i < n:
             item = stream[i]
             if item is None:
                 i += 1
                 break                            # forced break: page ends here
             spans, refs = item
-            if len(body) + 1 + _area_size(entries) > cap:
+            cost = _line_cost(spans)
+            # `body` non-empty guard: an image taller than the whole page
+            # must still be admitted somewhere or this loop would never
+            # advance -- a slightly overflowing page beats a hang or lost
+            # content (the same doctrine _admit_footnotes documents).
+            if body and body_len + cost + _area_size(entries) > cap:
                 break                            # natural page-full: line moves on
             body.append(spans)
+            body_len += cost
             if i == last_idx:
                 is_terminal = True
             i += 1
             for label, note in refs:
                 queue.append(_note_wrap(_note_marker(note, label), note.text, width))
-            _admit_footnotes(entries, queue, _footnote_ceiling(cap, len(body), is_terminal))
+            _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         pages.append(body + _render_area(entries))
     # Whatever's STILL queued once the document is exhausted prints at the
     # TOP of its own page(s) -- "except after the last page of regular text,
@@ -1085,10 +1192,10 @@ class Page(list):
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     """IR -> list of pages, each a list of segment-lines.
 
-    `pix_results`/`pictures` (round 19, PIX images RULED IN): when
-    embedding is live (printed only -- Modern PDF is a separate rendering
-    pipeline, `_modern_streams`, not this function; a documented scope cut
-    this round, same class as `_paginate_printed_notes` below) and a
+    `pix_results`/`pictures` (round 19, PIX images RULED IN; round 22
+    closed the round-19 scope cuts -- `_paginate_printed_notes` above and
+    Modern's `_modern_streams` now substitute too): when embedding is
+    live on the printed path here and a
     physical line's ONLY real content is a single resolved, decoded pix
     placeholder (the real-corpus shape: a picture reference standing
     alone on its own paragraph, confirmed against all 5 acceptance
@@ -1100,7 +1207,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     not embedded)."""
     if printed and _has_placeable_notes(doc):
         cap = _printed_cap(doc)
-        pages = _paginate_printed_notes(doc, cap, MAX_COLS)
+        pages = _paginate_printed_notes(doc, cap, MAX_COLS,
+                                        pix_results=pix_results,
+                                        pictures=pictures)
         pages += _endnote_pages(doc, cap, MAX_COLS)
         while len(pages) > 1 and not pages[-1]:
             pages.pop()
@@ -1136,30 +1245,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     default_lead_pt = _printed_lead(doc) if printed else LEAD
     embed_images = printed and pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
-    if embed_images:
-        _measure_size = _printed_size(doc)
-        _measure_left = _printed_left(doc, _measure_size)
-        _page_w_pt = float((doc.meta.get('page') or {}).get('pw_in', 8.5)) * 72.0
-        # "fit to text measure" (ruled fallback/cap): Printed PDF has no
-        # per-block .rm resolved in points anywhere else in this emitter
-        # (physical lines are pre-wrapped by the parser at authoring
-        # time), so the right inset is mirrored from the left one -- a
-        # disclosed approximation, same class as this round's other
-        # documented simplifications (RTF's borrowed TOC page numbers,
-        # the `.l#` gutter as a text prefix).
-        text_width_pt = max(72.0, _page_w_pt - 2 * _measure_left)
-
-    def _image_dims_pt(r):
-        if r.width_in and r.height_in:
-            w_pt, h_pt = r.width_in * 72.0, r.height_in * 72.0
-        else:
-            w_pt = text_width_pt
-            h_pt = w_pt * (r.grows / r.gcols) if r.gcols else 0.0
-        if w_pt > text_width_pt and w_pt > 0:
-            scale = text_width_pt / w_pt
-            w_pt *= scale
-            h_pt *= scale
-        return w_pt, h_pt
+    # "fit to text measure" (ruled fallback/cap) sizing lives in
+    # `_pix_dims_pt`/`_printed_text_width_pt` (round 22 factored them out,
+    # shared with the notes-pagination and Modern paths).
+    text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
 
     lines = []                                            # None = forced page break
     for bi, b in enumerate(doc.blocks):
@@ -1205,22 +1294,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 # an image PageLine instead of a text one. own_lead becomes
                 # the image's own height (+ whatever .psb/.psa extra was
                 # already computed above), reusing the pagination budget
-                # model unchanged.
-                pix_idx, other_text = None, False
+                # model unchanged. (Round 22: the detection/sizing rule is
+                # `_spans_pix_substitution`, shared with the notes and
+                # Modern paths.)
                 if embed_images:
-                    for _text, _styles in spans:
-                        _tag = next((t for t in _styles if t[:3] == 'pix'
-                                    and t[3:].isdigit()), None)
-                        if _tag:
-                            if pix_idx is not None:
-                                pix_idx, other_text = None, True   # >1 tag: bail
-                                break
-                            pix_idx = int(_tag[3:])
-                        elif _text.strip():
-                            other_text = True
-                    r = pix_map.get(pix_idx) if pix_idx is not None else None
-                    if r is not None and r.ok and not other_text:
-                        w_pt, h_pt = _image_dims_pt(r)
+                    sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
+                    if sub is not None:
+                        pix_idx, w_pt, h_pt = sub
                         pl = PageLine([], soft=line.soft,
                                      lead=h_pt + extra, overprint=line.overprint,
                                      bi=bi, image=(pix_idx, w_pt, h_pt))
@@ -2006,17 +2086,30 @@ def _modern_w(text, styles, family, pt, entry):
     return nat
 
 
-def _modern_flow(doc, keep, note_refs='word'):
+def _modern_flow(doc, keep, note_refs='word', pix_results=None,
+                 pictures='off', text_width_pt=0.0):
     """The MEASURED Modern flow: layout.modern_flow's semantic items (the
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
         ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt)
         ('blank', height) | ('break',) | ('cond', n)
         ('hf', 'H'|'F', line_no, text)
+        ('image', pix_index, w_pt, h_pt)
     A tok is (text, styles, family, pt, entry, width). This adapter adds
     exactly what a PDF needs -- font resolution, AFM widths, points -- and
     decides nothing about WHAT renders: that is layout.py's job, shared
-    with the app's native text stack and the `layout` JSON emitter."""
+    with the app's native text stack and the `layout` JSON emitter.
+
+    `pix_results`/`pictures` (round 22, closing round 19's documented
+    Modern scope cut): a para whose runs are exactly one resolved, decoded
+    pix placeholder becomes an ('image', ...) item, sized by the same
+    shared rule as the Printed paths (`_pix_dims_pt`: print-options record
+    when present, else fit to `text_width_pt` at source aspect, capped at
+    the measure). A run carrying a note reference counts as real content
+    (anchors are never silently dropped), so such a line keeps its
+    placeholder text -- same never-drop rule as `_spans_pix_substitution`."""
+    embed_images = pictures in ('embed', 'export') and pix_results
+    pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
     sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs)
     note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
@@ -2044,6 +2137,13 @@ def _modern_flow(doc, keep, note_refs='word'):
             flow.append(('para', _modern_note_toks(it['label'], it['text']),
                          'left', [], 0.0, 0.0))
         else:                                                   # para
+            if embed_images and not any('ref' in r for r in it['runs']):
+                sub = _spans_pix_substitution(
+                    [(r['text'], r['styles']) for r in it['runs']],
+                    pix_map, text_width_pt)
+                if sub is not None:
+                    flow.append(('image',) + sub)
+                    continue
             toks = []
             for run in it['runs']:
                 styles = frozenset(run['styles'])
@@ -2190,7 +2290,10 @@ def _modern_streams(doc, options, res):
     keep = frozenset(options.get('notes', ())) or frozenset(
         ('footnote', 'endnote', 'annotation'))
     margl, margt, margb, width = _modern_geometry(doc)
-    flow = _modern_flow(doc, keep, options.get('note_refs') or 'word')
+    flow = _modern_flow(doc, keep, options.get('note_refs') or 'word',
+                        pix_results=options.get('pix_results'),
+                        pictures=options.get('pictures', 'off'),
+                        text_width_pt=width)
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 
@@ -2243,6 +2346,19 @@ def _modern_streams(doc, options, res):
                 continue
             y -= h
             continue
+        if item[0] == 'image':
+            # Round 22 (closing round 19's Modern scope cut): an embedded
+            # pix image spends its own height against the page exactly as
+            # a body line does; the drawing loop below paints its XObject
+            # with the bottom edge at the y this advance lands on (same
+            # convention as Printed's `_page_stream`).
+            _, pix_idx, w_pt, h_pt = item
+            if body and y - h_pt < margb + note_block_h():
+                close()
+            open_page()
+            y -= h_pt
+            body.append((y, item, 'left', 0.0, 0.0))
+            continue
         _, toks, align, notes, indent, cut = item
         line_w = max(36.0, width - indent - cut)
         vis = _modern_wrap(toks, line_w)
@@ -2293,6 +2409,11 @@ def _modern_streams(doc, options, res):
             ops += _modern_hf_ops(ftrs[lno], page_no, margl, fy, width,
                                   res, tz_state)
         for y, toks, align, indent, cut in body:
+            if isinstance(toks, tuple) and toks and toks[0] == 'image':
+                _, pix_idx, w_pt, h_pt = toks
+                ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
+                           % (w_pt, h_pt, margl, y, pix_idx))
+                continue
             ops += _modern_line_ops(list(toks), margl + indent, y,
                                     max(36.0, width - indent - cut),
                                     align, res, tz_state)
@@ -2357,12 +2478,12 @@ def _emit_pdf_inner(doc, printed, options):
     # `footers=None` as "nothing to render" (its own default), so turning
     # the flag off just means never passing the real values through.
     show_headers = options.get('headers', True)
-    # Round 19 (PIX images RULED IN, ledger PIX row): PRINTED PDF only --
-    # Modern PDF is `_modern_streams`, a wholly separate reflow pipeline
-    # (mirrors Modern RTF); embedding there is a documented scope cut this
-    # round, not attempted. `pictures` off (or no results) costs nothing:
-    # `_doc_to_pagelines` skips the whole substitution when embed_images
-    # is falsy, byte-identical to before this round.
+    # Round 19 (PIX images RULED IN, ledger PIX row) wired the Printed
+    # path; round 22 closed the two documented scope cuts (Modern PDF via
+    # `_modern_streams`, the notes-pagination path via
+    # `_paginate_printed_notes`). `pictures` off (or no results) costs
+    # nothing on any path: every substitution site skips itself when
+    # embedding is not live, byte-identical to before.
     pictures = options.get('pictures', 'off')
     pix_results = options.get('pix_results') or []
     if printed:
@@ -2470,7 +2591,7 @@ def _emit_pdf_inner(doc, printed, options):
     # Shared across every page exactly like `font_dict` already is --
     # an XObject unused on a given page costs nothing per the PDF spec.
     image_objs = {}                                       # pix index -> obj num
-    if printed and pictures in ('embed', 'export') and pix_results:
+    if pictures in ('embed', 'export') and pix_results:
         for r in pix_results:
             if not r.ok or r.raw_bytes is None:
                 continue

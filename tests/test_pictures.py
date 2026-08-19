@@ -409,15 +409,140 @@ def test_pdf_printed_text_sharing_the_line_prevents_substitution(tmp_path):
     assert b'Caption text' in out
 
 
-def test_pdf_modern_mode_pictures_flag_is_a_documented_scope_cut(tmp_path):
-    # Modern PDF is a separate reflow pipeline (_modern_streams); pix
-    # embedding is scoped to Printed PDF only this round -- verify the
-    # scope cut is real (byte-identical) rather than silently half-applied.
+def test_pdf_modern_embed_places_an_image_xobject_no_placeholder(tmp_path):
+    # Round 22: round 19's documented Modern scope cut is closed -- a
+    # resolvable pix tag renders the real decoded image in Modern PDF too,
+    # and the placeholder text is gone.
     from ctrlkd import pdf
-    doc, results, _ = _doc_with_one_pix(tmp_path)
+    doc, results, _ = _doc_with_isolated_pix(tmp_path)
+    out = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert b'/Subtype /Image' in out
+    assert b'/Im0 Do' in out
+    assert b'FIGURE1.PIX' not in out
+
+
+def test_pdf_modern_off_is_byte_identical_to_no_pix_results(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_isolated_pix(tmp_path)
     without = pdf.emit_pdf(doc, mode='modern')
-    on = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
-    assert without == on
+    off = pdf.emit_pdf(doc, mode='modern', pictures='off', pix_results=results)
+    assert without == off
+    assert b'/Im0 Do' not in off
+    assert b'FIGURE1.PIX' in off
+
+
+def test_pdf_modern_miss_keeps_placeholder_text_no_xobject(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    out = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert b'/Im0 Do' not in out
+    assert b'NOPE.PIX' in out
+
+
+def test_pdf_modern_embed_scales_to_print_options_size(tmp_path):
+    # same sizing rule as Printed (shared _pix_dims_pt): the print-options
+    # record wins when present -- 0.4in x 0.2in -> 28.8pt x 14.4pt.
+    from ctrlkd import pdf
+    prt = struct.pack('<15h', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      144, 288, 0) + bytes(range(16))
+    doc, results, _ = _doc_with_isolated_pix(
+        tmp_path, pix_bytes=_tiny_pix_bytes(prt_options_raw=prt))
+    out = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert b'28.80 0 0 14.40' in out
+
+
+def test_pdf_modern_text_sharing_the_para_prevents_substitution(tmp_path):
+    # same never-drop-text rule as Printed: a pix tag sharing its
+    # paragraph with prose keeps the placeholder text instead.
+    from ctrlkd import pdf
+    (tmp_path / 'FIGURE1.PIX').write_bytes(_tiny_pix_bytes())
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Caption text ' + block + b'\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    out = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert b'/Im0 Do' not in out
+    assert b'FIGURE1.PIX' in out
+    assert b'Caption' in out            # Modern draws one word per Tj op
+
+
+# ------------------------------------------- notes-pagination path (round 22)
+
+def _ws7_footnote_block(text):
+    """A minimal WS7 footnote block (type 0x03), matching test_ctrlkd's
+    ws7_note(cmd=0x03, number=0): line count 1, number 0, conversion flag
+    0x30 (number_format=3, convert_to=0)."""
+    content = ((1).to_bytes(2, 'little') + (0).to_bytes(2, 'little') +
+               bytes([0x30]) + text)
+    jump = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + jump + bytes([0x03]) + content + jump + b'\x1d'
+
+
+def _doc_with_footnote_and_isolated_pix(tmp_path, pix_bytes=None):
+    """A document with a real footnote (so PDF routes through
+    `_paginate_printed_notes` -- the round-19 scope cut path) AND an
+    isolated pix tag on its own paragraph."""
+    if pix_bytes is None:
+        pix_bytes = _tiny_pix_bytes()
+    (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    note = _ws7_footnote_block(b'A footnote.')
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    doc = core.parse_ws(b'Body with a note.' + note + b'\r\n\r\n' +
+                        block + b'\r\n\r\nAfter.\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    return doc, results, docpath
+
+
+def test_pdf_notes_pagination_embed_places_an_image_xobject(tmp_path):
+    # Round 22: the second round-19 scope cut -- a document with placeable
+    # notes paginates through `_paginate_printed_notes`, which now embeds
+    # the real image too (this was -SCREEN.WS's documented gap).
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_footnote_and_isolated_pix(tmp_path)
+    assert doc.footnotes, 'fixture must route through the notes paginator'
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'/Subtype /Image' in out
+    assert b'/Im0 Do' in out
+    assert b'FIGURE1.PIX' not in out
+    assert b'A footnote.' in out                # the notes area still renders
+
+
+def test_pdf_notes_pagination_off_is_byte_identical(tmp_path):
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_footnote_and_isolated_pix(tmp_path)
+    without = pdf.emit_pdf(doc, mode='printed')
+    off = pdf.emit_pdf(doc, mode='printed', pictures='off', pix_results=results)
+    assert without == off
+    assert b'FIGURE1.PIX' in off
+
+
+def test_pdf_notes_pagination_miss_keeps_placeholder(tmp_path):
+    from ctrlkd import pdf
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    note = _ws7_footnote_block(b'A footnote.')
+    block = _ws_pix_block(br'C:\PIX\NOPE.PIX')
+    doc = core.parse_ws(b'Body with a note.' + note + b'\r\n\r\n' +
+                        block + b'\r\n\r\nAfter.\r\n')
+    results = pictures.resolve_document_pictures(doc, docpath)
+    assert results[0].error == 'unresolved'
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'/Im0 Do' not in out
+    assert b'NOPE.PIX' in out
+
+
+def test_pdf_notes_pagination_embed_scales_to_print_options_size(tmp_path):
+    from ctrlkd import pdf
+    prt = struct.pack('<15h', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      144, 288, 0) + bytes(range(16))
+    doc, results, _ = _doc_with_footnote_and_isolated_pix(
+        tmp_path, pix_bytes=_tiny_pix_bytes(prt_options_raw=prt))
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    assert b'28.80 0 0 14.40' in out
 
 
 def test_pdf_printed_embed_scales_to_print_options_size(tmp_path):
@@ -434,16 +559,14 @@ def test_pdf_printed_embed_scales_to_print_options_size(tmp_path):
 @pytest.mark.skipif(
     not os.path.exists('<PRIVATE-SAWYER-ROOT>/WS/PREVIEW.WS'),
     reason='real WS7 corpus not present on this machine')
-def test_real_corpus_acceptance_all_five_resolve_four_of_five_embed():
-    """Round 19 acceptance (RULINGS-LEDGER PIX row): the 5 real documents
-    that reference WORDSTAR.PIX -- -SCREEN.WS, PREVIEW.WS, and the 3
-    distinct -README.WS documents -- all resolve it via the ancestor walk
-    from their real tree positions. 4 of 5 actually EMBED (Printed PDF, the
-    main pagination path); -SCREEN.WS is a KNOWN, DOCUMENTED gap (its own
-    footnotes route it through `_paginate_printed_notes`, a structurally
-    different, line-count pagination path this round does not extend --
-    same class of documented gap as round 17b's .pm/.psa/.psb) -- it still
-    degrades safely to the placeholder text, never fails."""
+def test_real_corpus_acceptance_all_five_resolve_and_embed():
+    """Round 19 acceptance (RULINGS-LEDGER PIX row), completed round 22:
+    the 5 real documents that reference WORDSTAR.PIX -- -SCREEN.WS,
+    PREVIEW.WS, and the 3 distinct -README.WS documents -- all resolve it
+    via the ancestor walk from their real tree positions, and all 5 now
+    EMBED in Printed PDF. -SCREEN.WS was round 19's documented gap (its
+    own footnotes route it through `_paginate_printed_notes`); round 22
+    extended that path, closing the gap."""
     from ctrlkd import pdf
     paths = {
         '-README.WS (root)': '<PRIVATE-SAWYER-ROOT>/WS/-README.WS',
@@ -453,7 +576,6 @@ def test_real_corpus_acceptance_all_five_resolve_four_of_five_embed():
         '-README.WS (APP/vDosPlus)':
             '<PRIVATE-SAWYER-ROOT>/WS/APP/vDosPlus/-README.WS',
     }
-    known_gap = {'-SCREEN.WS'}
     for label, path in paths.items():
         doc = core.parse(open(path, 'rb').read())
         results = pictures.resolve_document_pictures(doc, path)
@@ -461,12 +583,10 @@ def test_real_corpus_acceptance_all_five_resolve_four_of_five_embed():
         assert results[0].ok, (label, results[0].error)
         assert results[0].resolved_path.upper().endswith('WORDSTAR.PIX'), label
         out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
-        embedded = b'/Im0 Do' in out
-        if label in known_gap:
-            assert not embedded, f'{label} unexpectedly embedded -- gap may be closed, update this test'
-            assert b'WORDSTAR.PIX' in out    # placeholder still present, never fails
-        else:
-            assert embedded, label
+        assert b'/Im0 Do' in out, label
+        # Modern PDF embeds too now (round 22's other closed scope cut)
+        modern = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+        assert b'/Im0 Do' in modern, label
 
 
 # ============================================================ diagnose (info)
@@ -550,6 +670,23 @@ def test_cli_pictures_reports_miss_on_stderr(tmp_path, capsys):
     docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
     rc = main(['--mode', 'modern', '-t', 'html', str(docpath)])
     assert rc == 0
+    captured = capsys.readouterr()
+    assert "NOPE.PIX' not found" in captured.err
+
+
+def test_cli_pdf_modern_miss_degrades_with_stderr_note(tmp_path, capsys):
+    # Round 22: Modern PDF now embeds -- confirm the degradation contract
+    # holds on this path too: an unresolvable tag keeps the placeholder in
+    # the PDF and writes the one stderr note, conversion never fails.
+    from ctrlkd.cli import main
+    docpath = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\WS\INSET\PIX\NOPE.PIX')
+    docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+    rc = main(['--mode', 'modern', '-t', 'pdf', str(docpath)])
+    assert rc == 0
+    out = (tmp_path / 'DOC.pdf').read_bytes()
+    assert b'/Im0 Do' not in out
+    assert b'NOPE.PIX' in out
     captured = capsys.readouterr()
     assert "NOPE.PIX' not found" in captured.err
 
