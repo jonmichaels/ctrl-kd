@@ -2148,6 +2148,12 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             for run in it['runs']:
                 styles = frozenset(run['styles'])
                 if 'ref' in run:
+                    if not run['text']:
+                        # a zero-width comment anchor (round 22, layout.py's
+                        # run contract): position data for Show Invisibles,
+                        # no ink on paper -- skipping it keeps Modern PDF
+                        # bytes exactly what they were
+                        continue
                     marker = (run['text'], styles, 'Times', MODERN_BODY_PT,
                               None)
                     toks.append(marker + (_modern_w(*marker),))

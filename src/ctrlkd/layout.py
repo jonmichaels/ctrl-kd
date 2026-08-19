@@ -56,7 +56,12 @@ Each item is a dict with a 'kind':
 
 A run is {'text': str, 'styles': [sorted tags]}, or a reference mark
 {'text': shown_label, 'styles': [...], 'ref': note_index}. Runs preserve
-span boundaries; they never merge.
+span boundaries; they never merge. A reference mark whose 'text' is ''
+(a kept comment under the default `word` scheme, round 22) is a
+ZERO-WIDTH ANCHOR: it renders no ink anywhere, but carries the note's
+true inline position -- the same spot the RTF/HTML exports anchor their
+comment destinations at -- for Show Invisibles and other position-aware
+consumers.
 
 notes is [{'kind', 'label', 'shown', 'text', 'origin'}] for every note the
 call kept, in document order — 'label' is the kind's own display number
@@ -441,6 +446,22 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
                         # `word` comments are markless (Word's bubble
                         # convention); `prefixed` shows the c-mark (M9)
                         runs.append({'text': shown,
+                                     'styles': sorted(styles), 'ref': ni})
+                    else:
+                        # Round 22 (C5, closing the gap test_layout_marks
+                        # documented round 20): a `word`-scheme comment
+                        # stays MARKLESS -- but its inline POSITION is
+                        # real data (the exports anchor RTF's
+                        # \*\annotation / HTML's backlink at exactly this
+                        # spot, and Show Invisibles needs a position to
+                        # draw the comment icon at). A zero-width run
+                        # ('text': '') carries the anchor without adding
+                        # ink: measuring consumers render nothing for it
+                        # (pdf.py's _modern_flow skips empty ref runs
+                        # explicitly, keeping Modern PDF bytes
+                        # unchanged), position-aware consumers get the
+                        # true anchor.
+                        runs.append({'text': '',
                                      'styles': sorted(styles), 'ref': ni})
                     if note.kind == 'footnote':
                         footnotes.append([ni, label])
