@@ -169,27 +169,54 @@ def _printed_top(doc):
     here: "Top margin ... 0.50"" and "Header margin ... 0.33"" (0.33in =
     23.76pt = 1.98 ~ 2 lines, matching DEFAULT_HM_LINES already coded).
 
-    SCOPED TO HEADERLESS DOCUMENTS -- every WS7 oracle behind this fix
-    (OCAPTAIN/TWAINLET/SAWYER/VERSIONS/BOXES/W4P1/W4P2/W4P3/LYING) is
-    headerless. `.hm` is NOT folded in when the document declares a header
-    or footer: `_running_ops`'s own docstring records a WS4 MEASUREMENT
-    (2026-08-03) that a header's `.hm` gap sits INSIDE `.mt`, not
-    additional to it -- at WordStar's defaults a 1-line header starts at
-    paper line 0, and `test_head_foot_land_where_wordstar_puts_them`
-    encodes that measurement (`.mt` alone, body at line 3). Reserving
-    `.hm` again on top of that, unconditionally, would double-count it for
-    the one case this repo actually has evidence for and none for. No WS7
-    ground truth with a header exists in this corpus -- headered documents
-    keep the pre-existing `.mt`-only offset until one does."""
+    NO LONGER SPECIAL-CASED FOR HEADERED DOCUMENTS (round 26, fidelity_gate.py
+    Finding A -- reversing the headerless scoping above). The prior version of
+    this function returned `.mt` ALONE (36pt) whenever `doc.headers` or
+    `doc.footers` was non-empty, reasoning from a WS4 measurement
+    (`_running_ops`'s docstring, `test_head_foot_land_where_wordstar_puts_them`)
+    that a header's `.hm` gap sits INSIDE `.mt`, not additional to it. -README
+    (ws7-prints/v1) is now WS7 ground truth WITH a real `.h1` header, and it
+    contradicts that WS4 finding: -README's OWN header prints starting page 2
+    (page 1 has none -- WordStar suppresses a running head on the document's
+    first page) at PCL baseline y=35.7pt (`.mt` alone, matching `_running_ops`'s
+    OWN placement, unaffected by this function), but the BODY text on those
+    SAME headered pages starts at y=71.7pt -- byte-for-byte the SAME offset
+    the headerless corpus measures ((.mt 3 + .hm 2)*12 + 12pt baseline = 72pt,
+    0.3pt residual). `.hm` is reserved before the body whether or not a header
+    actually prints on that page -- the header's OWN row (`_running_ops`,
+    computed independently from `.mt`/`.hm`/the header's own line count) and
+    the body's start offset (this function) are two separate quantities that
+    the previous version conflated. Also fixes the PIX image top-margin miss
+    (-README p1's WORDSTAR.PIX raster at WS7 y=62.7pt vs the engine's old
+    36pt -- the image anchor already shared this function via `_page_stream`'s
+    `first_lead`, it just inherited the wrong value for a headered doc).
+
+    `.hm` ONLY ADDS WHEN `.mt` IS THE DOCUMENT DEFAULT (`mt_source ==
+    'default'`, core.py's own file-vs-default provenance tag -- the SAME
+    field `_style_lead_pt`'s `.lh` guard already reads for a parallel
+    reason). PREVIEW.WS (ws7-prints/v1) is the negative oracle: it
+    declares its OWN `.mt` explicitly (`mt_source == 'file'`, 4.98 lines
+    -- a WSFORMAT-style non-integer .mt, likely typed as a decimal inch
+    value), and its WS7 capture's first body baseline (88.5pt) matches
+    `.mt` ALONE (round(4.98*12)=60, +14.4+14.4 for this headerless
+    document's own two leading blank lines = 88.8pt, 0.3pt residual) --
+    NOT `.mt`+`.hm` (83.76 -> 84, which would land at 112.8, over 24pt
+    off). Every oracle behind the unconditional `.mt`+`.hm` finding above
+    (the whole headerless corpus, plus -README's own headered pages) has
+    `mt_source == 'default'` -- an author who never touched `.mt` gets
+    the print driver's own factory PAIR (`.mt 3` shipped together with
+    `.hm 2`, WSCHANGE's factory-defaults table), but one who explicitly
+    set their own top margin does not also inherit that pairing's second
+    half."""
     page = doc.meta.get('page')
     if page is None:
         return TOP_PRINTED
     page_h = _resolved_page_height(doc, True)
     mt = page.get('mt_lines', 3.0)
-    if doc.headers or doc.footers:
-        return max(0, min(round(mt * 12), page_h - LEAD))
-    hm = page.get('hm_lines', 2.0)
-    return max(0, min(round((mt + hm) * 12), page_h - LEAD))
+    reserve = mt
+    if page.get('mt_source', 'default') == 'default':
+        reserve += page.get('hm_lines', 2.0)
+    return max(0, min(round(reserve * 12), page_h - LEAD))
 
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so
@@ -293,6 +320,90 @@ def _style_lead_pt(block, doc):
     if vmi > 0:
         return vmi / 20.0
     return None
+
+
+def _font_lead_pt(line, fonts, base_size, state):
+    """This physical line's own baseline-to-baseline lead in points, for a
+    WS5+ FONT-BLOCK document with no paragraph style governing the line
+    (`_style_lead_pt` returns None for every line here -- PREVIEW.WS, the
+    oracle behind this rule, carries no styles at all).
+
+    CALLER'S GATE, not this function's: only consulted (own_lead is still
+    None otherwise) when `doc.fonts` contains at least one PROPORTIONAL
+    entry -- a document-WIDE mode switch, not a per-line one. -README.WS
+    is the negative oracle for this: it carries exactly one font-block
+    record, a 12pt FIXED-PITCH Courier entry (likely the installation's
+    own default-face declaration, not an author's deliberate `.fp`
+    insertion), and its WS7 capture prints flat 12pt leading throughout
+    (baseline_gaps_pt: 12.0 between consecutive body lines) -- NOT the
+    14.4 (1.2x12) this function would compute if consulted for every one
+    of its Courier-tagged lines. PREVIEW.WS's own 12pt sections (its
+    3-line Courier intro, BEFORE any font tag has even appeared in the
+    stream) measure 14.4 despite being just as fontless-looking at that
+    exact point -- the only document-level difference is that PREVIEW
+    contains real proportional font blocks (Times/Univers/Aachen)
+    elsewhere and -README never does. So a document with no proportional
+    font block anywhere -- SAWYER, VERSIONS, TWAINLET, OCAPTAIN, every
+    fontless doc in the corpus, AND -README's single-fixed-font case --
+    must stay on the byte-identical 12pt grid throughout, full stop.
+
+    `state` is a 1-element list, `[current_governing_pt_or_None]`, owned
+    and threaded by the CALLER across every physical line of the document
+    in source order (mirrors `pending_sa`'s cross-block carry): a blank
+    line (no font tag of its own) inherits whatever `state[0]` already
+    holds, exactly as a real printer's VMI-select state would survive an
+    empty line with no command bytes to change it.
+
+    RULE (measured 2026-08-20 against PREVIEW.WS/PREVIEW.pcl,
+    fidelity_gate.py Finding B -- every gap on the page decomposes to
+    0.3pt residual under it): 1.2 x the largest PROPORTIONAL font size
+    (doc.fonts[n]['proportional'] True) active anywhere on the line,
+    carried forward through blank lines. A FIXED-PITCH font block
+    (Courier, any declared point size) NEVER raises the governing size
+    above the document default and, as the LAST font tag active on a
+    line, RESETS the carried state -- WS5+ Courier font blocks change
+    PITCH (historically elite/pica variants of the one typewriter face),
+    not real vertical measure, so a 20pt Courier block's own line and
+    every blank line after it print at the plain 1.2x12=14.4pt default,
+    not 1.2x20. Confirmed on PREVIEW's OWN 12pt intro (no font tag at
+    all yet -- 14.4pt gaps) and its trailing Courier-20pt block (6 blank
+    continuation lines, all 14.4pt, not 24.0pt) alike -- both land on the
+    SAME formula via `state`, not a special case. A line whose OWN
+    leading spaces still carry the OUTGOING tag before a mid-line font
+    change (WordStar's own encoding: the change lands after the
+    characters it precedes, not at line start) takes the LARGER of every
+    proportional size found on the line, matching a real printer sizing
+    the line to its tallest glyph.
+
+    NOT APPLIED when the document ever used a real `.lh` (guarded by the
+    same `lh_source == 'file'` check `_style_lead_pt` uses) -- no corpus
+    evidence exists for how real WS7 arbitrates a font block's own size
+    against an ACTIVE `.lh`, so that combination is left to the
+    pre-existing `.lh`-based mechanism, unconditionally, same doctrine as
+    `_style_lead_pt`'s own guard."""
+    if not fonts:
+        return None
+    prop_sizes_here = []
+    last_tag_proportional = None
+    for s in line.spans:
+        tag = next((t for t in s.styles
+                    if t.startswith('font') and t[4:].isdigit()), None)
+        if tag is None:
+            continue
+        fidx = int(tag[4:])
+        if 0 <= fidx < len(fonts):
+            entry = fonts[fidx]
+            if entry.get('proportional'):
+                prop_sizes_here.append(entry.get('points') or 0.0)
+                last_tag_proportional = True
+            else:
+                last_tag_proportional = False
+    governing = max(prop_sizes_here) if prop_sizes_here else state[0]
+    if last_tag_proportional is False:
+        state[0] = None
+    elif prop_sizes_here:
+        state[0] = max(prop_sizes_here)
+    return (governing if governing else base_size) * 1.2
 
 
 def _printed_lead(doc):
@@ -1014,6 +1125,39 @@ def _pix_dims_pt(r, max_w_pt):
     return w_pt, h_pt
 
 
+def _pix_reserved_advance(blk_lines, start_idx, own_lead_pt):
+    """(reserved_lead_pt, n_blank_consumed) for an embedded pix tag whose
+    own physical line already ended at `blk_lines[start_idx - 1]`.
+
+    WordStar's own INSET convention: the author reserves the picture's
+    print-time footprint as blank PHYSICAL LINES in the source (the tag's
+    own line plus however many blank lines follow it, contiguously, in
+    the same block) -- print time overlays the picture on exactly that
+    reserved block, which is why the block's LINE COUNT governs the
+    vertical advance, not the picture's own continuous pixel height (the
+    two rarely match to the point; INSET's editor-time placeholder was
+    drawn by eye).
+
+    Measured 2026-08-20 against -README.WS/-README.pcl (fidelity_gate.py
+    Finding A): the .PIX tag is followed by 7 contiguous blank lines
+    before "COMPLETE WORDSTAR..." -- 8 lines * 12pt = 96pt reserved. WS7's
+    own first-body baseline (167.7pt) matches `_printed_top`'s 60pt +
+    96pt + this line's own 12pt lead to a 0.3pt residual, the same
+    decipoint-rounding-sized gap as the rest of the confirmed corpus.
+    Using the raster's raw height instead (73.9pt, from the print-options
+    record) under-reserves by >20pt here and cascades into every
+    following line's position. The SAME `ceil(h_pt/lead)` raw-height cost
+    also feeds `_paginate_printed_notes`'s page-capacity budget, so this
+    same fix is the leading candidate for -SCREEN's spurious page-2
+    overflow (fidelity_gate.py Finding C) -- see `_body_stream_printed`'s
+    matching substitution site, which this helper also serves."""
+    n = 0
+    while (start_idx + n < len(blk_lines)
+           and not blk_lines[start_idx + n].text().strip()):
+        n += 1
+    return (1 + n) * own_lead_pt, n
+
+
 def _spans_pix_substitution(spans, pix_map, max_w_pt):
     """(pix_index, w_pt, h_pt) when `spans` [(text, styles), ...] is exactly
     ONE resolved, decoded pix placeholder and nothing else with real text --
@@ -1085,12 +1229,25 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
     embed_images = pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
     text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
+    default_lead_pt = _printed_lead(doc)
+    # round 26 wave 3 (fidelity_gate.py Finding B): same carried-governing-
+    # size mechanism as `_doc_to_pagelines` -- see `_font_lead_pt`.
+    font_lead_state = [None]
+    font_lead_ok = (any(f.get('proportional') for f in doc.fonts)
+                    and doc.meta.get('page', {}).get('lh_source') != 'file')
+    font_lead_base = _printed_size(doc) if font_lead_ok else None
     stream = []
     for b in doc.blocks:
         if b.kind == 'pagebreak':
             stream.append(None)
             continue
-        for line in b.lines:
+        # Indexed (not a plain `for`) so an embedded pix substitution below
+        # can look ahead and CONSUME the blank placeholder lines WordStar
+        # reserved for it -- see `_pix_reserved_advance`.
+        _li = 0
+        while _li < len(b.lines):
+            line = b.lines[_li]
+            _li += 1
             spans = []
             refs = []
             for s in line.spans:
@@ -1107,28 +1264,40 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                             refs.append((label, note))
                         continue
                 spans.append((s.text, styles))
-            # Round 22: exactly one resolved pix tag, no other real text on
-            # this physical line -> an image PageLine (same substitution,
-            # sizing and never-drop-text rule as `_doc_to_pagelines`).
-            # `refs` still travels: a comment reference sharing the line
-            # contributes no text and queues nothing, so nothing is lost.
-            if embed_images:
-                sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
-                if sub is not None:
-                    _idx, _w_pt, _h_pt = sub
-                    stream.append((PageLine([], soft=line.soft, lead=_h_pt,
-                                            overprint=line.overprint,
-                                            image=sub), refs))
-                    continue
-            # A PageLine, not a bare list, so the line's own `.lh` survives the
-            # footnote paginator too -- body lines keep their lead whether or
-            # not the document has notes. Same style-over-default precedence
-            # as the plain path (_doc_to_pagelines) -- see _style_lead_pt.
+            # Same style-over-default precedence as the plain path
+            # (_doc_to_pagelines) -- see _style_lead_pt. Computed BEFORE the
+            # pix check (round 26, fidelity_gate.py Finding A) since the
+            # image's own reserved-placeholder advance now needs it too.
             own_lead = _lead_pt(line.lead_48)
             style_lead = _style_lead_pt(b, doc)
             if style_lead is not None and (
                     line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                 own_lead = style_lead
+            if own_lead is None and font_lead_ok:
+                own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
+                                         font_lead_state)
+            # Round 22: exactly one resolved pix tag, no other real text on
+            # this physical line -> an image PageLine (same substitution,
+            # sizing and never-drop-text rule as `_doc_to_pagelines`).
+            # `refs` still travels: a comment reference sharing the line
+            # contributes no text and queues nothing, so nothing is lost.
+            # `.lead` is the RESERVED PLACEHOLDER block's height (round 26,
+            # fidelity_gate.py Finding A/C -- `_pix_reserved_advance`), not
+            # the raster's own continuous pixel height.
+            if embed_images:
+                sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
+                if sub is not None:
+                    reserved, n_blank = _pix_reserved_advance(
+                        b.lines, _li,
+                        own_lead if own_lead is not None else default_lead_pt)
+                    _li += n_blank
+                    stream.append((PageLine([], soft=line.soft, lead=reserved,
+                                            overprint=line.overprint,
+                                            image=sub), refs))
+                    continue
+            # A PageLine, not a bare list, so the line's own `.lh` survives the
+            # footnote paginator too -- body lines keep their lead whether or
+            # not the document has notes.
             stream.append((PageLine(spans, soft=line.soft,
                                     lead=own_lead,
                                     overprint=line.overprint), refs))
@@ -1250,12 +1419,23 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
         undercounted every page (55 nominal lines actually spending 777.6pt
         of a 648pt budget -- 129.6pt, 10.8 default-lead lines, of real
         overflow per page) before this fix; the gate went from 3 engine
-        pages (WS7: 4) to matching, see the round 26 wave 3 report."""
-        img = getattr(pl, 'image', None)
-        if img is None:
-            own_lead = getattr(pl, 'lead', None) or default_lead
-            return own_lead / default_lead
-        return max(1, int(-(-img[2] // default_lead)))    # ceil(h_pt / lead)
+        pages (WS7: 4) to matching, see the round 26 wave 3 report.
+
+        An image PageLine's `.lead` (round 26 wave 3, fidelity_gate.py
+        Finding A/C) is ALREADY the RESERVED PLACEHOLDER block's height in
+        points -- `_pix_reserved_advance`, computed once at
+        `_body_stream_printed` build time -- not the raster's own
+        continuous pixel height, so it takes the identical `own_lead /
+        default_lead` conversion every other line here does; a prior
+        version of this branch re-derived a cost from the raster's raw
+        height directly (`ceil(h_pt / lead)`), double-guessing a number
+        `_body_stream_printed` had already resolved correctly and, for a
+        pix tag with few or no reserved blank lines, wildly OVER-costing
+        the page-capacity budget relative to what `_page_stream` actually
+        spends drawing it -- the leading suspect behind -SCREEN's spurious
+        page-2 overflow before this fix."""
+        own_lead = getattr(pl, 'lead', None) or default_lead
+        return own_lead / default_lead
 
     last_idx = -1
     for i, item in enumerate(stream):
@@ -1469,6 +1649,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     doc_sb, doc_sa = _printed_doc_spacing_pt(doc) if printed else (None, None)
     pending_sa = None
     default_lead_pt = _printed_lead(doc) if printed else LEAD
+    # round 26 wave 3 (fidelity_gate.py Finding B): `_font_lead_pt`'s
+    # carried-governing-size state, threaded across every physical line
+    # of the document in source order, same cross-block carry as
+    # `pending_sa`. `lh_source == 'file'` guard mirrors `_style_lead_pt`'s
+    # own -- see `_font_lead_pt`'s docstring.
+    font_lead_state = [None]
+    font_lead_ok = (printed and any(f.get('proportional') for f in doc.fonts)
+                    and doc.meta.get('page', {}).get('lh_source') != 'file')
+    font_lead_base = _printed_size(doc) if font_lead_ok else None
     embed_images = printed and pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
     # "fit to text measure" (ruled fallback/cap) sizing lives in
@@ -1495,8 +1684,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
         first_line_of_block = True
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
-        # core.merged_lines, the 2.0.0 split)
-        for line in (b.lines if printed else _merged_lines(b)):
+        # core.merged_lines, the 2.0.0 split). Indexed (not a plain `for`)
+        # so an embedded pix substitution below can look ahead and CONSUME
+        # the blank placeholder lines WordStar reserved for it -- see
+        # `_pix_reserved_advance`.
+        blk_lines = b.lines if printed else _merged_lines(b)
+        _li = 0
+        while _li < len(blk_lines):
+            line = blk_lines[_li]
+            _li += 1
             # the docstring's "headings bold" promise: heading blocks render in
             # Courier-Bold (found unimplemented by the Swift port, job-011)
             spans = [(s.text, _effective_span_styles(s, b, heading_bold=True))
@@ -1519,6 +1715,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 if style_lead is not None and (
                         line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                     own_lead = style_lead
+                # round 26 wave 3 (fidelity_gate.py Finding B): a WS5+
+                # FONT-BLOCK document with no style governing this line
+                # (own_lead still None -- every LYING-shaped line already
+                # took the style branch above and never reaches this) gets
+                # its lead from the font block actually in force. See
+                # `_font_lead_pt`.
+                if own_lead is None and font_lead_ok:
+                    own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
+                                             font_lead_state)
                 extra = 0.0
                 if pending_sa is not None:
                     extra += pending_sa
@@ -1532,17 +1737,24 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 # Round 19: exactly one pix tag, no other real text on this
                 # physical line (see _doc_to_pagelines's own docstring) ->
                 # an image PageLine instead of a text one. own_lead becomes
-                # the image's own height (+ whatever .psb/.psa extra was
-                # already computed above), reusing the pagination budget
-                # model unchanged. (Round 22: the detection/sizing rule is
-                # `_spans_pix_substitution`, shared with the notes and
-                # Modern paths.)
+                # the RESERVED PLACEHOLDER block's height (the tag line plus
+                # its contiguous following blanks, see
+                # `_pix_reserved_advance` -- round 26, fidelity_gate.py
+                # Finding A; NOT the raster's own continuous pixel height,
+                # + whatever .psb/.psa extra was already computed above),
+                # reusing the pagination budget model unchanged. (Round 22:
+                # the detection/sizing rule is `_spans_pix_substitution`,
+                # shared with the notes and Modern paths.)
                 if embed_images:
                     sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
                     if sub is not None:
                         pix_idx, w_pt, h_pt = sub
+                        reserved, n_blank = _pix_reserved_advance(
+                            blk_lines, _li,
+                            own_lead if own_lead is not None else default_lead_pt)
+                        _li += n_blank
                         pl = PageLine([], soft=line.soft,
-                                     lead=h_pt + extra, overprint=line.overprint,
+                                     lead=reserved + extra, overprint=line.overprint,
                                      bi=bi, image=(pix_idx, w_pt, h_pt))
                         lines.append(pl)
                         first_line_of_block = False
@@ -2264,17 +2476,29 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         prev_overprint = getattr(line, 'overprint', False)
         # Round 19 (PIX images RULED IN, ledger PIX row): an image
         # PageLine (see _doc_to_pagelines) draws its XObject instead of
-        # text -- `y` has already advanced by the image's own full height
-        # (its `lead`, above) so the image exactly fills the gap that
-        # advance just created: bottom edge at the CURRENT y, top edge
-        # `h_pt` above it. `/Im<N>` is registered in every page's
-        # /XObject resources by emit_pdf (round 19), one entry per
-        # embedded pix index, shared exactly like the /Font dict already is.
+        # text. `y` has already advanced by this line's `.lead`, which
+        # since round 26 wave 3 (fidelity_gate.py Finding A) is the
+        # RESERVED PLACEHOLDER block's height (`_pix_reserved_advance`:
+        # the tag line plus its contiguous following blanks), not the
+        # raster's own continuous pixel height -- so `y` now marks the
+        # BOTTOM of that reserved band, not the image's own bottom edge.
+        # Measured 2026-08-20 against -README.pcl: WS7 draws the picture
+        # FLUSH WITH THE TOP of its reserved band (leaving any leftover
+        # slack as blank space BELOW the image, before the next real
+        # content), not flush with the band's bottom -- shifting the
+        # drawn box up by (reserved - h_pt) reproduces that: `img_y` is
+        # the band's top edge (`y + (reserved - h_pt)`) minus the image's
+        # own height, i.e. flush with the band's top. `/Im<N>` is
+        # registered in every page's /XObject resources by emit_pdf
+        # (round 19), one entry per embedded pix index, shared exactly
+        # like the /Font dict already is.
         img = getattr(line, 'image', None)
         if img is not None:
             pix_idx, w_pt, h_pt = img
+            reserved = getattr(line, 'lead', None) or h_pt
+            img_y = y + (reserved - h_pt)
             ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
-                      % (w_pt, h_pt, left, y, pix_idx))
+                      % (w_pt, h_pt, left, img_y, pix_idx))
             continue
         # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
         # gutter -- every Nth physical line on the page (1-based, N =

@@ -1388,14 +1388,17 @@ def test_page_geometry_absurd_margins_clamp_not_crash():
     assert doc.meta['page']['text_lines'] == 1
 
 def test_pdf_printed_top_offset_follows_mt():
-    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): a headerless
-    # document's top offset is (.mt + .hm) lines, not .mt alone -- the
-    # default .mt 3 + .hm 2 = 5 lines = 60pt (was 36, .mt alone); a bigger
-    # .mt moves the text start down the same way, .hm 2 (default) still
-    # added on top (1 line = 12pt at 6 LPI). See _printed_top's docstring.
+    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): a document
+    # that never sets `.mt` gets (.mt + .hm) lines -- the default .mt 3 +
+    # .hm 2 = 5 lines = 60pt (was 36, .mt alone) -- the print driver's own
+    # factory PAIR. UPDATED AGAIN same day (PREVIEW.WS ground truth,
+    # fidelity_gate.py Finding B/top-margin refinement): `.hm` only rides
+    # along with the FACTORY `.mt`, not an author-declared one -- a
+    # document that sets its OWN `.mt` (mt_source == 'file') gets that
+    # value ALONE, no `.hm` added. See _printed_top's docstring.
     from ctrlkd.pdf import _printed_top
     assert _printed_top(core.parse_ws(b'x' + HARD)) == 60
-    assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 96
+    assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 72
 
 def test_pdf_printed_lead_follows_lh():
     # .lh 8 IS the 12pt lead; .lh 16 prints double-spaced at 24pt
@@ -1405,20 +1408,22 @@ def test_pdf_printed_lead_follows_lh():
 
 def test_pdf_output_bytes_carry_mt_top_and_lh_lead():
     # end-to-end: the geometry must reach the CONTENT STREAM, not just the
-    # helpers. UPDATED 2026-08-20 (round 26 wave 3): top is now (.mt+.hm)
-    # lines = (6+2)*12 = 96pt (headerless doc, default .hm 2 -- see
-    # _printed_top), and the FIRST line's own baseline-within-line offset
-    # is its own lead (here the document-default 24pt from .lh 16, since
-    # `.lh 16` is set before any line so line 0 carries no per-line
-    # override -- see _page_stream), not a flat 12pt. Read the Td
-    # y-coordinates back out of the bytes.
+    # helpers. UPDATED 2026-08-20 (round 26 wave 3, refined same day on
+    # PREVIEW.WS ground truth): top is `.mt` ALONE = 6*12 = 72pt -- an
+    # author-declared `.mt` (mt_source == 'file') does not also inherit
+    # the factory `.hm` pairing, see _printed_top's docstring -- and the
+    # FIRST line's own baseline-within-line offset is its own lead (here
+    # the document-default 24pt from .lh 16, since `.lh 16` is set before
+    # any line so line 0 carries no per-line override -- see
+    # _page_stream), not a flat 12pt. Read the Td y-coordinates back out
+    # of the bytes.
     import re
     from ctrlkd.pdf import emit_pdf
     data = (b'.MT 6' + HARD + b'.LH 16' + HARD +
             b'Line one.' + HARD + b'Line two.' + HARD + b'Line three.' + HARD)
     pdf = emit_pdf(core.parse_ws(data), mode='printed')
     ys = [float(m) for m in re.findall(rb'[\d.]+ ([\d.]+) Td', pdf)]
-    assert ys[0] == 792 - 96 - 24                  # top from .mt+.hm, first lead from .lh
+    assert ys[0] == 792 - 72 - 24                  # top from .mt alone, first lead from .lh
     assert ys[0] - ys[1] == 24.0                   # lead from .lh, not fixed 12
     assert ys[1] - ys[2] == 24.0
 
@@ -2113,9 +2118,17 @@ def test_head_foot_text_reaches_the_ir():
 
 
 def test_head_foot_land_where_wordstar_puts_them():
-    """Placement MEASURED on WordStar 4 (2026-08-03): header on page line 0,
-    body starting at line 3 (.mt), 55 body lines, footer on line 60
-    (.pl - .mb + .fm). Asserted in lines, not points, so it stays readable."""
+    """Header placement MEASURED on WordStar 4 (2026-08-03): header on page
+    line 0, footer on line 60 (.pl - .mb + .fm) -- `_running_ops` positions
+    both independently of `_printed_top` and is unchanged. Body start was
+    ALSO measured at line 3 (.mt alone) on WS4 at the time, but that reading
+    is now SUPERSEDED by real WS7 evidence (round 26, fidelity_gate.py
+    Finding A): -README (ws7-prints/v1), a genuine WS7 capture with a `.h1`
+    header, prints its body at line 5 (.mt 3 + .hm 2) on every headered page,
+    the same offset headerless WS7 documents already measure -- `_printed_top`
+    reserves `.hm` unconditionally now. 55 body lines per page is capacity
+    (`_printed_cap`), unaffected by where line 0 sits. Asserted in lines, not
+    points, so it stays readable."""
     import re
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
@@ -2127,7 +2140,7 @@ def test_head_foot_land_where_wordstar_puts_them():
     txt = [line_of(y) for y, t in rows if t.strip().startswith('LINE')]
     ftr = [line_of(y) for y, t in rows if 'FOOTER-TEXT' in t]
     assert hdr == [0], f'header should sit on page line 0, got {hdr}'
-    assert txt[0] == 3, f'body should start at .mt 3, got {txt[0]}'
+    assert txt[0] == 5, f'body should start at .mt+.hm = 5, got {txt[0]}'
     assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
     assert ftr == [60], f'footer at .pl-.mb+.fm = 60, got {ftr}'
 
