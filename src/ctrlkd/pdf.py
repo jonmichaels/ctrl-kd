@@ -155,13 +155,41 @@ def _printed_cap_for(doc, mt_lines, mb_lines):
     call) -- calling that same function directly here, rather than
     reading the cache, is what makes a page whose (mt, mb) MATCHES the
     global pair come out byte-identical (same formula, same inputs) while
-    a page that changes them gets its own true capacity."""
+    a page that changes them gets its own true capacity.
+
+    NEVER BELOW the document's own global capacity (b26-mtmb-general,
+    LJ6DTP.WS): a mid-document margin change may LOOSEN a page (more
+    room than the document's own declared default) but WS7 does not let
+    one TIGHTEN it. Reconciled from two real WS7 captures whose mid-
+    document `.mt`/`.mb` changes point opposite directions:
+      SCRIPT.WS block 64 (`.mt1`/`.mb0`, Figure 1's own tiny margins):
+        local cap 65 > global cap 53 (pl 66 - mt 7 - mb 6, its own `.MT
+        7`/`.MB 6`) -- HONORED. WS7 fits the whole figure on one page
+        (measured: SCRIPT.pcl page count 11, matching only when this
+        local cap is used).
+      LJ6DTP.WS block 12 (`.mt1"`/`.mb1"`, right after the SAME kind of
+        `.pa`-then-margin-restate SCRIPT's own figures use): local cap
+        46 (pl 66 - mt 6.0 - mb 6.0) < global cap 48 (pl 66 - mt 6.6 -
+        mb 3.0, its own `.mt 1.1"`/`.mb .5"`) -- NOT honored. WS7's
+        "Proportional Spacing Tables" section (measured: LJ6DTP.pcl,
+        page 7 of 8) prints on ONE page; using the tighter local cap
+        splits it across two, one page too many (9 engine vs WS7's 8).
+    Both obey `cap = max(local, global)` with no exception -- the ONE
+    rule shape that fits both real captures pointing opposite ways.
+    Applying the SAME clamp per-field (e.g. only to `.mb`, treating
+    `.mt` differently) was considered and rejected: LJ6DTP's own `.mt`
+    change (6.6 -> 6.0, negligible) can't discriminate between "mb never
+    applies mid-document" and "mb is clamped" from this evidence alone,
+    but "mb never applies" independently FAILS SCRIPT (whose `.mb0` must
+    be honored) while the whole-cap max does not -- so the max is the
+    narrower, non-file-specific reading of what's actually measured."""
     page = doc.meta.get('page')
     from .core import DEFAULT_PL_LINES, DEFAULT_LH_48, _text_lines_per_page
     pl = (page or {}).get('pl_lines', DEFAULT_PL_LINES)
     lh = (page or {}).get('lh_48', DEFAULT_LH_48)
-    return max(FOOTNOTE_FLOOR + 1,
+    local = max(FOOTNOTE_FLOOR + 1,
                _text_lines_per_page(pl, mt_lines, mb_lines, lh))
+    return max(local, _printed_cap(doc))
 
 
 def _mt_mb_checkpoints(doc):

@@ -2233,6 +2233,39 @@ def test_mid_document_mt_mb_gets_its_own_page_capacity():
     assert pages[0].mt_lines is None               # untouched: "use the doc global"
 
 
+def test_mid_document_mt_mb_never_shrinks_below_the_global_capacity():
+    """b26-mtmb-general (LJ6DTP.WS): the OTHER direction from the sibling
+    test above -- a mid-document .mt/.mb change may LOOSEN a page's
+    capacity, but WS7 does not let one TIGHTEN it. LJ6DTP.WS's block 12
+    (`.mt1"`/`.mb1"`, right after a `.pa`, structurally identical to
+    SCRIPT's own figure-margin pattern) computes a LOCAL cap (46 lines,
+    pl 66 - mt 6.0 - mb 6.0) SMALLER than the document's own global cap
+    (48, from its opening `.mt 1.1"`/`.mb .5"`) -- honoring it split
+    LJ6DTP's "Proportional Spacing Tables" section across two engine
+    pages where real WS7 (measured: LJ6DTP.pcl, page 7 of 8) prints it on
+    one; matching WS7's page count (8, not 9) needs the clamp:
+    `_printed_cap_for` never returns less than `_printed_cap(doc)`.
+    Reproduced synthetically here: a tighter `.mb` after a `.pa` must NOT
+    split content that fits within the document's own GLOBAL capacity."""
+    from ctrlkd.pdf import _doc_to_pagelines, _mt_mb_checkpoints, _printed_cap_for, _printed_cap
+    data = ('.mt3\r\n.mb3\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.mb50\r\n' +
+            ''.join(f'Tight line {i}.\r\n' for i in range(1, 40))).encode()
+    doc = core.parse_ws(data)
+    checkpoints = _mt_mb_checkpoints(doc)
+    assert checkpoints[-1][1:] == (3.0, 50.0)       # the tighter local override
+    global_cap = _printed_cap(doc)
+    assert _printed_cap_for(doc, 3.0, 50.0) == global_cap   # clamped, not 13
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 2                          # NOT 4 -- the 39 "Tight"
+                                                     # lines fit on ONE page
+    assert len(pages[0]) == 20 and len(pages[1]) == 39
+    assert pages[1].mb_lines == 50.0                # the override still RENDERS
+                                                     # (bottom margin/footer geometry
+                                                     # unaffected) -- only capacity clamps
+
+
 def test_mid_document_mt_mb_repositions_the_header():
     """The SAME per-page .mt (Finding 3) reaches `_running_ops` too, via
     the doc.meta['page'] swap `_emit_pdf_inner` now does per page --
