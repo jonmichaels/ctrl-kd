@@ -365,6 +365,64 @@ def _doc_with_isolated_pix(tmp_path, pix_bytes=None):
     return doc, results, docpath
 
 
+def test_pdf_printed_pagination_is_identical_off_vs_embed(tmp_path):
+    """b26-mtmb-general (-README.WS): pictures mode must never change WHERE
+    a page breaks, only how the image band is DRAWN (the b24 PIX round's
+    own ruled design). It used to: with the pix tag as a page's own FIRST
+    line (the real-corpus shape -- -README's WORDSTAR.PIX opens the
+    document), `off` renders the tag and its 8 contiguous following blank
+    lines as ordinary PageLines, so `_doc_to_pagelines`'s own "first line
+    on a page is free" pagination rule credits only the TAG line's one-
+    line advance -- the other 7 blanks still cost normally. `embed`
+    bundles all 8 source lines into ONE image PageLine (`.lead` = the
+    RESERVED BAND total, `_pix_reserved_advance`) and that same "first
+    line free" rule credited the WHOLE bundled total, freeing 7 extra
+    lines' worth of budget `off` never got -- measured on -README.WS:
+    `off`'s page 1 ends exactly where WS7's own paper break does ("read
+    the online version here:"); `embed`'s ran ~4-5 lines longer ("The
+    file OLDTIMES.WS is a sample..."). Fixed: an image PageLine's cost is
+    only credited ONE line's worth even as a page's own first line (see
+    `_cost`'s own b26-mtmb-general note in `_doc_to_pagelines`), matching
+    `off`'s natural per-line accumulation exactly.
+
+    Reproduced synthetically (`.pl 24`, the pix tag as the document's own
+    first content, 8 blank lines after it, then enough body lines to force
+    a natural page break): both modes must break in EXACTLY the same
+    places, checked by the LAST real line of every page, not just total
+    page count (which stayed 14/14 for -README even while this bug was
+    live -- later section breaks re-synced, masking the interior drift)."""
+    from ctrlkd import pdf
+    pix_bytes = _tiny_pix_bytes()
+    (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    body = (b'.pl 24\r\n' + block + b'\r\n' * 8
+            + b''.join(b'Body line %d.\r\n' % i for i in range(1, 20)))
+    doc = core.parse_ws(body)
+    results = pictures.resolve_document_pictures(doc, docpath)
+
+    def breaks(pictures_mode, **kw):
+        pages = pdf._doc_to_pagelines(doc, True, pictures=pictures_mode, **kw)
+        out = []
+        for pg in pages:
+            last = None
+            for l in pg:
+                if getattr(l, 'image', None) is not None:
+                    last = '<image>'
+                    continue
+                t = ''.join(s for s, _ in l)
+                if t.strip():
+                    last = t.strip()
+            out.append(last)
+        return out
+
+    off_breaks = breaks('off')
+    embed_breaks = breaks('embed', pix_results=results)
+    assert off_breaks == embed_breaks == [
+        'Body line 5.', 'Body line 18.', 'Body line 19.']
+
+
 def test_pdf_printed_embed_places_an_image_xobject(tmp_path):
     from ctrlkd import pdf
     doc, results, _ = _doc_with_isolated_pix(tmp_path)

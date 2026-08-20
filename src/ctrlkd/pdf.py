@@ -2262,11 +2262,33 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
     def _cost(ln):
+        lead = getattr(ln, 'lead', None) or default_lead
         if not page:                              # first line on page is free
+            # b26-mtmb-general (pictures-mode pagination parity, -README.WS):
+            # an embedded image's `.lead` is a RESERVED-BAND total (the pix
+            # tag's own line plus its contiguous following blanks --
+            # `_pix_reserved_advance`), not one physical line's advance. The
+            # "first line is free" rule below assumes the opposite -- that
+            # `.lead` represents exactly the ONE source line `budget`'s own
+            # `(cap - 1)` already accounts for (see `budget`'s comment) --
+            # so crediting the WHOLE reserved band when the image happens to
+            # land as a page's first line freed 7 extra lines' worth of
+            # budget (96pt reserved band, 84pt of which should have stayed
+            # charged) that the `pictures=off` path, where the SAME tag
+            # line and blanks are ordinary PageLines and only the tag
+            # line's own one-line advance is ever free, never received --
+            # off matches WS7's real page break exactly, embed ran several
+            # lines longer before this fix. Only the amount ABOVE one
+            # line's own advance is charged even at a page's own start, so
+            # embed's image-band cost matches off's natural per-line
+            # accumulation exactly, regardless of where either mode's
+            # break happens to fall.
+            if getattr(ln, 'image', None) is not None:
+                return max(0.0, lead - default_lead)
             return 0.0
         if getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
-        return getattr(ln, 'lead', None) or default_lead
+        return lead
     def _close_page():
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
