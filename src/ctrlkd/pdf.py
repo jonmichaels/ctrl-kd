@@ -2575,13 +2575,36 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # semantics, matching round 6's own RTF `\fi` reading), so it shifts the
     # line's own STARTING point; the typed leading-whitespace handling below
     # still measures relative to wherever the line begins.
-    ops, x = [], left + (fi or 0)
+    #
+    # Finding A (b26-print-fidelity-2, WARPRAYR.WS): that stacking is right
+    # ONLY when the line's own text does NOT already carry a typed leading
+    # indent of its own -- `.pm` exists for the paragraph whose first line
+    # starts flush in the SOURCE and relies on `.pm` alone for its visual
+    # indent. WARPRAYR's Quote style (`.pm 5`) is the other case: every
+    # line is typed with its own real leading spaces (5 on a continuation,
+    # 10 on a stanza's own first line -- the author's hanging-indent
+    # convention), so `_split_indent` below ALREADY produces the block's
+    # first line's full, correct indent from those typed spaces alone.
+    # Adding `fi` on top double-counts it. Measured (WARPRAYR.pcl): the
+    # couplet's first line ('"God the all-terrible!', 10 typed spaces)
+    # and the prayer's own first line ('"O Lord our Father', 10 typed
+    # spaces) both belong at x=122.4 -- the SAME position a MID-block
+    # stanza's own first line reaches ('"For our sakes', also 10 typed
+    # spaces, not `fi`-eligible since it isn't the block's first physical
+    # line) purely from its typed indent. `fi` stacked on top of it pushed
+    # the block's own first line to 158.4, the +36pt (`.pm`'s own 5 cols)
+    # double-count this fixes. A line with NO typed leading whitespace of
+    # its own (indent never fires) is unaffected -- `fi` remains its only
+    # indent source, unchanged.
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
         # LJ6DTP -- the same gate covers its character substitutions.
         segs = _lj_substitute(segs)
-    for text, styles, family, size_here, entry, indent in _split_indent(
-            _split_symbol_fallback(_split_graphics(segs))):
+    segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
+    if fi and segs and segs[0][5]:            # segs[0][5] is that first
+        fi = None                             # segment's own `indent` flag
+    ops, x = [], left + (fi or 0)
+    for text, styles, family, size_here, entry, indent in segs:
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload

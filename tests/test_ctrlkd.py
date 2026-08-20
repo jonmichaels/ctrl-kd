@@ -3654,6 +3654,68 @@ def test_pdf_symbol_run_styling_is_printed_only():
     assert b'2 Tr' not in pdf_modern
 
 
+# --------------------------------------- Round 2, Fix A: .pm not double-counted
+
+def _helv_font_block(points=12.0):
+    """A proportional (Helvetica) WS5+ font block -- style bit 0x8000 set,
+    the same bit core.py's own font-entry decode reads for `proportional`
+    (see `_font_entry`). Without it a run stays on the document's own
+    fixed pitch and `_split_indent`'s columns-math (this fix's whole
+    subject) never engages."""
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    helv = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
+    ts = (helv & 0x01FF) | 0x8000
+    return ws7_block(0x02, (180).to_bytes(2, 'little')
+                     + round(points * 20).to_bytes(2, 'little')
+                     + ts.to_bytes(2, 'little') + bytes(6))
+
+
+def test_pm_first_line_indent_not_doubled_when_source_already_types_it():
+    """Fix A (b26-print-fidelity-2, WARPRAYR.WS): `.pm`'s first-line indent
+    used to stack ON TOP of a first line's own typed leading whitespace
+    when a block has BOTH -- WARPRAYR's Quote style (`.pm 5`) types its
+    hanging-indent paragraphs with real leading spaces on every physical
+    line (10 on the block's own first line, 5 on continuations), so
+    `_split_indent`'s columns-math already produces the block's first
+    line's full, correct indent from those typed spaces alone; adding
+    `fi` on top double-counted it. Measured (WARPRAYR.pcl): the block's
+    own first line ('"God the all-terrible!') belongs at x=122.4, the
+    SAME position a MID-block line reaches purely from its own typed
+    indent ('"For our sakes', not `fi`-eligible) -- not 158.4, `.pm 5`'s
+    36pt stacked on top (the doubled bug)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 5' + HARD
+            + _helv_font_block()
+            + b'          Ten typed leading spaces on this first line.' + HARD
+            + b'     Five typed leading spaces on this continuation.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 4.0    # `.pm 5` -> column 5 -> 4 offset cols
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: x for _, _, _, x, y, text in _content_spans(pdf)}
+    assert spans[b'Ten'] == 129.6              # left 57.6 + 10-space indent 72 (NOT +fi 28.8)
+    assert spans[b'Five'] == 93.6              # left 57.6 + 5-space indent 36, unaffected
+
+
+def test_pm_first_line_indent_still_applies_with_no_typed_indent():
+    """The negative case, unaffected by Fix A: a block whose first line
+    carries NO typed leading whitespace of its own relies on `.pm` alone
+    for its visual indent (WordStar's OTHER authoring convention, and the
+    ORIGINAL, still-live case `test_pm_shifts_printed_pdf_first_line_start_x`
+    -- test_printed_fidelity.py -- already pins for a fontless span) --
+    `fi` must still apply there, unchanged."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 5' + HARD
+            + _helv_font_block()
+            + b'No typed indent on this first line at all.' + HARD
+            + b'No typed indent on this continuation either.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    xs = [x for _, _, _, x, y, text in _content_spans(pdf) if text == b'No']
+    assert xs == [86.4, 57.6]                   # first: left 57.6 + fi 28.8; continuation: left alone
+
+
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
     """The trap this ordering exists for: the spec's own font block for
     Courier declares generic_style 'serif' -- honest typography (it is a slab
