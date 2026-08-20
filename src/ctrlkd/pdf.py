@@ -1447,6 +1447,7 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     queue = []                                  # list[list[line]]: rendered note
                                                  # chunks awaiting a footnote area,
                                                  # in document order
+    last_page_cost = cap                        # see docstring's return-value note
     i, n = 0, len(stream)
     while i < n:
         body, entries, is_terminal = [], [], False
@@ -1475,6 +1476,7 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
                 queue.append(_note_wrap(_note_marker(note, label), note.text, width))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         pages.append(body + _render_area(entries))
+        last_page_cost = body_len + _area_size(entries)
     # Whatever's STILL queued once the document is exhausted prints at the
     # TOP of its own page(s) -- "except after the last page of regular text,
     # where footnotes are printed at the top of the page."
@@ -1482,9 +1484,10 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
         entries = []
         _admit_footnotes(entries, queue, _footnote_ceiling(cap, 0, True))
         pages.append(_render_area(entries))
-    return pages
+        last_page_cost = _area_size(entries)
+    return pages, last_page_cost
 
-def _endnote_pages(doc, cap, width):
+def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0):
     """Endnotes collect at the true end of the document with NO heading
     (WordStar never printed one -- any "Notes"/"Sources" heading in a period
     document was typed by the author). No .pe support: this always renders
@@ -1494,7 +1497,24 @@ def _endnote_pages(doc, cap, width):
     _annotated_notes/_display_number, doc.meta['endnote_number_start']) --
     NOT the shared fn_counter position -- so a document with 2 footnotes
     then 2 endnotes shows endnotes (1)/(2), matching the same labels their
-    body references now display (see _body_stream_printed), not (3)/(4)."""
+    body references now display (see _body_stream_printed), not (3)/(4).
+
+    `last_page`/`last_page_cost` (round 26 wave 3, fidelity_gate.py
+    Finding C): the LAST page `_paginate_printed_notes` built, and how
+    many `cap`-units of it are already spent. When there's room
+    (`last_page_cost < cap`), endnotes CONTINUE that page instead of
+    always forcing a fresh one -- a single blank line ahead of the first
+    entry (the SAME inter-entry gap the footnote area already uses
+    between two of its OWN entries; `_render_area`'s `if k: out.append
+    ([])`), not a fresh 3-line area header, since this is one more entry
+    in the SAME note area, not a new section. Measured 2026-08-20 against
+    -SCREEN.WS/-SCREEN.pcl: WS7 prints "(1) Endnote" 24pt (one blank
+    line) below "1. Footnote", on the page holding everything else in
+    the document -- the previous unconditional-fresh-page version put
+    "(1) Endnote" alone on an otherwise-near-empty page 2, the actual
+    cause of -SCREEN's 2-page overflow (WS7: 1). A page with NO room
+    left (`last_page_cost >= cap`, the overwhelmingly common multi-page
+    case) is untouched: endnotes start fresh exactly as before."""
     endnotes = [(note, label) for note, label in _annotated_notes(doc) if note.kind == 'endnote']
     if not endnotes:
         return []
@@ -1503,11 +1523,20 @@ def _endnote_pages(doc, cap, width):
         if k:
             lines.append([])
         lines.extend(_note_wrap(_endnote_marker(label), note.text, width))
-    pages, page = [], []
+    pages = []
+    if last_page and last_page_cost < cap:
+        page = list(last_page)
+        room = cap - last_page_cost
+        lines = [[]] + lines
+    else:
+        page = []
+        room = cap
     for l in lines:
-        if len(page) >= cap:
-            pages.append(page); page = []
+        if room < 1:
+            pages.append(page)
+            page, room = [], cap
         page.append(l)
+        room -= 1
     if page:
         pages.append(page)
     return pages
@@ -1613,10 +1642,22 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     not embedded)."""
     if printed and _has_placeable_notes(doc):
         cap = _printed_cap(doc)
-        pages = _paginate_printed_notes(doc, cap, MAX_COLS,
-                                        pix_results=pix_results,
-                                        pictures=pictures)
-        pages += _endnote_pages(doc, cap, MAX_COLS)
+        pages, last_page_cost = _paginate_printed_notes(
+            doc, cap, MAX_COLS, pix_results=pix_results, pictures=pictures)
+        last_page = pages[-1] if pages else None
+        # round 26 wave 3 (fidelity_gate.py Finding C): endnotes CONTINUE
+        # the last body/footnote page when it has room, rather than
+        # always starting fresh -- see _endnote_pages's docstring. The
+        # `last_page and last_page_cost < cap` test decides which of
+        # _endnote_pages' OWN returned pages is a continuation of
+        # `last_page` (replace it) vs a genuinely new one (append it);
+        # it's the identical guard _endnote_pages applies internally.
+        end_pages = _endnote_pages(doc, cap, MAX_COLS, last_page=last_page,
+                                   last_page_cost=last_page_cost)
+        if end_pages and last_page and last_page_cost < cap:
+            pages = pages[:-1] + end_pages
+        else:
+            pages = pages + end_pages
         while len(pages) > 1 and not pages[-1]:
             pages.pop()
         return pages or [[]]
