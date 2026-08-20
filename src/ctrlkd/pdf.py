@@ -2149,6 +2149,18 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             pitch = _span_pitch(entry, pt)
             want = _face_tz(basefont, pitch, pt)
             factor = want / 100.0
+            # Continuous underline (Jon's ruling 2026-08-20, see `_rules`):
+            # one-op-per-word pieces would break the rule at every space no
+            # matter what `_rules` decides (space pieces draw no text and
+            # never reach it with ink), which is exactly the per-word look
+            # the ruling reverses -- and exactly how WS7's own PCL does NOT
+            # behave (one UL-ON..UL-OFF per phrase, moves between words).
+            # So underline is lifted out of the per-piece calls here and
+            # drawn once, first inked piece to last inked piece, spaces
+            # between covered. Explicit `.ul off` keeps the per-piece path.
+            span_ul = ul_continuous and 'u' in styles
+            piece_styles = (styles - {'u'}) if span_ul else styles
+            ul_x0 = ul_x1 = None
             for m in _re.finditer(r' +|[^ ]+', text):
                 piece = m.group(0)
                 nat = _natural_width_pt(piece, basefont, pt)
@@ -2165,8 +2177,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                    (font.encode(), pt, rise, want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
-                ops += _rules(styles, piece, x, y, pw, ul_continuous)
+                    if ul_x0 is None:
+                        ul_x0 = x
+                    ul_x1 = x + pw
+                ops += _rules(piece_styles, piece, x, y, pw, ul_continuous)
                 x += pw
+            if span_ul and ul_x0 is not None:
+                ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
+                           % (ul_x0, y - 1.5, ul_x1, y - 1.5))
             continue
         if indent:
             scale, w = None, len(text) * size * 0.6      # document print columns

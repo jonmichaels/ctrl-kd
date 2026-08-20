@@ -395,6 +395,33 @@ def test_ul_on_draws_one_continuous_rule():
     assert r.count(r'\ul ') == 1
 
 
+def test_ul_continuous_spans_proportional_word_pieces():
+    """The proportional Printed path draws one op per WORD (word-anchored
+    grid layout); before the 2026-08-20 ruling that broke the underline at
+    every space regardless of `.ul`, because space pieces never ink and
+    each word piece ruled only itself. Continuous default now draws ONE
+    rule per underlined span, first inked piece to last -- the shape WS7's
+    own PCL emits (one UL-ON..UL-OFF per phrase with cursor moves between
+    words; LYING p4, OCAPTAIN). Explicit `.ul off` keeps per-word rules on
+    this path too."""
+    univers = ws7_block(0x02, (155).to_bytes(2, 'little')
+                        + (240).to_bytes(2, 'little')
+                        + (49710).to_bytes(2, 'little') + bytes(6))
+    header = ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+
+    doc = core.parse_ws(header + univers
+                        + b'\x13White Elephant Etc.\x13 plain' + HARD)
+    out = pdf.emit_pdf(doc, mode='printed')
+    rules = re.findall(rb'0\.6 w [\d.]+ [\d.]+ m [\d.]+ [\d.]+ l S', out)
+    assert len(rules) == 1      # one rule under the whole phrase
+
+    doc_off = core.parse_ws(header + b'.ul off' + HARD + univers
+                            + b'\x13White Elephant Etc.\x13 plain' + HARD)
+    out_off = pdf.emit_pdf(doc_off, mode='printed')
+    rules_off = re.findall(rb'0\.6 w [\d.]+ [\d.]+ m [\d.]+ [\d.]+ l S', out_off)
+    assert len(rules_off) == 3  # White / Elephant / Etc., gaps bare
+
+
 def test_ul_never_reaches_modern_pdf_or_rtf():
     body = b'.ul on' + HARD + b'\x13AA BB\x13 plain.' + HARD
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
