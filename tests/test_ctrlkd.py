@@ -241,6 +241,48 @@ def test_ws7_footnote_extraction_and_ref():
     md = emit.emit_markdown(doc, mode='modern')
     assert '[^1]' in md and '[^1]: See the 1868 accords.' in md
 
+
+def test_footnote_marker_stays_inline_before_a_blank_paragraph_line():
+    """b26 fix, byte-verified against LYING.WS (jon_vault's pd-samples):
+    a footnote's own bytes contribute NOTHING to the cleaned stream
+    (_symmetric_blocks), so its 'fnref' mark's offset is always wherever
+    `out` already was when the block was stripped -- the ANCHOR text's own
+    end. When that anchor sits at the end of a line immediately followed
+    by a blank paragraph line (a real, common pattern: sentence, footnote,
+    paragraph break), that offset is ALSO the start of the next (zero-
+    length) line -- the general mark-placement rule in `lines_pass`
+    ("a mark landing on a boundary belongs to the line that follows")
+    then put the marker on that blank line, alone, at the left margin
+    (byte-verified: block 3 held nothing but the fnref span, LYING.WS's
+    real Prize./footnote pair). Real WS7 (LYING.pcl +
+    LYING.measurements.json) prints the superscript inline: 'Prize.' at
+    (2786, 1461) decipoints, the footnote's '1' at (3079, 1416) -- SAME
+    row (a 4.5pt rise, not a new line), immediately to its right."""
+    data = (ws7_block(0x00) + b'Anchor text ends here.' +
+            ws7_note(0x03, b'Note body text.', number=0) + HARD + HARD +
+            b'Next paragraph starts fresh.' + HARD)
+    doc = core.parse_ws(data)
+    # the marker rides on the SAME line as its anchor text, not a block of
+    # its own -- exactly one block still separates it from the next
+    # paragraph (the blank spacer line survives, unlike the marker).
+    anchor_line = doc.blocks[0].lines[0]
+    assert 'Anchor text ends here.' in anchor_line.text()
+    ref = [s for s in anchor_line.spans if 'fnref' in s.styles]
+    assert ref and ref[0].text == '1' and 'sup' in ref[0].styles
+    assert not any(
+        all('fnref' in s.styles for s in ln.spans) and ln.spans
+        for b in doc.blocks for ln in b.lines
+    ), 'the marker must never be the SOLE content of its own line'
+
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(doc, mode='printed')
+    spans = _content_spans(pdf)
+    anchor = next(s for s in spans if s[5] == b'Anchor text ends here.')
+    marker = next(s for s in spans if s[5] == b'1')
+    assert marker[4] == anchor[4]              # same y -- same physical line
+    assert marker[3] > anchor[3]                # to the right of its anchor
+
+
 def test_ws7_heading_and_softpage():
     # Heading level comes from the NAME the style handle resolves to in the
     # document's own library -- never from the slot number (the old mapping
