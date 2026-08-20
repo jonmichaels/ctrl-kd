@@ -956,7 +956,7 @@ def _md_deep_indent_lines(md):
     INSIDE a fence is exempt: the fence already tells a CommonMark reader
     not to read anything inside it as a nested indented-code-block signal,
     and a verbatim reference table (ASCII art, a byte-value chart) can
-    legitimately open with 4+ spaces as W4P3 of what it is showing. The
+    legitimately open with 4+ spaces as one part of what it is showing. The
     gate must scope to the FORMAT'S OWN syntax (a line that is exactly
     ` ``` `, CommonMark's own fence marker) rather than pattern-matching
     content that merely looks indented -- same root fix both prior
