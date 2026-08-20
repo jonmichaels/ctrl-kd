@@ -2456,10 +2456,11 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     roll_half_pt = (round(doc.meta.get('formatting', {})
                           .get('sub_super_roll_48', 3.0) * 3)
                     if printed else None)
-    # round 17b (RULINGS-LEDGER row 5/6, register C21): WS3.3's own honest
-    # default -- Printed only, same doctrine as `.sr`. Rides in
-    # doc.meta['formatting'] for free, same as `.sr`/`.pr`.
-    ul_continuous = (bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+    # Jon's ruling 2026-08-20 (reverses round 17b; RULINGS-LEDGER row 5/6,
+    # register C21): default CONTINUOUS, matching measured WS7 LaserJet
+    # output -- see pdf._rules's docstring for the evidence. Explicit
+    # `.ul off` (key present and False) still breaks at spaces.
+    ul_continuous = (bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
                      if printed else True)
     # round 6 (2026-08-17): .psa/.psb are ONE document-wide value each
     # (see _rtf_doc_spacing_twips) -- resolved once, not per block. Only
