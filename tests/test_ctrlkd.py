@@ -1017,6 +1017,38 @@ def test_footnote_endnote_number_is_1_based_not_stored_index():
     assert [n.number for n in doc.notes if n.kind == 'footnote'] == [0, 1]
     assert doc.notes[2].number == 0 and doc.notes[2].kind == 'endnote'
 
+def test_note_number_field_marker_and_area_agree_when_nonzero():
+    # b26 notes wave, Fix 3: a note whose embedded `number` field is nonzero
+    # (WordStar's own 0-based stored index -- see
+    # test_footnote_endnote_number_is_1_based_not_stored_index above, which
+    # only exercises 0 and 1 through emit_markdown) must show the SAME
+    # display number at its inline marker and in its end-matter area, in
+    # every format -- not just the number=0 case every other note fixture
+    # in this file uses. Regression coverage for a reported inline-vs-area
+    # double-increment ("found during the b26 port, pre-existing both
+    # engines"); every format here already routes both consumers through
+    # emit.py's shared _annotated_notes/_display_number, so on this repo
+    # this is a cross-format pin, not evidence a fix was needed here.
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Ref line' + ws7_note(0x03, b'Footnote body.', number=1) +
+            b' end.' + HARD)
+    doc = core.parse_ws(data)
+    t = emit.emit_text(doc, mode='modern')
+    assert 'Ref line[2] end.' in t and '[2] Footnote body.' in t
+    md = emit.emit_markdown(doc, mode='modern')
+    assert '[^2]' in md and '[^2]: Footnote body.' in md
+    h = emit.emit_html(doc, mode='modern')
+    assert 'id="fnref2"' in h and 'id="fn2"' in h
+    r = emit.emit_rtf(doc, mode='modern')
+    assert 'Footnote body.' in r
+    pp = emit_pdf(doc, mode='printed')
+    ptexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pp))
+    assert b'2. Footnote body.' in ptexts
+    pm = emit_pdf(doc, mode='modern')
+    mtexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pm))
+    assert b'[2] Footnote body.' in mtexts
+
 def test_footnote_number_start_hook_ready_for_future_dot_command():
     # core.py doesn't parse a `.f#`-style starting-number dot command yet
     # (another agent is adding dot-command parsing separately) -- this
