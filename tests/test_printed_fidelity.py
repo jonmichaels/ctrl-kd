@@ -401,8 +401,11 @@ def test_sb_suppresses_leading_blank_lines_at_page_top():
         m = re.search(rb'([\d.]+) ([\d.]+) Td \(Actual', out)
         return float(m.group(2))
 
-    assert content_y(doc_default) == 720.0    # two 12pt blanks above it
-    assert content_y(doc_sb) == 744.0          # suppressed -- starts at the top
+    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): top offset is
+    # now (.mt+.hm)*12 = 60pt for a headerless doc (was 36pt .mt-only) --
+    # see _printed_top's docstring.
+    assert content_y(doc_default) == 696.0    # top 60 + two 12pt blanks + 12pt lead
+    assert content_y(doc_sb) == 720.0          # suppressed -- starts right at top+lead
 
 
 def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():

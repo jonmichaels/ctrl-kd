@@ -146,18 +146,50 @@ def _printed_cap(doc):
 
 
 def _printed_top(doc):
-    """Top-of-text offset in points for printed mode. WS documents start
-    where .mt says (lines at 6 LPI -> 12pt each; the default .mt 3 is the
-    36pt this emitter always used). Print streams keep the fixed 36pt --
-    their own top-margin blanks are in the data (minus the machine-margin
-    strip in _doc_to_pagelines). Clamped inside the page so garbage .mt
-    from a misdetected binary degrades to an ugly page, never an absurd
-    coordinate space."""
+    """Top-of-text offset in points for printed mode: the bottom edge of
+    WS7's reserved TOP-MARGIN-PLUS-HEADER-MARGIN zone (lines at 6 LPI ->
+    12pt each; the defaults .mt 3 + .hm 2 = 5 lines = 60pt). Print streams
+    keep the fixed 36pt -- their own top-margin blanks are in the data
+    (minus the machine-margin strip in _doc_to_pagelines). Clamped inside
+    the page so garbage .mt/.hm from a misdetected binary degrades to an
+    ugly page, never an absurd coordinate space.
+
+    INCLUDES `.hm` (round 26 wave 3, fidelity_gate.py Unit B). Measured
+    2026-08-20 against real WS7 PCL captures (ws7-prints/v1): every
+    default-geometry Courier document's first baseline sits at PCL
+    y=71.7pt (OCAPTAIN/TWAINLET/SAWYER/VERSIONS/BOXES/W4P1/W4P2/W4P3, all
+    IQR=0.0 across the matched corpus) -- NOT the 48pt (.mt 3 * 12 + 12pt
+    baseline-within-line) this function used to return before the +size
+    term was folded in at the call site. (.mt 3 + .hm 2) * 12 = 60pt,
+    +12pt for the first line's own baseline-within-line (see _page_stream)
+    = 72pt, a 0.3pt residual against the measured 71.7pt -- decipoint
+    (1/720in) rounding in the WS7 driver's own arithmetic, not a modelling
+    gap. WSCHANGE's factory-defaults table (Installing and Customizing,
+    WS7 manual, p.2-46/2-45) independently confirms both defaults used
+    here: "Top margin ... 0.50"" and "Header margin ... 0.33"" (0.33in =
+    23.76pt = 1.98 ~ 2 lines, matching DEFAULT_HM_LINES already coded).
+
+    SCOPED TO HEADERLESS DOCUMENTS -- every WS7 oracle behind this fix
+    (OCAPTAIN/TWAINLET/SAWYER/VERSIONS/BOXES/W4P1/W4P2/W4P3/LYING) is
+    headerless. `.hm` is NOT folded in when the document declares a header
+    or footer: `_running_ops`'s own docstring records a WS4 MEASUREMENT
+    (2026-08-03) that a header's `.hm` gap sits INSIDE `.mt`, not
+    additional to it -- at WordStar's defaults a 1-line header starts at
+    paper line 0, and `test_head_foot_land_where_wordstar_puts_them`
+    encodes that measurement (`.mt` alone, body at line 3). Reserving
+    `.hm` again on top of that, unconditionally, would double-count it for
+    the one case this repo actually has evidence for and none for. No WS7
+    ground truth with a header exists in this corpus -- headered documents
+    keep the pre-existing `.mt`-only offset until one does."""
     page = doc.meta.get('page')
     if page is None:
         return TOP_PRINTED
     page_h = _resolved_page_height(doc, True)
-    return max(0, min(round(page.get('mt_lines', 3.0) * 12), page_h - LEAD))
+    mt = page.get('mt_lines', 3.0)
+    if doc.headers or doc.footers:
+        return max(0, min(round(mt * 12), page_h - LEAD))
+    hm = page.get('hm_lines', 2.0)
+    return max(0, min(round((mt + hm) * 12), page_h - LEAD))
 
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so
@@ -195,11 +227,48 @@ def _style_lead_pt(block, doc):
     documents for a font's own height word ("Font height in VMIs
     (1/1440ths)") -- so vmi/20.0 is points, the identical conversion
     _font_entry already applies to a font's height word. Evidenced from the
-    format spec's own text, not guessed; UNCONFIRMED against a real WS7
-    print, though -- no oracle exists for a document that uses it (LYING.WS's
-    styles are all -2/auto; DARKNESS.WS/WARPRAYR.WS carry explicit vmi=240
-    but were never printed on real WS7). Flagged for future oracle
-    confirmation; documented, not silently trusted.
+    format spec's own text, not guessed.
+
+    UPDATE 2026-08-20 (round 26 wave 3, fidelity_gate.py Unit A): a WS7
+    oracle for a vmi>0 style now DOES exist -- WARPRAYR.pcl (ws7-prints/v1),
+    which this docstring previously (wrongly) said was never printed on
+    real WS7. WARPRAYR carries vmi=240 on both its byline (16pt) and its
+    entire body (12pt). The vmi/20.0=12pt formula below is CONFIRMED, not
+    contradicted, for the body: WARPRAYR.pcl's own baseline_gaps_pt run
+    12.0pt for ~20 consecutive body-paragraph lines, exactly vmi/20 at
+    12pt font, with zero drift. The ONE anomaly is the very first
+    vmi=240 line on the page -- the byline, arriving immediately after
+    the TITLE block (vmi=-2/auto, 16pt, 19.2pt lead) -- whose OWN
+    baseline sits 19.2pt below the title's, not the 12pt vmi/20 (or the
+    document default, also 12pt) predicts. Every OTHER measured gap on
+    the page, including the blank line inside the byline's OWN block and
+    the transition into the body block right after it (12+12=24.0pt
+    combined, matching vmi/20 on both sides exactly, no anomaly), fits
+    vmi/20 with no adjustment.
+
+    NOT changed on this evidence: an EARLIER version of this comment
+    special-cased vmi==240 to behave like -2/auto everywhere (reasoning
+    from the byline anomaly alone, plus 240 being suspiciously identical
+    to WSCHANGE's own "VMI units for line height" factory default,
+    Installing and Customizing p.2-47, DBA2A -- sic, DBA2H). That
+    over-generalised: applied to the BODY it made every body line 14.4pt
+    instead of the CONFIRMED 12pt, which does get WARPRAYR to the WS7
+    page count (3, via fidelity_gate.py Unit A) but at the cost of a much
+    larger positional residual within the page (median jumped from
+    ~2.5pt to 24pt) -- fitting the one number the task asked for by
+    breaking twenty it didn't. Reverted. The byline anomaly looks more
+    like a margin-COLLAPSING rule at a block boundary (the space above a
+    new block's first line takes the LARGER of the outgoing block's own
+    trailing lead and the incoming block's own leading lead, CSS-style)
+    than a property of vmi=240 itself -- consistent with every gap on
+    this page, but a single occurrence, on one document, is not enough to
+    generalise into a rule that would also touch every OTHER block
+    transition in the corpus (LYING's own header area has two further
+    unexplained non-12/14.4 gaps, 9.9pt and 4.5pt, that a same-shaped
+    "check the SECOND unusual oracle" pass never got to). Reported, not
+    acted on -- WARPRAYR's page count stays 2 (not WS7's 3) until a
+    margin-collapsing hypothesis is checked against enough block
+    transitions to trust it against the ALREADY-good body-interior fit.
 
     Document-level guard: if the file EVER used a real `.lh` dot command
     (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
@@ -1123,8 +1192,19 @@ def _footnote_ceiling(cap, body_len, is_terminal):
     on the page (cap - body_len) -- entries can never push the total past
     cap. Additionally bounded by cap - FOOTNOTE_FLOOR on every page EXCEPT
     the one holding the document's last line of regular text, where the
-    floor's protection lifts (the WS5 manual's stated exception)."""
-    room = cap - body_len
+    floor's protection lifts (the WS5 manual's stated exception).
+
+    `body_len` (round 26 wave 3, Unit A) can now be FRACTIONAL -- a styled
+    body line costs its own lead as a fraction of the document default,
+    see `_paginate_printed_notes`'s `_line_cost` -- but the footnote AREA
+    itself is still whole LINES (its own text carries no per-style
+    leading; `_area_size`/`_admit_footnotes` count it that way). Floored,
+    never rounded, so a fractional line of room already spent by the body
+    never gets credited as a whole line the footnote area can use. The
+    tiny epsilon guards against float accumulation (many fractional
+    per-line costs summed) landing just under a whole number that should
+    round up, not down."""
+    room = int(cap - body_len + 1e-9)
     return room if is_terminal else min(room, cap - FOOTNOTE_FLOOR)
 
 def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
@@ -1147,9 +1227,31 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     default_lead = _printed_lead(doc)
 
     def _line_cost(pl):
+        """This algorithm's whole budget (`cap`, `_area_size`, the footnote
+        ceiling) is denominated in LINE units at the document's DEFAULT
+        lead -- correct for the footnote area itself (its own text carries
+        no per-style leading), wrong for BODY text once a WS7 paragraph
+        STYLE governs a line's real leading (round 26 wave 3,
+        fidelity_gate.py Unit A). A body line now costs its OWN lead as a
+        FRACTION of the default lead -- 1.0 for a line at the document
+        default (byte-identical pagination for every document that never
+        varies leading, which is every document this algorithm's fixed-`1`
+        cost was ever measured against), more or less than 1.0 for a line
+        whose style set a bigger or smaller lead -- the same
+        `own_lead / default_lead` conversion `_doc_to_pagelines`'s already
+        point-based main loop uses (its `budget = (cap - 1) * default_lead`
+        is the identical quantity in points; this keeps that page's true
+        physical capacity while staying in this function's existing line
+        unit, so `_area_size`/`_admit_footnotes`/`_footnote_ceiling` need
+        no change of their own). MEASURED against LYING.pcl: this document
+        undercounted every page (55 nominal lines actually spending 777.6pt
+        of a 648pt budget -- 129.6pt, 10.8 default-lead lines, of real
+        overflow per page) before this fix; the gate went from 3 engine
+        pages (WS7: 4) to matching, see the round 26 wave 3 report."""
         img = getattr(pl, 'image', None)
         if img is None:
-            return 1
+            own_lead = getattr(pl, 'lead', None) or default_lead
+            return own_lead / default_lead
         return max(1, int(-(-img[2] // default_lead)))    # ceil(h_pt / lead)
 
     last_idx = -1
@@ -2084,11 +2186,28 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     word again, to overprint a shadow 0.05in (3.6pt) below the first. Read the
     other way round -- each lead spending itself below its own line -- the two
     copies land 14pt apart and the shadow is just a second, blurry banner.
-    The first line of a page takes its position from `top` and no lead at
-    all."""
+
+    The first line of a page takes its position from `top` and ITS OWN
+    lead (not a flat `size`, and not always the document default `lead`
+    parameter) -- round 26 wave 3, fidelity_gate.py Unit B. Measured
+    2026-08-20 against LYING.pcl: the title block (`.lh` auto, vmi=-2,
+    16pt Times-Bold -- `_style_lead_pt` gives 1.2*16=19.2pt) has its real
+    WS7 baseline at PCL y=78.9pt; `top`=60pt (see _printed_top) + this
+    line's OWN lead 19.2pt = 79.2pt, a 0.3pt residual -- the same
+    decipoint-rounding-sized gap as every unstyled Courier document (where
+    the line's own lead equals the document default 12pt, which is also
+    why using a flat `size` here never looked wrong before: for every
+    previously-measured doc, size and lead were both 12). Using the
+    line's own `.lead` here is the SAME rule every other line on the page
+    already follows (`if n and not prev_overprint: y -= line.lead or
+    lead`, just below) -- unifying the first line with the rest rather
+    than special-casing it on a quantity (font size) no other line uses
+    for vertical placement."""
     res = FontRes() if res is None else res
     ops = list(running)
-    y = page_h - top - size
+    first_lead = getattr(pagelines[0], 'lead', None) if pagelines else None
+    first_lead = first_lead or lead
+    y = page_h - top - first_lead
     # Horizontal scaling persists across text objects within a content stream;
     # it starts at PDF's own default on every page. See _line_ops_printed.
     tz_state = [TZ_DEFAULT]

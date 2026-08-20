@@ -1356,11 +1356,14 @@ def test_page_geometry_absurd_margins_clamp_not_crash():
     assert doc.meta['page']['text_lines'] == 1
 
 def test_pdf_printed_top_offset_follows_mt():
-    # the default .mt 3 IS the 36pt top this emitter always used; a bigger
-    # .mt moves the text start down in real points (1 line = 12pt at 6 LPI)
+    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): a headerless
+    # document's top offset is (.mt + .hm) lines, not .mt alone -- the
+    # default .mt 3 + .hm 2 = 5 lines = 60pt (was 36, .mt alone); a bigger
+    # .mt moves the text start down the same way, .hm 2 (default) still
+    # added on top (1 line = 12pt at 6 LPI). See _printed_top's docstring.
     from ctrlkd.pdf import _printed_top
-    assert _printed_top(core.parse_ws(b'x' + HARD)) == 36
-    assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 72
+    assert _printed_top(core.parse_ws(b'x' + HARD)) == 60
+    assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 96
 
 def test_pdf_printed_lead_follows_lh():
     # .lh 8 IS the 12pt lead; .lh 16 prints double-spaced at 24pt
@@ -1370,15 +1373,20 @@ def test_pdf_printed_lead_follows_lh():
 
 def test_pdf_output_bytes_carry_mt_top_and_lh_lead():
     # end-to-end: the geometry must reach the CONTENT STREAM, not just the
-    # helpers -- .mt 6 starts text at 72pt from the top, .lh 16 spaces
-    # baselines 24pt apart. Read the Td y-coordinates back out of the bytes.
+    # helpers. UPDATED 2026-08-20 (round 26 wave 3): top is now (.mt+.hm)
+    # lines = (6+2)*12 = 96pt (headerless doc, default .hm 2 -- see
+    # _printed_top), and the FIRST line's own baseline-within-line offset
+    # is its own lead (here the document-default 24pt from .lh 16, since
+    # `.lh 16` is set before any line so line 0 carries no per-line
+    # override -- see _page_stream), not a flat 12pt. Read the Td
+    # y-coordinates back out of the bytes.
     import re
     from ctrlkd.pdf import emit_pdf
     data = (b'.MT 6' + HARD + b'.LH 16' + HARD +
             b'Line one.' + HARD + b'Line two.' + HARD + b'Line three.' + HARD)
     pdf = emit_pdf(core.parse_ws(data), mode='printed')
     ys = [float(m) for m in re.findall(rb'[\d.]+ ([\d.]+) Td', pdf)]
-    assert ys[0] == 792 - 72 - 12                  # top from .mt, not fixed 36
+    assert ys[0] == 792 - 96 - 24                  # top from .mt+.hm, first lead from .lh
     assert ys[0] - ys[1] == 24.0                   # lead from .lh, not fixed 12
     assert ys[1] - ys[2] == 24.0
 
@@ -3150,7 +3158,13 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     StandardEncoding renders curly quotes and dashes as the wrong glyphs).
     Nothing else about the fonts/colour/graphics work may perturb a Courier
     page, including the object numbering (which is why the Courier four are
-    always emitted, used or not -- see pdf.FontRes)."""
+    always emitted, used or not -- see pdf.FontRes).
+
+    Re-pinned a SECOND time 2026-08-20 (round 26 wave 3, PRINTED hash only --
+    modern is untouched): _printed_top now folds `.hm` into a headerless
+    document's top-of-text offset (WS7 ground truth, see _printed_top's own
+    docstring), moving this fixture's body down 24pt. A real, evidenced,
+    deliberate change to Printed geometry, not incidental."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -3162,11 +3176,11 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        'd8f6c993a645c735df77a78f58e4dd44464219685e49403e69359d5ff0641e3b'
+        'a98671821a5692e81d81567b48d1cd9d768ea237a8efefcd6ffdefc8019c46ff'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
     assert digest(core.parse_ws(styled), 'printed') == \
-        'a9ffc0cb6a78d7c145306d3a22c1b210d04f1b87b6d38ff7fb7936c969908d39'
+        'e0e54d1399a799a5120fd075d30993c7ca43b90c5e4aa152114330990cedb488'
     assert digest(core.parse_printstream(stream), 'printed') == \
         '6d6555d63a003a276e67c8291ab31b653cc526e4ec47bf6f6cc5da50849d7e98'
 
