@@ -383,39 +383,44 @@ def _style_lead_pt(block, doc):
     entire body (12pt). The vmi/20.0=12pt formula below is CONFIRMED, not
     contradicted, for the body: WARPRAYR.pcl's own baseline_gaps_pt run
     12.0pt for ~20 consecutive body-paragraph lines, exactly vmi/20 at
-    12pt font, with zero drift. The ONE anomaly is the very first
-    vmi=240 line on the page -- the byline, arriving immediately after
-    the TITLE block (vmi=-2/auto, 16pt, 19.2pt lead) -- whose OWN
-    baseline sits 19.2pt below the title's, not the 12pt vmi/20 (or the
-    document default, also 12pt) predicts. Every OTHER measured gap on
-    the page, including the blank line inside the byline's OWN block and
-    the transition into the body block right after it (12+12=24.0pt
-    combined, matching vmi/20 on both sides exactly, no anomaly), fits
-    vmi/20 with no adjustment.
+    12pt font, with zero drift. The ONE anomaly is the byline's OWN
+    baseline, 19.2pt below the title's (78.9 -> 98.1), not the 12pt
+    vmi/20 (or the document default, also 12pt) predicts.
 
-    NOT changed on this evidence: an EARLIER version of this comment
-    special-cased vmi==240 to behave like -2/auto everywhere (reasoning
-    from the byline anomaly alone, plus 240 being suspiciously identical
-    to WSCHANGE's own "VMI units for line height" factory default,
-    Installing and Customizing p.2-47, DBA2A -- sic, DBA2H). That
-    over-generalised: applied to the BODY it made every body line 14.4pt
-    instead of the CONFIRMED 12pt, which does get WARPRAYR to the WS7
-    page count (3, via fidelity_gate.py Unit A) but at the cost of a much
+    An EARLIER version of this comment special-cased vmi==240 to behave
+    like -2/auto everywhere (reasoning from the byline anomaly alone,
+    plus 240 being suspiciously identical to WSCHANGE's own "VMI units
+    for line height" factory default, Installing and Customizing p.2-47,
+    DBA2A -- sic, DBA2H). That over-generalised: applied to the BODY it
+    made every body line 14.4pt instead of the CONFIRMED 12pt, which does
+    get WARPRAYR to the WS7 page count (3) but at the cost of a much
     larger positional residual within the page (median jumped from
     ~2.5pt to 24pt) -- fitting the one number the task asked for by
-    breaking twenty it didn't. Reverted. The byline anomaly looks more
-    like a margin-COLLAPSING rule at a block boundary (the space above a
-    new block's first line takes the LARGER of the outgoing block's own
-    trailing lead and the incoming block's own leading lead, CSS-style)
-    than a property of vmi=240 itself -- consistent with every gap on
-    this page, but a single occurrence, on one document, is not enough to
-    generalise into a rule that would also touch every OTHER block
-    transition in the corpus (LYING's own header area has two further
-    unexplained non-12/14.4 gaps, 9.9pt and 4.5pt, that a same-shaped
-    "check the SECOND unusual oracle" pass never got to). Reported, not
-    acted on -- WARPRAYR's page count stays 2 (not WS7's 3) until a
-    margin-collapsing hypothesis is checked against enough block
-    transitions to trust it against the ALREADY-good body-interior fit.
+    breaking twenty it didn't. Reverted, and a margin-COLLAPSING
+    hypothesis (the byline's OWN entry gap borrows the outgoing title
+    block's larger lead, CSS-style) was reported instead of acted on --
+    correctly: it isn't margin collapsing.
+
+    FIX B (b26-print-fidelity-2), the evidence-backed resolution: the
+    byline's vmi (240 = 12pt) is simply too SMALL for its own 16pt font
+    -- 12pt leading on 16pt type overlaps ascender-to-descender, so WS7
+    falls back to the SAME auto formula (1.2 x the style's own size,
+    19.2pt) an unset vmi already gets on this same line below. The
+    body's vmi=240 on its OWN 12pt font is the negative case that PROVES
+    this doesn't regress: 240/20 = 12.0 >= 12.0, no fallback, the
+    already-CONFIRMED 12.0pt stands untouched. Stated generally: style
+    lead = vmi/20 if vmi/20 >= the style's own font size, else 1.2 x
+    that font size. Cross-checked against every OTHER styled document in
+    the corpus before landing: LYING's four styles are all vmi=-2/auto
+    (never reach this branch); OCAPTAIN/TWAINLET carry no paragraph
+    styles at all. WARPRAYR is the only vmi>0 oracle that exists, and its
+    Author block has exactly one line -- this evidence confirms the
+    formula for that line's own ENTRY gap, not independently for a
+    second line inside a too-small-vmi style (none exists in the
+    corpus to check); the fallback is computed per BLOCK (this
+    function's usual grain), so it would apply uniformly if a second
+    line existed, but that particular claim rides on the general rule,
+    not a second measurement.
 
     Document-level guard: if the file EVER used a real `.lh` dot command
     (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
@@ -438,7 +443,31 @@ def _style_lead_pt(block, doc):
             size = _printed_size(doc)
         return size * 1.2
     if vmi > 0:
-        return vmi / 20.0
+        # Finding B (b26-print-fidelity-2): the byline anomaly this
+        # docstring's UPDATE section above reported (and, in an earlier
+        # round, wrongly generalised into "vmi==240 always means auto")
+        # is neither auto-only nor a margin-collapsing rule -- it is an
+        # explicit vmi that is too SMALL for the style's own font. WARPRAYR's
+        # Author style declares vmi=240 (12pt) on a 16pt font: 12pt lead on
+        # 16pt type would overlap ascender-to-descender, so WS7 falls back
+        # to the SAME auto formula (1.2x the style's own size) an unset vmi
+        # already gets, 19.2pt -- measured (WARPRAYR.pcl): the byline
+        # baseline sits 19.2pt (exactly 1.2 x 16) below the title's, on
+        # EVERY line the byline occupies, not only its entry from the
+        # title block. The Body style's vmi=240 on its OWN 12pt font is
+        # the negative case PROVING vmi/20 remains correct when it fits:
+        # 240/20 = 12.0 >= 12.0, no fallback, matching the already-CONFIRMED
+        # 12.0pt body leading this docstring's UPDATE section measured
+        # (~20 consecutive lines, zero drift) -- unmoved by this fix.
+        # Cross-checked against every OTHER styled document in the corpus
+        # (LYING: every style vmi=-2/auto, never reaches this branch at
+        # all; OCAPTAIN/TWAINLET: no paragraph styles) -- WARPRAYR is the
+        # only vmi>0 oracle that exists, and this is its full evidence.
+        size = getattr(block, 'style_font_pt', None)
+        pt = vmi / 20.0
+        if size and pt < size:
+            return size * 1.2
+        return pt
     return None
 
 

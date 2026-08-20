@@ -188,21 +188,30 @@ def test_blank_line_between_styles_advances_at_its_own_blocks_leading():
     assert gaps == [33.6]
 
 
-def test_explicit_vmi_is_absolute_points_not_relative_to_font_size():
+def test_explicit_vmi_is_absolute_points_unless_too_small_for_its_font():
     """vmi=240 (WSFORMAT.WS: same 1/1440in unit as a font's own height word,
-    so 240/20.0 = 12.0pt) at BOTH a 16pt and a 12pt style font -- the SAME
-    240 recurs unchanged across differing font sizes in DARKNESS.WS/
-    WARPRAYR.WS's real style records, so the value does not scale with the
-    font the way -2/auto does."""
+    so 240/20.0 = 12.0pt) recurs unchanged in DARKNESS.WS/WARPRAYR.WS's real
+    style records at 12pt fonts (WARPRAYR's Body, DARKNESS's Manuscript/
+    Quotation) -- the value does not scale with the font the way -2/auto
+    does, AS LONG AS it is not smaller than the font itself. Finding B
+    (b26-print-fidelity-2, WARPRAYR.pcl): the SAME 240 at a 16pt font
+    (WARPRAYR's Author/byline) measures 19.2pt on real WS7 -- 1.2 x 16, the
+    SAME auto formula an unset vmi gets on that line, because 12pt leading
+    cannot hold 16pt type. Absolute ONLY when it fits; a fallback, not a
+    scaling rule, so a vmi genuinely larger than its font (never measured,
+    but not this rule's business to invent a ceiling for) would stay
+    absolute too -- see `_style_lead_pt`'s own docstring for the full
+    evidence trail, including the reverted vmi==240-always-auto
+    over-generalisation this fix replaces with a narrower, font-relative one."""
     exp16 = _style_record(font=(180, 320, 0), vmi=240)
     exp12 = _style_record(font=(180, 240, 0), vmi=240)
     body = _style_ref(2) + b'Line one.' + HARD + b'Line two.' + HARD
-    for rec in (exp16, exp12):
+    for rec, want in ((exp16, 19.2), (exp12, 12.0)):
         lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
                               ('Exp', rec)])
         doc = core.parse_ws(_doc_with_style_library(body, lib))
         assert doc.blocks[0].line_height_vmi == 240
-        assert _gaps(doc) == [12.0]
+        assert _gaps(doc) == [want]
 
 
 def test_style_auto_with_no_font_of_its_own_falls_back_to_document_size():
@@ -253,20 +262,24 @@ def test_style_auto_leading_never_reaches_modern_pdf():
     span's font tag, not `Block.line_height_vmi`) -- so it is not enough to
     check for a particular number; two documents that share EVERY byte
     except `line_height_vmi` (-2 'auto' vs 240 'explicit', which printed
-    mode renders at two different leadings, 19.2pt vs 12.0pt -- proven
+    mode renders at two different leadings, 14.4pt vs 12.0pt -- proven
     below) must render to BYTE-IDENTICAL Modern PDF output, because Modern
-    never reads that field at all."""
+    never reads that field at all. A 12pt style font (not WARPRAYR's own
+    16pt byline): Finding B (b26-print-fidelity-2) makes vmi=240 fall back
+    to the SAME 1.2x-font auto leading a 16pt font gets (see the sibling
+    "too small for its font" test), which would make this test's own two
+    numbers coincide and stop proving printed reads the field at all."""
     def doc_with_vmi(vmi):
-        rec = _style_record(font=(180, 320, 0), vmi=vmi)
+        rec = _style_record(font=(180, 240, 0), vmi=vmi)
         lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
                               ('Big', rec)])
         body = _style_ref(2) + b'Line one.' + HARD + b'Line two.' + HARD
         return core.parse_ws(_doc_with_style_library(body, lib))
 
     auto_doc = doc_with_vmi(0xFFFE)     # -2, auto
-    explicit_doc = doc_with_vmi(240)    # explicit 12.0pt
+    explicit_doc = doc_with_vmi(240)    # explicit 12.0pt (fits its 12pt font)
 
-    assert _gaps(auto_doc, mode='printed') == [19.2]
+    assert _gaps(auto_doc, mode='printed') == [14.4]
     assert _gaps(explicit_doc, mode='printed') == [12.0]
     assert (pdf.emit_pdf(auto_doc, mode='modern')
             == pdf.emit_pdf(explicit_doc, mode='modern'))
