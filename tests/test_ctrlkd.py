@@ -2383,9 +2383,11 @@ def test_margins_are_per_block_state_not_first_occurrence():
     the way page geometry is -- one archive file sets `.pm` seven hundred times."""
     doc = core.parse_ws(b'.lm 5\r\n.rm 60\r\nIndented.\r\n.pm 4\r\nPara margin.\r\n')
     # left_margin is stored as OFFSET columns (`.lm 5` = text at column 5 =
-    # 4 columns in), matching the style-block hmi path -- see the LM handler
+    # 4 columns in), matching the style-block hmi path -- see the LM handler.
+    # `.pm` shares the same 1-based column frame (b26 fix) so `.pm 4` -> 3.0
+    # offset columns, same normalization as `.lm`.
     assert [(b.left_margin, b.right_margin, b.para_margin) for b in doc.blocks] == [
-        (4.0, 60.0, None), (4.0, 60.0, 4.0)]
+        (4.0, 60.0, None), (4.0, 60.0, 3.0)]
     # never set -> None, so a consumer applies its own default rather than a
     # fabricated one
     b = core.parse_ws(b'Plain.\r\n').blocks[0]

@@ -1890,7 +1890,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 key = {b'LM': 'left_margin', b'RM': 'right_margin',
                        b'PM': 'para_margin'}[name]
                 cols = _resolve_cols_arg(value, m.group(2))
-                if name == b'LM' and not m.group(2):
+                if name in (b'LM', b'PM') and not m.group(2):
                     # `.lm 8` is a COLUMN NUMBER (1-based: text begins AT
                     # column 8 = 7 columns of offset), while a unit-suffixed
                     # `.lm 0.7"` and a paragraph style's left_margin_hmi are
@@ -1898,6 +1898,15 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                     # left_margin means one thing -- offset columns -- to
                     # every consumer, whichever way the file said it
                     # (found 2026-08-06 wiring Modern block margins).
+                    # `.pm` shares the SAME absolute column frame as `.lm`/
+                    # `.po` (emit.py `_rtf_pm_fi_twips` docstring) and is
+                    # therefore ALSO 1-based -- missed when this gate was
+                    # first written because nothing consumed para_margin
+                    # yet. Dormant until the b24 wave (pdf.py
+                    # `_printed_pm_fi_pt`, emit.py `_rtf_pm_fi_twips`)
+                    # started reading it; without this, a `.pm`-bearing
+                    # block's first line sits one column right of the
+                    # file's own bytes. Register (b26).
                     cols = max(0.0, cols - 1.0)
                 state[key] = cols
     elif name == b'CO':                     # newspaper columns

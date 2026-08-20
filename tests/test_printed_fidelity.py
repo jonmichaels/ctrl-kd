@@ -269,7 +269,10 @@ def test_pm_shifts_printed_pdf_first_line_start_x():
         ws7_block(0x00, bytes([0x70]) + bytes(15))
         + b'.pm 10' + HARD
         + b'Some paragraph text without a typed indent at all.' + HARD)
-    assert doc.blocks[0].para_margin == 10.0
+    # `.pm 10` is a COLUMN NUMBER (1-based, same frame as `.lm`/`.po`) --
+    # normalised to 9.0 offset columns, same as `.lm` (b26 fix; this
+    # assertion previously read 10.0, the dormant pre-normalization bug).
+    assert doc.blocks[0].para_margin == 9.0
     out = pdf.emit_pdf(doc, mode='printed')
     m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
     baseline = core.parse_ws(
@@ -277,7 +280,25 @@ def test_pm_shifts_printed_pdf_first_line_start_x():
         + b'Some paragraph text without a typed indent at all.' + HARD)
     out_base = pdf.emit_pdf(baseline, mode='printed')
     m_base = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out_base)
-    assert float(m.group(1)) - float(m_base.group(1)) == 72.0   # 10 cols * 7.2pt/col
+    assert round(float(m.group(1)) - float(m_base.group(1)), 6) == 64.8   # 9 cols * 7.2pt/col
+
+
+def test_pm_column_normalization_matches_lm_flush_left():
+    """b26: `.pm` lives in the SAME absolute column frame as `.lm`/`.po`
+    (emit.py `_rtf_pm_fi_twips` docstring) and is 1-based like `.lm`, so
+    `.pm 1` -- column 1, the left edge itself -- must normalize to a ZERO
+    first-line indent, landing the first line flush on the `.po`-derived
+    left margin, not one column right of it."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pm 1' + HARD + b'.lm 16' + HARD + b'.po 8' + HARD
+        + b'A paragraph whose .pm column equals the left edge itself.' + HARD)
+    assert doc.blocks[0].para_margin == 0.0    # `.pm 1` -> column 1 -> 0 offset
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    assert float(m.group(1)) == 57.6           # `.po 8` flush left, 8*12*0.6pt
+    # Pre-fix this landed at 64.8pt (57.6 + 1 unnormalized `.pm` column *
+    # 7.2pt/col) -- one column right of the file's own bytes.
 
 
 def test_psa_psb_add_printed_pdf_vertical_space():
