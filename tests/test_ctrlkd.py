@@ -3447,6 +3447,81 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     assert '\\u945' in r_modern and '\\u915' in r_modern
 
 
+def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
+    """Finding 1 (b26-print-fidelity-2): Symbol has ONE cut in the base-14
+    set, so a b/i span routed there used to lose its styling silently --
+    but real WS7 prints all four (plain/bold/italic/bold-italic) visibly
+    distinct (measured: -SCREEN.pcl offset 2767, the Greek sample line's
+    four `ESC(s...T` groups carry style=0/1 and weight=0/3 flags on the
+    SAME typeface/height/pitch, and the four runs measure the SAME 108pt
+    advance for 14 glyphs regardless of style -- the driver styled the
+    glyph, never the advance). Pinned here bit-for-bit: bold adds `2 Tr`
+    (fill+stroke) with a stroke width proportional to size before Ts;
+    italic swaps Td for a sheared Tm (~12 degrees) at the SAME (x, y) Td
+    would have used; bold-italic does both. An unstyled Symbol run keeps
+    its pre-existing Td-only op, untouched."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αΓπ'.encode('cp437')          # cp437 Greek, no font block --
+                                           # the -SCREEN.WS fallback path
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + line + HARD
+            + b'\x02' + line + b'\x02' + HARD             # bold
+            + b'\x19' + line + b'\x19' + HARD             # italic
+            + b'\x02\x19' + line + b'\x02\x19' + HARD     # bold-italic
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    ops = [m.group(0) for m in re.finditer(rb'BT /F\d+.*?Tj ET', pdf)
+          if b'aGp' in m.group(0)]
+    assert len(ops) == 4
+    plain, bold, italic, bold_italic = ops
+    font = re.match(rb'BT /(F\d+)', plain).group(1)
+    # plain: untouched, the pre-existing Td-only shape (no Tr/w/Tm at all)
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf 0 Ts (?:[\d.]+ Tz )?'
+        rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', plain)
+    # bold: 2 Tr (fill+stroke) + a stroke width before Ts, same Td shape
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
+        rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', bold)
+    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126, no Tr/w
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Ts '
+        rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', italic)
+    # bold-italic: both -- stroke AND shear
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
+        rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', bold_italic)
+    # the three styled runs land at the SAME x the plain run did (styling
+    # changes only how the glyph paints, never the run's own position)
+    plain_xy = re.search(rb'(-?[\d.]+) (-?[\d.]+) Td', plain).groups()
+    bold_xy = re.search(rb'(-?[\d.]+) (-?[\d.]+) Td', bold).groups()
+    italic_xy = re.search(rb'1 0 0\.2126 1 (-?[\d.]+) (-?[\d.]+) Tm', italic).groups()
+    assert bold_xy[0] == plain_xy[0]
+    assert italic_xy[0] == plain_xy[0]
+
+
+def test_pdf_symbol_run_styling_is_printed_only():
+    """The synthesis lives in pdf.py's Printed-only `_line_ops_printed`
+    (never shared with Modern, which routes through `_modern_w`/its own
+    token font instead -- see BASE14[family] call sites) and never fires
+    for a Symbol run with no b/i styling (byte-identical requirement)."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αΓπ'.encode('cp437')
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + b'\x02' + line + b'\x02' + HARD
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf_printed = emit_pdf(doc, mode='printed')
+    assert b'2 Tr' in pdf_printed and b'Tm (aGp) Tj' not in pdf_printed
+    pdf_modern = emit_pdf(doc, mode='modern')
+    assert b'2 Tr' not in pdf_modern
+
+
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
     """The trap this ordering exists for: the spec's own font block for
     Courier declares generic_style 'serif' -- honest typography (it is a slab

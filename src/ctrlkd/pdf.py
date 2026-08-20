@@ -18,6 +18,7 @@ WordStar document rendered as the typescript it was, on Letter pages:
 Styles: bold/italic map to the family's variants, underline is drawn,
 superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
+import math as _math
 import re as _re
 import zlib as _zlib
 from . import pix as _pixdecode
@@ -1031,6 +1032,71 @@ def _esc(text):
     # the rest of the typographic range the LJ6DTP substitutions produce.
     raw = text.translate(_ESC_FALLBACK).encode('cp1252', 'replace')
     return raw.replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
+
+# ----------------------------------------- Finding 1: synthetic Symbol style
+#
+# Symbol has ONE cut in the base-14 set (BASE14['Symbol'] above) -- a b/i
+# span routed there loses its styling entirely, but real WS7 does not: the
+# -SCREEN.WS Greek sample line prints all four runs (plain/bold/italic/
+# bold-italic) visibly distinct. Measured against -SCREEN.pcl's own font-
+# select bytes for that line (offset 2767, the four `ESC(s...T` groups):
+#   plain       sp12v10.00hsb4099T
+#   bold        sp12v10.00hs3b4099T        (style 0, weight 3)
+#   italic      sp12v10.00h1sb4099T        (style 1, weight 0)
+#   bold-italic sp12v10.00h1s3b4099T       (style 1, weight 3)
+# -- i.e. HP PCL's own `s`(style: 0 upright/1 italic)/`b`(stroke weight: 0
+# medium/3 bold) fields, decoded per the driver table this project already
+# keeps (CLAUDE.md). All four select the SAME typeface (4099, Courier per
+# font_mapping) at the SAME height (12v) and pitch (10.00h) -- confirmed by
+# the measured chunk x-positions too: the run width for 14 glyphs is 108pt
+# (1080 decipoints) in EVERY style (plain 504->1584, bold 1728->2808,
+# italic 2952->4032), so the LaserJet's own font engine applied weight and
+# posture to the SAME glyph cell rather than substituting a wider/narrower
+# design. Synthetic styling here does the same: the run's advance is never
+# touched (see call sites), only how the glyph is painted.
+#   bold   -> text render mode 2 (fill THEN stroke), stroke colour matched
+#             to the fill, stroke width a fraction of the point size (faux-
+#             bold weight; there is no measured stroke width to derive this
+#             from -- a printer's bold is a font-engine decision, not a PDF
+#             one -- so 0.04 * pt is Jon's-instructions-standard "visibly
+#             bolder, not blotted" faux-bold weight).
+#   italic -> an oblique shear on the text matrix (Tm replaces Td), the
+#             standard ~12-degree slant used industry-wide when a face has
+#             no real italic cut; nothing in the measured evidence implies
+#             a different angle (WS7's italic Greek run has the identical
+#             108pt advance as plain/bold, so the printer wasn't shearing
+#             the ADVANCE either -- a pure per-glyph oblique, which is
+#             exactly what Tm's shear does here: e/f still place the run
+#             at the same (x, y) the unstyled path would have used).
+# An unstyled Symbol run (no 'b'/'i') is untouched -- this function is
+# never called for it -- so every existing byte-identical guarantee holds.
+_ITALIC_SHEAR = round(_math.tan(_math.radians(12)), 4)   # ~12 degrees
+_BOLD_STROKE_FRAC = 0.04                                  # faux-bold weight
+
+
+def _symbol_style_op(font, pt, rise, want, tz_state, x, y, text_bytes,
+                     is_bold, is_italic):
+    """One BT..ET op for a styled (bold and/or italic) Symbol-face run.
+    Mirrors the plain-run op shape (Tf, [Tz], Ts, position, Tj) exactly,
+    adding only what styling requires: `2 Tr <w> w` before Ts for bold
+    (text render mode + stroke width; stroke colour is whatever fill
+    colour is already active -- Symbol runs never carry LJ6DTP colour tags
+    in the reference corpus, so this is always black, matching the fill),
+    and Tm instead of Td for italic (the shear)."""
+    parts = [b'BT /%s %d Tf' % (font.encode(), pt)]
+    if want != tz_state[0]:
+        parts.append(b'%.2f Tz' % want)
+        tz_state[0] = want
+    if is_bold:
+        parts.append(b'2 Tr %.2f w' % round(pt * _BOLD_STROKE_FRAC, 2))
+    parts.append(b'%d Ts' % rise)
+    if is_italic:
+        parts.append(b'1 0 %.4f 1 %.1f %.1f Tm' % (_ITALIC_SHEAR, x, y))
+    else:
+        parts.append(b'%.1f %.1f Td' % (x, y))
+    parts.append(b'(%s) Tj ET' % text_bytes)
+    return b' '.join(parts)
+
 
 def _wrap_line(spans, width):
     """Wrap one IR line's spans to `width` columns, preserving styles.
@@ -2413,13 +2479,19 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # between covered. Explicit `.ul off` keeps the per-piece path.
             span_ul = ul_continuous and 'u' in styles
             piece_styles = (styles - {'u'}) if span_ul else styles
+            symbol_bold = family == 'Symbol' and 'b' in styles
+            symbol_italic = family == 'Symbol' and 'i' in styles
             ul_x0 = ul_x1 = None
             for m in _re.finditer(r' +|[^ ]+', text):
                 piece = m.group(0)
                 nat = _natural_width_pt(piece, basefont, pt)
                 pw = nat * factor if nat > 0 else len(piece) * pitch
                 if piece[0] != ' ':
-                    if want == tz_state[0]:
+                    if symbol_bold or symbol_italic:
+                        ops.append(_symbol_style_op(
+                            font, pt, rise, want, tz_state, x, y,
+                            _esc(piece), symbol_bold, symbol_italic))
+                    elif want == tz_state[0]:
                         ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
                                    b' Tj ET' %
                                    (font.encode(), pt, rise, x, y,
@@ -2449,7 +2521,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             target = len(text) * _span_pitch(entry, pt)
             scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
-        if want == tz_state[0]:
+        symbol_bold = family == 'Symbol' and 'b' in styles
+        symbol_italic = family == 'Symbol' and 'i' in styles
+        if symbol_bold or symbol_italic:
+            ops.append(_symbol_style_op(font, pt, rise, want, tz_state, x, y,
+                                        _esc(text), symbol_bold,
+                                        symbol_italic))
+        elif want == tz_state[0]:
             ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
                        (font.encode(), pt, rise, x, y, _esc(text)))
         else:
