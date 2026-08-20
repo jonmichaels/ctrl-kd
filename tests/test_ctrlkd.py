@@ -2202,6 +2202,81 @@ def test_head_foot_land_where_wordstar_puts_them():
     assert ftr == [60], f'footer at .pl-.mb+.fm = 60, got {ftr}'
 
 
+# --------------------------------------------------- Finding 3: per-page .mt/.mb
+
+def test_mid_document_mt_mb_gets_its_own_page_capacity():
+    """Finding 3 (b26-print-fidelity-2): SCRIPT.WS changes .mt/.mb around
+    its embedded worked-example figures (measured: block 64's .mt1/.mb0),
+    and real WS7 fits the figure on ONE page using the figure's OWN tiny
+    margins -- the engine used to apply the document-global FIRST-
+    occurrence .mt/.mb (7/6 here) to every page, capping capacity at
+    pl - 7 - 6 = 53 lines regardless, splitting a 60-line tiny-margin
+    section across two pages. Fixed: a fresh page picks up whatever
+    .mt/.mb was in force at its own first block (_mt_mb_checkpoints,
+    mirroring how .lh already tracks per-line state) -- pl - 1 - 0 = 65
+    lines of room, so the same 60 lines fit on one page."""
+    from ctrlkd.pdf import _doc_to_pagelines, _mt_mb_checkpoints
+    data = ('.mt7\r\n.mb6\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.mt1\r\n.mb0\r\n' +
+            ''.join(f'Tiny line {i}.\r\n' for i in range(1, 61))).encode()
+    doc = core.parse_ws(data)
+    assert doc.meta['page']['mt_lines'] == 7.0    # global: the FIRST occurrence
+    assert doc.meta['page']['mb_lines'] == 6.0
+    checkpoints = _mt_mb_checkpoints(doc)
+    assert checkpoints[0] == (0, 7.0, 6.0)
+    assert checkpoints[-1][1:] == (1.0, 0.0)       # the figure's own override
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 2                         # NOT 3 -- see docstring
+    assert len(pages[0]) == 20 and len(pages[1]) == 60
+    assert pages[1].mt_lines == 1.0 and pages[1].mb_lines == 0.0
+    assert pages[0].mt_lines is None               # untouched: "use the doc global"
+
+
+def test_mid_document_mt_mb_repositions_the_header():
+    """The SAME per-page .mt (Finding 3) reaches `_running_ops` too, via
+    the doc.meta['page'] swap `_emit_pdf_inner` now does per page --
+    `_running_ops`'s own existing `max(0.0, mt - hm - top_head)` formula
+    (unchanged) naturally degrades the header to right-at-the-top when
+    the page's own .mt is too small to fit the usual .hm gap above it,
+    with no separate "suppress the header" rule needed. Pinned against
+    the same fixture's actual y values: normal page (.mt 7, .hm default
+    2) head_base = 7-2-1 = 4 -> y=732; tiny page (.mt 1) head_base =
+    max(0, 1-2-1) = 0 -> y=780, TWELVE points closer to the physical top
+    -- not absent, just compressed, exactly what real WS7 does (measured:
+    SCRIPT.pcl page 10's own header sits at PDF y=780/top-down 12pt)."""
+    from ctrlkd.pdf import emit_pdf
+    data = ('.mt7\r\n.mb6\r\n.he TITLE\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.mt1\r\n.mb0\r\n' +
+            ''.join(f'Tiny line {i}.\r\n' for i in range(1, 61))).encode()
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    ys = [float(m) for m in
+         re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
+    assert ys == [732.0, 780.0]
+
+
+def test_single_geometry_document_never_touches_mt_mb_checkpoints():
+    """A document that never repeats .mt/.mb after its own opening
+    geometry (every document this project has ever rendered, before
+    SCRIPT.WS's figures) gets exactly ONE checkpoint -- `_mt_mb_at`
+    returns the SAME pair for every block, so `Page.mt_lines`/`mb_lines`
+    stay at their None default and no page ever triggers the
+    doc.meta['page'] swap in `_emit_pdf_inner`. Byte-identity for real
+    documents is verified separately (fidelity_gate.py's LYING.WS sha256
+    check); this pins the mechanism directly."""
+    from ctrlkd.pdf import _mt_mb_checkpoints, _doc_to_pagelines
+    data = ('.mt7\r\n.mb6\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21))).encode()
+    doc = core.parse_ws(data)
+    checkpoints = _mt_mb_checkpoints(doc)
+    assert len(checkpoints) == 1
+    pages = _doc_to_pagelines(doc, True)
+    assert all(getattr(pg, 'mt_lines', None) is None
+              and getattr(pg, 'mb_lines', None) is None for pg in pages)
+
+
 def test_hash_becomes_the_page_number():
     import re
     from ctrlkd.pdf import emit_pdf

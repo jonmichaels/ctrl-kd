@@ -146,6 +146,83 @@ def _printed_cap(doc):
                                     DEFAULT_MB_LINES, DEFAULT_LH_48))
 
 
+def _printed_cap_for(doc, mt_lines, mb_lines):
+    """`_printed_cap`, but for an EXPLICIT (mt, mb) pair instead of the
+    document's global first-occurrence values -- Finding 3
+    (b26-print-fidelity-2)'s per-page capacity; see `_mt_mb_checkpoints`.
+    `doc.meta['page']['text_lines']` is a value CACHED at parse time from
+    the document's global mt/mb (core.py's own `_text_lines_per_page`
+    call) -- calling that same function directly here, rather than
+    reading the cache, is what makes a page whose (mt, mb) MATCHES the
+    global pair come out byte-identical (same formula, same inputs) while
+    a page that changes them gets its own true capacity."""
+    page = doc.meta.get('page')
+    from .core import DEFAULT_PL_LINES, DEFAULT_LH_48, _text_lines_per_page
+    pl = (page or {}).get('pl_lines', DEFAULT_PL_LINES)
+    lh = (page or {}).get('lh_48', DEFAULT_LH_48)
+    return max(FOOTNOTE_FLOOR + 1,
+               _text_lines_per_page(pl, mt_lines, mb_lines, lh))
+
+
+def _mt_mb_checkpoints(doc):
+    """[(block_index, mt_lines, mb_lines), ...] in ascending block order --
+    the .mt/.mb pair IN FORCE from that block onward, at BLOCK granularity
+    (the coarsest anchor doc.meta['dot_positions'] gives -- core.py's own
+    per-dot-command position record, (block_index, line_index, cmd), the
+    same mechanism Soft Return.app's Show Invisibles and this file's own
+    `_toc_page_numbers` already read). Mirrors how `.lh` already tracks
+    per-LINE state (Line.lead_48/`_style_lead_pt`) -- one level coarser,
+    because .mt/.mb only take visible effect at the next page start, never
+    mid-line.
+
+    The FIRST checkpoint (block 0) is the document's own global
+    mt_lines/mb_lines (core.py's "first occurrence wins" page dict) -- a
+    document that never touches .mt/.mb again after its own opening
+    geometry gets exactly ONE checkpoint, so every page's lookup returns
+    the SAME pair the document-global functions already gave it: no
+    behaviour change for any document but the ones this exists for.
+
+    Finding 3 (b26-print-fidelity-2): SCRIPT.WS changes both mid-document,
+    around its embedded worked-example figures -- measured (ARTICLES/
+    SCRIPT.WS's own dot-command bytes, via doc.meta['dot_positions']):
+    block 64 sets `.mt1`/`.mb0` (Figure 1's near-zero margins), block 75
+    sets `.mt1"`/`.mb1"` (Figure 2's own, different margins)."""
+    page = doc.meta.get('page') or {}
+    from .core import DEFAULT_MT_LINES, DEFAULT_MB_LINES, _resolve_lines_arg
+    mt = page.get('mt_lines', DEFAULT_MT_LINES)
+    mb = page.get('mb_lines', DEFAULT_MB_LINES)
+    checkpoints = [(0, mt, mb)]
+    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+        m = _MT_MB_CMD_RE.match(cmd)
+        if not m:
+            continue
+        name, value, unit = m.group(1).upper(), float(m.group(2)), m.group(3)
+        resolved = _resolve_lines_arg(value, unit.encode() if unit else None)
+        if name == 'MT':
+            mt = resolved
+        else:
+            mb = resolved
+        if (mt, mb) != checkpoints[-1][1:]:
+            checkpoints.append((bi, mt, mb))
+    return checkpoints
+
+
+_MT_MB_CMD_RE = _re.compile(r'^\.(MT|MB)\s*([0-9.]+)\s*("|[A-Za-z]{1,2})?',
+                            _re.IGNORECASE)
+
+
+def _mt_mb_at(checkpoints, bi):
+    """(mt_lines, mb_lines) in force at block index `bi`, per `checkpoints`
+    (ascending, from `_mt_mb_checkpoints`) -- the LAST checkpoint at or
+    before `bi`."""
+    mt, mb = checkpoints[0][1], checkpoints[0][2]
+    for cp_bi, cp_mt, cp_mb in checkpoints:
+        if cp_bi > bi:
+            break
+        mt, mb = cp_mt, cp_mb
+    return mt, mb
+
+
 def _printed_top(doc):
     """Top-of-text offset in points for printed mode: the bottom edge of
     WS7's reserved TOP-MARGIN-PLUS-HEADER-MARGIN zone (lines at 6 LPI ->
@@ -1751,14 +1828,26 @@ class Page(list):
     """One paginated page: a list of PageLines plus the running head and
     foot IN FORCE when this page printed (replayed from doc.hf_events).
     A list subclass for the same reason PageLine is: every existing consumer
-    iterates a page as a list and keeps working untouched."""
+    iterates a page as a list and keeps working untouched.
 
-    __slots__ = ('headers', 'footers')
+    `mt_lines`/`mb_lines` (Finding 3, b26-print-fidelity-2): the .mt/.mb
+    IN FORCE when this page's own pagination started -- None for "the
+    document's global (first-occurrence) value", which is every page of
+    every document that never changes .mt/.mb mid-document (see
+    `_mt_mb_checkpoints`). Threading the SAME resolved pair from
+    pagination-time (which already had to know it, to size the page's own
+    capacity) through to render-time (`_emit_pdf_inner`'s per-page loop)
+    keeps the two in agreement by construction, rather than re-deriving
+    the same answer twice from doc.meta['dot_positions']."""
+
+    __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines')
 
     def __init__(self, seq=()):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
+        self.mt_lines = None
+        self.mb_lines = None
 
 
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
@@ -1979,6 +2068,17 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                           else _note_marker(note, label))
                 lines.extend(_wrap_line([(marker + note.text, frozenset())],
                                         MAX_COLS))
+    # Finding 3 (b26-print-fidelity-2): a fresh page picks up whatever
+    # .mt/.mb was in force at its OWN first block, not the document's
+    # first-occurrence pair -- see _mt_mb_checkpoints. `global_mt`/
+    # `global_mb` are what _printed_cap(doc) itself would use; a page
+    # whose own checkpoint matches them leaves `Page.mt_lines`/`mb_lines`
+    # at their None default (render side: "use the document global",
+    # untouched).
+    mt_mb_checkpoints = _mt_mb_checkpoints(doc) if printed else None
+    global_mt, global_mb = (mt_mb_checkpoints[0][1], mt_mb_checkpoints[0][2]) \
+        if mt_mb_checkpoints else (None, None)
+    cur_mt, cur_mb = global_mt, global_mb
     cap = _printed_cap(doc) if printed else LINES_MODERN
     # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
     # physical: WordStar advances each line by the `.lh` in force and starts
@@ -2014,6 +2114,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        if (cur_mt, cur_mb) != (global_mt, global_mb):
+            pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
         pages.append(pg)
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'hf':
@@ -2030,6 +2132,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 _close_page(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             continue
+        # Finding 3: a line about to start a FRESH page (whether the page
+        # was just closed above, by the `cond` branch, or this is simply
+        # the document's first line) picks up the .mt/.mb in force at ITS
+        # OWN block -- recomputing `cap`/`budget` for THIS page only, so a
+        # page whose geometry never changes never recomputes to a
+        # different number (see `_printed_cap_for`'s docstring).
+        if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
+            cur_mt, cur_mb = _mt_mb_at(mt_mb_checkpoints, l.bi)
+            cap = _printed_cap_for(doc, cur_mt, cur_mb)
+            budget = (cap - 1) * default_lead
         full = (spent + _cost(l) > budget + 1e-6) if printed \
                else len(page) >= cap
         if l is None or full:
@@ -3233,11 +3345,36 @@ def _emit_pdf_inner(doc, printed, options):
         res = FontRes()
         streams = []
         for page_index, pl in enumerate(pages):
+            # Finding 3 (b26-print-fidelity-2): a page whose own .mt/.mb
+            # (Page.mt_lines/mb_lines, set by _doc_to_pagelines from
+            # _mt_mb_checkpoints) differs from the document's global pair
+            # gets ITS OWN top-margin/header-footer geometry -- the SAME
+            # temporary doc.meta['page'] swap `emit_pdf` already uses for
+            # `page_settings`/landscape, scoped to just this page's
+            # `_printed_top`/`_running_ops` calls. None/None (every page
+            # of every document that never changes .mt/.mb mid-document)
+            # skips the swap entirely: `page_top` is the SAME `top` value
+            # computed once above, byte-identical to before this fix.
+            page_mt = getattr(pl, 'mt_lines', None)
+            page_mb = getattr(pl, 'mb_lines', None)
+            saved_pg = None
+            if page_mt is not None or page_mb is not None:
+                eff = dict(doc.meta['page'])
+                if page_mt is not None:
+                    eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
+                if page_mb is not None:
+                    eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
+                saved_pg, doc.meta['page'] = doc.meta['page'], eff
+                page_top = _printed_top(doc)
+            else:
+                page_top = top
             running = _running_ops(doc, start_no + page_index, page_h, lead,
                                    size, left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}))
-            streams.append(_page_stream(pl, top, page_h, lead, size, left,
+            if saved_pg is not None:
+                doc.meta['page'] = saved_pg
+            streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_interval))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
