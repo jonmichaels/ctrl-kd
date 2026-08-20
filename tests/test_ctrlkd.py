@@ -1775,6 +1775,63 @@ def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
     assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
     assert rises[0] == rises[1] != 0
 
+def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
+    """Finding 2 (b26-print-fidelity-2): a short page's footnote/endnote
+    area used to flow-append right after the body -- wherever the body's
+    own y happened to end -- landing mid-page. Real WS7 anchors it at the
+    page bottom instead (measured: -SCREEN.pcl's "1. Footnote"/"(1)
+    Endnote"/dash-rule at PDF y=84/60/108, i.e. top-down 708/732/684;
+    LYING.pcl's own single-footnote area lands on the SAME y=84/108 --
+    its page is full, so flow-append and bottom-anchor coincide there,
+    which is exactly why the gate never caught this). This doc's body is
+    two short lines -- nowhere near a full (default) 55-line page -- so a
+    flow-appended area would land far above y=108; anchored, it lands
+    exactly where WS7 does, at every page-geometry DEFAULT (.mb 8 lines
+    -> 84pt reserve, see _printed_notes_reserve_pt)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Short body line has a note' + ws7_note(0x03, b'Footnote text.', number=0) +
+            b' and an endnote' + ws7_note(0x04, b'Endnote text.', number=0) +
+            b' here.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
+    assert spans[b'--------------------'] == 108.0
+    assert spans[b'1. Footnote text.'] == 84.0
+    assert spans[b'\\(1\\) Endnote text.'] == 60.0
+
+
+def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
+    """The bottom-anchor override only fires when it would push the area
+    DOWN past where sequential flow already puts it -- a page whose body
+    already reaches (within one default lead of) the anchor target is
+    untouched, which is what keeps LYING.WS's printed PDF byte-identical
+    (sha256 unchanged across this branch: see the fidelity_gate.py
+    report). Pinned here with a synthetic page sized so the body runs
+    right up to the anchor at every page-geometry DEFAULT (cap 55 =
+    .pl 66 - .mt 3 - .mb 8): 51 body lines (one carrying the footnote
+    ref) leave the 4-line footnote area exactly filling the rest of the
+    55-line cap -- the SAME "flow already gets there" case LYING.WS's
+    own full pages are in (measured: override computes to exactly 0.0
+    here, so the area renders at its natural flow position, 12pt above
+    where the bottom-anchor formula alone would put it)."""
+    from ctrlkd.pdf import emit_pdf, _printed_cap
+    data = (ws7_block(0x00) +
+            b'Body line 1 has a note' + ws7_note(0x03, b'Note.', number=0) +
+            b' here.' + HARD +
+            b''.join(b'Body line %d.' % i + HARD for i in range(2, 52)))
+    doc = core.parse_ws(data)
+    assert _printed_cap(doc) == 55
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
+    # natural flow (top 60 + 51 body lines * 12 + this line's own 12 =
+    # 96, PDF bottom-origin) -- ONE line short of the 84pt anchor's own
+    # target for a 4-line area (108), confirming the override did NOT
+    # fire and pull the rule down to the anchor position.
+    assert spans[b'--------------------'] == 96.0
+    assert spans[b'1. Note.'] == 72.0
+
+
 def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
     # b26 notes wave, Fix 2: `_doc_to_pagelines`'s own legacy end-of-document
     # notes dump (superseded for real Modern PDF output by `_modern_streams`,

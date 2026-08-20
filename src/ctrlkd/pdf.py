@@ -219,6 +219,48 @@ def _printed_top(doc):
         reserve += page.get('hm_lines', 2.0)
     return max(0, min(round(reserve * 12), page_h - LEAD))
 
+
+def _printed_notes_reserve_pt(doc):
+    """Bottom-of-page reserve for `_paginate_printed_notes`'s FOOTNOTE
+    area (never the endnote continuation -- see that function's own
+    docstring: endnotes are never queued here, `_endnote_pages` appends
+    them afterward and inherits this area's position for free by
+    continuing its sequential flow), in points -- Finding 2
+    (b26-print-fidelity-2). The area used to be flow-appended right after
+    the body (whatever y the body happened to end at), correct only when
+    the body already fills the page (LYING.WS, every page) -- on a short
+    page (-SCREEN.WS, a 1-page doc whose body ends mid-page) that put the
+    area mid-page, colliding with the WORDSTAR.PIX image; real WS7 prints
+    it at the physical bottom.
+
+    Measured against TWO independent WS7 captures (ws7-prints/v1), both
+    at every page-geometry default (.mb 8 lines): -SCREEN.pcl's footnote
+    line "1. Footnote" at y=708pt (dash rule at 684pt) and LYING.pcl's
+    "1.Did not take the prize." also at y=708pt (dash rule also 684pt --
+    LYING's page is full, so its flow-appended position and this anchor
+    coincide, per `_paginate_printed_notes`'s own docstring). Both land
+    on the exact same reserve -- 792 - 708 = 84pt -- with ZERO decipoint
+    residual. 84pt is (.mb - 1) * 12 = 7 lines, ONE LINE inside the raw
+    .mb reserve (8 lines = 96pt would put the footnote line 12pt too
+    high, at 696pt) -- the same "one line's own lead" adjustment
+    `_printed_top` applies at the OTHER end of the page (a baseline sits
+    one line's lead INSIDE its margin reserve, not flush with its outer
+    edge), mirrored here for the last line instead of the first.
+
+    JUDGMENT CALL, recorded rather than hidden: ws7-prints/v1 has no
+    document with an EXPLICIT non-default `.mb` to confirm the `- 1`
+    line scales correctly rather than being a fixed offset; both measured
+    documents share the same default. Scaling with `.mb` (rather than a
+    flat 84pt constant) is the more defensible read of a page-layout
+    engine's intent, but is not independently confirmed -- if a future
+    capture contradicts it, that is where to look first."""
+    page = doc.meta.get('page')
+    if page is None:
+        return 84.0                    # print streams: no .mb to read;
+                                        # the measured default constant
+    mb = page.get('mb_lines', 8.0)
+    return max(0.0, (mb - 1) * 12.0)
+
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so
     lh * 1.5. None/non-positive -> None, meaning "no answer here, use the
@@ -1463,6 +1505,11 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     stream = _body_stream_printed(doc, pix_results=pix_results,
                                   pictures=pictures)
     default_lead = _printed_lead(doc)
+    # Finding 2 bottom-anchor geometry (see _printed_notes_reserve_pt):
+    # constant for the whole document, computed once.
+    _notes_top = _printed_top(doc)
+    _notes_page_h = _resolved_page_height(doc, True)
+    _notes_reserve = _printed_notes_reserve_pt(doc)
 
     def _line_cost(pl):
         """This algorithm's whole budget (`cap`, `_area_size`, the footnote
@@ -1541,7 +1588,31 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
             for label, note in refs:
                 queue.append(_note_wrap(_note_marker(note, label), note.text, width))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
-        pages.append(body + _render_area(entries))
+        area = _render_area(entries)
+        if entries:
+            # Bottom-anchor (Finding 2): the area's FIRST line (the
+            # 3-line header's leading blank) gets an overridden `.lead`
+            # that lands it exactly `_notes_reserve` above the page
+            # bottom, counting up through the area's own remaining
+            # lines -- rather than wherever the body's sequential flow
+            # happened to leave off. `body_y` is the body's own last
+            # baseline (top-down points): `_line_cost` makes `own_lead /
+            # default_lead` exact, so `body_len * default_lead` is the
+            # TRUE point advance the body already spent, not an
+            # approximation. Only APPLIED when it pushes the area DOWN
+            # (`override > default_lead`, more than the ordinary single-
+            # blank-line gap the flow path would use) -- a full page
+            # (LYING.WS) already lands within a line of the target on
+            # its own, so this is a no-op there (byte-identical), and a
+            # page that somehow overflows the anchor never moves
+            # backward into the body.
+            body_y = _notes_top + body_len * default_lead
+            target_first = (_notes_page_h - _notes_reserve
+                            - (len(area) - 1) * default_lead)
+            override = target_first - body_y
+            if override > default_lead:
+                area = [PageLine(area[0], lead=override)] + area[1:]
+        pages.append(body + area)
         last_page_cost = body_len + _area_size(entries)
     # Whatever's STILL queued once the document is exhausted prints at the
     # TOP of its own page(s) -- "except after the last page of regular text,
