@@ -188,6 +188,77 @@ def test_blank_line_between_styles_advances_at_its_own_blocks_leading():
     assert gaps == [33.6]
 
 
+# 16pt / 12pt styles with an EXPLICIT (not auto) vmi=240 -- WARPRAYR.WS's
+# real Author/Body style records (240/20 = 12.0pt: too small for the 16pt
+# style, exactly right for the 12pt one).
+_EXP240_16PT = _style_record(font=(180, 320, 0), vmi=240)
+_EXP240_12PT = _style_record(font=(180, 240, 0), vmi=240)
+
+
+def test_entering_line_after_too_small_vmi_style_uses_raw_not_fallback():
+    """Fix C (b26-print-fidelity-2, WARPRAYR.WS): the SAME structural shape
+    as the sibling LYING-shaped test above (a style-ref, one text line, a
+    BLANK line, a style switch, the next style's own text line), but the
+    OUTGOING style has an EXPLICIT vmi too small for its own font
+    (WARPRAYR's Author: vmi=240=12pt on a 16pt font -- Finding B's
+    fallback makes ITS OWN first line's entry gap 19.2pt). Its trailing
+    BLANK line does NOT also take that 19.2pt fallback (nothing to clip,
+    see `_style_lead_pt`'s `raw` note): it advances at the RAW, unfallen-
+    back vmi/20 (12.0pt) -- and the entering Body line (vmi=240=12pt,
+    fits its OWN font, no fallback needed either) advances at its own
+    12.0pt too, no floor needed (12.0 >= 12.0 already). Combined:
+    12.0 + 12.0 = 24.0pt -- WARPRAYR.pcl's measured gap ("by Mark Twain"
+    to "It was a time...", 240 decipoints), NOT 19.2 + 12.0 = 31.2 (the
+    pre-Fix-C bug, treating Finding B's fallback as block-wide)."""
+    lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
+                          ('Author', _EXP240_16PT), ('Body', _EXP240_12PT)])
+    body = (_style_ref(2) + b'The byline itself.' + HARD + HARD
+            + _style_ref(3) + b'First body line.' + HARD)
+    doc = core.parse_ws(_doc_with_style_library(body, lib))
+    assert doc.blocks[0].line_height_vmi == 240
+    assert len(doc.blocks[0].lines) == 2            # text line + blank
+    assert _gaps(doc) == [24.0]
+
+
+def test_entering_line_after_auto_style_is_floored_at_the_auto_lead():
+    """Fix C's OTHER direction, WARPRAYR's Quote -> Body (a genuinely
+    AUTO style, vmi=-2, into an EXPLICIT vmi=240=12pt style that fits its
+    own font): the entering Body line's own 12.0pt gap is FLOORED at the
+    outgoing Quote block's own 14.4pt (1.2 x its 12pt font) -- an
+    EXPLICIT style's first line never sits closer to what preceded it
+    than that content's own natural lead was. Quote's trailing blank
+    advances at its own unambiguous 14.4pt (auto has no raw-vs-fallback
+    distinction). Combined: 14.4 + 14.4 = 28.8pt -- WARPRAYR.pcl's
+    measured gap ('Thunder thy clarion...' to 'Then came the "long"
+    prayer...', 288 decipoints), NOT 14.4 + 12.0 = 26.4 (the pre-Fix-C
+    bug: Body's own entering gap, un-floored)."""
+    lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
+                          ('Quote', _AUTO_12PT), ('Body', _EXP240_12PT)])
+    body = (_style_ref(2) + b'Last quote line.' + HARD + HARD
+            + _style_ref(3) + b'First body line.' + HARD)
+    doc = core.parse_ws(_doc_with_style_library(body, lib))
+    assert _gaps(doc) == [28.8]
+
+
+def test_entering_an_auto_style_is_never_floored():
+    """The negative case the floor must NOT fire for: WARPRAYR's Body ->
+    Quote (an EXPLICIT vmi=240=12pt style into a genuinely AUTO one) --
+    `_entering_lead_pt`'s own guard only floors a block being entered
+    that HAS an explicit vmi; Quote (auto) is entered at its own natural
+    14.4pt, never floored up against Body's own outgoing 12.0pt (which
+    wouldn't raise it anyway) or down. Body's trailing blank advances at
+    its own 12.0pt (vmi=240 fits its 12pt font -- no raw-vs-fallback
+    distinction possible here either). Combined: 12.0 + 14.4 = 26.4pt --
+    WARPRAYR.pcl's measured gap ('...that tremendous invocation--' to
+    '"God the all-terrible!...', 264 decipoints), unchanged by Fix C."""
+    lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
+                          ('Body', _EXP240_12PT), ('Quote', _AUTO_12PT)])
+    body = (_style_ref(2) + b'Last body line.' + HARD + HARD
+            + _style_ref(3) + b'First quote line.' + HARD)
+    doc = core.parse_ws(_doc_with_style_library(body, lib))
+    assert _gaps(doc) == [26.4]
+
+
 def test_explicit_vmi_is_absolute_points_unless_too_small_for_its_font():
     """vmi=240 (WSFORMAT.WS: same 1/1440in unit as a font's own height word,
     so 240/20.0 = 12.0pt) recurs unchanged in DARKNESS.WS/WARPRAYR.WS's real

@@ -347,7 +347,7 @@ def _lead_pt(lh_48):
     return lh_48 * 1.5
 
 
-def _style_lead_pt(block, doc):
+def _style_lead_pt(block, doc, raw=False):
     """The baseline-to-baseline leading a WS7 paragraph STYLE dictates for
     every physical line in `block` (core.Block.line_height_vmi/style_font_pt,
     set from the style record's own font/line-height fields -- core.py's
@@ -405,22 +405,30 @@ def _style_lead_pt(block, doc):
     byline's vmi (240 = 12pt) is simply too SMALL for its own 16pt font
     -- 12pt leading on 16pt type overlaps ascender-to-descender, so WS7
     falls back to the SAME auto formula (1.2 x the style's own size,
-    19.2pt) an unset vmi already gets on this same line below. The
-    body's vmi=240 on its OWN 12pt font is the negative case that PROVES
-    this doesn't regress: 240/20 = 12.0 >= 12.0, no fallback, the
-    already-CONFIRMED 12.0pt stands untouched. Stated generally: style
-    lead = vmi/20 if vmi/20 >= the style's own font size, else 1.2 x
-    that font size. Cross-checked against every OTHER styled document in
-    the corpus before landing: LYING's four styles are all vmi=-2/auto
+    19.2pt) an unset vmi already gets. The body's vmi=240 on its OWN
+    12pt font is the negative case that PROVES this doesn't regress:
+    240/20 = 12.0 >= 12.0, no fallback, the already-CONFIRMED 12.0pt
+    stands untouched. Cross-checked against every OTHER styled document
+    in the corpus before landing: LYING's four styles are all vmi=-2/auto
     (never reach this branch); OCAPTAIN/TWAINLET carry no paragraph
-    styles at all. WARPRAYR is the only vmi>0 oracle that exists, and its
-    Author block has exactly one line -- this evidence confirms the
-    formula for that line's own ENTRY gap, not independently for a
-    second line inside a too-small-vmi style (none exists in the
-    corpus to check); the fallback is computed per BLOCK (this
-    function's usual grain), so it would apply uniformly if a second
-    line existed, but that particular claim rides on the general rule,
-    not a second measurement.
+    styles at all.
+
+    RESOLVED by Fix C's full block-transition inventory (below, and
+    `_entering_lead_pt`): this docstring's own UPDATE section originally
+    read the byline's 19.2pt as a property of the WHOLE Author block (so
+    this fallback was applied uniformly, per block, to every line). That
+    was ALSO wrong, just less visibly -- Author's own trailing BLANK line
+    (the one line inside it besides the byline itself) measures its OWN
+    space at 12.0pt, the UNFALLEN-BACK vmi/20, not 19.2pt. The fallback
+    protects against a REAL line's ascender/descender clipping into the
+    line above -- a blank line has no glyphs to clip, so it never needs
+    it: `raw=True` (every BLANK line, and the value a block hands to
+    `_entering_lead_pt` as the NEXT block's "outgoing" reference) always
+    returns the unfallen-back vmi/20, regardless of position in the
+    block. `raw=False` (the default, every REAL line, first or not --
+    every EXISTING call site before Fix C only ever rendered a block's
+    OWN first line through this function, so this is the identical
+    behaviour there) keeps the fallback.
 
     Document-level guard: if the file EVER used a real `.lh` dot command
     (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
@@ -443,32 +451,86 @@ def _style_lead_pt(block, doc):
             size = _printed_size(doc)
         return size * 1.2
     if vmi > 0:
-        # Finding B (b26-print-fidelity-2): the byline anomaly this
-        # docstring's UPDATE section above reported (and, in an earlier
-        # round, wrongly generalised into "vmi==240 always means auto")
-        # is neither auto-only nor a margin-collapsing rule -- it is an
-        # explicit vmi that is too SMALL for the style's own font. WARPRAYR's
-        # Author style declares vmi=240 (12pt) on a 16pt font: 12pt lead on
-        # 16pt type would overlap ascender-to-descender, so WS7 falls back
-        # to the SAME auto formula (1.2x the style's own size) an unset vmi
-        # already gets, 19.2pt -- measured (WARPRAYR.pcl): the byline
-        # baseline sits 19.2pt (exactly 1.2 x 16) below the title's, on
-        # EVERY line the byline occupies, not only its entry from the
-        # title block. The Body style's vmi=240 on its OWN 12pt font is
-        # the negative case PROVING vmi/20 remains correct when it fits:
-        # 240/20 = 12.0 >= 12.0, no fallback, matching the already-CONFIRMED
-        # 12.0pt body leading this docstring's UPDATE section measured
-        # (~20 consecutive lines, zero drift) -- unmoved by this fix.
-        # Cross-checked against every OTHER styled document in the corpus
-        # (LYING: every style vmi=-2/auto, never reaches this branch at
-        # all; OCAPTAIN/TWAINLET: no paragraph styles) -- WARPRAYR is the
-        # only vmi>0 oracle that exists, and this is its full evidence.
+        # Finding B (b26-print-fidelity-2): an explicit vmi too SMALL for
+        # the style's own font falls back to the SAME auto formula (1.2x
+        # the style's own size) an unset vmi already gets -- WARPRAYR's
+        # Author style (vmi=240=12pt on a 16pt font; 12pt lead on 16pt
+        # type would overlap ascender-to-descender) measures 19.2pt
+        # (1.2x16) for its byline's OWN entry gap. The Body style's
+        # vmi=240 on its OWN 12pt font is the negative case PROVING
+        # vmi/20 remains correct when it fits (240/20 = 12.0 >= 12.0, no
+        # fallback) -- the already-CONFIRMED 12.0pt body leading (~20
+        # consecutive lines, zero drift), unmoved by this fix.
+        #
+        # `raw` (Fix C, b26-print-fidelity-2): the fallback above protects
+        # a REAL line's ascender/descender from clipping into the line
+        # above -- a BLANK line has no glyphs to clip, so it never needs
+        # it. `raw=True` skips the fallback and returns the unfallen-back
+        # vmi/20 always -- see `_entering_lead_pt`, which is the ONLY
+        # caller that ever passes `raw=True` (for the block being LEFT,
+        # never the one being entered), and the direct blank-line call
+        # site in `_doc_to_pagelines`. `raw=False` (the default) is every
+        # EXISTING call site's own behaviour, unchanged.
         size = getattr(block, 'style_font_pt', None)
         pt = vmi / 20.0
-        if size and pt < size:
+        if not raw and size and pt < size:
             return size * 1.2
         return pt
     return None
+
+
+def _entering_lead_pt(block, doc, prev_block):
+    """A block's own FIRST REAL (non-blank) physical line's lead:
+    `_style_lead_pt`'s font-relative fallback (Finding B), floored
+    against the block being ENTERED's own natural minimum -- Fix C
+    (b26-print-fidelity-2, WARPRAYR.WS). An EXPLICIT (vmi>0) style's
+    first line never sits CLOSER to the preceding content than that
+    content's own RAW lead was -- i.e. entering an explicitly, tightly-
+    leaded block never crowds whatever was above it.
+
+    Full block-transition inventory (WARPRAYR.pcl, WS7 frame, blank-line
+    + entering-line combined gaps -- a blank line carries no glyph, so
+    only the PAIR is independently measurable):
+        Author(auto,19.2)   -> Body(vmi 240=12, fits)   24.0 = 12.0 + 12.0
+        Body(vmi 240=12)    -> Quote(auto,14.4)  x2      26.4 = 12.0 + 14.4
+        Quote(auto,14.4)    -> Body(vmi 240=12)  x2      28.8 = 14.4 + 14.4
+    Only the Quote -> Body pairs need MORE than `_style_lead_pt` alone
+    gives (26.4, Body's own 12.0 entering gap) -- WS7 floors Body's own
+    entering gap at Quote's own 14.4 instead. Author -> Body does NOT
+    need this floor once Finding B's fallback is correctly scoped to
+    REAL lines only (`raw=True` for Author's OWN blank line, above):
+    Author's raw/exported lead is 12.0 (not its 19.2pt entry fallback),
+    so Body's own entering gap (12.0) is ALREADY >= it, no floor needed
+    -- matching the measured 24.0 exactly with no special case.
+
+    Cross-checked against LYING.WS, which is entirely auto styles (no
+    vmi>0 block exists there to test the floor itself) but DOES cover
+    the discriminating case this floor must NOT fire for: Author(auto,
+    19.2) -> Subtitle(auto,14.4) measures 33.6 = 19.2 + 14.4 -- Subtitle's
+    OWN entering gap, NOT floored up to Author's outgoing 19.2 (which
+    would give 38.4, wrong). The floor therefore only applies when the
+    block being ENTERED has an EXPLICIT vmi (this function's own `vmi>0`
+    guard below) -- a genuinely auto style already computes generously
+    relative to its own font and needs no protection against the block
+    before it; this is the ONE rule shape that fits every transition in
+    both measured styled documents, in both directions, with no
+    unexplained gap.
+
+    NOT independently confirmed: a SECOND real (non-blank) line inside a
+    too-small-vmi style also getting the fallback rather than the raw
+    value -- no such line exists in the corpus (WARPRAYR's Author block
+    has exactly one real line). Reasoned from the SAME clipping rationale
+    Finding B's own fallback rests on (a real line's ascender/descender
+    doesn't stop clipping just because it isn't the block's first), not
+    from a second measurement."""
+    own = _style_lead_pt(block, doc, raw=False)
+    vmi = getattr(block, 'line_height_vmi', None)
+    if own is None or vmi is None or vmi <= 0 or prev_block is None:
+        return own
+    prev_raw = _style_lead_pt(prev_block, doc, raw=True)
+    if prev_raw is None:
+        return own
+    return max(own, prev_raw)
 
 
 def _font_lead_pt(line, fonts, base_size, state):
@@ -1451,10 +1513,15 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     stream = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             stream.append(None)
             continue
+        # Fix C (b26-print-fidelity-2): same per-block lookup as
+        # _doc_to_pagelines -- see its own comment and `_entering_lead_pt`.
+        prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
+                                if doc.blocks[k].kind == 'para'), None)
+        first_line_of_block = True
         # Indexed (not a plain `for`) so an embedded pix substitution below
         # can look ahead and CONSUME the blank placeholder lines WordStar
         # reserved for it -- see `_pix_reserved_advance`.
@@ -1483,7 +1550,18 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # pix check (round 26, fidelity_gate.py Finding A) since the
             # image's own reserved-placeholder advance now needs it too.
             own_lead = _lead_pt(line.lead_48)
-            style_lead = _style_lead_pt(b, doc)
+            # Fix C (b26-print-fidelity-2): same blank/entering-line split
+            # as _doc_to_pagelines -- see its own comment, `_style_lead_pt`'s
+            # `raw` note, and `_entering_lead_pt`.
+            is_blank = not any(t.strip() for t, _ in spans)
+            if is_blank:
+                style_lead = _style_lead_pt(b, doc, raw=True)
+            elif first_line_of_block:
+                style_lead = _entering_lead_pt(b, doc, prev_para_block)
+            else:
+                style_lead = _style_lead_pt(b, doc)
+            if not is_blank:
+                first_line_of_block = False
             if style_lead is not None and (
                     line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                 own_lead = style_lead
@@ -1978,6 +2056,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
             continue
         fi_pt = _printed_pm_fi_pt(b) if printed else None
         first_line_of_block = True
+        # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
+        # block, skipping pagebreak/condpage sentinels -- `_entering_lead_pt`'s
+        # own "outgoing" reference for this block's first line, computed
+        # once per block since it never changes within one.
+        prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
+                                if doc.blocks[k].kind == 'para'), None)
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
         # core.merged_lines, the 2.0.0 split). Indexed (not a plain `for`)
@@ -2007,7 +2091,23 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 # belt-and-braces check for a genuinely per-line override.
                 # LYING.WS carries no `.lh` at all, so every one of its
                 # lines takes this branch (measured 2026-08-20).
-                style_lead = _style_lead_pt(b, doc)
+                #
+                # Fix C (b26-print-fidelity-2): a BLANK line (no real
+                # text -- nothing to clip, so Finding B's fallback never
+                # applies to it, see `_style_lead_pt`'s `raw` note) always
+                # gets the raw, unfallen-back value. A block's own FIRST
+                # REAL line is the one `_entering_lead_pt` may floor
+                # against the PRECEDING block's own raw lead (its
+                # docstring); any other real line keeps the plain
+                # fallback-eligible value, unchanged from every call site
+                # before this fix.
+                is_blank = not any(t.strip() for t, _ in spans)
+                if is_blank:
+                    style_lead = _style_lead_pt(b, doc, raw=True)
+                elif first_line_of_block:
+                    style_lead = _entering_lead_pt(b, doc, prev_para_block)
+                else:
+                    style_lead = _style_lead_pt(b, doc)
                 if style_lead is not None and (
                         line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                     own_lead = style_lead
