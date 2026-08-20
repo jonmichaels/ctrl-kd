@@ -241,6 +241,48 @@ def test_ws7_footnote_extraction_and_ref():
     md = emit.emit_markdown(doc, mode='modern')
     assert '[^1]' in md and '[^1]: See the 1868 accords.' in md
 
+
+def test_footnote_marker_stays_inline_before_a_blank_paragraph_line():
+    """b26 fix, byte-verified against LYING.WS (jon_vault's pd-samples):
+    a footnote's own bytes contribute NOTHING to the cleaned stream
+    (_symmetric_blocks), so its 'fnref' mark's offset is always wherever
+    `out` already was when the block was stripped -- the ANCHOR text's own
+    end. When that anchor sits at the end of a line immediately followed
+    by a blank paragraph line (a real, common pattern: sentence, footnote,
+    paragraph break), that offset is ALSO the start of the next (zero-
+    length) line -- the general mark-placement rule in `lines_pass`
+    ("a mark landing on a boundary belongs to the line that follows")
+    then put the marker on that blank line, alone, at the left margin
+    (byte-verified: block 3 held nothing but the fnref span, LYING.WS's
+    real Prize./footnote pair). Real WS7 (LYING.pcl +
+    LYING.measurements.json) prints the superscript inline: 'Prize.' at
+    (2786, 1461) decipoints, the footnote's '1' at (3079, 1416) -- SAME
+    row (a 4.5pt rise, not a new line), immediately to its right."""
+    data = (ws7_block(0x00) + b'Anchor text ends here.' +
+            ws7_note(0x03, b'Note body text.', number=0) + HARD + HARD +
+            b'Next paragraph starts fresh.' + HARD)
+    doc = core.parse_ws(data)
+    # the marker rides on the SAME line as its anchor text, not a block of
+    # its own -- exactly one block still separates it from the next
+    # paragraph (the blank spacer line survives, unlike the marker).
+    anchor_line = doc.blocks[0].lines[0]
+    assert 'Anchor text ends here.' in anchor_line.text()
+    ref = [s for s in anchor_line.spans if 'fnref' in s.styles]
+    assert ref and ref[0].text == '1' and 'sup' in ref[0].styles
+    assert not any(
+        all('fnref' in s.styles for s in ln.spans) and ln.spans
+        for b in doc.blocks for ln in b.lines
+    ), 'the marker must never be the SOLE content of its own line'
+
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(doc, mode='printed')
+    spans = _content_spans(pdf)
+    anchor = next(s for s in spans if s[5] == b'Anchor text ends here.')
+    marker = next(s for s in spans if s[5] == b'1')
+    assert marker[4] == anchor[4]              # same y -- same physical line
+    assert marker[3] > anchor[3]                # to the right of its anchor
+
+
 def test_ws7_heading_and_softpage():
     # Heading level comes from the NAME the style handle resolves to in the
     # document's own library -- never from the slot number (the old mapping
@@ -2383,9 +2425,11 @@ def test_margins_are_per_block_state_not_first_occurrence():
     the way page geometry is -- one archive file sets `.pm` seven hundred times."""
     doc = core.parse_ws(b'.lm 5\r\n.rm 60\r\nIndented.\r\n.pm 4\r\nPara margin.\r\n')
     # left_margin is stored as OFFSET columns (`.lm 5` = text at column 5 =
-    # 4 columns in), matching the style-block hmi path -- see the LM handler
+    # 4 columns in), matching the style-block hmi path -- see the LM handler.
+    # `.pm` shares the same 1-based column frame (b26 fix) so `.pm 4` -> 3.0
+    # offset columns, same normalization as `.lm`.
     assert [(b.left_margin, b.right_margin, b.para_margin) for b in doc.blocks] == [
-        (4.0, 60.0, None), (4.0, 60.0, 4.0)]
+        (4.0, 60.0, None), (4.0, 60.0, 3.0)]
     # never set -> None, so a consumer applies its own default rather than a
     # fabricated one
     b = core.parse_ws(b'Plain.\r\n').blocks[0]
@@ -3249,6 +3293,54 @@ def test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes():
     shown = _content_text(pdf)
     assert (sym, 12, b'abG') in shown             # alpha is back to 0x61 'a'
     assert (ding, 12, b'!\\"#') in shown or (ding, 12, b'!"#') in shown
+
+
+def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
+    """b26 fix: cp437 puts Greek/math at 0xE0-0xEE with NO font block
+    declaring Symbol at all -- plain WS4/WS7 body text, the "screen chart"
+    case (jon_vault's -SCREEN.pcl + .measurements.json: real WS7 prints the
+    line αßΓπΣσµτΦΘΩδφε cleanly). Printed PDF's text path (_esc,
+    cp1252-encode-with-replace) has no Greek at all, so before this fix
+    every one of those 14 characters became '?'. Only the 12 that cp1252
+    truly cannot carry route to Symbol -- ß (sharp s) and µ (micro sign)
+    are genuine cp1252 characters in their own right (not this bug) and
+    stay on the plain Courier face."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αßΓπΣσµτΦΘΩδφε'
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + line.encode('cp437') + HARD
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert line in txt                             # text formats: untouched
+
+    pdf = emit_pdf(doc, mode='printed')
+    fonts = _basefonts(pdf)
+    assert b'Symbol' in fonts.values()
+    sym = next(n for n, b in fonts.items() if b == b'Symbol')
+    cour = next(n for n, b in fonts.items() if b == b'Courier')
+    shown = _content_text(pdf)
+    assert not any(b'?' in text for _, _, text in shown)  # the whole point
+    # split exactly at the cp1252-representable ß/µ, same order as the source
+    assert (sym, 12, b'a') in shown
+    assert (cour, 12, b'\xdf') in shown             # ss (sharp s) -- cp1252, untouched
+    assert (sym, 12, b'GpSs') in shown
+    assert (cour, 12, b'\xb5') in shown             # micro sign -- cp1252, untouched
+    assert (sym, 12, b'tFQWdfe') in shown
+
+    # Modern PDF and both RTF modes are untouched -- this fix is Printed
+    # PDF only (pdf.py's _line_ops_printed, never shared with Modern/RTF).
+    pdf_modern = emit_pdf(doc, mode='modern')
+    assert b'Symbol' not in _basefonts(pdf_modern).values()
+    r_printed = emit.emit_rtf(doc, mode='printed')
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    # RTF was never routed through cp1252 at all (\uNNNN? unicode escapes,
+    # this fix's pdf.py never touched) -- alpha/Gamma/Sigma/Omega present
+    # either as \u945/\u915/\u931/\u937 escapes.
+    assert '\\u945' in r_printed and '\\u915' in r_printed
+    assert '\\u945' in r_modern and '\\u915' in r_modern
 
 
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():

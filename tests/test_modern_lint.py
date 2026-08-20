@@ -1608,11 +1608,13 @@ def test_round6_double_spaced_source_opens_double_spaced_in_printed_rtf():
         + b'.lh 16' + HARD + b'.pm 10' + HARD
         + b'Some paragraph text set at double leading.' + HARD)
     assert doc.meta['page']['lh_48'] == 16.0
-    assert doc.blocks[0].para_margin == 10.0
+    # `.pm 10` -- column 10, 1-based like `.lm`/`.po` (b26 fix) -- normalizes
+    # to 9.0 offset columns.
+    assert doc.blocks[0].para_margin == 9.0
 
     r_printed = emit.emit_rtf(doc, mode='printed')
     assert r'\sl-480\slmult0' in r_printed      # 16 * 30 twips/48in-unit, doubled
-    assert r'\fi1440' in r_printed              # 10 cols * 144 twips/col, li=0
+    assert r'\fi1296' in r_printed              # 9 cols * 144 twips/col, li=0
 
     r_modern = emit.emit_rtf(doc, mode='modern')
     assert not _rtf_modern_vertical_space_leak(doc)
