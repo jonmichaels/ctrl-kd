@@ -279,3 +279,13 @@ V=357 ≈ line 3 with body at line 6 — Sawyer's install carries WSCHANGE'd
 margins (≈.mt5/.hm3), presumably because line 1 sits at a LaserJet's
 printable edge. Both facts matter: the engine models stock WordStar
 correctly, and period Sawyer printouts would still show the header lower.
+
+## Install divergence: default .po (dx experiment 2026-08-20)
+
+Sawyer's install carries a WSCHANGE'd default page offset of **7 columns
+(50.4pt)**, not the manual's 8 (57.6pt) — same family as its `.mt5/.hm3`
+margins above. A doc with no explicit `.po` therefore prints 7.2pt left of
+an engine using the manual default; this is the entire corpus-wide frame
+dx=+7.2pt (engine−WS7, IQR 0.0) once measured. Also measured: `.po` is a
+FIXED 7.2pt/column at both 10cpi and 12cpi — the manual's ".CW determines
+the actual amount of indentation" clause does not match real output.

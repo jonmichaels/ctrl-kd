@@ -76,6 +76,12 @@ USAGE
 corpus path that never enters this repo; the doc is SKIPPED, not errored,
 when that env var is unset) and NAME.measurements.json/.pcl from
 $CTRLKD_WS7_PRINTS (default: the checked-in-adjacent vault path below).
+
+CAVEAT (dx experiment 2026-08-20): core.parse() auto-detect classifies
+minimal plain-ASCII dot-command replica docs as 'printstream', which
+bypasses _printed_left/_printed_size (fixed 72pt MARGIN / 12pt SIZE) and
+yields a spurious constant frame dx. For replica experiments, call
+core.parse_ws() directly or force-tag the doc.
 """
 from __future__ import annotations
 

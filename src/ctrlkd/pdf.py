@@ -377,8 +377,11 @@ def _printed_left(doc, size):
     """Left edge of text in points for printed mode, from .po: "the number
     of print columns from the left edge of the paper to the left margin of
     text. The current setting of character width (.CW) determines the
-    actual amount of indentation" -- so the offset is po columns at this
-    document's own advance (0.6em of `size`). The default .po 8 (the WS7
+    actual amount of indentation" -- but real WS7 output contradicts
+    that clause: PCL captures keep .po at a FIXED 7.2pt/column at BOTH
+    10cpi and 12cpi (dx experiment 2026-08-20: ESC&aH = 576dp for .po 8
+    at either pitch), matching _PDF_PT_PER_COL exactly as .lm/.rm/.pm
+    already do. Measured bytes beat manual prose. The default .po 8 (the WS7
     manual's ".8 inch" at 10 CPI) lands at 57.6pt -- NOT the old fixed 72pt
     MARGIN, which was this emitter's guess, not WordStar's. Print streams
     keep MARGIN: their offset spaces, where a driver emitted them, are
@@ -387,7 +390,7 @@ def _printed_left(doc, size):
     page = doc.meta.get('page')
     if page is None:
         return float(MARGIN)
-    left = page.get('po_cols', 8.0) * size * 0.6
+    left = page.get('po_cols', 8.0) * _PDF_PT_PER_COL
     return max(0.0, min(left, PAGE_W - size * 0.6))
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',

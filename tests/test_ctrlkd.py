@@ -1491,10 +1491,10 @@ def test_pdf_printed_size_and_left_follow_cw_po():
     from ctrlkd.pdf import _printed_size, _printed_left
     d_default = core.parse_ws(b'x' + HARD)
     assert _printed_size(d_default) == 12
-    assert _printed_left(d_default, 12) == pytest.approx(8 * 12 * 0.6)   # 57.6
+    assert _printed_left(d_default, 12) == pytest.approx(8 * 7.2)   # 57.6
     d_elite = core.parse_ws(b'.CW 10' + HARD + b'.PO 12' + HARD + b'x' + HARD)
     assert _printed_size(d_elite) == 10
-    assert _printed_left(d_elite, 10) == pytest.approx(12 * 10 * 0.6)    # 72.0
+    assert _printed_left(d_elite, 10) == pytest.approx(12 * 7.2)    # 86.4: fixed pt/col (dx exp 2026-08-20)
 
 def test_pdf_output_bytes_carry_po_left_and_cw_size():
     # end-to-end: x-coordinates and Tf size come from the file's own .po/.cw
@@ -1504,7 +1504,7 @@ def test_pdf_output_bytes_carry_po_left_and_cw_size():
     pdf = emit_pdf(core.parse_ws(data), mode='printed')
     m = re.search(rb'/F1 (\d+) Tf \d+ Ts ([\d.]+) [\d.]+ Td', pdf)
     assert m and m.group(1) == b'10'               # elite type size
-    assert m.group(2) == b'72.0'                   # 12 cols x 10pt x 0.6em
+    assert m.group(2) == b'86.4'                   # 12 cols x 7.2pt/col, pitch-independent
 
 def test_pdf_printstream_keeps_fixed_margin_and_size():
     from ctrlkd.pdf import _printed_size, _printed_left
@@ -4511,3 +4511,18 @@ def test_ordinary_prose_is_not_swept_into_a_list():
     html = emit_html(doc, mode='modern')
     assert '<ul>' not in html and '<dl>' not in html
     assert html.count('<p>') == 1
+
+
+def test_printed_left_po_columns_are_pitch_independent():
+    """dx experiment 2026-08-20: real WS7 keeps .po at a fixed 7.2pt/column
+    at both 10cpi and 12cpi (PCL ESC&aH 576dp identical for .po 8) -- the
+    manual's ".CW determines the actual amount of indentation" clause is
+    contradicted by measured bytes. Regression: 12cpi (size 10) must not
+    shrink the left edge to 48pt."""
+    from ctrlkd import pdf as _pdf
+
+    class _Doc:
+        meta = {'page': {'po_cols': 8.0}}
+
+    assert abs(_pdf._printed_left(_Doc(), 12) - 57.6) < 1e-9
+    assert abs(_pdf._printed_left(_Doc(), 10) - 57.6) < 1e-9
