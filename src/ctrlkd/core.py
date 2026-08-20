@@ -3847,9 +3847,37 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # before it already carried the 'para' separator if this run was a
             # paragraph boundary. `soft` records which kind it was: `.ls` filler
             # (soft) versus the author's own return (hard).
-            close_line()
-            blank = Line(spans=[], soft=(sep == 'blank-soft'),
-                         lead_48=fmt.get('lead_48', DEFAULT_LH_48))
+            #
+            # `cur_line` can ALREADY carry real spans here -- not just
+            # invisible toggle bytes, but genuine printable characters
+            # (round 26 wave 3, fidelity_gate.py -README pg1 residual,
+            # reported after the Finding A/B/C fixes): `lines_pass`
+            # classifies a physical line as blank by its VISIBLE text
+            # after stripping (`_visible(text).strip()`), which is also
+            # true of a line that is nothing but literal SPACE
+            # characters -- e.g. a WS5+ TAB block (cmd 0x09,
+            # _symmetric_blocks) expanded to N literal spaces with
+            # nothing typed after it (measured 2026-08-20, -README.WS: a
+            # right-aligned tab alone on its own line, between
+            # "sawyer@sfwriter.com" and "Version 1.4" -- WS7 prints one
+            # 24pt blank-line gap there; the engine printed two, 36pt).
+            # This used to call `close_line()` FIRST, which committed
+            # that non-empty `cur_line` as an ordinary TEXT line, and
+            # THEN built a second, always-empty `blank` Line and
+            # appended it on top -- one source physical line became TWO
+            # Line objects, doubling its printed vertical space (and
+            # cascading a uniform +1-line shift through everything below
+            # it on the page). `cur_line` itself -- whitespace spans or
+            # none -- IS the one blank Line this physical entry always
+            # was; reusing it (instead of committing it separately, then
+            # allocating a second, empty Line) keeps both cases -- truly
+            # empty and whitespace-only alike -- to exactly one Line
+            # each, matching `lines_pass`'s own one-entry-per-physical-
+            # line contract.
+            blank = cur_line
+            blank.soft = (sep == 'blank-soft')
+            blank.lead_48 = fmt.get('lead_48', DEFAULT_LH_48)
+            cur_line = Line()
             if not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para':
                 # The text line before this one carried 'para' and already
                 # closed its block, so `cur` is empty. On paper this blank
@@ -3861,6 +3889,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 cur.lines.append(blank)
             _rt_tally[0] += 1              # both branches append exactly one
             _rt_last[0] = blank            # Line, in linear order (#20/#21)
+            if blank.spans:                # same content-ledger bookkeeping
+                _rt_content[0] += 1        # close_line() would have done for
+                _rt_lastc[0] = blank       # a non-empty line (#20/#21)
         else:                                      # para / eof
             close_block()
         # Stamp this entry's raw separator on the Line that closed it (tasks
