@@ -2507,8 +2507,36 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     # that widens .mt (LJ6DTP's .mt 1.1") moves its header DOWN with the
     # body, where a laser printer can physically print it (Jon's finding,
     # 2026-08-05: no printer lays ink at y = 0).
+    #
+    # b26-header-baseline: `hm` only PARTICIPATES in that subtraction when
+    # the document set it EXPLICITLY (`hm_source == 'file'`) -- a document
+    # that never touched `.hm` prints its header `mt - top_head` lines
+    # down, `.hm`'s own DEFAULT value never entering the arithmetic at
+    # all. Derived from four measured WS7 header baselines (WS7 frame,
+    # the usual -0.3pt decipoint residual), two independent documents,
+    # `hm` on both sides of the default/explicit line:
+    #   -README  (.mt 3 default, .hm 2 DEFAULT):  WS7 35.7  ==  head_base
+    #     2 = mt(3) - top_head(1), NOT mt - hm - top_head (which gives 0,
+    #     the pre-fix ENGINE's wrong 12.0 -- 24pt too high).
+    #   SCRIPT normal pages (.MT 7, .HM 3 EXPLICIT):  WS7 48.0  ==
+    #     head_base 3 = mt(7) - hm(3) - top_head(1) -- hm SUBTRACTS here.
+    #   SCRIPT figure-1 page (.mt1 mid-document, .HM 3 stays -- SCRIPT
+    #     never re-states .hm, so its own EXPLICIT value carries through
+    #     every page, including this one): WS7 12.0 == head_base
+    #     max(0, 1 - 3 - 1) = 0 -- hm SUBTRACTS here too (the clamp masks
+    #     the exact value, but 1-3-1 is unambiguously not 1-1).
+    #   SCRIPT figure-2 page (.mt1" mid-document, .HM still 3): WS7 36.0
+    #     == head_base 2 = mt(6) - hm(3) - top_head(1).
+    # All four fit ONE rule with no exception: subtract hm only when
+    # hm_source == 'file'. A document's own EXPLICIT `.hm` is data the
+    # author actually typed and WS7 honors it; the FACTORY DEFAULT (2)
+    # is not real distance the driver reserves for a header that never
+    # asked for one -- it only enters the (unrelated) `_printed_top` body-
+    # margin reservation, which already carries this exact same default/
+    # explicit distinction for `.hm` (see its own docstring) for the SAME
+    # underlying reason.
     mt = float(page.get('mt_lines', 3))
-    hm = float(page.get('hm_lines', 2))
+    hm = float(page.get('hm_lines', 2)) if page.get('hm_source') == 'file' else 0.0
     top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
     ops = []
@@ -2519,6 +2547,20 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
                     _esc(render(txt))))
+    # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
+    # same default/explicit asymmetry `.hm` turned out to have, above, and
+    # NOT applying it here on the evidence actually available. No oracle in
+    # the corpus can test it directly: -README (the coordinator's cited
+    # footer example) has no `.fo` at all -- `doc.footers` is empty, this
+    # was a wrong steer -- and LJ6DTP's own footer is two raw print-control
+    # bytes with no visible text baseline to measure. The one real data
+    # point that DOES exist, `test_head_foot_land_where_wordstar_puts_them`
+    # (WordStar 4, 2026-08-03, footer at line `.pl - .mb + .fm` = 60, `.fm`
+    # at its DEFAULT value, unconditionally applied), argues AGAINST
+    # extending the header's fix here by symmetry -- it is real, if dated,
+    # evidence that a default `.fm` already participates in the footer's
+    # own placement, unlike a default `.hm` in the header's. Reported, not
+    # acted on.
     foot_line = pl - mb + fm
     for n, txt in sorted(footers.items()):
         if not txt:

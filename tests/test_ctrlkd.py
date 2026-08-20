@@ -2177,15 +2177,31 @@ def test_head_foot_text_reaches_the_ir():
 def test_head_foot_land_where_wordstar_puts_them():
     """Header placement MEASURED on WordStar 4 (2026-08-03): header on page
     line 0, footer on line 60 (.pl - .mb + .fm) -- `_running_ops` positions
-    both independently of `_printed_top` and is unchanged. Body start was
-    ALSO measured at line 3 (.mt alone) on WS4 at the time, but that reading
-    is now SUPERSEDED by real WS7 evidence (round 26, fidelity_gate.py
-    Finding A): -README (ws7-prints/v1), a genuine WS7 capture with a `.h1`
-    header, prints its body at line 5 (.mt 3 + .hm 2) on every headered page,
-    the same offset headerless WS7 documents already measure -- `_printed_top`
+    both independently of `_printed_top`. Body start was ALSO measured at
+    line 3 (.mt alone) on WS4 at the time, but that reading is now
+    SUPERSEDED by real WS7 evidence (round 26, fidelity_gate.py Finding A):
+    -README (ws7-prints/v1), a genuine WS7 capture with a `.h1` header,
+    prints its body at line 5 (.mt 3 + .hm 2) on every headered page, the
+    same offset headerless WS7 documents already measure -- `_printed_top`
     reserves `.hm` unconditionally now. 55 body lines per page is capacity
-    (`_printed_cap`), unaffected by where line 0 sits. Asserted in lines, not
-    points, so it stays readable."""
+    (`_printed_cap`), unaffected by where line 0 sits. Asserted in lines,
+    not points, so it stays readable.
+
+    HEADER line ALSO superseded (b26-header-baseline), by the SAME -README
+    capture: `.hm` at this fixture's DEFAULT value (2, `_hf_doc` never
+    states `.hm`) does not participate in the header's own placement --
+    WS7's real header baseline for an all-default document (-README: .mt 3
+    default, .hm 2 default) is line 2 (mt - top_head, 35.7pt measured, NOT
+    line 0), not line 0. See `_running_ops`'s own docstring for the full
+    four-point derivation (-README plus three SCRIPT.WS pages, `.hm`
+    explicit there and mid-document `.mt` changes on two of them) that
+    settles `.hm`'s default-vs-explicit participation with no exception.
+    FOOTER line is UNCHANGED and still real WS4 evidence -- checked for
+    the same asymmetry and explicitly NOT extended to `.fm` (see
+    `_running_ops`): this test is the reason why, and stays the anchor for
+    it. `.fm` here is ALSO at its default value (2), so this is exactly
+    the discriminating case: header ignores a default `.hm`, footer does
+    not ignore a default `.fm`."""
     import re
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
@@ -2196,10 +2212,28 @@ def test_head_foot_land_where_wordstar_puts_them():
     hdr = [line_of(y) for y, t in rows if 'HEADER-TEXT' in t]
     txt = [line_of(y) for y, t in rows if t.strip().startswith('LINE')]
     ftr = [line_of(y) for y, t in rows if 'FOOTER-TEXT' in t]
-    assert hdr == [0], f'header should sit on page line 0, got {hdr}'
+    assert hdr == [2], f'header should sit at mt(3)-top_head(1) = line 2 (.hm 2 is default, ignored), got {hdr}'
     assert txt[0] == 5, f'body should start at .mt+.hm = 5, got {txt[0]}'
     assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
-    assert ftr == [60], f'footer at .pl-.mb+.fm = 60, got {ftr}'
+    assert ftr == [60], f'footer at .pl-.mb+.fm = 60 (.fm UNCHANGED, still applies at its default), got {ftr}'
+
+
+def test_header_baseline_ignores_a_default_hm():
+    """b26-header-baseline (-README.WS): the -README shape directly -- ALL
+    default page geometry (.mt 3 default, .hm 2 default, matching
+    doc.meta['page']['hm_source'] == 'default'). WS7's real header
+    baseline there is 35.7pt (top-down), i.e. head_base 2 = mt(3) -
+    top_head(1) -- NOT mt - hm - top_head (0, the pre-fix bug: 12.0pt,
+    24pt too high). Pinned here at 36.0pt (the same 0.3pt decipoint
+    residual every other measured constant in this project carries)."""
+    from ctrlkd.pdf import emit_pdf
+    data = b'.he TITLE\r\n' + b''.join(f'Body line {i}.\r\n'.encode() for i in range(1, 10))
+    doc = core.parse_ws(data)
+    assert doc.meta['page']['hm_source'] == 'default'
+    pdf = emit_pdf(doc, mode='printed')
+    ys = [float(m) for m in
+         re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
+    assert ys == [756.0]                    # 792 - 36.0
 
 
 # --------------------------------------------------- Finding 3: per-page .mt/.mb
@@ -2272,14 +2306,20 @@ def test_mid_document_mt_mb_repositions_the_header():
     `_running_ops`'s own existing `max(0.0, mt - hm - top_head)` formula
     (unchanged) naturally degrades the header to right-at-the-top when
     the page's own .mt is too small to fit the usual .hm gap above it,
-    with no separate "suppress the header" rule needed. Pinned against
-    the same fixture's actual y values: normal page (.mt 7, .hm default
-    2) head_base = 7-2-1 = 4 -> y=732; tiny page (.mt 1) head_base =
-    max(0, 1-2-1) = 0 -> y=780, TWELVE points closer to the physical top
-    -- not absent, just compressed, exactly what real WS7 does (measured:
-    SCRIPT.pcl page 10's own header sits at PDF y=780/top-down 12pt)."""
+    with no separate "suppress the header" rule needed. `.hm3` here is
+    EXPLICIT (matching real SCRIPT.WS's own `.HM 3`, never restated on
+    the tiny page either -- b26-header-baseline: `.hm` only participates
+    in `head_base` when the document set it itself, see `_running_ops`'s
+    own docstring; this fixture's explicit `.hm` keeps it in the
+    formula on BOTH pages, exactly like SCRIPT). Pinned against the
+    same fixture's actual y values: normal page (.mt 7, .hm 3) head_base
+    = 7-3-1 = 3 -> y=744/top-down 48; tiny page (.mt 1, .hm still 3)
+    head_base = max(0, 1-3-1) = 0 -> y=780/top-down 12, TWELVE points
+    closer to the physical top -- not absent, just compressed, exactly
+    what real WS7 does (measured: SCRIPT.pcl's own normal/figure-1 pages,
+    top-down 48/12 exactly)."""
     from ctrlkd.pdf import emit_pdf
-    data = ('.mt7\r\n.mb6\r\n.he TITLE\r\n' +
+    data = ('.mt7\r\n.mb6\r\n.hm3\r\n.he TITLE\r\n' +
             ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
             '.pa\r\n.mt1\r\n.mb0\r\n' +
             ''.join(f'Tiny line {i}.\r\n' for i in range(1, 61))).encode()
@@ -2287,7 +2327,7 @@ def test_mid_document_mt_mb_repositions_the_header():
     pdf = emit_pdf(doc, mode='printed')
     ys = [float(m) for m in
          re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
-    assert ys == [732.0, 780.0]
+    assert ys == [744.0, 780.0]
 
 
 def test_single_geometry_document_never_touches_mt_mb_checkpoints():
