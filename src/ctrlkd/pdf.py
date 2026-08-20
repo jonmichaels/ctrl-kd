@@ -18,6 +18,7 @@ WordStar document rendered as the typescript it was, on Letter pages:
 Styles: bold/italic map to the family's variants, underline is drawn,
 superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
+import math as _math
 import re as _re
 import zlib as _zlib
 from . import pix as _pixdecode
@@ -145,6 +146,83 @@ def _printed_cap(doc):
                                     DEFAULT_MB_LINES, DEFAULT_LH_48))
 
 
+def _printed_cap_for(doc, mt_lines, mb_lines):
+    """`_printed_cap`, but for an EXPLICIT (mt, mb) pair instead of the
+    document's global first-occurrence values -- Finding 3
+    (b26-print-fidelity-2)'s per-page capacity; see `_mt_mb_checkpoints`.
+    `doc.meta['page']['text_lines']` is a value CACHED at parse time from
+    the document's global mt/mb (core.py's own `_text_lines_per_page`
+    call) -- calling that same function directly here, rather than
+    reading the cache, is what makes a page whose (mt, mb) MATCHES the
+    global pair come out byte-identical (same formula, same inputs) while
+    a page that changes them gets its own true capacity."""
+    page = doc.meta.get('page')
+    from .core import DEFAULT_PL_LINES, DEFAULT_LH_48, _text_lines_per_page
+    pl = (page or {}).get('pl_lines', DEFAULT_PL_LINES)
+    lh = (page or {}).get('lh_48', DEFAULT_LH_48)
+    return max(FOOTNOTE_FLOOR + 1,
+               _text_lines_per_page(pl, mt_lines, mb_lines, lh))
+
+
+def _mt_mb_checkpoints(doc):
+    """[(block_index, mt_lines, mb_lines), ...] in ascending block order --
+    the .mt/.mb pair IN FORCE from that block onward, at BLOCK granularity
+    (the coarsest anchor doc.meta['dot_positions'] gives -- core.py's own
+    per-dot-command position record, (block_index, line_index, cmd), the
+    same mechanism Soft Return.app's Show Invisibles and this file's own
+    `_toc_page_numbers` already read). Mirrors how `.lh` already tracks
+    per-LINE state (Line.lead_48/`_style_lead_pt`) -- one level coarser,
+    because .mt/.mb only take visible effect at the next page start, never
+    mid-line.
+
+    The FIRST checkpoint (block 0) is the document's own global
+    mt_lines/mb_lines (core.py's "first occurrence wins" page dict) -- a
+    document that never touches .mt/.mb again after its own opening
+    geometry gets exactly ONE checkpoint, so every page's lookup returns
+    the SAME pair the document-global functions already gave it: no
+    behaviour change for any document but the ones this exists for.
+
+    Finding 3 (b26-print-fidelity-2): SCRIPT.WS changes both mid-document,
+    around its embedded worked-example figures -- measured (ARTICLES/
+    SCRIPT.WS's own dot-command bytes, via doc.meta['dot_positions']):
+    block 64 sets `.mt1`/`.mb0` (Figure 1's near-zero margins), block 75
+    sets `.mt1"`/`.mb1"` (Figure 2's own, different margins)."""
+    page = doc.meta.get('page') or {}
+    from .core import DEFAULT_MT_LINES, DEFAULT_MB_LINES, _resolve_lines_arg
+    mt = page.get('mt_lines', DEFAULT_MT_LINES)
+    mb = page.get('mb_lines', DEFAULT_MB_LINES)
+    checkpoints = [(0, mt, mb)]
+    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+        m = _MT_MB_CMD_RE.match(cmd)
+        if not m:
+            continue
+        name, value, unit = m.group(1).upper(), float(m.group(2)), m.group(3)
+        resolved = _resolve_lines_arg(value, unit.encode() if unit else None)
+        if name == 'MT':
+            mt = resolved
+        else:
+            mb = resolved
+        if (mt, mb) != checkpoints[-1][1:]:
+            checkpoints.append((bi, mt, mb))
+    return checkpoints
+
+
+_MT_MB_CMD_RE = _re.compile(r'^\.(MT|MB)\s*([0-9.]+)\s*("|[A-Za-z]{1,2})?',
+                            _re.IGNORECASE)
+
+
+def _mt_mb_at(checkpoints, bi):
+    """(mt_lines, mb_lines) in force at block index `bi`, per `checkpoints`
+    (ascending, from `_mt_mb_checkpoints`) -- the LAST checkpoint at or
+    before `bi`."""
+    mt, mb = checkpoints[0][1], checkpoints[0][2]
+    for cp_bi, cp_mt, cp_mb in checkpoints:
+        if cp_bi > bi:
+            break
+        mt, mb = cp_mt, cp_mb
+    return mt, mb
+
+
 def _printed_top(doc):
     """Top-of-text offset in points for printed mode: the bottom edge of
     WS7's reserved TOP-MARGIN-PLUS-HEADER-MARGIN zone (lines at 6 LPI ->
@@ -218,6 +296,48 @@ def _printed_top(doc):
         reserve += page.get('hm_lines', 2.0)
     return max(0, min(round(reserve * 12), page_h - LEAD))
 
+
+def _printed_notes_reserve_pt(doc):
+    """Bottom-of-page reserve for `_paginate_printed_notes`'s FOOTNOTE
+    area (never the endnote continuation -- see that function's own
+    docstring: endnotes are never queued here, `_endnote_pages` appends
+    them afterward and inherits this area's position for free by
+    continuing its sequential flow), in points -- Finding 2
+    (b26-print-fidelity-2). The area used to be flow-appended right after
+    the body (whatever y the body happened to end at), correct only when
+    the body already fills the page (LYING.WS, every page) -- on a short
+    page (-SCREEN.WS, a 1-page doc whose body ends mid-page) that put the
+    area mid-page, colliding with the WORDSTAR.PIX image; real WS7 prints
+    it at the physical bottom.
+
+    Measured against TWO independent WS7 captures (ws7-prints/v1), both
+    at every page-geometry default (.mb 8 lines): -SCREEN.pcl's footnote
+    line "1. Footnote" at y=708pt (dash rule at 684pt) and LYING.pcl's
+    "1.Did not take the prize." also at y=708pt (dash rule also 684pt --
+    LYING's page is full, so its flow-appended position and this anchor
+    coincide, per `_paginate_printed_notes`'s own docstring). Both land
+    on the exact same reserve -- 792 - 708 = 84pt -- with ZERO decipoint
+    residual. 84pt is (.mb - 1) * 12 = 7 lines, ONE LINE inside the raw
+    .mb reserve (8 lines = 96pt would put the footnote line 12pt too
+    high, at 696pt) -- the same "one line's own lead" adjustment
+    `_printed_top` applies at the OTHER end of the page (a baseline sits
+    one line's lead INSIDE its margin reserve, not flush with its outer
+    edge), mirrored here for the last line instead of the first.
+
+    JUDGMENT CALL, recorded rather than hidden: ws7-prints/v1 has no
+    document with an EXPLICIT non-default `.mb` to confirm the `- 1`
+    line scales correctly rather than being a fixed offset; both measured
+    documents share the same default. Scaling with `.mb` (rather than a
+    flat 84pt constant) is the more defensible read of a page-layout
+    engine's intent, but is not independently confirmed -- if a future
+    capture contradicts it, that is where to look first."""
+    page = doc.meta.get('page')
+    if page is None:
+        return 84.0                    # print streams: no .mb to read;
+                                        # the measured default constant
+    mb = page.get('mb_lines', 8.0)
+    return max(0.0, (mb - 1) * 12.0)
+
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so
     lh * 1.5. None/non-positive -> None, meaning "no answer here, use the
@@ -227,7 +347,7 @@ def _lead_pt(lh_48):
     return lh_48 * 1.5
 
 
-def _style_lead_pt(block, doc):
+def _style_lead_pt(block, doc, raw=False):
     """The baseline-to-baseline leading a WS7 paragraph STYLE dictates for
     every physical line in `block` (core.Block.line_height_vmi/style_font_pt,
     set from the style record's own font/line-height fields -- core.py's
@@ -263,39 +383,52 @@ def _style_lead_pt(block, doc):
     entire body (12pt). The vmi/20.0=12pt formula below is CONFIRMED, not
     contradicted, for the body: WARPRAYR.pcl's own baseline_gaps_pt run
     12.0pt for ~20 consecutive body-paragraph lines, exactly vmi/20 at
-    12pt font, with zero drift. The ONE anomaly is the very first
-    vmi=240 line on the page -- the byline, arriving immediately after
-    the TITLE block (vmi=-2/auto, 16pt, 19.2pt lead) -- whose OWN
-    baseline sits 19.2pt below the title's, not the 12pt vmi/20 (or the
-    document default, also 12pt) predicts. Every OTHER measured gap on
-    the page, including the blank line inside the byline's OWN block and
-    the transition into the body block right after it (12+12=24.0pt
-    combined, matching vmi/20 on both sides exactly, no anomaly), fits
-    vmi/20 with no adjustment.
+    12pt font, with zero drift. The ONE anomaly is the byline's OWN
+    baseline, 19.2pt below the title's (78.9 -> 98.1), not the 12pt
+    vmi/20 (or the document default, also 12pt) predicts.
 
-    NOT changed on this evidence: an EARLIER version of this comment
-    special-cased vmi==240 to behave like -2/auto everywhere (reasoning
-    from the byline anomaly alone, plus 240 being suspiciously identical
-    to WSCHANGE's own "VMI units for line height" factory default,
-    Installing and Customizing p.2-47, DBA2A -- sic, DBA2H). That
-    over-generalised: applied to the BODY it made every body line 14.4pt
-    instead of the CONFIRMED 12pt, which does get WARPRAYR to the WS7
-    page count (3, via fidelity_gate.py Unit A) but at the cost of a much
+    An EARLIER version of this comment special-cased vmi==240 to behave
+    like -2/auto everywhere (reasoning from the byline anomaly alone,
+    plus 240 being suspiciously identical to WSCHANGE's own "VMI units
+    for line height" factory default, Installing and Customizing p.2-47,
+    DBA2A -- sic, DBA2H). That over-generalised: applied to the BODY it
+    made every body line 14.4pt instead of the CONFIRMED 12pt, which does
+    get WARPRAYR to the WS7 page count (3) but at the cost of a much
     larger positional residual within the page (median jumped from
     ~2.5pt to 24pt) -- fitting the one number the task asked for by
-    breaking twenty it didn't. Reverted. The byline anomaly looks more
-    like a margin-COLLAPSING rule at a block boundary (the space above a
-    new block's first line takes the LARGER of the outgoing block's own
-    trailing lead and the incoming block's own leading lead, CSS-style)
-    than a property of vmi=240 itself -- consistent with every gap on
-    this page, but a single occurrence, on one document, is not enough to
-    generalise into a rule that would also touch every OTHER block
-    transition in the corpus (LYING's own header area has two further
-    unexplained non-12/14.4 gaps, 9.9pt and 4.5pt, that a same-shaped
-    "check the SECOND unusual oracle" pass never got to). Reported, not
-    acted on -- WARPRAYR's page count stays 2 (not WS7's 3) until a
-    margin-collapsing hypothesis is checked against enough block
-    transitions to trust it against the ALREADY-good body-interior fit.
+    breaking twenty it didn't. Reverted, and a margin-COLLAPSING
+    hypothesis (the byline's OWN entry gap borrows the outgoing title
+    block's larger lead, CSS-style) was reported instead of acted on --
+    correctly: it isn't margin collapsing.
+
+    FIX B (b26-print-fidelity-2), the evidence-backed resolution: the
+    byline's vmi (240 = 12pt) is simply too SMALL for its own 16pt font
+    -- 12pt leading on 16pt type overlaps ascender-to-descender, so WS7
+    falls back to the SAME auto formula (1.2 x the style's own size,
+    19.2pt) an unset vmi already gets. The body's vmi=240 on its OWN
+    12pt font is the negative case that PROVES this doesn't regress:
+    240/20 = 12.0 >= 12.0, no fallback, the already-CONFIRMED 12.0pt
+    stands untouched. Cross-checked against every OTHER styled document
+    in the corpus before landing: LYING's four styles are all vmi=-2/auto
+    (never reach this branch); OCAPTAIN/TWAINLET carry no paragraph
+    styles at all.
+
+    RESOLVED by Fix C's full block-transition inventory (below, and
+    `_entering_lead_pt`): this docstring's own UPDATE section originally
+    read the byline's 19.2pt as a property of the WHOLE Author block (so
+    this fallback was applied uniformly, per block, to every line). That
+    was ALSO wrong, just less visibly -- Author's own trailing BLANK line
+    (the one line inside it besides the byline itself) measures its OWN
+    space at 12.0pt, the UNFALLEN-BACK vmi/20, not 19.2pt. The fallback
+    protects against a REAL line's ascender/descender clipping into the
+    line above -- a blank line has no glyphs to clip, so it never needs
+    it: `raw=True` (every BLANK line, and the value a block hands to
+    `_entering_lead_pt` as the NEXT block's "outgoing" reference) always
+    returns the unfallen-back vmi/20, regardless of position in the
+    block. `raw=False` (the default, every REAL line, first or not --
+    every EXISTING call site before Fix C only ever rendered a block's
+    OWN first line through this function, so this is the identical
+    behaviour there) keeps the fallback.
 
     Document-level guard: if the file EVER used a real `.lh` dot command
     (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
@@ -318,8 +451,86 @@ def _style_lead_pt(block, doc):
             size = _printed_size(doc)
         return size * 1.2
     if vmi > 0:
-        return vmi / 20.0
+        # Finding B (b26-print-fidelity-2): an explicit vmi too SMALL for
+        # the style's own font falls back to the SAME auto formula (1.2x
+        # the style's own size) an unset vmi already gets -- WARPRAYR's
+        # Author style (vmi=240=12pt on a 16pt font; 12pt lead on 16pt
+        # type would overlap ascender-to-descender) measures 19.2pt
+        # (1.2x16) for its byline's OWN entry gap. The Body style's
+        # vmi=240 on its OWN 12pt font is the negative case PROVING
+        # vmi/20 remains correct when it fits (240/20 = 12.0 >= 12.0, no
+        # fallback) -- the already-CONFIRMED 12.0pt body leading (~20
+        # consecutive lines, zero drift), unmoved by this fix.
+        #
+        # `raw` (Fix C, b26-print-fidelity-2): the fallback above protects
+        # a REAL line's ascender/descender from clipping into the line
+        # above -- a BLANK line has no glyphs to clip, so it never needs
+        # it. `raw=True` skips the fallback and returns the unfallen-back
+        # vmi/20 always -- see `_entering_lead_pt`, which is the ONLY
+        # caller that ever passes `raw=True` (for the block being LEFT,
+        # never the one being entered), and the direct blank-line call
+        # site in `_doc_to_pagelines`. `raw=False` (the default) is every
+        # EXISTING call site's own behaviour, unchanged.
+        size = getattr(block, 'style_font_pt', None)
+        pt = vmi / 20.0
+        if not raw and size and pt < size:
+            return size * 1.2
+        return pt
     return None
+
+
+def _entering_lead_pt(block, doc, prev_block):
+    """A block's own FIRST REAL (non-blank) physical line's lead:
+    `_style_lead_pt`'s font-relative fallback (Finding B), floored
+    against the block being ENTERED's own natural minimum -- Fix C
+    (b26-print-fidelity-2, WARPRAYR.WS). An EXPLICIT (vmi>0) style's
+    first line never sits CLOSER to the preceding content than that
+    content's own RAW lead was -- i.e. entering an explicitly, tightly-
+    leaded block never crowds whatever was above it.
+
+    Full block-transition inventory (WARPRAYR.pcl, WS7 frame, blank-line
+    + entering-line combined gaps -- a blank line carries no glyph, so
+    only the PAIR is independently measurable):
+        Author(auto,19.2)   -> Body(vmi 240=12, fits)   24.0 = 12.0 + 12.0
+        Body(vmi 240=12)    -> Quote(auto,14.4)  x2      26.4 = 12.0 + 14.4
+        Quote(auto,14.4)    -> Body(vmi 240=12)  x2      28.8 = 14.4 + 14.4
+    Only the Quote -> Body pairs need MORE than `_style_lead_pt` alone
+    gives (26.4, Body's own 12.0 entering gap) -- WS7 floors Body's own
+    entering gap at Quote's own 14.4 instead. Author -> Body does NOT
+    need this floor once Finding B's fallback is correctly scoped to
+    REAL lines only (`raw=True` for Author's OWN blank line, above):
+    Author's raw/exported lead is 12.0 (not its 19.2pt entry fallback),
+    so Body's own entering gap (12.0) is ALREADY >= it, no floor needed
+    -- matching the measured 24.0 exactly with no special case.
+
+    Cross-checked against LYING.WS, which is entirely auto styles (no
+    vmi>0 block exists there to test the floor itself) but DOES cover
+    the discriminating case this floor must NOT fire for: Author(auto,
+    19.2) -> Subtitle(auto,14.4) measures 33.6 = 19.2 + 14.4 -- Subtitle's
+    OWN entering gap, NOT floored up to Author's outgoing 19.2 (which
+    would give 38.4, wrong). The floor therefore only applies when the
+    block being ENTERED has an EXPLICIT vmi (this function's own `vmi>0`
+    guard below) -- a genuinely auto style already computes generously
+    relative to its own font and needs no protection against the block
+    before it; this is the ONE rule shape that fits every transition in
+    both measured styled documents, in both directions, with no
+    unexplained gap.
+
+    NOT independently confirmed: a SECOND real (non-blank) line inside a
+    too-small-vmi style also getting the fallback rather than the raw
+    value -- no such line exists in the corpus (WARPRAYR's Author block
+    has exactly one real line). Reasoned from the SAME clipping rationale
+    Finding B's own fallback rests on (a real line's ascender/descender
+    doesn't stop clipping just because it isn't the block's first), not
+    from a second measurement."""
+    own = _style_lead_pt(block, doc, raw=False)
+    vmi = getattr(block, 'line_height_vmi', None)
+    if own is None or vmi is None or vmi <= 0 or prev_block is None:
+        return own
+    prev_raw = _style_lead_pt(prev_block, doc, raw=True)
+    if prev_raw is None:
+        return own
+    return max(own, prev_raw)
 
 
 def _font_lead_pt(line, fonts, base_size, state):
@@ -1032,6 +1243,71 @@ def _esc(text):
     raw = text.translate(_ESC_FALLBACK).encode('cp1252', 'replace')
     return raw.replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
 
+# ----------------------------------------- Finding 1: synthetic Symbol style
+#
+# Symbol has ONE cut in the base-14 set (BASE14['Symbol'] above) -- a b/i
+# span routed there loses its styling entirely, but real WS7 does not: the
+# -SCREEN.WS Greek sample line prints all four runs (plain/bold/italic/
+# bold-italic) visibly distinct. Measured against -SCREEN.pcl's own font-
+# select bytes for that line (offset 2767, the four `ESC(s...T` groups):
+#   plain       sp12v10.00hsb4099T
+#   bold        sp12v10.00hs3b4099T        (style 0, weight 3)
+#   italic      sp12v10.00h1sb4099T        (style 1, weight 0)
+#   bold-italic sp12v10.00h1s3b4099T       (style 1, weight 3)
+# -- i.e. HP PCL's own `s`(style: 0 upright/1 italic)/`b`(stroke weight: 0
+# medium/3 bold) fields, decoded per the driver table this project already
+# keeps (CLAUDE.md). All four select the SAME typeface (4099, Courier per
+# font_mapping) at the SAME height (12v) and pitch (10.00h) -- confirmed by
+# the measured chunk x-positions too: the run width for 14 glyphs is 108pt
+# (1080 decipoints) in EVERY style (plain 504->1584, bold 1728->2808,
+# italic 2952->4032), so the LaserJet's own font engine applied weight and
+# posture to the SAME glyph cell rather than substituting a wider/narrower
+# design. Synthetic styling here does the same: the run's advance is never
+# touched (see call sites), only how the glyph is painted.
+#   bold   -> text render mode 2 (fill THEN stroke), stroke colour matched
+#             to the fill, stroke width a fraction of the point size (faux-
+#             bold weight; there is no measured stroke width to derive this
+#             from -- a printer's bold is a font-engine decision, not a PDF
+#             one -- so 0.04 * pt is Jon's-instructions-standard "visibly
+#             bolder, not blotted" faux-bold weight).
+#   italic -> an oblique shear on the text matrix (Tm replaces Td), the
+#             standard ~12-degree slant used industry-wide when a face has
+#             no real italic cut; nothing in the measured evidence implies
+#             a different angle (WS7's italic Greek run has the identical
+#             108pt advance as plain/bold, so the printer wasn't shearing
+#             the ADVANCE either -- a pure per-glyph oblique, which is
+#             exactly what Tm's shear does here: e/f still place the run
+#             at the same (x, y) the unstyled path would have used).
+# An unstyled Symbol run (no 'b'/'i') is untouched -- this function is
+# never called for it -- so every existing byte-identical guarantee holds.
+_ITALIC_SHEAR = round(_math.tan(_math.radians(12)), 4)   # ~12 degrees
+_BOLD_STROKE_FRAC = 0.04                                  # faux-bold weight
+
+
+def _symbol_style_op(font, pt, rise, want, tz_state, x, y, text_bytes,
+                     is_bold, is_italic):
+    """One BT..ET op for a styled (bold and/or italic) Symbol-face run.
+    Mirrors the plain-run op shape (Tf, [Tz], Ts, position, Tj) exactly,
+    adding only what styling requires: `2 Tr <w> w` before Ts for bold
+    (text render mode + stroke width; stroke colour is whatever fill
+    colour is already active -- Symbol runs never carry LJ6DTP colour tags
+    in the reference corpus, so this is always black, matching the fill),
+    and Tm instead of Td for italic (the shear)."""
+    parts = [b'BT /%s %d Tf' % (font.encode(), pt)]
+    if want != tz_state[0]:
+        parts.append(b'%.2f Tz' % want)
+        tz_state[0] = want
+    if is_bold:
+        parts.append(b'2 Tr %.2f w' % round(pt * _BOLD_STROKE_FRAC, 2))
+    parts.append(b'%d Ts' % rise)
+    if is_italic:
+        parts.append(b'1 0 %.4f 1 %.1f %.1f Tm' % (_ITALIC_SHEAR, x, y))
+    else:
+        parts.append(b'%.1f %.1f Td' % (x, y))
+    parts.append(b'(%s) Tj ET' % text_bytes)
+    return b' '.join(parts)
+
+
 def _wrap_line(spans, width):
     """Wrap one IR line's spans to `width` columns, preserving styles.
     Returns a list of segment-lines: [[(text, styles), ...], ...]."""
@@ -1237,10 +1513,15 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     stream = []
-    for b in doc.blocks:
+    for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             stream.append(None)
             continue
+        # Fix C (b26-print-fidelity-2): same per-block lookup as
+        # _doc_to_pagelines -- see its own comment and `_entering_lead_pt`.
+        prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
+                                if doc.blocks[k].kind == 'para'), None)
+        first_line_of_block = True
         # Indexed (not a plain `for`) so an embedded pix substitution below
         # can look ahead and CONSUME the blank placeholder lines WordStar
         # reserved for it -- see `_pix_reserved_advance`.
@@ -1269,7 +1550,18 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # pix check (round 26, fidelity_gate.py Finding A) since the
             # image's own reserved-placeholder advance now needs it too.
             own_lead = _lead_pt(line.lead_48)
-            style_lead = _style_lead_pt(b, doc)
+            # Fix C (b26-print-fidelity-2): same blank/entering-line split
+            # as _doc_to_pagelines -- see its own comment, `_style_lead_pt`'s
+            # `raw` note, and `_entering_lead_pt`.
+            is_blank = not any(t.strip() for t, _ in spans)
+            if is_blank:
+                style_lead = _style_lead_pt(b, doc, raw=True)
+            elif first_line_of_block:
+                style_lead = _entering_lead_pt(b, doc, prev_para_block)
+            else:
+                style_lead = _style_lead_pt(b, doc)
+            if not is_blank:
+                first_line_of_block = False
             if style_lead is not None and (
                     line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                 own_lead = style_lead
@@ -1397,6 +1689,11 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     stream = _body_stream_printed(doc, pix_results=pix_results,
                                   pictures=pictures)
     default_lead = _printed_lead(doc)
+    # Finding 2 bottom-anchor geometry (see _printed_notes_reserve_pt):
+    # constant for the whole document, computed once.
+    _notes_top = _printed_top(doc)
+    _notes_page_h = _resolved_page_height(doc, True)
+    _notes_reserve = _printed_notes_reserve_pt(doc)
 
     def _line_cost(pl):
         """This algorithm's whole budget (`cap`, `_area_size`, the footnote
@@ -1475,7 +1772,31 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
             for label, note in refs:
                 queue.append(_note_wrap(_note_marker(note, label), note.text, width))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
-        pages.append(body + _render_area(entries))
+        area = _render_area(entries)
+        if entries:
+            # Bottom-anchor (Finding 2): the area's FIRST line (the
+            # 3-line header's leading blank) gets an overridden `.lead`
+            # that lands it exactly `_notes_reserve` above the page
+            # bottom, counting up through the area's own remaining
+            # lines -- rather than wherever the body's sequential flow
+            # happened to leave off. `body_y` is the body's own last
+            # baseline (top-down points): `_line_cost` makes `own_lead /
+            # default_lead` exact, so `body_len * default_lead` is the
+            # TRUE point advance the body already spent, not an
+            # approximation. Only APPLIED when it pushes the area DOWN
+            # (`override > default_lead`, more than the ordinary single-
+            # blank-line gap the flow path would use) -- a full page
+            # (LYING.WS) already lands within a line of the target on
+            # its own, so this is a no-op there (byte-identical), and a
+            # page that somehow overflows the anchor never moves
+            # backward into the body.
+            body_y = _notes_top + body_len * default_lead
+            target_first = (_notes_page_h - _notes_reserve
+                            - (len(area) - 1) * default_lead)
+            override = target_first - body_y
+            if override > default_lead:
+                area = [PageLine(area[0], lead=override)] + area[1:]
+        pages.append(body + area)
         last_page_cost = body_len + _area_size(entries)
     # Whatever's STILL queued once the document is exhausted prints at the
     # TOP of its own page(s) -- "except after the last page of regular text,
@@ -1614,14 +1935,26 @@ class Page(list):
     """One paginated page: a list of PageLines plus the running head and
     foot IN FORCE when this page printed (replayed from doc.hf_events).
     A list subclass for the same reason PageLine is: every existing consumer
-    iterates a page as a list and keeps working untouched."""
+    iterates a page as a list and keeps working untouched.
 
-    __slots__ = ('headers', 'footers')
+    `mt_lines`/`mb_lines` (Finding 3, b26-print-fidelity-2): the .mt/.mb
+    IN FORCE when this page's own pagination started -- None for "the
+    document's global (first-occurrence) value", which is every page of
+    every document that never changes .mt/.mb mid-document (see
+    `_mt_mb_checkpoints`). Threading the SAME resolved pair from
+    pagination-time (which already had to know it, to size the page's own
+    capacity) through to render-time (`_emit_pdf_inner`'s per-page loop)
+    keeps the two in agreement by construction, rather than re-deriving
+    the same answer twice from doc.meta['dot_positions']."""
+
+    __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines')
 
     def __init__(self, seq=()):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
+        self.mt_lines = None
+        self.mb_lines = None
 
 
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
@@ -1723,6 +2056,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
             continue
         fi_pt = _printed_pm_fi_pt(b) if printed else None
         first_line_of_block = True
+        # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
+        # block, skipping pagebreak/condpage sentinels -- `_entering_lead_pt`'s
+        # own "outgoing" reference for this block's first line, computed
+        # once per block since it never changes within one.
+        prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
+                                if doc.blocks[k].kind == 'para'), None)
         # printed renders PHYSICAL lines (a soft return broke the line on
         # paper); modern reflows LOGICAL lines (soft runs joined back --
         # core.merged_lines, the 2.0.0 split). Indexed (not a plain `for`)
@@ -1752,7 +2091,23 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 # belt-and-braces check for a genuinely per-line override.
                 # LYING.WS carries no `.lh` at all, so every one of its
                 # lines takes this branch (measured 2026-08-20).
-                style_lead = _style_lead_pt(b, doc)
+                #
+                # Fix C (b26-print-fidelity-2): a BLANK line (no real
+                # text -- nothing to clip, so Finding B's fallback never
+                # applies to it, see `_style_lead_pt`'s `raw` note) always
+                # gets the raw, unfallen-back value. A block's own FIRST
+                # REAL line is the one `_entering_lead_pt` may floor
+                # against the PRECEDING block's own raw lead (its
+                # docstring); any other real line keeps the plain
+                # fallback-eligible value, unchanged from every call site
+                # before this fix.
+                is_blank = not any(t.strip() for t, _ in spans)
+                if is_blank:
+                    style_lead = _style_lead_pt(b, doc, raw=True)
+                elif first_line_of_block:
+                    style_lead = _entering_lead_pt(b, doc, prev_para_block)
+                else:
+                    style_lead = _style_lead_pt(b, doc)
                 if style_lead is not None and (
                         line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
                     own_lead = style_lead
@@ -1842,6 +2197,17 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                           else _note_marker(note, label))
                 lines.extend(_wrap_line([(marker + note.text, frozenset())],
                                         MAX_COLS))
+    # Finding 3 (b26-print-fidelity-2): a fresh page picks up whatever
+    # .mt/.mb was in force at its OWN first block, not the document's
+    # first-occurrence pair -- see _mt_mb_checkpoints. `global_mt`/
+    # `global_mb` are what _printed_cap(doc) itself would use; a page
+    # whose own checkpoint matches them leaves `Page.mt_lines`/`mb_lines`
+    # at their None default (render side: "use the document global",
+    # untouched).
+    mt_mb_checkpoints = _mt_mb_checkpoints(doc) if printed else None
+    global_mt, global_mb = (mt_mb_checkpoints[0][1], mt_mb_checkpoints[0][2]) \
+        if mt_mb_checkpoints else (None, None)
+    cur_mt, cur_mb = global_mt, global_mb
     cap = _printed_cap(doc) if printed else LINES_MODERN
     # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
     # physical: WordStar advances each line by the `.lh` in force and starts
@@ -1877,6 +2243,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        if (cur_mt, cur_mb) != (global_mt, global_mb):
+            pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
         pages.append(pg)
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'hf':
@@ -1893,6 +2261,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 _close_page(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             continue
+        # Finding 3: a line about to start a FRESH page (whether the page
+        # was just closed above, by the `cond` branch, or this is simply
+        # the document's first line) picks up the .mt/.mb in force at ITS
+        # OWN block -- recomputing `cap`/`budget` for THIS page only, so a
+        # page whose geometry never changes never recomputes to a
+        # different number (see `_printed_cap_for`'s docstring).
+        if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
+            cur_mt, cur_mb = _mt_mb_at(mt_mb_checkpoints, l.bi)
+            cap = _printed_cap_for(doc, cur_mt, cur_mb)
+            budget = (cap - 1) * default_lead
         full = (spent + _cost(l) > budget + 1e-6) if printed \
                else len(page) >= cap
         if l is None or full:
@@ -2326,13 +2704,36 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # semantics, matching round 6's own RTF `\fi` reading), so it shifts the
     # line's own STARTING point; the typed leading-whitespace handling below
     # still measures relative to wherever the line begins.
-    ops, x = [], left + (fi or 0)
+    #
+    # Finding A (b26-print-fidelity-2, WARPRAYR.WS): that stacking is right
+    # ONLY when the line's own text does NOT already carry a typed leading
+    # indent of its own -- `.pm` exists for the paragraph whose first line
+    # starts flush in the SOURCE and relies on `.pm` alone for its visual
+    # indent. WARPRAYR's Quote style (`.pm 5`) is the other case: every
+    # line is typed with its own real leading spaces (5 on a continuation,
+    # 10 on a stanza's own first line -- the author's hanging-indent
+    # convention), so `_split_indent` below ALREADY produces the block's
+    # first line's full, correct indent from those typed spaces alone.
+    # Adding `fi` on top double-counts it. Measured (WARPRAYR.pcl): the
+    # couplet's first line ('"God the all-terrible!', 10 typed spaces)
+    # and the prayer's own first line ('"O Lord our Father', 10 typed
+    # spaces) both belong at x=122.4 -- the SAME position a MID-block
+    # stanza's own first line reaches ('"For our sakes', also 10 typed
+    # spaces, not `fi`-eligible since it isn't the block's first physical
+    # line) purely from its typed indent. `fi` stacked on top of it pushed
+    # the block's own first line to 158.4, the +36pt (`.pm`'s own 5 cols)
+    # double-count this fixes. A line with NO typed leading whitespace of
+    # its own (indent never fires) is unaffected -- `fi` remains its only
+    # indent source, unchanged.
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
         # LJ6DTP -- the same gate covers its character substitutions.
         segs = _lj_substitute(segs)
-    for text, styles, family, size_here, entry, indent in _split_indent(
-            _split_symbol_fallback(_split_graphics(segs))):
+    segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
+    if fi and segs and segs[0][5]:            # segs[0][5] is that first
+        fi = None                             # segment's own `indent` flag
+    ops, x = [], left + (fi or 0)
+    for text, styles, family, size_here, entry, indent in segs:
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
@@ -2413,13 +2814,19 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # between covered. Explicit `.ul off` keeps the per-piece path.
             span_ul = ul_continuous and 'u' in styles
             piece_styles = (styles - {'u'}) if span_ul else styles
+            symbol_bold = family == 'Symbol' and 'b' in styles
+            symbol_italic = family == 'Symbol' and 'i' in styles
             ul_x0 = ul_x1 = None
             for m in _re.finditer(r' +|[^ ]+', text):
                 piece = m.group(0)
                 nat = _natural_width_pt(piece, basefont, pt)
                 pw = nat * factor if nat > 0 else len(piece) * pitch
                 if piece[0] != ' ':
-                    if want == tz_state[0]:
+                    if symbol_bold or symbol_italic:
+                        ops.append(_symbol_style_op(
+                            font, pt, rise, want, tz_state, x, y,
+                            _esc(piece), symbol_bold, symbol_italic))
+                    elif want == tz_state[0]:
                         ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
                                    b' Tj ET' %
                                    (font.encode(), pt, rise, x, y,
@@ -2449,7 +2856,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             target = len(text) * _span_pitch(entry, pt)
             scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
-        if want == tz_state[0]:
+        symbol_bold = family == 'Symbol' and 'b' in styles
+        symbol_italic = family == 'Symbol' and 'i' in styles
+        if symbol_bold or symbol_italic:
+            ops.append(_symbol_style_op(font, pt, rise, want, tz_state, x, y,
+                                        _esc(text), symbol_bold,
+                                        symbol_italic))
+        elif want == tz_state[0]:
             ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
                        (font.encode(), pt, rise, x, y, _esc(text)))
         else:
@@ -3084,11 +3497,36 @@ def _emit_pdf_inner(doc, printed, options):
         res = FontRes()
         streams = []
         for page_index, pl in enumerate(pages):
+            # Finding 3 (b26-print-fidelity-2): a page whose own .mt/.mb
+            # (Page.mt_lines/mb_lines, set by _doc_to_pagelines from
+            # _mt_mb_checkpoints) differs from the document's global pair
+            # gets ITS OWN top-margin/header-footer geometry -- the SAME
+            # temporary doc.meta['page'] swap `emit_pdf` already uses for
+            # `page_settings`/landscape, scoped to just this page's
+            # `_printed_top`/`_running_ops` calls. None/None (every page
+            # of every document that never changes .mt/.mb mid-document)
+            # skips the swap entirely: `page_top` is the SAME `top` value
+            # computed once above, byte-identical to before this fix.
+            page_mt = getattr(pl, 'mt_lines', None)
+            page_mb = getattr(pl, 'mb_lines', None)
+            saved_pg = None
+            if page_mt is not None or page_mb is not None:
+                eff = dict(doc.meta['page'])
+                if page_mt is not None:
+                    eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
+                if page_mb is not None:
+                    eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
+                saved_pg, doc.meta['page'] = doc.meta['page'], eff
+                page_top = _printed_top(doc)
+            else:
+                page_top = top
             running = _running_ops(doc, start_no + page_index, page_h, lead,
                                    size, left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}))
-            streams.append(_page_stream(pl, top, page_h, lead, size, left,
+            if saved_pg is not None:
+                doc.meta['page'] = saved_pg
+            streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_interval))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL

@@ -1775,6 +1775,63 @@ def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
     assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
     assert rises[0] == rises[1] != 0
 
+def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
+    """Finding 2 (b26-print-fidelity-2): a short page's footnote/endnote
+    area used to flow-append right after the body -- wherever the body's
+    own y happened to end -- landing mid-page. Real WS7 anchors it at the
+    page bottom instead (measured: -SCREEN.pcl's "1. Footnote"/"(1)
+    Endnote"/dash-rule at PDF y=84/60/108, i.e. top-down 708/732/684;
+    LYING.pcl's own single-footnote area lands on the SAME y=84/108 --
+    its page is full, so flow-append and bottom-anchor coincide there,
+    which is exactly why the gate never caught this). This doc's body is
+    two short lines -- nowhere near a full (default) 55-line page -- so a
+    flow-appended area would land far above y=108; anchored, it lands
+    exactly where WS7 does, at every page-geometry DEFAULT (.mb 8 lines
+    -> 84pt reserve, see _printed_notes_reserve_pt)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Short body line has a note' + ws7_note(0x03, b'Footnote text.', number=0) +
+            b' and an endnote' + ws7_note(0x04, b'Endnote text.', number=0) +
+            b' here.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
+    assert spans[b'--------------------'] == 108.0
+    assert spans[b'1. Footnote text.'] == 84.0
+    assert spans[b'\\(1\\) Endnote text.'] == 60.0
+
+
+def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
+    """The bottom-anchor override only fires when it would push the area
+    DOWN past where sequential flow already puts it -- a page whose body
+    already reaches (within one default lead of) the anchor target is
+    untouched, which is what keeps LYING.WS's printed PDF byte-identical
+    (sha256 unchanged across this branch: see the fidelity_gate.py
+    report). Pinned here with a synthetic page sized so the body runs
+    right up to the anchor at every page-geometry DEFAULT (cap 55 =
+    .pl 66 - .mt 3 - .mb 8): 51 body lines (one carrying the footnote
+    ref) leave the 4-line footnote area exactly filling the rest of the
+    55-line cap -- the SAME "flow already gets there" case LYING.WS's
+    own full pages are in (measured: override computes to exactly 0.0
+    here, so the area renders at its natural flow position, 12pt above
+    where the bottom-anchor formula alone would put it)."""
+    from ctrlkd.pdf import emit_pdf, _printed_cap
+    data = (ws7_block(0x00) +
+            b'Body line 1 has a note' + ws7_note(0x03, b'Note.', number=0) +
+            b' here.' + HARD +
+            b''.join(b'Body line %d.' % i + HARD for i in range(2, 52)))
+    doc = core.parse_ws(data)
+    assert _printed_cap(doc) == 55
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
+    # natural flow (top 60 + 51 body lines * 12 + this line's own 12 =
+    # 96, PDF bottom-origin) -- ONE line short of the 84pt anchor's own
+    # target for a 4-line area (108), confirming the override did NOT
+    # fire and pull the rule down to the anchor position.
+    assert spans[b'--------------------'] == 96.0
+    assert spans[b'1. Note.'] == 72.0
+
+
 def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
     # b26 notes wave, Fix 2: `_doc_to_pagelines`'s own legacy end-of-document
     # notes dump (superseded for real Modern PDF output by `_modern_streams`,
@@ -2143,6 +2200,81 @@ def test_head_foot_land_where_wordstar_puts_them():
     assert txt[0] == 5, f'body should start at .mt+.hm = 5, got {txt[0]}'
     assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
     assert ftr == [60], f'footer at .pl-.mb+.fm = 60, got {ftr}'
+
+
+# --------------------------------------------------- Finding 3: per-page .mt/.mb
+
+def test_mid_document_mt_mb_gets_its_own_page_capacity():
+    """Finding 3 (b26-print-fidelity-2): SCRIPT.WS changes .mt/.mb around
+    its embedded worked-example figures (measured: block 64's .mt1/.mb0),
+    and real WS7 fits the figure on ONE page using the figure's OWN tiny
+    margins -- the engine used to apply the document-global FIRST-
+    occurrence .mt/.mb (7/6 here) to every page, capping capacity at
+    pl - 7 - 6 = 53 lines regardless, splitting a 60-line tiny-margin
+    section across two pages. Fixed: a fresh page picks up whatever
+    .mt/.mb was in force at its own first block (_mt_mb_checkpoints,
+    mirroring how .lh already tracks per-line state) -- pl - 1 - 0 = 65
+    lines of room, so the same 60 lines fit on one page."""
+    from ctrlkd.pdf import _doc_to_pagelines, _mt_mb_checkpoints
+    data = ('.mt7\r\n.mb6\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.mt1\r\n.mb0\r\n' +
+            ''.join(f'Tiny line {i}.\r\n' for i in range(1, 61))).encode()
+    doc = core.parse_ws(data)
+    assert doc.meta['page']['mt_lines'] == 7.0    # global: the FIRST occurrence
+    assert doc.meta['page']['mb_lines'] == 6.0
+    checkpoints = _mt_mb_checkpoints(doc)
+    assert checkpoints[0] == (0, 7.0, 6.0)
+    assert checkpoints[-1][1:] == (1.0, 0.0)       # the figure's own override
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 2                         # NOT 3 -- see docstring
+    assert len(pages[0]) == 20 and len(pages[1]) == 60
+    assert pages[1].mt_lines == 1.0 and pages[1].mb_lines == 0.0
+    assert pages[0].mt_lines is None               # untouched: "use the doc global"
+
+
+def test_mid_document_mt_mb_repositions_the_header():
+    """The SAME per-page .mt (Finding 3) reaches `_running_ops` too, via
+    the doc.meta['page'] swap `_emit_pdf_inner` now does per page --
+    `_running_ops`'s own existing `max(0.0, mt - hm - top_head)` formula
+    (unchanged) naturally degrades the header to right-at-the-top when
+    the page's own .mt is too small to fit the usual .hm gap above it,
+    with no separate "suppress the header" rule needed. Pinned against
+    the same fixture's actual y values: normal page (.mt 7, .hm default
+    2) head_base = 7-2-1 = 4 -> y=732; tiny page (.mt 1) head_base =
+    max(0, 1-2-1) = 0 -> y=780, TWELVE points closer to the physical top
+    -- not absent, just compressed, exactly what real WS7 does (measured:
+    SCRIPT.pcl page 10's own header sits at PDF y=780/top-down 12pt)."""
+    from ctrlkd.pdf import emit_pdf
+    data = ('.mt7\r\n.mb6\r\n.he TITLE\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.mt1\r\n.mb0\r\n' +
+            ''.join(f'Tiny line {i}.\r\n' for i in range(1, 61))).encode()
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    ys = [float(m) for m in
+         re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
+    assert ys == [732.0, 780.0]
+
+
+def test_single_geometry_document_never_touches_mt_mb_checkpoints():
+    """A document that never repeats .mt/.mb after its own opening
+    geometry (every document this project has ever rendered, before
+    SCRIPT.WS's figures) gets exactly ONE checkpoint -- `_mt_mb_at`
+    returns the SAME pair for every block, so `Page.mt_lines`/`mb_lines`
+    stay at their None default and no page ever triggers the
+    doc.meta['page'] swap in `_emit_pdf_inner`. Byte-identity for real
+    documents is verified separately (fidelity_gate.py's LYING.WS sha256
+    check); this pins the mechanism directly."""
+    from ctrlkd.pdf import _mt_mb_checkpoints, _doc_to_pagelines
+    data = ('.mt7\r\n.mb6\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21))).encode()
+    doc = core.parse_ws(data)
+    checkpoints = _mt_mb_checkpoints(doc)
+    assert len(checkpoints) == 1
+    pages = _doc_to_pagelines(doc, True)
+    assert all(getattr(pg, 'mt_lines', None) is None
+              and getattr(pg, 'mb_lines', None) is None for pg in pages)
 
 
 def test_hash_becomes_the_page_number():
@@ -3445,6 +3577,143 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     # either as \u945/\u915/\u931/\u937 escapes.
     assert '\\u945' in r_printed and '\\u915' in r_printed
     assert '\\u945' in r_modern and '\\u915' in r_modern
+
+
+def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
+    """Finding 1 (b26-print-fidelity-2): Symbol has ONE cut in the base-14
+    set, so a b/i span routed there used to lose its styling silently --
+    but real WS7 prints all four (plain/bold/italic/bold-italic) visibly
+    distinct (measured: -SCREEN.pcl offset 2767, the Greek sample line's
+    four `ESC(s...T` groups carry style=0/1 and weight=0/3 flags on the
+    SAME typeface/height/pitch, and the four runs measure the SAME 108pt
+    advance for 14 glyphs regardless of style -- the driver styled the
+    glyph, never the advance). Pinned here bit-for-bit: bold adds `2 Tr`
+    (fill+stroke) with a stroke width proportional to size before Ts;
+    italic swaps Td for a sheared Tm (~12 degrees) at the SAME (x, y) Td
+    would have used; bold-italic does both. An unstyled Symbol run keeps
+    its pre-existing Td-only op, untouched."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αΓπ'.encode('cp437')          # cp437 Greek, no font block --
+                                           # the -SCREEN.WS fallback path
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + line + HARD
+            + b'\x02' + line + b'\x02' + HARD             # bold
+            + b'\x19' + line + b'\x19' + HARD             # italic
+            + b'\x02\x19' + line + b'\x02\x19' + HARD     # bold-italic
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    ops = [m.group(0) for m in re.finditer(rb'BT /F\d+.*?Tj ET', pdf)
+          if b'aGp' in m.group(0)]
+    assert len(ops) == 4
+    plain, bold, italic, bold_italic = ops
+    font = re.match(rb'BT /(F\d+)', plain).group(1)
+    # plain: untouched, the pre-existing Td-only shape (no Tr/w/Tm at all)
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf 0 Ts (?:[\d.]+ Tz )?'
+        rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', plain)
+    # bold: 2 Tr (fill+stroke) + a stroke width before Ts, same Td shape
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
+        rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', bold)
+    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126, no Tr/w
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Ts '
+        rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', italic)
+    # bold-italic: both -- stroke AND shear
+    assert re.fullmatch(
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
+        rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', bold_italic)
+    # the three styled runs land at the SAME x the plain run did (styling
+    # changes only how the glyph paints, never the run's own position)
+    plain_xy = re.search(rb'(-?[\d.]+) (-?[\d.]+) Td', plain).groups()
+    bold_xy = re.search(rb'(-?[\d.]+) (-?[\d.]+) Td', bold).groups()
+    italic_xy = re.search(rb'1 0 0\.2126 1 (-?[\d.]+) (-?[\d.]+) Tm', italic).groups()
+    assert bold_xy[0] == plain_xy[0]
+    assert italic_xy[0] == plain_xy[0]
+
+
+def test_pdf_symbol_run_styling_is_printed_only():
+    """The synthesis lives in pdf.py's Printed-only `_line_ops_printed`
+    (never shared with Modern, which routes through `_modern_w`/its own
+    token font instead -- see BASE14[family] call sites) and never fires
+    for a Symbol run with no b/i styling (byte-identical requirement)."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αΓπ'.encode('cp437')
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + b'\x02' + line + b'\x02' + HARD
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf_printed = emit_pdf(doc, mode='printed')
+    assert b'2 Tr' in pdf_printed and b'Tm (aGp) Tj' not in pdf_printed
+    pdf_modern = emit_pdf(doc, mode='modern')
+    assert b'2 Tr' not in pdf_modern
+
+
+# --------------------------------------- Round 2, Fix A: .pm not double-counted
+
+def _helv_font_block(points=12.0):
+    """A proportional (Helvetica) WS5+ font block -- style bit 0x8000 set,
+    the same bit core.py's own font-entry decode reads for `proportional`
+    (see `_font_entry`). Without it a run stays on the document's own
+    fixed pitch and `_split_indent`'s columns-math (this fix's whole
+    subject) never engages."""
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    helv = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
+    ts = (helv & 0x01FF) | 0x8000
+    return ws7_block(0x02, (180).to_bytes(2, 'little')
+                     + round(points * 20).to_bytes(2, 'little')
+                     + ts.to_bytes(2, 'little') + bytes(6))
+
+
+def test_pm_first_line_indent_not_doubled_when_source_already_types_it():
+    """Fix A (b26-print-fidelity-2, WARPRAYR.WS): `.pm`'s first-line indent
+    used to stack ON TOP of a first line's own typed leading whitespace
+    when a block has BOTH -- WARPRAYR's Quote style (`.pm 5`) types its
+    hanging-indent paragraphs with real leading spaces on every physical
+    line (10 on the block's own first line, 5 on continuations), so
+    `_split_indent`'s columns-math already produces the block's first
+    line's full, correct indent from those typed spaces alone; adding
+    `fi` on top double-counted it. Measured (WARPRAYR.pcl): the block's
+    own first line ('"God the all-terrible!') belongs at x=122.4, the
+    SAME position a MID-block line reaches purely from its own typed
+    indent ('"For our sakes', not `fi`-eligible) -- not 158.4, `.pm 5`'s
+    36pt stacked on top (the doubled bug)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 5' + HARD
+            + _helv_font_block()
+            + b'          Ten typed leading spaces on this first line.' + HARD
+            + b'     Five typed leading spaces on this continuation.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 4.0    # `.pm 5` -> column 5 -> 4 offset cols
+    pdf = emit_pdf(doc, mode='printed')
+    spans = {text: x for _, _, _, x, y, text in _content_spans(pdf)}
+    assert spans[b'Ten'] == 129.6              # left 57.6 + 10-space indent 72 (NOT +fi 28.8)
+    assert spans[b'Five'] == 93.6              # left 57.6 + 5-space indent 36, unaffected
+
+
+def test_pm_first_line_indent_still_applies_with_no_typed_indent():
+    """The negative case, unaffected by Fix A: a block whose first line
+    carries NO typed leading whitespace of its own relies on `.pm` alone
+    for its visual indent (WordStar's OTHER authoring convention, and the
+    ORIGINAL, still-live case `test_pm_shifts_printed_pdf_first_line_start_x`
+    -- test_printed_fidelity.py -- already pins for a fontless span) --
+    `fi` must still apply there, unchanged."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 5' + HARD
+            + _helv_font_block()
+            + b'No typed indent on this first line at all.' + HARD
+            + b'No typed indent on this continuation either.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, mode='printed')
+    xs = [x for _, _, _, x, y, text in _content_spans(pdf) if text == b'No']
+    assert xs == [86.4, 57.6]                   # first: left 57.6 + fi 28.8; continuation: left alone
 
 
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
