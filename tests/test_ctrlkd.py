@@ -3772,6 +3772,45 @@ def test_modern_pdf_endnotes_collect_at_document_end():
     assert label_y > 300                              # not bottom-anchored
 
 
+def test_modern_outputs_all_carry_the_footnote_marker_and_text():
+    # b26 notes wave, Fix 1 (field-reported): "Modern outputs omit the
+    # footnote text entirely." Cross-format pin, oracle-shaped (-SCREEN.WS:
+    # inline superscript marker + the note text surviving somewhere in the
+    # document) -- every Modern emitter must carry BOTH the inline marker
+    # and the footnote's own text for a plain footnote-bearing document.
+    # Each emitter's own convention for WHERE the text lands differs (text/
+    # markdown/HTML/RTF: a trailing Footnotes section or a real Word
+    # footnote destination; PDF: the page-bottom area, same as Printed) --
+    # this test follows each emitter's own documented shape rather than
+    # inventing one, per the fix's own instruction to read existing
+    # convention first. All six assertions already pass against current
+    # main (no production change was needed for this one) -- this is
+    # regression coverage, not a fail-first pin.
+    from ctrlkd.pdf import emit_pdf
+    note = ws7_note(0x03, b'The footnote text itself.', number=0)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'The referenced line' + note + b' continues after.'
+            + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    t = emit.emit_text(doc, mode='modern')
+    assert '[1]' in t and 'The footnote text itself.' in t
+    md = emit.emit_markdown(doc, mode='modern')
+    assert '[^1]' in md and '[^1]: The footnote text itself.' in md
+    h = emit.emit_html(doc, mode='modern')
+    assert 'role="doc-noteref"' in h and 'The footnote text itself.' in h
+    assert 'role="doc-endnotes"' in h                 # the Footnotes section itself
+    r = emit.emit_rtf(doc, mode='modern')
+    assert r.count(r'\*\footnote') >= 1 and 'The footnote text itself.' in r
+    pdf = emit_pdf(doc, 'modern')
+    words = re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pdf)
+    joined = b' '.join(words)
+    assert b'footnote' in joined and b'itself.' in joined  # note area text present
+    assert any(w == b'1' for w in words)               # inline superscript marker
+
+
 def test_modern_pdf_block_margins_indent_and_narrow_the_measure():
     """Ruling 2: a block's own .lm/.rm are the document's explicit choices
     and win in Modern exactly as its fonts do. WordStar's stamped .lm spaces
