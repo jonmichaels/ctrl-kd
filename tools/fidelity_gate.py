@@ -105,10 +105,19 @@ DEFAULT_AUTHORED_ROOT = (
     '/home/jon/vaults/jon_vault/Projects/software/WordStar/pd-samples/authored')
 DEFAULT_WS7_PRINTS_ROOT = (
     '/home/jon/vaults/jon_vault/Projects/software/WordStar/ws7-prints/v1')
-# The private corpus (SAWYER/VERSIONS): env var only, skip-when-absent.
+# The private corpus (Sawyer WS7 install tree): env var only, skip-when-
+# absent. Values are paths RELATIVE to the root the env var names.
 SAWYER_ROOT_ENV = 'CTRLKD_SAWYER_ROOT'
 WS7_PRINTS_ENV = 'CTRLKD_WS7_PRINTS'
-PRIVATE_DOCS = {'SAWYER', 'VERSIONS'}
+PRIVATE_DOCS = {
+    'SAWYER': 'SAWYER.WS',
+    'VERSIONS': 'VERSIONS.WS',
+    '-README': '-README.WS',
+    '-SCREEN': '-SCREEN.WS',
+    'BOXES': 'BOXES.WS',
+    'PREVIEW': 'PREVIEW.WS',
+    'SCRIPT': 'ARTICLES/SCRIPT.WS',
+}
 
 
 # --------------------------------------------------------------- PDF parsing
@@ -579,7 +588,7 @@ def resolve_doc_paths(doc_name: str):
         root = os.environ.get(SAWYER_ROOT_ENV)
         if not root:
             return None, measurements_path, pcl_path
-        ws_path = os.path.join(root, f'{doc_name}.WS')
+        ws_path = os.path.join(root, PRIVATE_DOCS[doc_name])
     else:
         ws_path = os.path.join(DEFAULT_AUTHORED_ROOT, f'{doc_name}.WS')
     return ws_path, measurements_path, pcl_path
