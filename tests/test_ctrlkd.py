@@ -3253,6 +3253,54 @@ def test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes():
     assert (ding, 12, b'!\\"#') in shown or (ding, 12, b'!"#') in shown
 
 
+def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
+    """b26 fix: cp437 puts Greek/math at 0xE0-0xEE with NO font block
+    declaring Symbol at all -- plain WS4/WS7 body text, the "screen chart"
+    case (jon_vault's -SCREEN.pcl + .measurements.json: real WS7 prints the
+    line αßΓπΣσµτΦΘΩδφε cleanly). Printed PDF's text path (_esc,
+    cp1252-encode-with-replace) has no Greek at all, so before this fix
+    every one of those 14 characters became '?'. Only the 12 that cp1252
+    truly cannot carry route to Symbol -- ß (sharp s) and µ (micro sign)
+    are genuine cp1252 characters in their own right (not this bug) and
+    stay on the plain Courier face."""
+    from ctrlkd.pdf import emit_pdf
+    line = 'αßΓπΣσµτΦΘΩδφε'
+    data = (ws7_block(0x00)
+            + b'Plain prose padding so the detector reads this as a document.'
+            + HARD + line.encode('cp437') + HARD
+            + b'And a closing line of ordinary prose keeps the ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert line in txt                             # text formats: untouched
+
+    pdf = emit_pdf(doc, mode='printed')
+    fonts = _basefonts(pdf)
+    assert b'Symbol' in fonts.values()
+    sym = next(n for n, b in fonts.items() if b == b'Symbol')
+    cour = next(n for n, b in fonts.items() if b == b'Courier')
+    shown = _content_text(pdf)
+    assert not any(b'?' in text for _, _, text in shown)  # the whole point
+    # split exactly at the cp1252-representable ß/µ, same order as the source
+    assert (sym, 12, b'a') in shown
+    assert (cour, 12, b'\xdf') in shown             # ss (sharp s) -- cp1252, untouched
+    assert (sym, 12, b'GpSs') in shown
+    assert (cour, 12, b'\xb5') in shown             # micro sign -- cp1252, untouched
+    assert (sym, 12, b'tFQWdfe') in shown
+
+    # Modern PDF and both RTF modes are untouched -- this fix is Printed
+    # PDF only (pdf.py's _line_ops_printed, never shared with Modern/RTF).
+    pdf_modern = emit_pdf(doc, mode='modern')
+    assert b'Symbol' not in _basefonts(pdf_modern).values()
+    r_printed = emit.emit_rtf(doc, mode='printed')
+    r_modern = emit.emit_rtf(doc, mode='modern')
+    # RTF was never routed through cp1252 at all (\uNNNN? unicode escapes,
+    # this fix's pdf.py never touched) -- alpha/Gamma/Sigma/Omega present
+    # either as \u945/\u915/\u931/\u937 escapes.
+    assert '\\u945' in r_printed and '\\u915' in r_printed
+    assert '\\u945' in r_modern and '\\u915' in r_modern
+
+
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
     """The trap this ordering exists for: the spec's own font block for
     Courier declares generic_style 'serif' -- honest typography (it is a slab

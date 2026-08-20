@@ -27,7 +27,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
 from . import layout as _layout
-from .symbolmap import font_translit_kind, untransliterate
+from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE
 from .afm import string_width_pt as _natural_width_pt
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
@@ -661,6 +661,63 @@ def _split_graphics(segs):
             pos = m.end()
         if pos < len(text):
             out.append((text[pos:], styles, family, size_here, entry))
+    return out
+
+
+# ------------------------------------------------- cp437 Greek/math fallback
+#
+# cp1252 (Printed PDF's declared /WinAnsiEncoding, _esc) carries none of the
+# Greek/math repertoire cp437 puts at 0xE0-0xEE -- real WS7 prints this fine
+# (measured: jon_vault's -SCREEN.pcl + .measurements.json, the
+# "αßΓπ..." line), because the driver routed those bytes
+# through the Symbol PostScript font, not through the body face's own
+# encoding. `_pdf_family` already recognises a WHOLE span's font block as
+# 'math' (a real `.symbol`-typestyle font); this is the same face-bypass for
+# the common case, PLAIN COURIER PROSE that happens to carry a handful of
+# cp437 Greek/math bytes with no font block declaring Symbol at all. A
+# character cp1252 cannot carry but symbolmap.SYMBOL_REVERSE can (the same
+# Adobe Symbol repertoire the real `.math` path already writes) gets its own
+# segment, face switched to Symbol and untransliterated to the face's own
+# byte code -- everything else in the run (including cp1252-representable
+# look-alikes like micro sign / sharp-s, which are NOT this bug) stays on
+# its own declared face untouched. Mirrors _split_graphics's declared-font
+# bypass for box glyphs exactly.
+def _cp1252_ok(ch):
+    try:
+        ch.encode('cp1252')
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def _split_symbol_fallback(segs):
+    out = []
+    for seg in segs:
+        text, styles, family, size_here, entry = seg
+        if family in ('Symbol', 'ZapfDingbats') or not text:
+            # already on the real Symbol/Dingbats face (untransliterated
+            # face codes, not Unicode -- nothing here could ever match), or
+            # empty -- nothing to split.
+            out.append(seg)
+            continue
+        if all(_cp1252_ok(ch) for ch in text):
+            out.append(seg)                    # fast path: no fallback needed
+            continue
+        run_is_symbol, buf_start = None, 0
+        for i, ch in enumerate(text):
+            is_symbol = (not _cp1252_ok(ch)) and ch in SYMBOL_REVERSE
+            if run_is_symbol is None:
+                run_is_symbol = is_symbol
+            elif is_symbol != run_is_symbol:
+                piece = text[buf_start:i]
+                out.append((untransliterate(piece, 'math'), styles, 'Symbol',
+                            size_here, entry) if run_is_symbol
+                           else (piece, styles, family, size_here, entry))
+                buf_start, run_is_symbol = i, is_symbol
+        piece = text[buf_start:]
+        out.append((untransliterate(piece, 'math'), styles, 'Symbol',
+                    size_here, entry) if run_is_symbol
+                   else (piece, styles, family, size_here, entry))
     return out
 
 
@@ -1894,7 +1951,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         # LJ6DTP -- the same gate covers its character substitutions.
         segs = _lj_substitute(segs)
     for text, styles, family, size_here, entry, indent in _split_indent(
-            _split_graphics(segs)):
+            _split_symbol_fallback(_split_graphics(segs))):
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
