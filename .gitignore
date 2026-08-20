@@ -6,3 +6,4 @@ __pycache__/
 tools/__pycache__/
 .venv/
 .venv-dev/
+.claude/worktrees/
