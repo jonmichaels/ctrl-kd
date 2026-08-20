@@ -135,7 +135,7 @@ def test_region_stops_at_a_heading():
 
 # =================================================== real-corpus acceptance
 
-CORPUS = '<PRIVATE-SAWYER-ROOT>/WS'
+CORPUS = os.environ.get('CTRLKD_SAWYER_ROOT', '')
 
 
 @pytest.mark.skipif(not os.path.exists(CORPUS), reason='real WS7 corpus not present on this machine')

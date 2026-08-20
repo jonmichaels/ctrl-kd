@@ -557,7 +557,7 @@ def test_pdf_printed_embed_scales_to_print_options_size(tmp_path):
 
 
 @pytest.mark.skipif(
-    not os.path.exists('<PRIVATE-SAWYER-ROOT>/WS/PREVIEW.WS'),
+    not os.path.exists(os.path.join(os.environ.get('CTRLKD_SAWYER_ROOT', ''), 'PREVIEW.WS')),
     reason='real WS7 corpus not present on this machine')
 def test_real_corpus_acceptance_all_five_resolve_and_embed():
     """Round 19 acceptance (RULINGS-LEDGER PIX row), completed round 22:
@@ -568,13 +568,14 @@ def test_real_corpus_acceptance_all_five_resolve_and_embed():
     own footnotes route it through `_paginate_printed_notes`); round 22
     extended that path, closing the gap."""
     from ctrlkd import pdf
+    root = os.environ['CTRLKD_SAWYER_ROOT']
     paths = {
-        '-README.WS (root)': '<PRIVATE-SAWYER-ROOT>/WS/-README.WS',
-        '-SCREEN.WS': '<PRIVATE-SAWYER-ROOT>/WS/-SCREEN.WS',
-        'PREVIEW.WS': '<PRIVATE-SAWYER-ROOT>/WS/PREVIEW.WS',
-        '-README.WS (APP)': '<PRIVATE-SAWYER-ROOT>/WS/APP/-README.WS',
+        '-README.WS (root)': os.path.join(root, '-README.WS'),
+        '-SCREEN.WS': os.path.join(root, '-SCREEN.WS'),
+        'PREVIEW.WS': os.path.join(root, 'PREVIEW.WS'),
+        '-README.WS (APP)': os.path.join(root, 'APP', '-README.WS'),
         '-README.WS (APP/vDosPlus)':
-            '<PRIVATE-SAWYER-ROOT>/WS/APP/vDosPlus/-README.WS',
+            os.path.join(root, 'APP', 'vDosPlus', '-README.WS'),
     }
     for label, path in paths.items():
         doc = core.parse(open(path, 'rb').read())

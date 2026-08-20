@@ -15,7 +15,7 @@ content block (1-7) selects this slot.
 
 SETTLED BY REAL WS7 BYTES (2026-08-18, this investigation): printed
 RJS.WS through the actual Sawyer WS7 install (SAWYER.EXE's own tree,
-<PRIVATE-SAWYER-ROOT>/WS) under DOSBox-X via
+the private Sawyer install tree, env CTRLKD_SAWYER_ROOT) under DOSBox-X via
 tools/wordstar_harness.sh (LASERJET driver -- did NOT stall despite
 carrying a style library, contrary to the harness doc's OLDTIMES-based
 "styled documents stall" caveat). Decoded with tools/pcl_text.py: EVERY
@@ -193,8 +193,8 @@ def test_corpus_wide_inline_polarity_gate():
     assert not failures, failures
 
 
-@pytest.mark.skipif(not os.path.exists(
-    '<PRIVATE-SAWYER-ROOT>/WS/RJS.WS'),
+@pytest.mark.skipif(not os.path.exists(os.path.join(
+    os.environ.get('CTRLKD_SAWYER_ROOT', ''), 'RJS.WS')),
     reason='real WS7 corpus not present on this machine')
 def test_rjs_ws_specifically_passes_the_inline_gate():
     """RJS.WS's whole-document strikethrough comes ENTIRELY from
@@ -203,7 +203,7 @@ def test_rjs_ws_specifically_passes_the_inline_gate():
     module docstring). The inline gate must show it clean; a future
     change that starts leaking 0x18 into raw span styles for this
     document would be a genuine regression this test exists to catch."""
-    path = '<PRIVATE-SAWYER-ROOT>/WS/RJS.WS'
+    path = os.path.join(os.environ['CTRLKD_SAWYER_ROOT'], 'RJS.WS')
     data = open(path, 'rb').read()
     assert inline_polarity_violations(data) == []
     # and the EFFECTIVE (merged) render still shows strike everywhere

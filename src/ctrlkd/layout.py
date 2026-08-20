@@ -198,7 +198,7 @@ def classify_rows(entries):
     # produces dozens of SHORT paragraphs (dialogue, essay sentences)
     # whose particular length coincidentally lands that same 5-space
     # indent near the middle of THEIR OWN short line too -- found the
-    # hard way against OLDTIMES.WS/KINGLEAR.ws/a-private-ws4-paper.ws, where treating
+    # hard way against OLDTIMES.WS/KINGLEAR.ws and a private WS4 paper, where treating
     # every symmetric-looking indent as a centered line swept up dozens of
     # ordinary paragraph openers. A deliberately centered line's own
     # padding varies with ITS length (there's no reason it would match

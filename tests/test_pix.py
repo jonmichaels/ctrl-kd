@@ -381,8 +381,8 @@ def test_physical_size_in_ignores_p_wid_and_siz():
 
 # =================================================== real-corpus ground truth
 
-WORDSTAR_PIX = ('<PRIVATE-SAWYER-ROOT>/'
-                 'WS/INSET/PIX/WORDSTAR.PIX')
+WORDSTAR_PIX = os.path.join(os.environ.get('CTRLKD_SAWYER_ROOT', ''),
+                            'INSET', 'PIX', 'WORDSTAR.PIX')
 
 
 @pytest.mark.skipif(not os.path.exists(WORDSTAR_PIX),

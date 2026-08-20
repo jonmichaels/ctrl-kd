@@ -15,7 +15,7 @@ import pytest
 
 from ctrlkd import core, emit
 
-CORPUS = '<PRIVATE-SAWYER-ROOT>/WS'
+CORPUS = os.environ.get('CTRLKD_SAWYER_ROOT', '')
 SCRIPT_WS = os.path.join(CORPUS, 'ARTICLES', 'SCRIPT.WS')
 
 

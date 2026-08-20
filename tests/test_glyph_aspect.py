@@ -28,6 +28,7 @@ not look square).
 """
 import re
 
+import os
 import pytest
 
 from ctrlkd import core
@@ -145,11 +146,11 @@ def test_convert_ws_bullet_square_end_to_end():
     assert w == pytest.approx(h, abs=0.1), (w, h)
 
 
-@pytest.mark.skipif(not __import__('os').path.exists(
-    '<PRIVATE-SAWYER-ROOT>/WS/CONVERT.WS'),
+@pytest.mark.skipif(not os.path.exists(os.path.join(
+    os.environ.get('CTRLKD_SAWYER_ROOT', ''), 'CONVERT.WS')),
     reason='real WS7 corpus not present on this machine')
 def test_real_convert_ws_bullet_is_square():
-    path = '<PRIVATE-SAWYER-ROOT>/WS/CONVERT.WS'
+    path = os.path.join(os.environ['CTRLKD_SAWYER_ROOT'], 'CONVERT.WS')
     doc = core.parse(open(path, 'rb').read())
     out = emit_pdf(doc, mode='printed')
     rects = [r for r in _rect_ops(out) if 3 < r[2] < 8 and 3 < r[3] < 8]
@@ -158,15 +159,15 @@ def test_real_convert_ws_bullet_is_square():
         assert w == pytest.approx(h, abs=0.2), (w, h)
 
 
-@pytest.mark.skipif(not __import__('os').path.exists(
-    '<PRIVATE-SAWYER-ROOT>/WS/LJ6DTP.WS'),
+@pytest.mark.skipif(not os.path.exists(os.path.join(
+    os.environ.get('CTRLKD_SAWYER_ROOT', ''), 'LJ6DTP.WS')),
     reason='real WS7 corpus not present on this machine')
 def test_real_lj6dtp_ws_symbols_are_regular():
     """LJ6DTP.WS's own symbol table (block 24-28: copyright/heart/diamond/
     club/spade/sun) -- the exact 'Shows on screen as' column the round-20
     brief named. Each glyph's own closed path (a contiguous run of m/l/c
     ops ending in 'f') should have a roughly-square bounding box."""
-    path = '<PRIVATE-SAWYER-ROOT>/WS/LJ6DTP.WS'
+    path = os.path.join(os.environ['CTRLKD_SAWYER_ROOT'], 'LJ6DTP.WS')
     doc = core.parse(open(path, 'rb').read())
     present = {sp.text for b in doc.blocks for line in b.lines
               for sp in line.spans if sp.text in SYMBOL_SHAPES}

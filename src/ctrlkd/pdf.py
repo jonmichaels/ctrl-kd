@@ -157,7 +157,7 @@ def _printed_top(doc):
     INCLUDES `.hm` (round 26 wave 3, fidelity_gate.py Unit B). Measured
     2026-08-20 against real WS7 PCL captures (ws7-prints/v1): every
     default-geometry Courier document's first baseline sits at PCL
-    y=71.7pt (OCAPTAIN/TWAINLET/SAWYER/VERSIONS/BOXES/W4P1/W4P2/W4P3, all
+    y=71.7pt (OCAPTAIN/TWAINLET/SAWYER/VERSIONS/BOXES + the private WS4 trio, all
     IQR=0.0 across the matched corpus) -- NOT the 48pt (.mt 3 * 12 + 12pt
     baseline-within-line) this function used to return before the +size
     term was folded in at the call site. (.mt 3 + .hm 2) * 12 = 60pt,
