@@ -1715,6 +1715,51 @@ def test_pdf_printed_endnotes_numbered_independently_of_footnotes():
     ref_line = flat[0]
     assert ref_line.count('1') == 2 and ref_line.count('2') == 2
 
+def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
+    # b26 notes wave, Fix 2 (item 18): WS7 gives a footnote marker and an
+    # endnote marker the identical superscript treatment (-SCREEN.WS oracle:
+    # both inline "1"s are raised the same amount). core.py tags every
+    # fnref span 'sup' regardless of note kind (frozenset({'sup', 'fnref'})),
+    # so the Printed PDF's own `Ts` (text rise) operator preceding each
+    # marker's glyph must match between the two kinds -- pins the oracle's
+    # "same treatment" claim directly against the rendered PDF bytes, not
+    # just the IR's style set. Already true on main (no production change
+    # needed for this one); see the sibling test below for the one real
+    # fix this branch's Fix 2 made.
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'A footnote' + ws7_note(0x03, b'Footnote text.', number=0) +
+            b' and an endnote' + ws7_note(0x04, b'Endnote text.', number=0) +
+            b' both on one line.' + HARD)
+    doc = core.parse_ws(data)
+    stream = emit_pdf(doc, mode='printed')
+    rises = [int(m.group(1)) for m in
+             re.finditer(rb'(-?\d+) Ts [\d.]+ [\d.]+ Td \(1\) Tj', stream)]
+    assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
+    assert rises[0] == rises[1] != 0
+
+def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
+    # b26 notes wave, Fix 2: `_doc_to_pagelines`'s own legacy end-of-document
+    # notes dump (superseded for real Modern PDF output by `_modern_streams`,
+    # ruling 2026-08-05, but still directly unit-testable) used to renumber
+    # every kept note through ONE shared sequential index regardless of
+    # kind -- a footnote #1 and an endnote #1 both printed "[1]"/"[2]",
+    # disagreeing with every real emitter's own _annotated_notes-based
+    # label. Fixed in pdf.py's `_doc_to_pagelines` to match _note_marker/
+    # _endnote_marker: "1." for the footnote, "(1)" for the endnote --
+    # oracle-verified against -SCREEN.WS. Fails against pre-fix pdf.py
+    # (confirmed: pre-fix produces "[1] Foot text."/"[2] End text.").
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (ws7_block(0x00) +
+            b'a' + ws7_note(0x03, b'Foot text.', number=0) +
+            b' b' + ws7_note(0x04, b'End text.', number=0) + b' c' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, False)
+    flat = [l for pg in _page_texts(pages) for l in pg]
+    assert any(l.strip() == '1. Foot text.' for l in flat)
+    assert any(l.strip() == '(1) End text.' for l in flat)
+    assert not any(l.strip() in ('[1] Foot text.', '[2] End text.') for l in flat)
+
 def test_footnote_endnote_number_start_dot_commands():
     # .F#/.E# (WordStar 7.0 file format spec): set the starting numbering
     # value -- the hook emit.py's per-kind numbering already reads.
