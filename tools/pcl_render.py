@@ -545,9 +545,13 @@ def parse_pcl_extended(data: bytes):
             return pos
         if param == "&" and group == "d":
             # Underline enable (ESC&d#D, any variant) / disable (ESC&d@).
-            # RENDERED since 2026-08-20: per-chunk rules under printed
-            # glyphs only -- LaserJet underlines printed characters, not
-            # cursor moves, so word gaps stay bare exactly as on paper.
+            # RENDERED since 2026-08-20; CORRECTED same day: underline is
+            # CONTINUOUS across everything while enabled -- Jon's physical
+            # M479fdw print of these captures shows the rule running
+            # through the word gaps (which WS7 emits as ESC&aH cursor
+            # moves inside one UL-ON..UL-OFF span), per PCL5 semantics
+            # (underline spans horizontal movement, not just glyphs).
+            # render_page_png bridges the gaps between underlined chunks.
             fc = toks[-1][1]
             if fc == "@":
                 underline = False
@@ -761,10 +765,13 @@ def render_text_op(draw, ch, dpi):
             except Exception:
                 draw.text((x, y0 - px_size), c, font=font, fill=fill)
         x += adv_pt * scale
-    if ch.get("_UL") and ch["text"].strip():
+    if ch.get("_UL"):
+        # No strip() guard: PCL underlines printed spaces too (paper proof
+        # 2026-08-20), so a chunk's full advance gets the rule.
         ul_y = y0 + max(1.0, ch["size_pt"] * 0.11) * scale
         ul_w = max(1, round(ch["size_pt"] * 0.055 * scale))
         draw.line([(x0, ul_y), (x, ul_y)], fill=fill, width=ul_w)
+    return x
 
 
 def render_page_png(chunks, dpi, out_path):
@@ -775,10 +782,30 @@ def render_page_png(chunks, dpi, out_path):
     # Ops are drawn in stream order, exactly as PCL's sequential imaging
     # model would paint them (so e.g. white reverse-video text drawn after
     # a black glyph-bar in the byte stream stays on top).
+    prev_ul = None  # (y_decipoints, end_x_px) of the last underlined text op
     for op in chunks:
         kind = op.get("type", "text")
         if kind == "text":
-            render_text_op(draw, op, dpi)
+            end_x = render_text_op(draw, op, dpi)
+            # Bridge the cursor-move gap inside one UL-ON..UL-OFF span: the
+            # real LaserJet underlines ALL horizontal movement while
+            # underline is enabled (M479fdw paper proof 2026-08-20), so two
+            # consecutive underlined chunks on the same baseline get the
+            # rule drawn across the gap between them too.
+            if op.get("_UL"):
+                if prev_ul is not None and prev_ul[0] == op["y_decipoints"]:
+                    scale = dpi / PT_PER_IN
+                    x_gap0 = prev_ul[1]
+                    x_gap1 = op["x_decipoints"] * (dpi / DECIPT_PER_IN)
+                    if x_gap1 > x_gap0:
+                        ul_y = (op["y_decipoints"] * (dpi / DECIPT_PER_IN)
+                                + max(1.0, op["size_pt"] * 0.11) * scale)
+                        ul_w = max(1, round(op["size_pt"] * 0.055 * scale))
+                        draw.line([(x_gap0, ul_y), (x_gap1, ul_y)],
+                                  fill=tuple(op.get("_fill", (0, 0, 0))), width=ul_w)
+                prev_ul = (op["y_decipoints"], end_x)
+            else:
+                prev_ul = None
         elif kind == "rect":
             render_rect_op(draw, op, dpi)
         elif kind == "raster":
