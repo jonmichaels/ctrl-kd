@@ -1878,18 +1878,23 @@ def _rules(styles, text, x, y, w, continuous=True):
     """Underline / strikethrough as stroked paths (PDF has no text attribute
     for either), for a span occupying `w` points from `x`.
 
-    `continuous` (round 17b, RULINGS-LEDGER row 5/6, register C21): WS3.3's
-    own Reference Manual, ch.7 "Underscoring": "Use ^PS before and after any
-    letters, words, or phrases that you want underlined... ^PS does NOT
-    underline blank spaces" -- the plain toggle's HONEST default is
-    characters only. ".UL ON" is the file's own request for the manual's
-    OWN "continuous underlining of both characters and spaces" ("second
-    method": typing underline characters INTO the spaces, which `.UL`
-    automates at print time). Modern's own call site never passes this
-    (stays `True`, its prior and only behavior, unaffected either way) --
-    Printed's own two call sites pass the document's actual `.ul` state,
-    previously read nowhere (confirmed empirically byte-identical across
-    `.ul on`/`.ul off`/absent)."""
+    `continuous` (Jon's ruling 2026-08-20, REVERSING round 17b's default --
+    RULINGS-LEDGER row 5/6, register C21): the DEFAULT is now continuous,
+    spaces included. Real WS7 LaserJet output (ws7-prints/v1; Jon's
+    physical M479fdw print of those captures) underlines the gaps: WS7
+    emits one UL-ON..UL-OFF span per ^PS phrase with ESC&aH cursor moves
+    between words, and PCL underlines ALL horizontal movement while
+    enabled. None of those documents carries any `.ul`, so the measured
+    no-`.ul` default is continuous -- the WS3.3 manual's "^PS does NOT
+    underline blank spaces" clause (round 17b's basis) describes a surface
+    this driver demonstrably does not share. Jon: "With Printed we are
+    making a best attempt to match what you would get straight from WS
+    with no additional software." An EXPLICIT `.ul off` is still the
+    file's own request for characters-only underline and still honored
+    (`.ul` support ruled 2026-08-17) -- the parser records the key only
+    when the command is present, so absent and `.ul off` are
+    distinguishable. Modern's own call site never passes this (stays
+    `True`, its prior and only behavior)."""
     ops = []
     if not text.strip():
         return ops
@@ -2774,11 +2779,12 @@ def _emit_pdf_inner(doc, printed, options):
         size = _printed_size(doc)
         left = _printed_left(doc, size)
         roll_pt = _printed_roll_pt(doc)
-        # round 17b (RULINGS-LEDGER row 5/6, register C21): the HONEST
-        # default -- see `_rules`'s own docstring for the WS3.3 manual
-        # citation. `.ul` rides in doc.meta['formatting'] for free, same as
-        # `.sr`/`.pr` (no exclusion in the formatting-dict comprehension).
-        ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', False))
+        # Jon's ruling 2026-08-20 (reverses round 17b; RULINGS-LEDGER row
+        # 5/6, register C21): default CONTINUOUS -- measured WS7 LaserJet
+        # behavior, see `_rules`'s docstring. Explicit `.ul off` still
+        # breaks at spaces (the parser only records the key when the
+        # command is present, so absent-vs-off is distinguishable).
+        ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
         # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
         # interval, flag-gated -- default ON (same shape as `--headers`),
         # but the FEATURE only ever fires when the document itself

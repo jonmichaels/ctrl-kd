@@ -348,14 +348,33 @@ def test_pm_psa_psb_never_reach_modern_pdf():
 # `.ul` (continuous underline of inter-word blanks), `.sb` (suppress blank
 # lines at page top), `.l#` (line-number gutter). Register C8/C11/C21.
 
-def test_ul_honest_default_breaks_underline_at_spaces():
-    """WS3.3 Reference Manual ch.7 "Underscoring": "^PS does not underline
-    blank spaces." Absent `.ul`, the honest default underlines characters
-    only -- confirmed empirically pre-round: `.ul on`/`.ul off`/absent all
-    produced byte-identical PDF underline output (always continuous)."""
+def test_ul_default_is_continuous_matching_ws7_paper():
+    """Jon's ruling 2026-08-20 (reverses round 17b): absent `.ul`, Printed
+    underline is CONTINUOUS across spaces -- real WS7 LaserJet output
+    (ws7-prints/v1, none of which carries `.ul`) underlines the word gaps,
+    verified on paper (M479fdw) and in the PCL bytes (one UL-ON..UL-OFF
+    span per phrase). The WS3.3 manual's "^PS does not underline blank
+    spaces" clause described a different surface."""
     body = b'\x13AA BB\x13 plain.' + HARD
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
     assert 'underline_blanks' not in doc.meta['formatting']
+    out = pdf.emit_pdf(doc, mode='printed')
+    rules = re.findall(rb'0\.6 w ([\d.]+) [\d.]+ m ([\d.]+) [\d.]+ l S', out)
+    assert len(rules) == 1      # one rule spanning "AA BB"
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r.count(r'\ul ') == 1
+
+
+def test_ul_off_breaks_underline_at_spaces():
+    """Explicit `.ul off` is the file's own request for characters-only
+    underline and stays honored (`.ul` support ruled 2026-08-17; Jon
+    re-confirmed alongside the 2026-08-20 default reversal: "We should
+    still support that"). Distinguishable from absent because the parser
+    records the key only when the command is present."""
+    body = b'.ul off' + HARD + b'\x13AA BB\x13 plain.' + HARD
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    assert doc.meta['formatting']['underline_blanks'] is False
     out = pdf.emit_pdf(doc, mode='printed')
     rules = re.findall(rb'0\.6 w ([\d.]+) [\d.]+ m ([\d.]+) [\d.]+ l S', out)
     assert len(rules) == 2      # "AA" and "BB" underlined separately
