@@ -207,6 +207,24 @@ class Block:
                                             # (span-style tags); emitters merge
                                             # them into every span, like heading
                                             # bold
+    # The style record's own `line_height_vmi` (WSFORMAT.WS's format spec:
+    # "Word: Line height in VMI, -1 = inherit" -- sword_none already folds
+    # -1 to None at parse time, so what survives here is -2 ("auto", the
+    # only value the measured oracle LYING.WS/LYING.pcl carries -- see
+    # pdf.py's _style_lead_pt) or an explicit positive VMI count. None means
+    # no style governs this block (or the style set no line height of its
+    # own): a consumer's pre-existing `.lh`/default leading is UNCHANGED --
+    # WS4/styleless docs must not shift. Register: leading bug fix, 2026-08-20.
+    line_height_vmi: int = None
+    # The style's own font SIZE in points (its font triple's height word,
+    # /20.0 -- the same 1/1440in VMI unit WSFORMAT.WS documents for a font's
+    # height word, "Font height in VMIs (1/1440ths)"), captured at the BLOCK
+    # level rather than read off a line's own spans: a blank physical line
+    # carries no spans (core.py's close_line only appends non-empty lines;
+    # a truly blank line is a spanless Line record -- see the 'blank-'
+    # separator handling below), so leading for THAT line must still resolve
+    # to its style's own size. None when the style set no font of its own.
+    style_font_pt: float = None
     # Provenance of a STRUCTURAL block (tasks #20/#21, the round-trip writer):
     # 'ff' = a pagebreak made by a literal 0x0C in the byte stream (the writer
     # re-emits the form feed); 'fi' = the synthetic `[insert: NAME]` paragraph
@@ -3475,7 +3493,9 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      heading=style_fmt.get('heading', 0),
                      style_id=style_fmt.get('style_id'),
                      style_name=style_fmt.get('style_name'),
-                     style_attrs=style_fmt.get('attrs', frozenset()))
+                     style_attrs=style_fmt.get('attrs', frozenset()),
+                     line_height_vmi=style_fmt.get('line_height_vmi'),
+                     style_font_pt=style_fmt.get('style_font_pt'))
 
     cur = _new_block()
     cur_line = Line()
@@ -3717,11 +3737,26 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                 style_fmt[dst_k] = round(hmi / 180)
                         if entry.get('attrs'):
                             style_fmt['attrs'] = entry['attrs']
+                        # line_height_vmi: -2 = auto (the only value the
+                        # measured oracle carries), a positive count =
+                        # explicit VMI (WSFORMAT.WS: same 1/1440in unit as a
+                        # font's own height word). sword_none already folded
+                        # -1 (inherit) to None at parse time, so a bare
+                        # `is not None` is the right test here -- 'inherit'
+                        # never reaches this branch.
+                        if entry.get('line_height_vmi') is not None:
+                            style_fmt['line_height_vmi'] = entry['line_height_vmi']
                         # an all-zero triple records NO font (OLDTIMES's
                         # 'Double-Indented Quote'), distinct from the -1
                         # inherit sentinel only in never having been set
                         if entry.get('font') and any(entry['font']):
                             font_at.append((rel, _style_font(entry['font'])))
+                            # The style's own declared size, in points --
+                            # captured on the BLOCK (not just the span-level
+                            # font_at mark) so a spanless blank line, which
+                            # carries no font tag of its own, can still
+                            # resolve its style's auto/explicit leading.
+                            style_fmt['style_font_pt'] = entry['font'][1] / 20.0
                     # style_fmt is updated BEFORE this close: the previous
                     # block keeps its old style, the fresh block picks the
                     # new one up from _new_block()

@@ -168,6 +168,64 @@ def _lead_pt(lh_48):
     return lh_48 * 1.5
 
 
+def _style_lead_pt(block, doc):
+    """The baseline-to-baseline leading a WS7 paragraph STYLE dictates for
+    every physical line in `block` (core.Block.line_height_vmi/style_font_pt,
+    set from the style record's own font/line-height fields -- core.py's
+    style-selection parse). None when no style governs this block, or the
+    style set no line height of its own: the caller falls back to the
+    pre-existing `.lh`/document-default leading UNCHANGED, so a WS4 or
+    otherwise styleless document never shifts.
+
+    vmi == -2 ("auto" -- the ONLY value seen on every style in the measured
+    oracle, LYING.WS/LYING.pcl): real WS7 leading is 1.2 x the style's own
+    font size, not the document's fixed default -- measured 2026-08-20 from
+    PCL decipoint baseline gaps: Title/Author (16pt style) 192 decipoints
+    (19.2pt) apart, Body (12pt) 144 decipoints (14.4pt) apart, and a blank
+    line between a 16pt block and the next 12pt block contributing its OWN
+    19.2pt of the two lines' combined 336-decipoint (33.6pt) gap -- a blank
+    line advances at ITS block's leading, which `style_font_pt` already
+    gives it (block-level, not read off the line's own spans, precisely
+    because a blank line carries no spans/font tag of its own -- see
+    core.Block.style_font_pt's docstring). Falls back to the document's own
+    printed SIZE (_printed_size) if the style declared no font of its own
+    (an all-zero/recordless font triple).
+
+    vmi > 0: an EXPLICIT count, in the same 1/1440in VMI unit WSFORMAT.WS
+    documents for a font's own height word ("Font height in VMIs
+    (1/1440ths)") -- so vmi/20.0 is points, the identical conversion
+    _font_entry already applies to a font's height word. Evidenced from the
+    format spec's own text, not guessed; UNCONFIRMED against a real WS7
+    print, though -- no oracle exists for a document that uses it (LYING.WS's
+    styles are all -2/auto; DARKNESS.WS/WARPRAYR.WS carry explicit vmi=240
+    but were never printed on real WS7). Flagged for future oracle
+    confirmation; documented, not silently trusted.
+
+    Document-level guard: if the file EVER used a real `.lh` dot command
+    (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
+    tag), a style's own leading is NOT applied at all, even where a line's
+    own `.lh` state happens to equal the document default and so normalises
+    to None (core.py's Line.lead_48 normalisation pass, ~line 3960) --
+    indistinguishable, at the per-line level, from a line that never saw
+    `.lh` in the first place. No corpus evidence exists for how real WS7
+    arbitrates a style's vmi against an ACTIVE `.lh`, so this stays
+    conservative: an `.lh`-bearing document's leading is left exactly as
+    the pre-existing mechanism computed it, unconditionally."""
+    vmi = getattr(block, 'line_height_vmi', None)
+    if vmi is None:
+        return None
+    if doc.meta.get('page', {}).get('lh_source') == 'file':
+        return None
+    if vmi == -2:
+        size = getattr(block, 'style_font_pt', None)
+        if not size:
+            size = _printed_size(doc)
+        return size * 1.2
+    if vmi > 0:
+        return vmi / 20.0
+    return None
+
+
 def _printed_lead(doc):
     """The DOCUMENT-DEFAULT baseline-to-baseline distance in points for
     printed mode, from the file's first `.lh`. Default .lh 8 IS the 12pt lead
@@ -935,9 +993,15 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     continue
             # A PageLine, not a bare list, so the line's own `.lh` survives the
             # footnote paginator too -- body lines keep their lead whether or
-            # not the document has notes.
+            # not the document has notes. Same style-over-default precedence
+            # as the plain path (_doc_to_pagelines) -- see _style_lead_pt.
+            own_lead = _lead_pt(line.lead_48)
+            style_lead = _style_lead_pt(b, doc)
+            if style_lead is not None and (
+                    line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+                own_lead = style_lead
             stream.append((PageLine(spans, soft=line.soft,
-                                    lead=_lead_pt(line.lead_48),
+                                    lead=own_lead,
                                     overprint=line.overprint), refs))
     return stream
 
@@ -1279,6 +1343,20 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
                 own_lead = _lead_pt(line.lead_48)
+                # A WS7 paragraph STYLE's own line height (core.Block.
+                # line_height_vmi) governs OVER the generic `.lh`/document
+                # default -- same precedence _new_block() already gives a
+                # style's align/margins/wrap over the running dot-command
+                # state. _style_lead_pt itself withholds an answer (None) for
+                # any document that ever used a real `.lh` at all (its own
+                # docstring), so this line's own lead_48 only matters as a
+                # belt-and-braces check for a genuinely per-line override.
+                # LYING.WS carries no `.lh` at all, so every one of its
+                # lines takes this branch (measured 2026-08-20).
+                style_lead = _style_lead_pt(b, doc)
+                if style_lead is not None and (
+                        line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+                    own_lead = style_lead
                 extra = 0.0
                 if pending_sa is not None:
                     extra += pending_sa
