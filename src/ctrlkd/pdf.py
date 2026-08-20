@@ -1560,14 +1560,32 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
             # nothing to space away from). Carried to whatever PageLine
             # comes next, however many sentinel entries away that is.
             pending_sa = doc_sa
-    if doc.footnotes and not printed:
+    if not printed:
         # Printed mode's own layout is handled above (period-authentic,
-        # per-page); this end-of-document dump is Modern-only -- explicitly
-        # out of scope to change (Modern's own layout is a separate task).
-        lines += [[], [('-' * 20, frozenset())], []]
-        for i, n in enumerate(doc.footnotes):
-            note = f'[{i + 1}] ' + ''.join(s.text for s in n)
-            lines.extend(_wrap_line([(note, frozenset())], MAX_COLS))
+        # per-page); this end-of-document dump is this legacy helper's own
+        # Modern-only tail. Real Modern PDF output goes through
+        # `_modern_streams` (ruling 2026-08-05) and never reaches this
+        # branch -- it survives only because existing unit tests call
+        # `_doc_to_pagelines(doc, False)` directly (see e.g.
+        # test_style_pass_through_pdf, test_pdf_exact_fill_no_blank_sheet).
+        # b26 notes wave: this dump used to renumber every kept note
+        # (doc.footnotes, which mixes footnote/endnote/annotation) through
+        # one shared sequential index regardless of kind, so a footnote #1
+        # and an endnote #1 both printed as "[1]"/"[2]" -- silently
+        # disagreeing with _annotated_notes/_display_number, the one label
+        # every real emitter (and this same file's own `_note_marker`/
+        # `_endnote_marker`) agrees on. Now per-kind: "1." for footnotes/
+        # annotations, "(1)" for endnotes -- oracle-verified (-SCREEN.WS:
+        # "1.  Footnote" / "(1)  Endnote").
+        placeable = [(n, label) for n, label in _annotated_notes(doc)
+                     if n.kind in ('footnote', 'endnote', 'annotation')]
+        if placeable:
+            lines += [[], [('-' * 20, frozenset())], []]
+            for note, label in placeable:
+                marker = (_endnote_marker(label) if note.kind == 'endnote'
+                          else _note_marker(note, label))
+                lines.extend(_wrap_line([(marker + note.text, frozenset())],
+                                        MAX_COLS))
     cap = _printed_cap(doc) if printed else LINES_MODERN
     # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
     # physical: WordStar advances each line by the `.lh` in force and starts

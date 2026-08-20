@@ -1017,6 +1017,38 @@ def test_footnote_endnote_number_is_1_based_not_stored_index():
     assert [n.number for n in doc.notes if n.kind == 'footnote'] == [0, 1]
     assert doc.notes[2].number == 0 and doc.notes[2].kind == 'endnote'
 
+def test_note_number_field_marker_and_area_agree_when_nonzero():
+    # b26 notes wave, Fix 3: a note whose embedded `number` field is nonzero
+    # (WordStar's own 0-based stored index -- see
+    # test_footnote_endnote_number_is_1_based_not_stored_index above, which
+    # only exercises 0 and 1 through emit_markdown) must show the SAME
+    # display number at its inline marker and in its end-matter area, in
+    # every format -- not just the number=0 case every other note fixture
+    # in this file uses. Regression coverage for a reported inline-vs-area
+    # double-increment ("found during the b26 port, pre-existing both
+    # engines"); every format here already routes both consumers through
+    # emit.py's shared _annotated_notes/_display_number, so on this repo
+    # this is a cross-format pin, not evidence a fix was needed here.
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'Ref line' + ws7_note(0x03, b'Footnote body.', number=1) +
+            b' end.' + HARD)
+    doc = core.parse_ws(data)
+    t = emit.emit_text(doc, mode='modern')
+    assert 'Ref line[2] end.' in t and '[2] Footnote body.' in t
+    md = emit.emit_markdown(doc, mode='modern')
+    assert '[^2]' in md and '[^2]: Footnote body.' in md
+    h = emit.emit_html(doc, mode='modern')
+    assert 'id="fnref2"' in h and 'id="fn2"' in h
+    r = emit.emit_rtf(doc, mode='modern')
+    assert 'Footnote body.' in r
+    pp = emit_pdf(doc, mode='printed')
+    ptexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pp))
+    assert b'2. Footnote body.' in ptexts
+    pm = emit_pdf(doc, mode='modern')
+    mtexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pm))
+    assert b'[2] Footnote body.' in mtexts
+
 def test_footnote_number_start_hook_ready_for_future_dot_command():
     # core.py doesn't parse a `.f#`-style starting-number dot command yet
     # (another agent is adding dot-command parsing separately) -- this
@@ -1714,6 +1746,51 @@ def test_pdf_printed_endnotes_numbered_independently_of_footnotes():
     # WordStar's own documented ambiguity, resolved by mark style, not number
     ref_line = flat[0]
     assert ref_line.count('1') == 2 and ref_line.count('2') == 2
+
+def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
+    # b26 notes wave, Fix 2 (item 18): WS7 gives a footnote marker and an
+    # endnote marker the identical superscript treatment (-SCREEN.WS oracle:
+    # both inline "1"s are raised the same amount). core.py tags every
+    # fnref span 'sup' regardless of note kind (frozenset({'sup', 'fnref'})),
+    # so the Printed PDF's own `Ts` (text rise) operator preceding each
+    # marker's glyph must match between the two kinds -- pins the oracle's
+    # "same treatment" claim directly against the rendered PDF bytes, not
+    # just the IR's style set. Already true on main (no production change
+    # needed for this one); see the sibling test below for the one real
+    # fix this branch's Fix 2 made.
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00) +
+            b'A footnote' + ws7_note(0x03, b'Footnote text.', number=0) +
+            b' and an endnote' + ws7_note(0x04, b'Endnote text.', number=0) +
+            b' both on one line.' + HARD)
+    doc = core.parse_ws(data)
+    stream = emit_pdf(doc, mode='printed')
+    rises = [int(m.group(1)) for m in
+             re.finditer(rb'(-?\d+) Ts [\d.]+ [\d.]+ Td \(1\) Tj', stream)]
+    assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
+    assert rises[0] == rises[1] != 0
+
+def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
+    # b26 notes wave, Fix 2: `_doc_to_pagelines`'s own legacy end-of-document
+    # notes dump (superseded for real Modern PDF output by `_modern_streams`,
+    # ruling 2026-08-05, but still directly unit-testable) used to renumber
+    # every kept note through ONE shared sequential index regardless of
+    # kind -- a footnote #1 and an endnote #1 both printed "[1]"/"[2]",
+    # disagreeing with every real emitter's own _annotated_notes-based
+    # label. Fixed in pdf.py's `_doc_to_pagelines` to match _note_marker/
+    # _endnote_marker: "1." for the footnote, "(1)" for the endnote --
+    # oracle-verified against -SCREEN.WS. Fails against pre-fix pdf.py
+    # (confirmed: pre-fix produces "[1] Foot text."/"[2] End text.").
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (ws7_block(0x00) +
+            b'a' + ws7_note(0x03, b'Foot text.', number=0) +
+            b' b' + ws7_note(0x04, b'End text.', number=0) + b' c' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, False)
+    flat = [l for pg in _page_texts(pages) for l in pg]
+    assert any(l.strip() == '1. Foot text.' for l in flat)
+    assert any(l.strip() == '(1) End text.' for l in flat)
+    assert not any(l.strip() in ('[1] Foot text.', '[2] End text.') for l in flat)
 
 def test_footnote_endnote_number_start_dot_commands():
     # .F#/.E# (WordStar 7.0 file format spec): set the starting numbering
@@ -3770,6 +3847,45 @@ def test_modern_pdf_endnotes_collect_at_document_end():
     last_body_y = next(y for _, y, t in ops if t == b'honest.')
     assert 0 < last_body_y - label_y < 80             # flows just below body
     assert label_y > 300                              # not bottom-anchored
+
+
+def test_modern_outputs_all_carry_the_footnote_marker_and_text():
+    # b26 notes wave, Fix 1 (field-reported): "Modern outputs omit the
+    # footnote text entirely." Cross-format pin, oracle-shaped (-SCREEN.WS:
+    # inline superscript marker + the note text surviving somewhere in the
+    # document) -- every Modern emitter must carry BOTH the inline marker
+    # and the footnote's own text for a plain footnote-bearing document.
+    # Each emitter's own convention for WHERE the text lands differs (text/
+    # markdown/HTML/RTF: a trailing Footnotes section or a real Word
+    # footnote destination; PDF: the page-bottom area, same as Printed) --
+    # this test follows each emitter's own documented shape rather than
+    # inventing one, per the fix's own instruction to read existing
+    # convention first. All six assertions already pass against current
+    # main (no production change was needed for this one) -- this is
+    # regression coverage, not a fail-first pin.
+    from ctrlkd.pdf import emit_pdf
+    note = ws7_note(0x03, b'The footnote text itself.', number=0)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'The referenced line' + note + b' continues after.'
+            + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    t = emit.emit_text(doc, mode='modern')
+    assert '[1]' in t and 'The footnote text itself.' in t
+    md = emit.emit_markdown(doc, mode='modern')
+    assert '[^1]' in md and '[^1]: The footnote text itself.' in md
+    h = emit.emit_html(doc, mode='modern')
+    assert 'role="doc-noteref"' in h and 'The footnote text itself.' in h
+    assert 'role="doc-endnotes"' in h                 # the Footnotes section itself
+    r = emit.emit_rtf(doc, mode='modern')
+    assert r.count(r'\*\footnote') >= 1 and 'The footnote text itself.' in r
+    pdf = emit_pdf(doc, 'modern')
+    words = re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pdf)
+    joined = b' '.join(words)
+    assert b'footnote' in joined and b'itself.' in joined  # note area text present
+    assert any(w == b'1' for w in words)               # inline superscript marker
 
 
 def test_modern_pdf_block_margins_indent_and_narrow_the_measure():
