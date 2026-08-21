@@ -39,6 +39,12 @@ Each item is a dict with a 'kind':
                   classification of the SAME text already in 'runs' --
                   never reshapes or removes anything; a consumer that
                   ignores it sees exactly what it always did.
+                  'bi' (b26-modern item 3): the source `doc.blocks` index
+                  this line came from -- lets a consumer re-check content-
+                  based whole-document detectors (`core.
+                  detect_screenplay_blocks` and similar) against a single
+                  line without re-deriving block boundaries itself. Purely
+                  additive, same as 'structure'.
   blank           one blank line (the author's own)
   break           a forced page break (.pa)
   cond            conditional break: 'lines' remaining or break (.cp n)
@@ -502,7 +508,7 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
                     runs.pop()
             items.append({'kind': 'para', 'align': b.align,
                           'indent_cols': lm, 'cut_cols': cut,
-                          'runs': runs, 'footnotes': footnotes})
+                          'runs': runs, 'footnotes': footnotes, 'bi': bi})
         # Only the author's own blank lines make space (M4): a block
         # boundary is often just a dot command, and command codes are
         # invisible. merged_lines buffered these away; count them back.
