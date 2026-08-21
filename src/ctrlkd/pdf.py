@@ -24,7 +24,9 @@ import zlib as _zlib
 from . import pix as _pixdecode
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines, \
-    effective_span_styles as _effective_span_styles
+    effective_span_styles as _effective_span_styles, \
+    detect_screenplay_blocks as _detect_screenplay_blocks, \
+    _SCREENPLAY_SLUGLINE_RE
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
 from . import layout as _layout
@@ -962,6 +964,56 @@ GRAPHIC_CHARS = (frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY)
                  | set(PART_BLOCKS) | set(SYMBOL_SHAPES))
 _GRAPHIC_RUN = _re.compile('[%s](?:[%s ]*[%s])?' % tuple(
     _re.escape(''.join(GRAPHIC_CHARS)) for _ in range(3)))
+# b26-modern item 2: Modern's word tokenizer (plain `' +|[^ ]+'`) splits a
+# box-drawing row -- '<left border><interior spaces><right border>' -- into
+# THREE separate tokens (border/gap/border), because the interior is pure
+# whitespace and the generic tokenizer always breaks on space runs. Each
+# piece then gets measured independently: the border tokens go through
+# `_modern_w`'s graphic-pitch branch, but the all-space middle token does
+# NOT contain a graphic char, so it falls through to ordinary proportional
+# text measurement instead -- the two measurement systems only coincide by
+# accident when a resolved fixed-pitch font `entry` is active (both sides
+# reduce to the same `_span_pitch` formula then); a genuinely fontless
+# region (`entry is None` -- every WS4 file, and any WS5+ document before
+# its own first font-change record, e.g. a box that is the document's own
+# first content) measures its border chars and its interior gap by two
+# UNRELATED formulas, so the row's own drawn width stops matching its
+# neighbouring rows -- the observed "first box mangled, later ones fine"
+# shape (reproduced on the real corpus, BOXES.WS: its opening box, before
+# any font record, measured 322pt; an IDENTICAL box appearing later in the
+# same file, by then under a resolved font, measured 165.6pt).
+# `_GRAPHIC_RUN` already matches a whole border-gap-border shape in ONE
+# piece, and `_modern_w`'s graphic branch already advances such a piece
+# uniformly at one pitch end to end -- the fix is to let the TOKENIZER
+# find that same shape first, so a box row reaches width measurement (and
+# `_modern_wrap`) as the ONE unit it visually is, rather than three
+# fragments two different formulas disagree about. This is also exactly
+# the "non-reflowing" behavior a graphic/char-array row needs: a single
+# token cannot be broken mid-row by `_modern_wrap`'s greedy word-break.
+_MODERN_TOK_RE = _re.compile(_GRAPHIC_RUN.pattern + r'|[^ ]+| +')
+
+# b26-modern item 3 (screenplay ruling, BUILD-SLATES.md item 27, Jon's
+# decided ruling): two line SHAPES that only matter INSIDE a screenplay-
+# detected region (`core.detect_screenplay_blocks` -- gated the same way
+# emit.py's own verse-forcing already is, `bi in screenplay_blocks`; a
+# WordStar screenplay page-number marker or a numbered scene-list entry
+# elsewhere in an ordinary document must never be swept up by these).
+#
+# A "page marker" line -- SCRIPT.WS's own "1." sitting alone at the top of
+# its rendered screenplay page, real screenplay-software convention --
+# is nothing but whitespace and a bare 1-4 digit number (optional trailing
+# period). Fullmatch, so a slugline's own leading scene number ("1     INT.
+# ...") never qualifies (it has letters after the digits on the same
+# line).
+_SCREENPLAY_PAGE_MARKER_RE = _re.compile(r'[ \t]*\d{1,4}\.?[ \t]*$')
+
+# A genuine slugline (anchored the SAME way `core.detect_screenplay_blocks`
+# itself anchors a scene) that also carries a RIGHT-HAND scene number --
+# real screenplay convention repeats the scene number at both margins of
+# its own slugline. Only a slugline actually shaped this way needs the
+# non-wrap protection below; a slugline with no trailing number has
+# nothing on its right edge to protect.
+_SCREENPLAY_TRAILING_SCENE_NUM_RE = _re.compile(r'[ \t]\d{1,4}[ \t]*$')
 
 
 def _graphic_ops(text, x, y, pitch, pt):
@@ -3496,7 +3548,8 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     """The MEASURED Modern flow: layout.modern_flow's semantic items (the
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
-        ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt)
+        ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt,
+         no_wrap, page_marker)
         ('blank', height) | ('break',) | ('cond', n)
         ('hf', 'H'|'F', line_no, text)
         ('image', pix_index, w_pt, h_pt)
@@ -3519,6 +3572,24 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
     blank_h = MODERN_LINE * MODERN_BODY_PT
+    # b26-modern item 3: computed once, not per-line -- detect_screenplay_
+    # blocks already walks the whole document itself.
+    screenplay_blocks = _detect_screenplay_blocks(doc)
+    # The page-marker rule (a)/(b) needs one more block index than
+    # `screenplay_blocks` itself carries: a real screenplay's own page-
+    # number marker sits BEFORE its scene's slugline (SCRIPT.WS's own
+    # shape -- block 75, "1." -- immediately precedes block 76, the
+    # slugline that anchors the detected region), but
+    # detect_screenplay_blocks's region growth is documented to extend
+    # only FORWARD from its slugline anchor, never backward, so the
+    # marker's own block index is never a member of `screenplay_blocks`.
+    # Widen candidacy by one or two blocks forward (covering an
+    # intervening blank-only block) rather than touching the shared
+    # detector's own region-growth rule, which carries its own zero-
+    # false-positive corpus gate this wave must not risk.
+    screenplay_marker_bis = {bi for bi in range(len(doc.blocks))
+                             if bi + 1 in screenplay_blocks
+                             or bi + 2 in screenplay_blocks} if screenplay_blocks else frozenset()
     flow = []
     for it in sem['items']:
         k = it['kind']
@@ -3537,10 +3608,10 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                                       MODERN_NOTE_PT)
             flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
                                    MODERN_NOTE_PT, None, sep_w)],
-                         'left', [], 0.0, 0.0))
+                         'left', [], 0.0, 0.0, False, False))
         elif k == 'note':
             flow.append(('para', _modern_note_toks(it['label'], it['text']),
-                         'left', [], 0.0, 0.0))
+                         'left', [], 0.0, 0.0, False, False))
         else:                                                   # para
             if embed_images and not any('ref' in r for r in it['runs']):
                 sub = _spans_pix_substitution(
@@ -3563,15 +3634,49 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                               None)
                     toks.append(marker + (_modern_w(*marker),))
                     continue
-                for m in _re.finditer(r' +|[^ ]+', run['text']):
+                for m in _MODERN_TOK_RE.finditer(run['text']):
                     written, family, pt, entry = _modern_tok_font(
                         m.group(0), styles, doc.fonts)
                     w = _modern_w(written, styles, family, pt, entry)
                     toks.append((written, styles, family, pt, entry, w))
+            # b26-modern item 3 (screenplay ruling): only lines inside a
+            # DETECTED screenplay region (or immediately preceding one,
+            # for the page-marker case -- see screenplay_marker_bis
+            # above) are even candidates -- an ordinary document's own
+            # numbered list or table never qualifies, same discipline as
+            # emit.py's own `bi in screenplay_blocks` gate.
+            align = it['align']
+            no_wrap = page_marker = False
+            bi = it.get('bi')
+            if bi in screenplay_blocks or bi in screenplay_marker_bis:
+                visible = ''.join(r['text'] for r in it['runs']
+                                  if 'ref' not in r)
+                if _SCREENPLAY_PAGE_MARKER_RE.match(visible):
+                    # "1." alone at the top of a real screenplay page:
+                    # render flush against the right margin, below the
+                    # header -- rule (b). Leading whitespace tokens stay in
+                    # `toks` untouched: _modern_line_ops's own right-align
+                    # spends them as blank advance before the visible
+                    # glyph, landing it flush regardless of how much
+                    # leading space the source typed.
+                    page_marker = True
+                    align = 'right'
+                elif (bi in screenplay_blocks
+                      and _SCREENPLAY_SLUGLINE_RE.match(visible)
+                      and _SCREENPLAY_TRAILING_SCENE_NUM_RE.search(visible)):
+                    # A slugline carrying its own right-hand scene number
+                    # (real screenplay convention: the number repeats at
+                    # both margins) must never wrap the number onto its
+                    # own line -- rule (c). `_modern_streams` gives this
+                    # line an unbounded wrap width instead of reflowing
+                    # per-token widths differently. (bi in screenplay_
+                    # blocks specifically -- a marker-lookahead block is
+                    # never also a slugline.)
+                    no_wrap = True
             notes = [(note_rows[ni], label) for ni, label in it['footnotes']]
-            flow.append(('para', toks, it['align'], notes,
+            flow.append(('para', toks, align, notes,
                          it['indent_cols'] * col_pt,
-                         it['cut_cols'] * col_pt))
+                         it['cut_cols'] * col_pt, no_wrap, page_marker))
     return flow
 
 
@@ -3714,6 +3819,25 @@ def _modern_streams(doc, options, res):
     cur_h, cur_f = {}, {}          # running-head state as events replay
     page_h, page_f = {}, {}        # state when the OPEN page took content
     opened = False
+    # b26-modern item 4: a blank line's own advance must scale with the
+    # SURROUNDING text's font size, same principle as Printed's established
+    # "a blank advances at the preceding block's own leading" rule
+    # (test_style_leading.py) -- Modern already computes each real line's
+    # own size-proportional `h` (MODERN_LINE * that line's own max token
+    # size) below, but a 'blank' item used to carry a FIXED height baked at
+    # flow-build time (MODERN_LINE * MODERN_BODY_PT, the 14pt document
+    # default) regardless of what was actually on the page. Measured on
+    # PREVIEW.WS (real corpus, font-sample page mixing 24pt/20pt/12pt
+    # lines): a blank between two 24pt lines advanced by the SAME fixed
+    # 16.8pt a blank between a 24pt and an 8pt line would -- the total
+    # inter-paragraph gap tracked only the ENTERING line's own size, never
+    # the size actually being LEFT, so two structurally-identical "one
+    # blank line" transitions produced visibly different gaps whenever the
+    # preceding line's size differed. Fix: track the most recently placed
+    # line's own `h` and use THAT for the next blank, falling back to the
+    # 14pt default only when nothing has been placed yet (unchanged
+    # behavior for a leading blank).
+    last_h = MODERN_LINE * MODERN_BODY_PT
 
     def note_block_h():
         return (sep_h + note_lead * len(notes_lines)) if notes_lines else 0.0
@@ -3751,7 +3875,7 @@ def _modern_streams(doc, options, res):
         if item[0] == 'blank':
             if not body:
                 continue                      # no blank at a page top
-            h = item[1]
+            h = last_h
             if y - h < margb + note_block_h():
                 close()
                 continue
@@ -3769,9 +3893,28 @@ def _modern_streams(doc, options, res):
             open_page()
             y -= h_pt
             body.append((y, item, 'left', 0.0, 0.0))
+            last_h = h_pt
             continue
-        _, toks, align, notes, indent, cut = item
-        line_w = max(36.0, width - indent - cut)
+        _, toks, align, notes, indent, cut, no_wrap, page_marker = item
+        if page_marker and body:
+            # b26-modern item 3, rule (a): a real screenplay page-number
+            # marker starts a new real page -- if this Modern page already
+            # has content on it (no explicit .pa immediately preceded this
+            # marker, the ordinary case), force the break here instead of
+            # letting the marker land mid-page. A marker that is already
+            # the first thing on a fresh page (an explicit .pa DID
+            # precede it, SCRIPT.WS's own shape) costs nothing extra --
+            # `close()` on an empty page would just insert a spurious
+            # blank one, so this only fires when there is something to
+            # separate FROM.
+            close()
+        # rule (c): a screenplay slugline carrying its own right-hand scene
+        # number never wraps -- an unbounded width means _modern_wrap's
+        # greedy break condition (`curw + w > width`) can never trigger,
+        # so the whole line places as ONE visual line regardless of its
+        # natural width, exactly as real screenplay software keeps a
+        # slugline unbroken.
+        line_w = _math.inf if no_wrap else max(36.0, width - indent - cut)
         vis = _modern_wrap(toks, line_w)
         new_note_lines = []
         for note, label in notes:
@@ -3788,6 +3931,7 @@ def _modern_streams(doc, options, res):
                 close()
             open_page()
             y -= h
+            last_h = h
             body.append((y, vline, align, indent, cut))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)

@@ -301,11 +301,26 @@ PARAGRAPH_JOIN_SLACK = 10
 # ending in a dash, not a dropped sentence). 0.8 sits in the gap with
 # daylight on both sides of BOTH real samples.
 VERSE_TERMINAL_FRACTION = 0.8
-# A THIRD of a run's lines opening with a quote mark is enough to veto a
-# verse call outright -- spoken dialogue, never poetry, and a stronger
-# signal than terminal punctuation where the two disagree (a quoted
-# question ends in `?"`, still "terminal", but the quote mark alone already
-# settles it).
+# A THIRD of a run's lines opening AND CLOSING a quotation on their own
+# single line is enough to veto a verse call outright -- spoken dialogue,
+# never poetry, and a stronger signal than terminal punctuation where the
+# two disagree (a quoted question ends in `?"`, still "terminal", but the
+# quote mark alone already settles it). SELF-CONTAINED, not merely
+# "starts with a quote mark" (b26-modern item 5, WARPRAYR.WS's own quoted
+# hymn couplet, real WS7 corpus): `"God the all-terrible! Thou who
+# ordainest, / Thunder thy clarion..."` is a SINGLE quotation spanning two
+# short lines -- only its first line opens with `"`, at 1-of-2 (0.5) comfortably
+# past the old bare-"starts with a quote mark" bar, silently vetoing a
+# genuine verse couplet as if it were dialogue. Real spoken-dialogue
+# exchanges (the fixtures this fraction was calibrated against,
+# test_ws4_dialogue_run_does_not_false_positive_as_stanza:
+# '"Where are you going?"', '"I already told you."') open AND close their
+# quote on the SAME line every time -- each is one self-contained
+# utterance. A line that opens a quotation but does not close it before
+# its own end is exactly as consistent with "this is the first line of a
+# quoted passage spanning several lines" as with dialogue, so it must not
+# single-handedly veto a verse read; `_self_contained_quote` requires
+# both marks on one line before a line counts toward this fraction.
 VERSE_QUOTE_VETO_FRACTION = 1 / 3
 # A run whose OWN text styling differs from the block's dominant running
 # style is verse WHENEVER AT LEAST THIS MUCH of it shows the shift --
@@ -357,6 +372,19 @@ def _ends_terminal(text: str) -> bool:
 def _opens_quote(text: str) -> bool:
     t = text.lstrip()
     return t[:1] in _OPENING_QUOTES
+
+
+def _self_contained_quote(text: str) -> bool:
+    """Whether TEXT both opens AND closes a quotation on its own single
+    line (`VERSE_QUOTE_VETO_FRACTION`'s own evidence base -- see its
+    docstring): real spoken dialogue is one self-contained utterance per
+    line, but a line that only OPENS a quotation -- the first line of a
+    passage quoted across several lines, e.g. a hymn or poem excerpt -- is
+    not, even though `_opens_quote` alone would also say True for it."""
+    t = text.lstrip()
+    if t[:1] not in _OPENING_QUOTES:
+        return False
+    return any(c in _CLOSING_QUOTES for c in t[1:])
 
 
 def effective_span_styles(span, block, heading_bold: bool = False) -> frozenset:
@@ -489,7 +517,7 @@ def looks_like_verse(run: list, dominant_styles: frozenset = frozenset()) -> boo
     scored = [t for t in texts if any(c.isalpha() for c in t)]
     if len(scored) < 2:
         return False
-    if sum(_opens_quote(t) for t in scored) / len(scored) >= VERSE_QUOTE_VETO_FRACTION:
+    if sum(_self_contained_quote(t) for t in scored) / len(scored) >= VERSE_QUOTE_VETO_FRACTION:
         return False
     term_frac = sum(_ends_terminal(t) for t in scored) / len(scored)
     if term_frac >= VERSE_ATTR_SUPPORTED_CEILING:

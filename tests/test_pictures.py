@@ -569,6 +569,33 @@ def test_pdf_notes_pagination_embed_places_an_image_xobject(tmp_path):
     assert b'A footnote.' in out                # the notes area still renders
 
 
+def test_modern_pdf_embeds_image_and_renders_footnote_text_together(tmp_path):
+    # b26-modern item 1: re-verifies round 22's two round-19 scope cuts
+    # (image-embed + placeable-notes) together in MODERN mode specifically
+    # -- the existing coverage exercised them separately (this file's own
+    # `test_pdf_modern_embed_places_an_image_xobject_no_placeholder` for
+    # the image alone; PRINTED mode's sibling test above for image+notes
+    # together) but nothing pinned image+footnote+endnote all landing on
+    # one Modern PDF page at once, the real -SCREEN.WS shape. Investigated
+    # as a live regression risk for this item and found already correct
+    # on current main; formalized here so it stays that way. PDF draws one
+    # word per Tj operation (not the substring-joined phrase), so the
+    # verification joins words on spaces the same way the b26-notes-wave
+    # cross-format pin (test_ctrlkd.py) already does -- a naive `in`
+    # substring check against the raw bytes gives a false negative here.
+    import re
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_footnote_and_isolated_pix(tmp_path)
+    assert doc.footnotes, 'fixture must carry a real footnote'
+    out = pdf.emit_pdf(doc, mode='modern', pictures='embed', pix_results=results)
+    assert b'/Subtype /Image' in out
+    assert b'/Im0 Do' in out
+    assert b'FIGURE1.PIX' not in out
+    words = re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', out)
+    joined = b' '.join(words)
+    assert b'A footnote.' in joined
+
+
 def test_pdf_notes_pagination_off_is_byte_identical(tmp_path):
     from ctrlkd import pdf
     doc, results, _ = _doc_with_footnote_and_isolated_pix(tmp_path)
