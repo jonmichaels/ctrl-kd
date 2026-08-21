@@ -2033,7 +2033,17 @@ def test_ws4_double_spacing_survives_to_pagelines():
     file"). A real double-spaced WS4 essay is stored this way -- text lines
     interleaved with soft blanks -- and collapsing them destroys the document's
     vertical rhythm and its page count.
-    """
+
+    Finding 1 (round 26 visual pass): each of those blanks stays its OWN
+    literal PageLine, at its own natural lead -- an earlier version of this
+    fix COLLAPSED a spacing pair into one 2x-lead PageLine and that broke on
+    documents with irregular paragraph lengths (a real WS7 capture's own
+    page-top baseline cycles through phases 12pt apart depending on raw-line
+    parity at the page break; collapsing pairs can only reproduce one phase).
+    What changes instead is each spacing blank's `ws4_spacing` flag (see
+    `_ws4_spacing_blank_indices`) -- pagination reads it to decide whether
+    the blank alone may force a page break, never whether it exists as a
+    PageLine at all."""
     from ctrlkd.pdf import _doc_to_pagelines
     body = b''
     for n in range(6):
@@ -2041,6 +2051,9 @@ def test_ws4_double_spacing_survives_to_pagelines():
     pages = _doc_to_pagelines(core.parse_ws(body), True)
     pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
     assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
+    blanks = [ln for ln in pages[0] if not ''.join(t for t, _ in ln).strip()]
+    assert blanks and all(getattr(ln, 'ws4_spacing', False) for ln in blanks), \
+        'spacing blanks not classified: _ws4_spacing_blank_indices'
 
 
 # ---------------------------------------------------------------- release eras

@@ -2036,10 +2036,18 @@ class PageLine(list):
     # `_doc_to_pagelines`) accounts for the image's vertical footprint
     # with NO change of its own -- reusing exactly the mechanism round 17
     # built for `.psa`/`.psb`.
-    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image')
+    # `ws4_spacing` (Finding 1, round 26 visual pass): True for a blank
+    # PageLine that `_ws4_spacing_blank_indices` classified as this WS4
+    # document's OWN double-spacing idiom rather than authored content --
+    # see that function's docstring, and the pagination loop's own use of
+    # this flag (`_doc_to_pagelines`'s `full` computation) for why it
+    # matters: a blank flagged this way never forces a page break BY
+    # ITSELF, an authored blank (flag False, every non-WS4 document's
+    # blanks included) is untouched, exactly the previous behaviour.
+    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
-                bi=None, image=None):
+                bi=None, image=None, ws4_spacing=False):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -2048,6 +2056,7 @@ class PageLine(list):
         self.bi = bi
         self.fi = fi
         self.image = image
+        self.ws4_spacing = ws4_spacing
 
 
 class Page(list):
@@ -2074,6 +2083,137 @@ class Page(list):
         self.footers = {}
         self.mt_lines = None
         self.mb_lines = None
+
+
+def _is_blank_line(line):
+    """A physical Line with no non-whitespace span text -- the same test
+    the per-line PageLine-building loop in `_doc_to_pagelines` already
+    applies inline (its own `is_blank`), factored out here so
+    `_ws4_spacing_blank_indices` can classify a whole block's lines before
+    that loop runs."""
+    return not any(s.text.strip() for s in line.spans)
+
+
+def _ws4_spacing_blank_indices(doc, ls_confirmed):
+    """Finding 1 (round 26 visual pass, private WS4 paper corpus, never
+    entering this repo): `{block_index: set(line indices into that
+    block's own .lines)}` -- every blank Line that is this document's
+    OWN double-spacing idiom, not authored content. ONLY CALLED for a
+    `variant == 'ws4'` document -- see the call site's own docstring
+    note for why this never even runs for anything else.
+
+    WordStar's OWN manual gives this a physical story, already quoted
+    elsewhere in this module (`_text_lines_per_page`): "when you use
+    line spacing, the blank lines become part of the file" (WS7 manual,
+    "Line Spacing") -- `.LS`'s blank lines are not computed at print
+    time, they are literal Lines the file itself carries. A classified
+    blank stays exactly that: a literal Line, its own ordinary PageLine
+    at its own natural (single) lead -- `_doc_to_pagelines` does NOT
+    fold it into a neighbour's lead. An early version of this fix did
+    fold (collapsing a double-spaced pair into one PageLine at 2x lead)
+    and it broke on irregular paragraph lengths: real WS7's own page-top
+    baseline cycles through THREE distinct phases 12pt apart (measured:
+    a WS4 source with long, regular paragraphs holds one phase for every
+    interior page, 71.7pt; a WS4 source built mostly from short dialogue
+    paragraphs cycles 71.7/83.7/95.7pt depending on whether the page
+    break happened to land on odd or even raw-line parity) -- collapsing
+    every pair into a single 2x-lead unit can only ever reproduce ONE of
+    those phases, because it throws away exactly the raw single-line
+    parity information a page break's real position depends on. Classifying
+    which blanks are spacing (this function) but leaving them as literal
+    RAW PageLines preserves that parity; only their ELIGIBILITY to force a
+    page break changes (`_doc_to_pagelines`'s own pagination loop, via each
+    PageLine's own `ws4_spacing` flag).
+
+    Classified PER BLOCK first (a block is WordStar's own paragraph
+    unit), because a WS4 fiction manuscript mixes double-spaced
+    narrative with single-spaced inserts (verse quoted verbatim, a
+    bibliography) at exactly that granularity, not document-wide -- a
+    block whose own lines are `T,T,...` (two real lines with no blank
+    between them) or start with a leading blank never counts, regardless
+    of anything nearby. Neither measured WS4 source sets `.LS` at all
+    (checked their own raw dot-command bytes directly): WS4 predates
+    `.LS` even being a documented dot command, so there is usually no
+    stateful signal to key off and this has to read the rhythm off the
+    pattern itself -- `ls_confirmed` (True only when the file's own
+    `.LS` dot-command positively declares spacing > 1,
+    `page['ls_source'] == 'file'`) trusts direct file evidence over the
+    inferred pattern when it exists.
+
+    A block whose shape is a clean alternation (T,B,T,B,... with no two
+    adjacent same-kind lines, ignoring a possible TRAILING blank run at
+    its very end -- see below) is COMPATIBLE with the rhythm; one that
+    also has >= threshold interior blanks (an interior blank is real
+    text on BOTH sides, within the same block) on its own is CONFIRMED.
+    threshold is 1 under `ls_confirmed`, else 2 -- 2 because a real
+    document can carry a single, genuinely authored blank line in the
+    middle of an ordinary paragraph (measured: a Sawyer corpus document's
+    own block, "PS: ... " / blank / "(Yes, it's awkward ...)" -- one
+    isolated interior blank, never repeated anywhere else in that block)
+    -- that is authored spacing, not a rhythm, and one occurrence alone
+    must never count it. (That document is `ws5+`, so the WS4 gate alone
+    already keeps it untouched -- the threshold is the SECOND
+    independent reason, for a future WS4 capture that turns out to carry
+    the same kind of aside.)
+
+    STATE, carried across blocks in document order like any other
+    WordStar dot-command state (round 22's `.oc`/`.oj`/etc. precedent):
+    a CONFIRMED block turns spacing mode on; a COMPATIBLE-but-unconfirmed
+    block counts too WHILE mode is already on (this is what a lone short
+    line of dialogue, "T,B" or "T,B,T,B" -- too short to confirm 2
+    interior repeats by itself -- needs: measured against a real WS4
+    source, several consecutive short dialogue paragraphs sit between
+    longer confirmed ones, and their own 24pt gaps to their neighbours
+    check out against that source's own baselines exactly like the
+    confirmed ones'). An INCOMPATIBLE block (leading blank, or two real
+    lines back to back) turns the mode back OFF -- the one hard stop, so
+    a verse quotation or a bibliography section breaks the chain exactly
+    where the document's own shape says it should, not where a
+    document-wide guess would. A COMPATIBLE-but-unconfirmed block seen
+    BEFORE the first CONFIRMED one (mode still off) is left alone --
+    there is no evidence yet to count it against.
+
+    TRAILING RUN: a block that counts at all (confirmed, or compatible
+    while mode is on) counts its OWN trailing blanks too -- from its
+    last real line to its own end -- even though a trailing run is never
+    "interior" (there is no following real line left within THIS block
+    for it to sit between). WordStar's "blank lines become part of the
+    file" is a property of `.LS`, not of which physical line happens to
+    be a paragraph's last -- measured: a WS4 source's paragraph
+    boundaries carry a 2-3 blank RUN, not the single blank its own
+    within-paragraph rhythm uses (the paragraph's last line still owes
+    its own spacing filler; the author's own blank-line gap between
+    paragraphs, typed under the same `.LS`, owes its own filler too), and
+    the resulting larger gap (measured: 48pt across a 3-blank boundary,
+    exactly 2x a normal 24pt gap) checks out against the source's own
+    baselines too."""
+    threshold = 1 if ls_confirmed else 2
+    spacing_map = {}
+    spacing_mode = False
+    for bi, b in enumerate(doc.blocks):
+        if b.kind != 'para':
+            continue                          # sentinels never reset the state
+        flags = [not _is_blank_line(ln) for ln in b.lines]
+        if not flags or not flags[0]:
+            spacing_mode = False              # empty, or opens on a blank
+            continue
+        last_real = max(i for i, f in enumerate(flags) if f)
+        core = flags[:last_real + 1]
+        compatible = all(core[i] != core[i + 1] for i in range(len(core) - 1))
+        if not compatible:
+            spacing_mode = False
+            continue
+        interior = [i for i in range(1, len(flags) - 1)
+                    if flags[i - 1] and not flags[i] and flags[i + 1]]
+        confirmed = len(interior) >= threshold
+        if confirmed or spacing_mode:
+            spacing = set(interior)
+            spacing.update(range(last_real + 1, len(flags)))
+            spacing_map[bi] = spacing
+            spacing_mode = True
+        # else: compatible, but neither confirmed itself nor inheriting an
+        # already-on mode -- no evidence yet; leave uncounted, mode stays off
+    return spacing_map
 
 
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
@@ -2142,6 +2282,35 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
     doc_sb, doc_sa = _printed_doc_spacing_pt(doc) if printed else (None, None)
     pending_sa = None
     default_lead_pt = _printed_lead(doc) if printed else LEAD
+    # Finding 1 (round 26 visual pass): scoped, per Jon's binding ruling,
+    # to a POSITIVELY-DETECTED condition -- `variant == 'ws4'` -- rather
+    # than trusting the block-pattern detector alone to stay harmless
+    # everywhere else. `-README`/`VERSIONS` (both `ws5+`) picked up real
+    # cross-page drift the FIRST time this fix shipped scoped only by
+    # pattern (0.0 -> 0.0089 / 0.0047 XPAGE) -- both had matched their
+    # own WS7 captures EXACTLY before that, so "a rule that un-matches
+    # exact documents to fix others is not WS7's real rule" (Jon).
+    # `ws4_spacing` being False makes `spacing_map` the literal empty
+    # dict below for every non-WS4 document -- `_ws4_spacing_blank_indices` is
+    # never even CALLED -- so every non-WS4 document's own code path is
+    # identical to before this fix, by construction, not by trusting the
+    # pattern to happen not to fire. Widening this gate past `ws4` (to
+    # `ws3`, or to a WS5+ document that turns out to want the same
+    # treatment) needs its own oracle evidence -- a real WS7 capture
+    # showing the same constant-lines-per-page signature this fix was
+    # built from -- not an assumption that the mechanism generalises.
+    ws4_spacing = printed and doc.meta.get('variant') == 'ws4'
+    # Prefer the file's OWN `.LS` dot-state when it exists (WS7 manual,
+    # "Line Spacing": ".LS's blank lines become part of the file" -- see
+    # `_ws4_spacing_blank_indices`); neither WS4 source measured for this
+    # finding sets `.LS` at all (WS4 predates the dot command), so this
+    # is False for them and the structural fallback in
+    # `_ws4_spacing_blank_indices` carries the detection instead -- but a
+    # future WS4 capture that DOES carry an explicit `.LS 2`+ should be
+    # trusted over the pattern, not re-inferred from it.
+    ls_confirmed = bool(ws4_spacing and doc.meta.get('page', {}).get('ls_source') == 'file'
+                        and (doc.meta.get('page', {}).get('ls') or 1) > 1)
+    spacing_map = _ws4_spacing_blank_indices(doc, ls_confirmed) if ws4_spacing else {}
     # round 26 wave 3 (fidelity_gate.py Finding B): `_font_lead_pt`'s
     # carried-governing-size state, threaded across every physical line
     # of the document in source order, same cross-block carry as
@@ -2188,8 +2357,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
         # the blank placeholder lines WordStar reserved for it -- see
         # `_pix_reserved_advance`.
         blk_lines = b.lines if printed else _merged_lines(b)
+        # Finding 1: see `ws4_spacing`'s own comment above -- `spacing_map`
+        # is the literal empty dict for every non-WS4 document, so `.get`
+        # here always returns the empty set and nothing below can touch one.
+        spacing_blanks = spacing_map.get(bi, set())
         _li = 0
         while _li < len(blk_lines):
+            _idx = _li
             line = blk_lines[_li]
             _li += 1
             # the docstring's "headings bold" promise: heading blocks render in
@@ -2239,6 +2413,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                 if own_lead is None and font_lead_ok:
                     own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                              font_lead_state)
+                # Finding 1: this blank IS the block's own double-spacing
+                # (see `_ws4_spacing_blank_indices`) -- it still becomes its
+                # own literal PageLine, at its own natural (unextended)
+                # lead, EXACTLY as any other blank always has; only its
+                # `ws4_spacing` flag differs, which the pagination loop
+                # below reads to decide whether this blank alone may force
+                # a page break (see that loop's own comment for why
+                # collapsing it into a neighbour's lead, an earlier version
+                # of this fix, broke on irregular paragraph lengths).
+                ws4_spacing_line = is_blank and _idx in spacing_blanks
                 extra = 0.0
                 if pending_sa is not None:
                     extra += pending_sa
@@ -2276,7 +2460,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
                         continue
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
-                             fi=(fi_pt if first_line_of_block else None), bi=bi)
+                             fi=(fi_pt if first_line_of_block else None), bi=bi,
+                             ws4_spacing=ws4_spacing_line)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -2412,8 +2597,30 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
             cur_mt, cur_mb = _mt_mb_at(mt_mb_checkpoints, l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb)
             budget = (cap - 1) * default_lead
-        full = (spent + _cost(l) > budget + 1e-6) if printed \
-               else len(page) >= cap
+        overflow = (spent + _cost(l) > budget + 1e-6) if printed \
+                  else len(page) >= cap
+        # Finding 1 (round 26 visual pass): the FIRST `ws4_spacing`
+        # blank (see `_ws4_spacing_blank_indices`) to overflow a page's
+        # budget never triggers the break by itself -- a physical
+        # blank-line paper advance right at the bottom margin doesn't
+        # need a fresh sheet, and giving it its OWN page-break decision
+        # was this finding's original bug (a page break landing mid
+        # text/blank pair silently spent one line of the NEXT page's
+        # budget on ink-free paper, growing a cumulative real-line
+        # deficit every other page). ONLY a PageLine this document's own
+        # `_ws4_spacing_blank_indices` positively classified gets this
+        # exemption -- an ordinary blank (every non-WS4 document's
+        # blanks, and a WS4 document's own authored ones, chapter-drops
+        # included) still forces the break exactly as before this fix,
+        # since `ws4_spacing` defaults False and nothing here changes
+        # that default. `already_over` denies the exemption to a SECOND
+        # consecutive over-budget spacing blank (a paragraph boundary's
+        # own 2-3 blank run): forgiving every blank in a run over-admits
+        # a whole extra real line one measured source's own WS7 capture
+        # didn't have.
+        already_over = printed and spent > budget + 1e-6
+        full = overflow and not (printed and getattr(l, 'ws4_spacing', False)
+                                 and not already_over)
         if l is None or full:
             if page or l is None:
                 _close_page(); page, spent = [], 0.0
