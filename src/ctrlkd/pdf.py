@@ -962,6 +962,33 @@ GRAPHIC_CHARS = (frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY)
                  | set(PART_BLOCKS) | set(SYMBOL_SHAPES))
 _GRAPHIC_RUN = _re.compile('[%s](?:[%s ]*[%s])?' % tuple(
     _re.escape(''.join(GRAPHIC_CHARS)) for _ in range(3)))
+# b26-modern item 2: Modern's word tokenizer (plain `' +|[^ ]+'`) splits a
+# box-drawing row -- '<left border><interior spaces><right border>' -- into
+# THREE separate tokens (border/gap/border), because the interior is pure
+# whitespace and the generic tokenizer always breaks on space runs. Each
+# piece then gets measured independently: the border tokens go through
+# `_modern_w`'s graphic-pitch branch, but the all-space middle token does
+# NOT contain a graphic char, so it falls through to ordinary proportional
+# text measurement instead -- the two measurement systems only coincide by
+# accident when a resolved fixed-pitch font `entry` is active (both sides
+# reduce to the same `_span_pitch` formula then); a genuinely fontless
+# region (`entry is None` -- every WS4 file, and any WS5+ document before
+# its own first font-change record, e.g. a box that is the document's own
+# first content) measures its border chars and its interior gap by two
+# UNRELATED formulas, so the row's own drawn width stops matching its
+# neighbouring rows -- the observed "first box mangled, later ones fine"
+# shape (reproduced on the real corpus, BOXES.WS: its opening box, before
+# any font record, measured 322pt; an IDENTICAL box appearing later in the
+# same file, by then under a resolved font, measured 165.6pt).
+# `_GRAPHIC_RUN` already matches a whole border-gap-border shape in ONE
+# piece, and `_modern_w`'s graphic branch already advances such a piece
+# uniformly at one pitch end to end -- the fix is to let the TOKENIZER
+# find that same shape first, so a box row reaches width measurement (and
+# `_modern_wrap`) as the ONE unit it visually is, rather than three
+# fragments two different formulas disagree about. This is also exactly
+# the "non-reflowing" behavior a graphic/char-array row needs: a single
+# token cannot be broken mid-row by `_modern_wrap`'s greedy word-break.
+_MODERN_TOK_RE = _re.compile(_GRAPHIC_RUN.pattern + r'|[^ ]+| +')
 
 
 def _graphic_ops(text, x, y, pitch, pt):
@@ -3563,7 +3590,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                               None)
                     toks.append(marker + (_modern_w(*marker),))
                     continue
-                for m in _re.finditer(r' +|[^ ]+', run['text']):
+                for m in _MODERN_TOK_RE.finditer(run['text']):
                     written, family, pt, entry = _modern_tok_font(
                         m.group(0), styles, doc.fonts)
                     w = _modern_w(written, styles, family, pt, entry)
