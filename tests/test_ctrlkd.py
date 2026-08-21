@@ -2236,6 +2236,44 @@ def test_header_baseline_ignores_a_default_hm():
     assert ys == [756.0]                    # 792 - 36.0
 
 
+def test_header_baseline_applies_a_default_hm_once_mt_is_explicit():
+    """b26-header-round2 (LJ6DTP.WS): b26-header-baseline's rule ("hm
+    participates only when hm_source == 'file'") broke LJ6DTP, whose
+    header rendered INSIDE the body text (Jon's paper review) -- LJ6DTP
+    is the first oracle with mt EXPLICIT but hm at its OWN default,
+    separating "keyed on hm's source" from "keyed on mt's". Reproduced
+    here: `.mt 1.1"` (explicit) with NO `.hm` at all, plus a `.lh` custom
+    enough (9.33333/48in = 14pt, LJ6DTP's own real value) to expose the
+    SECOND bug this same round found -- head_base must convert to points
+    at the FIXED 6 LPI unit `.mt`/`.hm` are always specified in (module
+    LEAD, 12pt), never the document's own customized `.lh` leading, which
+    is a wholly separate quantity. Page 2's `.mt1"` mid-document override
+    (b26-mtmb-general's per-page swap: capacity clamps to the document's
+    global capacity, but Page.mt_lines/mt_source still carry the page's
+    own LOCAL 6.0/'file', the same value `_printed_top` already renders
+    the correct body baseline from) gives head_base 3 = mt(6.0) - hm(2,
+    APPLIED despite hm_source 'default', because mt_source is 'file') -
+    top_head(1) -> y = 3*12 + 12 = 48.0pt, matching LJ6DTP.pcl exactly.
+    Page 1 (mt 6.6 global, ALSO explicit) gets the same treatment: 55.2pt
+    -- incidentally the same class of number the OLD, doubly-broken
+    pre-b26-header-baseline code produced for LJ6DTP by coincidence, not
+    because this fixture reproduces that bug (its own hm=2 here is
+    genuinely applied, not left over from an unconditional-subtract
+    formula)."""
+    from ctrlkd.pdf import emit_pdf
+    data = (b'.mt 1.1"\r\n.lh 9.33333\r\n.he TITLE\r\n'
+            + b''.join(b'Body line %d.\r\n' % i for i in range(1, 5))
+            + b'.pa\r\n.mt1"\r\n.mb1"\r\n'
+            + b''.join(b'Page2 line %d.\r\n' % i for i in range(1, 5)))
+    doc = core.parse_ws(data)
+    page = doc.meta['page']
+    assert page['mt_source'] == 'file' and page['hm_source'] == 'default'
+    pdf = emit_pdf(doc, mode='printed')
+    ys = [float(m) for m in
+         re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
+    assert ys == [736.8, 744.0]              # 792 - 55.2, 792 - 48.0
+
+
 # --------------------------------------------------- Finding 3: per-page .mt/.mb
 
 def test_mid_document_mt_mb_gets_its_own_page_capacity():
