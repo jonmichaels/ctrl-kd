@@ -1742,10 +1742,15 @@ def test_pdf_printed_endnotes_numbered_independently_of_footnotes():
     from ctrlkd.pdf import _doc_to_pagelines
     pages = _doc_to_pagelines(doc, True)
     flat = [l for pg in _page_texts(pages) for l in pg]
-    assert any(l.strip() == '1. First footnote.' for l in flat)
-    assert any(l.strip() == '2. Second footnote.' for l in flat)
-    assert any(l.strip() == '(1) First endnote.' for l in flat)
-    assert any(l.strip() == '(2) Second endnote.' for l in flat)
+    # Finding 4 (round 26 visual pass, -SCREEN.WS/-SCREEN.pcl): footnote
+    # ("N.") and endnote ("(N)") markers are different widths, so WS7's
+    # own hanging-column rule pads every marker in this mixed list to a
+    # shared text-start column (_notes_marker_pad_cols) -- three/two
+    # spaces here, not one.
+    assert any(l.strip() == '1.   First footnote.' for l in flat)
+    assert any(l.strip() == '2.   Second footnote.' for l in flat)
+    assert any(l.strip() == '(1)  First endnote.' for l in flat)
+    assert any(l.strip() == '(2)  Second endnote.' for l in flat)
     assert not any('(3)' in l or '(4)' in l for l in flat)
     # the body reference for footnote 1 and endnote 1 are BOTH a bare "1" --
     # WordStar's own documented ambiguity, resolved by mark style, not number
@@ -1797,8 +1802,11 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
     assert spans[b'--------------------'] == 108.0
-    assert spans[b'1. Footnote text.'] == 84.0
-    assert spans[b'\\(1\\) Endnote text.'] == 60.0
+    # Finding 4 (round 26 visual pass): "1." and "(1)" differ in width,
+    # so this mixed footnote/endnote list hangs to a shared column --
+    # three/two spaces, not the plain single space (_notes_marker_pad_cols).
+    assert spans[b'1.   Footnote text.'] == 84.0
+    assert spans[b'\\(1\\)  Endnote text.'] == 60.0
 
 
 def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
@@ -1866,8 +1874,10 @@ def test_footnote_endnote_number_start_dot_commands():
     from ctrlkd.pdf import _doc_to_pagelines
     pages = _doc_to_pagelines(doc, True)
     flat = [l for pg in _page_texts(pages) for l in pg]
-    assert any(l.strip() == '5. Foot.' for l in flat)
-    assert any(l.strip() == '(10) End.' for l in flat)
+    # Finding 4 (round 26 visual pass): "5." (2 cols) vs "(10)" (4 cols)
+    # differ, so this mixed list hangs to a shared column too.
+    assert any(l.strip() == '5.    Foot.' for l in flat)
+    assert any(l.strip() == '(10)  End.' for l in flat)
 
 def test_footnote_endnote_number_start_absent_defaults_to_one():
     doc = core.parse_ws(b'.PL 66' + HARD + b'Body.' + HARD)
@@ -2023,7 +2033,17 @@ def test_ws4_double_spacing_survives_to_pagelines():
     file"). A real double-spaced WS4 essay is stored this way -- text lines
     interleaved with soft blanks -- and collapsing them destroys the document's
     vertical rhythm and its page count.
-    """
+
+    Finding 1 (round 26 visual pass): each of those blanks stays its OWN
+    literal PageLine, at its own natural lead -- an earlier version of this
+    fix COLLAPSED a spacing pair into one 2x-lead PageLine and that broke on
+    documents with irregular paragraph lengths (a real WS7 capture's own
+    page-top baseline cycles through phases 12pt apart depending on raw-line
+    parity at the page break; collapsing pairs can only reproduce one phase).
+    What changes instead is each spacing blank's `ws4_spacing` flag (see
+    `_ws4_spacing_blank_indices`) -- pagination reads it to decide whether
+    the blank alone may force a page break, never whether it exists as a
+    PageLine at all."""
     from ctrlkd.pdf import _doc_to_pagelines
     body = b''
     for n in range(6):
@@ -2031,6 +2051,9 @@ def test_ws4_double_spacing_survives_to_pagelines():
     pages = _doc_to_pagelines(core.parse_ws(body), True)
     pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
     assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
+    blanks = [ln for ln in pages[0] if not ''.join(t for t, _ in ln).strip()]
+    assert blanks and all(getattr(ln, 'ws4_spacing', False) for ln in blanks), \
+        'spacing blanks not classified: _ws4_spacing_blank_indices'
 
 
 # ---------------------------------------------------------------- release eras
@@ -3702,7 +3725,15 @@ def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
     (fill+stroke) with a stroke width proportional to size before Ts;
     italic swaps Td for a sheared Tm (~12 degrees) at the SAME (x, y) Td
     would have used; bold-italic does both. An unstyled Symbol run keeps
-    its pre-existing Td-only op, untouched."""
+    its pre-existing Td-only op, untouched.
+
+    Finding 3 (b26 visual pass, -SCREEN.WS): italic-only now ALSO writes
+    an explicit `0 Tr` (Jon's paper check: the synthesized italic read
+    heavier than WS7's real print -- Tr is graphics state that survives
+    ET/BT, and this is the only place in pdf.py that ever sets it, so
+    the italic run used to silently inherit the BOLD run's `2 Tr`
+    stroke from earlier on the very same content stream instead of
+    getting the plain fill-only paint WS7 actually used)."""
     from ctrlkd.pdf import emit_pdf
     line = 'αΓπ'.encode('cp437')          # cp437 Greek, no font block --
                                            # the -SCREEN.WS fallback path
@@ -3729,9 +3760,11 @@ def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
     assert re.fullmatch(
         rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
         rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', bold)
-    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126, no Tr/w
+    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126 -- and
+    # (Finding 3) an explicit `0 Tr` fill-only reset, no stroke width,
+    # so it can never inherit a bold run's stroke left on the stream
     assert re.fullmatch(
-        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Ts '
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Tr 0 Ts '
         rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', italic)
     # bold-italic: both -- stroke AND shear
     assert re.fullmatch(
