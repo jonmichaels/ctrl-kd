@@ -1320,13 +1320,34 @@ def _symbol_style_op(font, pt, rise, want, tz_state, x, y, text_bytes,
     (text render mode + stroke width; stroke colour is whatever fill
     colour is already active -- Symbol runs never carry LJ6DTP colour tags
     in the reference corpus, so this is always black, matching the fill),
-    and Tm instead of Td for italic (the shear)."""
+    and Tm instead of Td for italic (the shear).
+
+    Finding 3 (b26 visual pass, -SCREEN.WS): Tr is PDF general graphics
+    state, not text state reset by BT -- it survives an ET/BT pair. This
+    function is the ONLY writer of Tr anywhere in this module, so it used
+    to write `2 Tr` before a bold run and simply say nothing for a
+    non-bold one, trusting the DEFAULT (0, fill only) was still in
+    effect. On -SCREEN's own Greek sample line the four styled runs
+    print plain/bold/italic/bold-italic in that order on one content
+    stream -- the italic-only run comes right after the bold run and,
+    with no Tr op of its own, inherited the bold run's `2 Tr` (fill AND
+    stroke) instead of the plain fill Jon's paper check confirms WS7
+    actually used, which is exactly why the synthesized italic read
+    heavier than the real printer's: it was quietly getting a bold
+    stroke, not just a shear. (The same leak would have kept stroking
+    every later op on the page too, symbol-styled or not, until
+    whatever next set Tr some other way -- nothing else in this module
+    ever did.) Always writing Tr now, every call, makes each styled run
+    self-contained regardless of what the stream's state happened to be
+    coming in."""
     parts = [b'BT /%s %d Tf' % (font.encode(), pt)]
     if want != tz_state[0]:
         parts.append(b'%.2f Tz' % want)
         tz_state[0] = want
     if is_bold:
         parts.append(b'2 Tr %.2f w' % round(pt * _BOLD_STROKE_FRAC, 2))
+    else:
+        parts.append(b'0 Tr')
     parts.append(b'%d Ts' % rise)
     if is_italic:
         parts.append(b'1 0 %.4f 1 %.1f %.1f Tm' % (_ITALIC_SHEAR, x, y))

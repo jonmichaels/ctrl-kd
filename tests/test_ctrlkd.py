@@ -3712,7 +3712,15 @@ def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
     (fill+stroke) with a stroke width proportional to size before Ts;
     italic swaps Td for a sheared Tm (~12 degrees) at the SAME (x, y) Td
     would have used; bold-italic does both. An unstyled Symbol run keeps
-    its pre-existing Td-only op, untouched."""
+    its pre-existing Td-only op, untouched.
+
+    Finding 3 (b26 visual pass, -SCREEN.WS): italic-only now ALSO writes
+    an explicit `0 Tr` (Jon's paper check: the synthesized italic read
+    heavier than WS7's real print -- Tr is graphics state that survives
+    ET/BT, and this is the only place in pdf.py that ever sets it, so
+    the italic run used to silently inherit the BOLD run's `2 Tr`
+    stroke from earlier on the very same content stream instead of
+    getting the plain fill-only paint WS7 actually used)."""
     from ctrlkd.pdf import emit_pdf
     line = 'αΓπ'.encode('cp437')          # cp437 Greek, no font block --
                                            # the -SCREEN.WS fallback path
@@ -3739,9 +3747,11 @@ def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():
     assert re.fullmatch(
         rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?2 Tr 0\.48 w 0 Ts '
         rb'-?[\d.]+ -?[\d.]+ Td \(aGp\) Tj ET', bold)
-    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126, no Tr/w
+    # italic: Td replaced by a sheared Tm, tan(12deg) ~= 0.2126 -- and
+    # (Finding 3) an explicit `0 Tr` fill-only reset, no stroke width,
+    # so it can never inherit a bold run's stroke left on the stream
     assert re.fullmatch(
-        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Ts '
+        rb'BT /' + font + rb' 12 Tf (?:[\d.]+ Tz )?0 Tr 0 Ts '
         rb'1 0 0\.2126 1 -?[\d.]+ -?[\d.]+ Tm \(aGp\) Tj ET', italic)
     # bold-italic: both -- stroke AND shear
     assert re.fullmatch(
