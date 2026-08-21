@@ -1384,7 +1384,7 @@ def _wrap_line(spans, width):
 # Comments never print (WordStar's own rule) and never reach this code --
 # core.py never emits a reference sentinel for them.
 
-def _note_marker(note, label):
+def _note_marker(note, label, pad_cols=None):
     """Footnote reference-in-the-note, WSCHANGE factory default: no lead
     character, trailing '.' -> '1.'. Annotations have no documented mark of
     their own -- the spec gives them a free-text `tag` instead ("the text
@@ -1392,15 +1392,57 @@ def _note_marker(note, label):
     emit.py's _annotated_notes, shared so every format agrees) is already
     that tag when the author set one, falling back to a running count
     otherwise -- so this only ever needs to add the footnote's own
-    trailing '.', never re-derive the tag-vs-number choice itself."""
-    if note.kind == 'annotation':
-        return f'{label} '
-    return f'{label}. '
+    trailing '.', never re-derive the tag-vs-number choice itself.
 
-def _endnote_marker(label):
+    `pad_cols` (Finding 4, round 26 visual pass): see
+    `_notes_marker_pad_cols`. None (the overwhelming common case -- any
+    document whose notes all share one marker width, LYING.WS included)
+    keeps the original plain single-space join, byte-identical."""
+    base = f'{label}' if note.kind == 'annotation' else f'{label}.'
+    return base.ljust(pad_cols) if pad_cols is not None else f'{base} '
+
+def _endnote_marker(label, pad_cols=None):
     """Endnote reference-in-the-note, WSCHANGE factory default: lead '(',
-    trail ')' -> '(1)'."""
-    return f'({label}) '
+    trail ')' -> '(1)'. `pad_cols`: see `_note_marker`."""
+    base = f'({label})'
+    return base.ljust(pad_cols) if pad_cols is not None else f'{base} '
+
+
+def _notes_marker_pad_cols(doc):
+    """Reserved marker-field width, in character columns, for this
+    document's footnote/endnote/annotation area -- Finding 4 (round 26
+    visual pass, -SCREEN.WS/-SCREEN.pcl). WS7's real capture hangs a
+    note's text to a COMMON column when the document's own markers are
+    not all the same width: -SCREEN.WS pairs a "1." footnote with a
+    "(1)" endnote on the same page, and both entries' TEXT starts at the
+    identical x -- measured 864 decipoints, i.e. column 5 from the
+    note's own left margin (504 decipoints): the widest marker's own
+    natural width ("(1)", 3 columns) plus 2 columns of padding. Every
+    other note-bearing document measured so far (LYING.WS's own single
+    footnote: LYING.pcl's "1.Did", ONE space, no hang) uses markers of
+    ONE width throughout, so this returns None there -- meaning "leave
+    _note_marker/_endnote_marker's plain single-space join alone",
+    exactly the previous behaviour, byte-identical.
+
+    Computed DOCUMENT-WIDE, not per page or per note-kind: a short
+    document's footnotes and endnotes can land on the very SAME
+    rendered page (`_endnote_pages` continuing `_paginate_printed_notes`'s
+    last page when there's room -- exactly -SCREEN's own shape), built
+    by two functions that don't otherwise share state, so one
+    document-global number is what lets both agree without new
+    cross-function plumbing. A comment's reference has no note-area
+    entry of its own (see `_keep_span`) and never reaches here."""
+    widths = set()
+    for note, label in _annotated_notes(doc):
+        if note.kind == 'footnote':
+            widths.add(len(f'{label}.'))
+        elif note.kind == 'endnote':
+            widths.add(len(f'({label})'))
+        elif note.kind == 'annotation':
+            widths.add(len(f'{label}'))
+    if len(widths) <= 1:
+        return None
+    return max(widths) + 2
 
 def _note_wrap(marker, text, width):
     """One note's rendered lines for the page-bottom area or the endnote
@@ -1717,6 +1759,7 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
     stream = _body_stream_printed(doc, pix_results=pix_results,
                                   pictures=pictures)
     default_lead = _printed_lead(doc)
+    pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
     # Finding 2 bottom-anchor geometry (see _printed_notes_reserve_pt):
     # constant for the whole document, computed once.
     _notes_top = _printed_top(doc)
@@ -1798,7 +1841,7 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off'):
                 is_terminal = True
             i += 1
             for label, note in refs:
-                queue.append(_note_wrap(_note_marker(note, label), note.text, width))
+                queue.append(_note_wrap(_note_marker(note, label, pad_cols), note.text, width))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         area = _render_area(entries)
         if entries:
@@ -1867,11 +1910,12 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0):
     endnotes = [(note, label) for note, label in _annotated_notes(doc) if note.kind == 'endnote']
     if not endnotes:
         return []
+    pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
     lines = []
     for k, (note, label) in enumerate(endnotes):
         if k:
             lines.append([])
-        lines.extend(_note_wrap(_endnote_marker(label), note.text, width))
+        lines.extend(_note_wrap(_endnote_marker(label, pad_cols), note.text, width))
     pages = []
     if last_page and last_page_cost < cap:
         page = list(last_page)

@@ -1742,10 +1742,15 @@ def test_pdf_printed_endnotes_numbered_independently_of_footnotes():
     from ctrlkd.pdf import _doc_to_pagelines
     pages = _doc_to_pagelines(doc, True)
     flat = [l for pg in _page_texts(pages) for l in pg]
-    assert any(l.strip() == '1. First footnote.' for l in flat)
-    assert any(l.strip() == '2. Second footnote.' for l in flat)
-    assert any(l.strip() == '(1) First endnote.' for l in flat)
-    assert any(l.strip() == '(2) Second endnote.' for l in flat)
+    # Finding 4 (round 26 visual pass, -SCREEN.WS/-SCREEN.pcl): footnote
+    # ("N.") and endnote ("(N)") markers are different widths, so WS7's
+    # own hanging-column rule pads every marker in this mixed list to a
+    # shared text-start column (_notes_marker_pad_cols) -- three/two
+    # spaces here, not one.
+    assert any(l.strip() == '1.   First footnote.' for l in flat)
+    assert any(l.strip() == '2.   Second footnote.' for l in flat)
+    assert any(l.strip() == '(1)  First endnote.' for l in flat)
+    assert any(l.strip() == '(2)  Second endnote.' for l in flat)
     assert not any('(3)' in l or '(4)' in l for l in flat)
     # the body reference for footnote 1 and endnote 1 are BOTH a bare "1" --
     # WordStar's own documented ambiguity, resolved by mark style, not number
@@ -1797,8 +1802,11 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
     assert spans[b'--------------------'] == 108.0
-    assert spans[b'1. Footnote text.'] == 84.0
-    assert spans[b'\\(1\\) Endnote text.'] == 60.0
+    # Finding 4 (round 26 visual pass): "1." and "(1)" differ in width,
+    # so this mixed footnote/endnote list hangs to a shared column --
+    # three/two spaces, not the plain single space (_notes_marker_pad_cols).
+    assert spans[b'1.   Footnote text.'] == 84.0
+    assert spans[b'\\(1\\)  Endnote text.'] == 60.0
 
 
 def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
@@ -1866,8 +1874,10 @@ def test_footnote_endnote_number_start_dot_commands():
     from ctrlkd.pdf import _doc_to_pagelines
     pages = _doc_to_pagelines(doc, True)
     flat = [l for pg in _page_texts(pages) for l in pg]
-    assert any(l.strip() == '5. Foot.' for l in flat)
-    assert any(l.strip() == '(10) End.' for l in flat)
+    # Finding 4 (round 26 visual pass): "5." (2 cols) vs "(10)" (4 cols)
+    # differ, so this mixed list hangs to a shared column too.
+    assert any(l.strip() == '5.    Foot.' for l in flat)
+    assert any(l.strip() == '(10)  End.' for l in flat)
 
 def test_footnote_endnote_number_start_absent_defaults_to_one():
     doc = core.parse_ws(b'.PL 66' + HARD + b'Body.' + HARD)
