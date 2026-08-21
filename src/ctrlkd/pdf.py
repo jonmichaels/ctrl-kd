@@ -3714,6 +3714,25 @@ def _modern_streams(doc, options, res):
     cur_h, cur_f = {}, {}          # running-head state as events replay
     page_h, page_f = {}, {}        # state when the OPEN page took content
     opened = False
+    # b26-modern item 4: a blank line's own advance must scale with the
+    # SURROUNDING text's font size, same principle as Printed's established
+    # "a blank advances at the preceding block's own leading" rule
+    # (test_style_leading.py) -- Modern already computes each real line's
+    # own size-proportional `h` (MODERN_LINE * that line's own max token
+    # size) below, but a 'blank' item used to carry a FIXED height baked at
+    # flow-build time (MODERN_LINE * MODERN_BODY_PT, the 14pt document
+    # default) regardless of what was actually on the page. Measured on
+    # PREVIEW.WS (real corpus, font-sample page mixing 24pt/20pt/12pt
+    # lines): a blank between two 24pt lines advanced by the SAME fixed
+    # 16.8pt a blank between a 24pt and an 8pt line would -- the total
+    # inter-paragraph gap tracked only the ENTERING line's own size, never
+    # the size actually being LEFT, so two structurally-identical "one
+    # blank line" transitions produced visibly different gaps whenever the
+    # preceding line's size differed. Fix: track the most recently placed
+    # line's own `h` and use THAT for the next blank, falling back to the
+    # 14pt default only when nothing has been placed yet (unchanged
+    # behavior for a leading blank).
+    last_h = MODERN_LINE * MODERN_BODY_PT
 
     def note_block_h():
         return (sep_h + note_lead * len(notes_lines)) if notes_lines else 0.0
@@ -3751,7 +3770,7 @@ def _modern_streams(doc, options, res):
         if item[0] == 'blank':
             if not body:
                 continue                      # no blank at a page top
-            h = item[1]
+            h = last_h
             if y - h < margb + note_block_h():
                 close()
                 continue
@@ -3769,6 +3788,7 @@ def _modern_streams(doc, options, res):
             open_page()
             y -= h_pt
             body.append((y, item, 'left', 0.0, 0.0))
+            last_h = h_pt
             continue
         _, toks, align, notes, indent, cut = item
         line_w = max(36.0, width - indent - cut)
@@ -3788,6 +3808,7 @@ def _modern_streams(doc, options, res):
                 close()
             open_page()
             y -= h
+            last_h = h
             body.append((y, vline, align, indent, cut))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
