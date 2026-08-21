@@ -2508,42 +2508,81 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     # body, where a laser printer can physically print it (Jon's finding,
     # 2026-08-05: no printer lays ink at y = 0).
     #
-    # b26-header-baseline: `hm` only PARTICIPATES in that subtraction when
-    # the document set it EXPLICITLY (`hm_source == 'file'`) -- a document
-    # that never touched `.hm` prints its header `mt - top_head` lines
-    # down, `.hm`'s own DEFAULT value never entering the arithmetic at
-    # all. Derived from four measured WS7 header baselines (WS7 frame,
-    # the usual -0.3pt decipoint residual), two independent documents,
-    # `hm` on both sides of the default/explicit line:
-    #   -README  (.mt 3 default, .hm 2 DEFAULT):  WS7 35.7  ==  head_base
-    #     2 = mt(3) - top_head(1), NOT mt - hm - top_head (which gives 0,
-    #     the pre-fix ENGINE's wrong 12.0 -- 24pt too high).
-    #   SCRIPT normal pages (.MT 7, .HM 3 EXPLICIT):  WS7 48.0  ==
-    #     head_base 3 = mt(7) - hm(3) - top_head(1) -- hm SUBTRACTS here.
-    #   SCRIPT figure-1 page (.mt1 mid-document, .HM 3 stays -- SCRIPT
-    #     never re-states .hm, so its own EXPLICIT value carries through
-    #     every page, including this one): WS7 12.0 == head_base
-    #     max(0, 1 - 3 - 1) = 0 -- hm SUBTRACTS here too (the clamp masks
-    #     the exact value, but 1-3-1 is unambiguously not 1-1).
-    #   SCRIPT figure-2 page (.mt1" mid-document, .HM still 3): WS7 36.0
-    #     == head_base 2 = mt(6) - hm(3) - top_head(1).
-    # All four fit ONE rule with no exception: subtract hm only when
-    # hm_source == 'file'. A document's own EXPLICIT `.hm` is data the
-    # author actually typed and WS7 honors it; the FACTORY DEFAULT (2)
-    # is not real distance the driver reserves for a header that never
-    # asked for one -- it only enters the (unrelated) `_printed_top` body-
-    # margin reservation, which already carries this exact same default/
-    # explicit distinction for `.hm` (see its own docstring) for the SAME
-    # underlying reason.
+    # b26-header-round2 (SUPERSEDES the b26-header-baseline analysis just
+    # above -- that round's rule, "subtract hm only when hm_source ==
+    # 'file'", was fit to a corpus where every EXPLICIT-mt document also
+    # happened to carry an explicit .hm (SCRIPT), so hm_source and
+    # mt_source were CONFOUNDED: nothing distinguished "keyed on hm's own
+    # source" from "keyed on mt's". It shipped, then broke LJ6DTP.WS on
+    # Jon's paper review -- LJ6DTP is the first oracle where mt is
+    # explicit (.mt 1.1") but hm is NOT (never touches .hm at all), and it
+    # separates the two hypotheses cleanly.
+    #
+    # Two independent bugs were tangled in that break, both now fixed:
+    #
+    # (1) hm's participation is keyed on mt_source, not hm_source. Five
+    #     measured WS7 header baselines (WS7 frame, the usual -0.3pt
+    #     decipoint residual), three independent documents:
+    #       -README (.mt 3 DEFAULT, .hm 2 default): WS7 35.7 == head_base
+    #         2 = mt(3) - top_head(1) -- hm NOT subtracted (mt_source
+    #         'default').
+    #       SCRIPT normal (.MT 7 EXPLICIT, .HM 3 explicit): WS7 48.0 ==
+    #         head_base 3 = mt(7) - hm(3) - top_head(1) -- hm subtracted
+    #         (mt_source 'file').
+    #       SCRIPT figure-1 (.mt1 mid-doc EXPLICIT, .HM 3 carries): WS7
+    #         12.0 == head_base max(0, 1-3-1) = 0 -- hm subtracted.
+    #       SCRIPT figure-2 (.mt1" mid-doc EXPLICIT, .HM 3 carries): WS7
+    #         36.0 == head_base 2 = mt(6) - hm(3) - top_head(1).
+    #       LJ6DTP (.mt 1.1" EXPLICIT globally, its own mid-document
+    #         .mt1"/.mb1" -- b26-mtmb-general's per-page swap sets THIS
+    #         page's mt_lines/mt_source to the LOCAL 6.0/'file', the SAME
+    #         value _printed_top already renders the (correct, unchanged)
+    #         86.0pt body baseline from; .hm never touches at all, stays
+    #         2/'default'): WS7 48.0 == head_base 3 = mt(6.0) - hm(2) -
+    #         top_head(1) -- hm SUBTRACTED despite being hm_source
+    #         'default', because mt_source is 'file' (the page's own
+    #         local override, same one the body already trusts).
+    #     All five fit ONE rule: hm participates whenever mt IS NOT at the
+    #     document's factory default (mt_source == 'file', reading
+    #     whatever mt is ACTUALLY in force on this page -- the per-page
+    #     swap value where one applies) -- regardless of whether hm ITSELF
+    #     was ever typed. Once an author moves mt off the factory default,
+    #     WS7 reserves hm's distance (explicit or its own factory default)
+    #     between the header and the body; a document that never touches
+    #     mt at all needs no such reservation, mt alone already being the
+    #     header's own working measure.
+    #
+    # (2) `.mt`/`.hm` are LINE-COUNT dot commands in WordStar's own file
+    #     format, always at the FIXED 6 LPI (12pt) baseline (core.py's
+    #     `_resolve_lines_arg`: "Unit-less .mt/.mb are lines at the fixed
+    #     6 LPI baseline") -- a SEPARATE unit from `.lh`, the document's
+    #     own (possibly customized) BODY TEXT leading. This function's
+    #     head_base-to-points conversion used the caller's `lead`
+    #     parameter (the document's `.lh`-derived body lead) instead of
+    #     that fixed 12pt/line unit -- invisible on every prior oracle
+    #     (-README, SCRIPT: both `.lh`-default, 12pt either way) until
+    #     LJ6DTP, whose own `.lh` is customized to 14pt (9.333/48in):
+    #     bug (1) ALONE (hm unconditionally ignored, mt_source never
+    #     checked) gave head_base 5.0 * 14pt lead + 12 = 82.0, the exact
+    #     wrong baseline on Jon's paper -- squarely inside LJ6DTP's own
+    #     body text (86.0pt, unaffected: `_printed_top`'s top-margin
+    #     reservation was never mixed with `.lh` to begin with). Fixing
+    #     ONLY bug (1) with the WRONG (customized) lead still would not
+    #     reach 48.0 (head_base 3.0 * 14 + 12 = 54.0) -- both had to be
+    #     found. LEAD (this module's own 6 LPI constant, already used
+    #     for the fontless/default-.lh case everywhere else) replaces
+    #     `lead` here; `size` is untouched (the header's own font size,
+    #     never a margin-count unit).
     mt = float(page.get('mt_lines', 3))
-    hm = float(page.get('hm_lines', 2)) if page.get('hm_source') == 'file' else 0.0
+    hm = (float(page.get('hm_lines', 2))
+         if page.get('mt_source') == 'file' else 0.0)
     top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
     ops = []
     for n, txt in sorted(headers.items()):
         if not txt:
             continue
-        y = page_h - (head_base + n - 1) * lead - size
+        y = page_h - (head_base + n - 1) * LEAD - size
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
                     _esc(render(txt))))
