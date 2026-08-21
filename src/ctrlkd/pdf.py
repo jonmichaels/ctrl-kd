@@ -1261,8 +1261,34 @@ def _span_render(text, styles, fonts, size):
 # Lookalike degradations for glyphs cp1252 cannot carry -- applied before
 # encoding so a middle dot from a header triple or a box glyph in a fontless
 # span degrades to its nearest visible relative, not to '?'.
+#
+# Finding 2 (b26 visual pass, -README.WS/-README.pcl): cp437 code 158
+# decodes to PESETA SIGN (U+20A7) -- cp1252/WinAnsi has no glyph for it
+# either (base-14 has no euro glyph and no peseta glyph -- Symbol has
+# neither), so it fell to '?' here same as any other unrepresentable
+# character. -README.WS's OWN text explains the honest reading for a
+# post-1999 WordStar install: "WordStar was last updated in 1992, seven
+# years before the euro currency symbol was adopted in 1999" -- the
+# corpus's dosbox-x setup patches three of its own PDFs (printer driver
+# files) to show the euro at this exact code instead ("euro=158" in the
+# [render] section), and its own worked example inserts code 158 to
+# PROVE the euro renders. Substituting the one glyph cp1252 actually has
+# at this position (EURO SIGN, U+20AC, cp1252 0x80) turns a guaranteed
+# '?' into what a real modern WS7 install of this exact corpus shows.
+#
+# KNOWN LIMIT, recorded rather than hidden: DISPLAY.WS (Sawyer corpus)
+# also carries one <1B 9E 1C> triple, in a bare cp437 code-to-glyph
+# reference chart ("158 <glyph>") with no euro context at all -- real
+# cp437 code 158 IS the peseta sign, not the euro, so this substitution
+# is specifically right for -README's own documented intent and
+# arguably wrong for DISPLAY's literal chart entry. Both currently show
+# '?' at that position either way (no font in this pipeline can draw a
+# real peseta glyph), so this is not a working document regressing --
+# it is one broken cell resolved the same way in both, and DISPLAY.WS
+# is outside the checked-in/gated corpus, so nothing here is verified
+# against its own WS7 capture.
 _ESC_FALLBACK = str.maketrans({'∙': '·', '•': '·', '‼': '!', '│': '|',
-                               '─': '-', '═': '='})
+                               '─': '-', '═': '=', '₧': '€'})
 
 def _esc(text):
     # cp1252, not latin-1: the declared /WinAnsiEncoding IS cp1252, and it is
