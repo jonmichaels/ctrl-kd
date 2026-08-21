@@ -2387,12 +2387,6 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
         if (cur_mt, cur_mb) != (global_mt, global_mb):
             pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
         pages.append(pg)
-    def _no_ink(ln):
-        # A PageLine with nothing a reader would see: no image, no
-        # non-whitespace text. Shared with the trailing-blank stripper
-        # below (`_is_blank`, same test) -- kept as one predicate so the
-        # two can never drift apart.
-        return not getattr(ln, 'image', None) and not any(t.strip() for t, _ in ln)
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt = l
@@ -2418,43 +2412,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off'):
             cur_mt, cur_mb = _mt_mb_at(mt_mb_checkpoints, l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb)
             budget = (cap - 1) * default_lead
-        overflow = (spent + _cost(l) > budget + 1e-6) if printed \
-                  else len(page) >= cap
-        # Finding 1 (round 26 visual pass, private WS4 paper corpus): the
-        # FIRST blank line to overflow a page's budget never triggers the
-        # break by itself. Measured against real WS7 captures: a WS4
-        # double-spaced body (a real text line, then an actual blank
-        # Line implementing the double spacing) fits a CONSTANT line
-        # count on every interior page -- but the old cost model let
-        # that trailing blank be the one line that didn't fit, deferring
-        # it to the NEXT page as that page's own free first line, which
-        # then silently spent one line of THAT page's budget on ink-free
-        # paper. The deficit compounds every time a page break happens
-        # to land mid text/blank pair (roughly every other page, hence a
-        # growing cumulative shortfall of real lines by the document's
-        # own later pages) before both sides' totals reconcile on the
-        # doc's last page. This first over-budget blank lands on the
-        # CURRENTLY open page instead (excess gets stripped as a
-        # trailing blank in the pass below, same as always, so it costs
-        # nothing visually), matching a physical printer: one blank-line
-        # paper advance right at the bottom margin doesn't need a fresh
-        # sheet.
-        #
-        # Only the FIRST such blank is forgiven -- `already_over` denies
-        # it to any blank once the page is already running over budget.
-        # One of the two paper sources' paragraph breaks (unlike the
-        # other's steady one-blank spacing) carry runs of THREE
-        # consecutive blank Lines; forgiving every blank in a run let a
-        # page absorb a whole extra real line it shouldn't have -- the
-        # per-run cap fixes both sources without touching the
-        # single-blank case, where the first (only) forgiveness is
-        # already enough. A real (or image) line, or any later blank
-        # once already over, still forces the ordinary break --
-        # chapter-drop leading blanks (page starts empty, nothing has
-        # overflowed yet) are untouched, since `overflow` is already
-        # False for them, same as before this change.
-        already_over = printed and spent > budget + 1e-6
-        full = overflow and not (printed and _no_ink(l) and not already_over)
+        full = (spent + _cost(l) > budget + 1e-6) if printed \
+               else len(page) >= cap
         if l is None or full:
             if page or l is None:
                 _close_page(); page, spent = [], 0.0
