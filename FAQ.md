@@ -1,0 +1,154 @@
+# FAQ
+
+## Which WordStar versions does ctrl-kd read?
+
+- **WordStar 4** documents (and the high-bit word-wrap convention of that era).
+- **WordStar 5, 6, and 7** documents. For these, ctrl-kd follows **the WordStar 7
+  standard**: MicroPro's own *File Format for WordStar Release 7.0* (17 March 1992),
+  the last and most complete official format specification. A public copy lives at
+  [sfwriter.com/wsformat.txt](https://www.sfwriter.com/wsformat.txt); manuals for
+  every release are at [bitsavers.org](http://bitsavers.org/pdf/microPro/).
+- **Print-to-disk files** — the printer byte stream captured to a file, a distinct
+  format most converters mangle.
+
+Not sure what a file is? `ctrl-kd --diagnose FILE` reports what it detected and why.
+
+## Why "the WordStar 7 standard" for 5/6/7 — aren't they different?
+
+Mostly they are not: the on-disk format was stable across 5.0–7.0, and the 7.0
+specification documents it in full. Where releases genuinely diverged, ctrl-kd
+models the difference explicitly (see `ERAS.md` for the mechanism). Two cases are
+worth knowing about:
+
+### Known limitation: bare `.pl` under WordStar 6.0
+
+A `.pl` command **with no argument** meant "turn page breaks off" in WordStar 6.0,
+but stopped meaning that in 7.0 — MicroPro's own engineering notes record the
+change (their PRVIEW driver had to start writing `.pl0` instead; internal bug
+12284). ctrl-kd follows the 7.0 reading: a bare `.pl` changes nothing, while an
+explicit `.pl 0` turns page breaks off in both.
+
+**Impact:** a document written for WordStar 6.0 that relies on bare `.pl` would
+paginate here (7.0 behaviour) instead of flowing unbroken (6.0 behaviour). We have
+never seen such a document — none exists in our reference corpus — and we have no
+WordStar 6.0 installation to verify against, so the 6.0 behaviour is deliberately
+not guessed at. If you have a real document affected by this, please open an
+issue and attach it (or a trimmed sample): that is exactly the evidence needed to
+implement the split properly. Technical details: `ERAS.md`.
+
+### WordStar 3 (CP/M and early DOS)
+
+Not currently supported: ctrl-kd will not identify a file as WordStar 3. The
+groundwork exists — the era table already carries a `ws3` entry recording what is
+known to differ (the default page-number column moved from 33 to 28 between 3.3
+and 4, and pre-WS5 margin commands measure columns in the *current font's* width
+rather than a fixed 0.1 inch) — but detection was never taught to recognise the
+release, because we had no WordStar 3 documents to detect. If you have real
+WordStar 3 files, open an issue: with samples in hand the support is a
+well-marked, modest job. Technical details: `ERAS.md`.
+
+## How do I know the output is right?
+
+Three sources of truth, in order: MicroPro's own format specification and
+engineering release notes; known-answer files (MicroPro's demo/test documents,
+whose correct rendering is knowable in advance); and **WordStar itself**, run
+under emulation and measured (`tools/WORDSTAR-HARNESS.md`). Behaviour in this
+converter is traceable to one of those three — and where none of them settles a
+question, the code says so rather than guessing quietly.
+
+## Something renders differently than real WordStar printed it?
+
+That is a bug we want. Open an issue with the file (or a trimmed sample) and, if
+you have it, the original printout or a description of what WordStar itself did.
+
+## Why does `--encoding` only accept cp437? What about international WordStar?
+
+The high-bit bytes in a WordStar file are glyphs from the PC's OEM code page,
+and every file this project has ever been tested against uses **code page 437**
+(the US IBM PC set — which Anglophone machines everywhere ran, Canada included).
+WordStar 5+ itself acknowledged other code pages — its font blocks carry
+symbol-map bits that distinguish cp437 from cp850, the DOS "multilingual"
+Western European set — so files written on French, German, or Spanish machines
+plausibly exist with accented text in cp850 (or cp860/863/865) byte positions.
+
+We have **zero such files**. Implementing another code page is easy — it is a
+byte table — but *validating* one is not: without a real document written on
+such a machine, a synthetic test only proves our table matches our table,
+and this project ships evidence-driven behavior, not assumptions. So the CLI
+refuses what it cannot verify. The Python library API (`ctrlkd.core.parse`)
+still accepts any codec name, so an experimenter holding real international
+WordStar material can try it today — and if you have such files, please open
+an issue: a genuine known-answer document is exactly what would turn this
+limitation into a feature.
+
+## What do I get if I just run `ctrl-kd FILE` with no flags?
+
+A **Modern RTF**: the document reflowed for reading and editing today, with
+its own fonts and styles carried through, footnotes at the page bottom, and
+anything the file never specified filled in with modern conventions (a
+comfortable serif at reading size on a one-inch-margin page). `--mode
+printed` alone gives you the other philosophy: a **PDF facsimile** of the
+1990 printout, on the era's own page geometry — the closest thing to
+actually printing the file. Every other combination is one `-t` away.
+
+## Where do footnotes, endnotes, and annotations end up?
+
+Where their kinds were always meant to go. **Footnotes** print at the bottom
+of the page that references them, behind WordStar's own 20-dash separator.
+**Endnotes** collect at the end of the document — in Modern output their
+references show as lowercase roman (i, ii), Word's own endnote convention,
+so a page can carry footnote [1] and endnote [i] without ambiguity.
+**Annotations** keep the tag WordStar gave them (AC1, AC2 …) and travel with
+the endnotes. **Comments** were never printed by WordStar and stay hidden
+unless you ask (`--comments`) — and WordStar had two kinds, both covered:
+`^ON` comment notes and `..`/`.ig` dot-command lines (authors used the
+latter for asides *and* to disable commands; each carries an `origin` so
+you can tell which). Opted in under Modern, they appear at their true
+position — RTF gets real Word margin comments, the PDF lists them
+`[c1]`-labeled at the end. Printed stays silent about them always (they
+were never on the page; the CLI says so on stderr if you try). Printed mode does exactly what WordStar
+Professional did in 1990, including growing the footnote area and carrying
+overflow to the next page.
+
+Prefer plainer marks? `--note-refs prefixed` shows footnotes as 1 2 3,
+endnotes as e1 e2, annotations as a1 a2 — the same labels the markdown
+output always uses — in PDF, RTF, and HTML alike. The default (`word`)
+is the Word standard; Microsoft's own spec notes ([MS-OI29500] §17.11.17)
+document lowercase roman as Word's endnote default.
+
+## My document used a hacked printer driver (LJ6DTP). Why does Modern look strange?
+
+LJ6DTP is Robert J. Sawyer's modified LaserJet driver: it patches the
+printer's character slots (type `_`, print an em dash; type `☻`, print ©)
+and draws page art — title bars, rules, colour knockouts — at print time.
+That art lives in the *driver*, not the document, so a Modern reflow can't
+carry it: you get the words, correctly substituted (the em dash really is an
+em dash — substitutions are content and Modern applies them), but the boxes,
+stripes, and white-on-black effects belong to the printed page. The CLI
+prints a notice on stderr when this happens so the odd look is explained in
+the log. For the real thing, `--mode printed` reproduces the page, art and
+all. For extraction: `-t text` gives clean words, `-t html`/`-t rtf` give
+words plus semantic markup — but bytes that only meant something to the
+hacked driver will look strange in any modern format.
+
+## My document is a manuscript (typed paragraph indents, no blank lines between them) — does Modern reflow it into real paragraphs?
+
+Yes, as of 2026-08-17. A hard-terminated line that opens with the typed or
+machine paragraph indent AND runs close to the document's own measured wrap
+point becomes a new paragraph (`\par` in RTF, `<p>` in HTML, a blank line in
+text/Markdown) — reconstructing the decision WordStar's own word wrap would
+have made, since a manuscript typed with a hard Return at (near) the margin
+instead of trusting word wrap is functionally doing its own wrapping by
+hand. A **deliberately short line stays exactly as written** — a poem's
+stanza, a quoted address, a one-line aside keep their forced line break
+rather than being torn into their own paragraph or, worse, spaced apart like
+prose.
+
+This is a length-based heuristic, not a reading of the words: nothing in the
+file distinguishes a genuinely short *prose* paragraph ("`He said, 'I'm
+going out.'`") from a deliberately short *verse* line by style or length
+alone. The heuristic is biased toward the poem's side of that ambiguity — a
+short prose paragraph may stay glued to its neighbour with a forced line
+break instead of becoming its own paragraph, which is visible on review and
+never loses text. If your document's paragraphing looks off, `-t text` and a
+skim will show you exactly where.

@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctrl-kd"
+dynamic = ["version"]
+description = "Convert WordStar 4-7 documents and print-to-disk files to text, Markdown, HTML, RTF, or PDF. ^KD: save and done."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Jon Michaels"}]
+requires-python = ">=3.9"
+keywords = ["wordstar", "converter", "retrocomputing", "archive", "dos"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Filters",
+    "Topic :: System :: Archiving",
+]
+
+[project.urls]
+Homepage = "https://github.com/jonmichaels/ctrl-kd"
+
+[project.scripts]
+ctrl-kd = "ctrlkd.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+# single source of truth: src/ctrlkd/__init__.py __version__ -- the 4.0.0
+# release shipped with pyproject still saying 3.0.0 because the version
+# lived in two places and the bump hit one (2026-08-06); never again
+version = {attr = "ctrlkd.__version__"}
+
+[tool.setuptools.package-data]
+# The four bundled public-domain sample documents (see samples/README.md and
+# `ctrl-kd --samples DIR`) travel with the wheel/sdist as package data.
+ctrlkd = ["samples/*.WS"]
+
+[tool.pytest.ini_options]
+# Two-tier test architecture (K1, 2026-08-26; tier 3/private relocated out
+# of this public repo entirely -- see README). Bare `pytest` must run ONLY
+# tier 1 (tests/test_samples.py and every other test with no marker below)
+# -- green, complete, zero skips, no environment required. Tier 2 is
+# DESELECTED here, not skipped: it never even collects into the report, so
+# a bare run's summary line is an honest denominator.
+#
+# Arming (see tests/sawyer_fixture.py, conftest.py):
+#   sawyer   CTRLKD_SAWYER_ARCHIVE=/path   (legacy alias: CTRLKD_CORPUS_SOURCE)
+#
+# tools/run-full-suite.sh overrides this filter (`-o addopts=""`) for an
+# armed run, where an unarmed gate FAILS instead of silently not running --
+# see that script's own header for why.
+testpaths = ["tests"]
+markers = [
+    "sawyer: opt-in tier 2 -- an explicit, committed list of documents from Robert J. Sawyer's public WordStar 7 archive (arm with CTRLKD_SAWYER_ARCHIVE)",
+]
+addopts = "-m \"not sawyer\""

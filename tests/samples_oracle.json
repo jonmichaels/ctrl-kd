@@ -1,0 +1,186 @@
+{
+  "LYING.WS": {
+    "modern": {
+      "html": {
+        "sha256": "eb3ddff3c47279642e1a9abb54f678c3cbd594b5a1f543c9519b84b26cd98690",
+        "size": 17828
+      },
+      "markdown": {
+        "sha256": "76364aec21afa8704151d3b2cf180ca47d44185f50440282f1b8131b41611a02",
+        "size": 12812
+      },
+      "pdf": {
+        "sha256": "a92602122bac38957d4571d6193cee8ed28b31e7d61965abd766fb13e0598baa",
+        "size": 108086
+      },
+      "rtf": {
+        "sha256": "ce26e4be51383be1b7dbac48aaa994aea80e37dc636b6abbf8994b1e22d3a9f3",
+        "size": 14194
+      },
+      "text": {
+        "sha256": "163ccc3b847e43f6b19b8878de6cf2387dcb9c3fd97be41640b4c254e0a79493",
+        "size": 12868
+      }
+    },
+    "printed": {
+      "html": {
+        "sha256": "f82f595b274b1b503d61b8e6db19c400976360f14335d44fe2e5c3f639863120",
+        "size": 22349
+      },
+      "markdown": {
+        "sha256": "f4bf897443fe568f9336220f23fb2b71aac539f458e38e9561e71bb31b89f48b",
+        "size": 12990
+      },
+      "pdf": {
+        "sha256": "6cca499818a17692049aa2e2aa9913365bb11f978b213dd5b3fc190d5bc7da05",
+        "size": 107723
+      },
+      "rtf": {
+        "sha256": "81e274a455a751adfd35c69925e943aa7f954dba1d277c35c5cc94f2e9980b21",
+        "size": 16553
+      },
+      "text": {
+        "sha256": "ed9161fe64bf1915449b7fbac719b800f15ad88efad5db9067a330ab84b1d31b",
+        "size": 12982
+      }
+    }
+  },
+  "OCAPTAIN.WS": {
+    "modern": {
+      "html": {
+        "sha256": "a34162697172f89fdb3ca13d9252a1416c9569b1a4c6b7f6c143d8b5a7f48d17",
+        "size": 3076
+      },
+      "markdown": {
+        "sha256": "26dedbe5cf3df670d018533f8df187a3c2d713baffb06599593a7874c9b55da6",
+        "size": 1386
+      },
+      "pdf": {
+        "sha256": "f1dc3d435736f33abdd797d5c86a7c8e5322c97620d650a7e38f58e1c3ac9789",
+        "size": 12715
+      },
+      "rtf": {
+        "sha256": "bbbd6bff83246c9a09c58de9ff4009d15080be19bb1d225d27b87ded3f5efe3f",
+        "size": 1907
+      },
+      "text": {
+        "sha256": "d96c4c3fd358fb62696a703d414243bc7d385f02c7aed1bb2629cc88c768f83c",
+        "size": 1463
+      }
+    },
+    "printed": {
+      "html": {
+        "sha256": "578bf3c426efbf148f0337aa7a2035f43dcbf972b7675c59841536a82b071c02",
+        "size": 2605
+      },
+      "markdown": {
+        "sha256": "79930a96bad649729a1f9c0b8961ab8bd21f34c5576a56898e4391b039155bd3",
+        "size": 1472
+      },
+      "pdf": {
+        "sha256": "7032510a1c3cb1e71574a5cd668ed6b84cc3413b33dffbe624467a6b96be0a94",
+        "size": 4029
+      },
+      "rtf": {
+        "sha256": "4c933acb5173df3e8a4da19ae18fa3d2ada03ecdcf800afef22aa2646602671a",
+        "size": 1896
+      },
+      "text": {
+        "sha256": "ce16cd2c6ea3f1abd8062f22987ac560f43f043491ef4c502f3a5a79104d7a7c",
+        "size": 1464
+      }
+    }
+  },
+  "TWAINLET.WS": {
+    "modern": {
+      "html": {
+        "sha256": "406360a170532aab0f01c943099b999b3a98f584befe61062c7aa0ac2d287aaa",
+        "size": 3758
+      },
+      "markdown": {
+        "sha256": "8325c401d976ba91f504255c42920b9893622a749893503aa11e783b9af9ebf2",
+        "size": 2565
+      },
+      "pdf": {
+        "sha256": "0d0553e31f47f947b595993c81ea4415867ee88ac278bd7803b4e39508891002",
+        "size": 22783
+      },
+      "rtf": {
+        "sha256": "e6ae667c6bf322415dbdd62dd62c7f6b2f02d6ef6cfe32c2646a8009b30a01d4",
+        "size": 2939
+      },
+      "text": {
+        "sha256": "93f70b29d90a7a32325e656f948baf36a25ca4b62390fa2cfabd16cff5f92410",
+        "size": 2761
+      }
+    },
+    "printed": {
+      "html": {
+        "sha256": "9291b8519120b50be8a9ca64e79c50c6e22c3878cdb687384d39e774c7b0ae6c",
+        "size": 4104
+      },
+      "markdown": {
+        "sha256": "0552d7cdba14bb37f1d68d46d05e5e36fcd6f04a484d96be9aec2b6a9a78dbad",
+        "size": 2806
+      },
+      "pdf": {
+        "sha256": "1637418d927aef2863d81676f4ca0f0c9f96435c12e06a687ab2bb9cd60eea13",
+        "size": 5842
+      },
+      "rtf": {
+        "sha256": "8fb8c48198cb421b8038fc1b83a5ca15e8d5b626a1ece944428f0e9cd7ef3bfd",
+        "size": 3340
+      },
+      "text": {
+        "sha256": "132a43e0f9f414c072f69ad06557b30953735b3495cfc3027fbe10582cc4c3fc",
+        "size": 2798
+      }
+    }
+  },
+  "WARPRAYR.WS": {
+    "modern": {
+      "html": {
+        "sha256": "1e21ba96610801bd1499629d627325974229499f4d2b002804da97348a310c53",
+        "size": 11056
+      },
+      "markdown": {
+        "sha256": "d0a265db0545bd774c60fa8be1a709b20f723d00fcff102c9993711ed22425b5",
+        "size": 7581
+      },
+      "pdf": {
+        "sha256": "4b71fdcabb35315ef10cf6478312ed034b76645a39831edd3ccd3a9a58e21149",
+        "size": 63732
+      },
+      "rtf": {
+        "sha256": "194a4a5bd0461fc1de03be14f0c3f3b8ca22ead111c563c50f86ed98fa41f10b",
+        "size": 8693
+      },
+      "text": {
+        "sha256": "69f98a97d0ecb11890215e44dee2d4cac50fab85113bbffd816e4d0bc09ed0c2",
+        "size": 7686
+      }
+    },
+    "printed": {
+      "html": {
+        "sha256": "38216dbfab6ed98035ee10cffde5d2e7c760a4087873afd4c2c016ef077b07b7",
+        "size": 14503
+      },
+      "markdown": {
+        "sha256": "d0a193a0f54446ac764ee1efa4f0ac53c1eacb1c5bd650e2459505bc1cc89ffe",
+        "size": 7869
+      },
+      "pdf": {
+        "sha256": "00145843fe85f05dc4214921030c4b8983166fad275df190ab7efde162703aee",
+        "size": 63623
+      },
+      "rtf": {
+        "sha256": "7adb12149a5093252c3b21eddc480ef2c0b2cf91388dc2de9b6ad944c769ec1b",
+        "size": 10520
+      },
+      "text": {
+        "sha256": "886afd624004a3e7410db6e38c93c780b518273edf38e667a25ebd96f26d3d76",
+        "size": 7861
+      }
+    }
+  }
+}

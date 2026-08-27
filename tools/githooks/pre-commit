@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# PRIVACY GUARD. Refuse staged content carrying private material.
+#
+# The pattern is NOT defined here any more. It lives in tools/private_patterns.sh
+# so this hook, the pre-push hook, and tools/audit_private.sh cannot drift --
+# drift is exactly how a private repo path walked past this hook on 2026-08-23,
+# three days after the hook was installed to prevent precisely that.
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"
+. "$root/tools/private_patterns.sh"
+
+if git diff --cached -U0 -- . \
+      ':(exclude)tools/private_patterns.sh' \
+      ':(exclude)tools/audit_private.sh' \
+   | grep -E '^\+' | grep -nE "$PAT"; then
+  cat >&2 <<'MSG'
+
+BLOCKED: staged changes carry private material (shown above).
+
+  - a path on somebody's machine (~/, /home/, /Users/, /mnt/)? Take it from
+    the environment instead -- see tools/run-full-suite.sh for the pattern.
+  - a machine name? Drop it; the code does not need to say where it was written.
+  - a corpus name? Reword generically ("a private WS4 paper").
+
+This guard exists because it kept happening. Do not bypass without Jon's word.
+MSG
+  exit 1
+fi
+
+# Second, independent check over the whole tracked set, so a leak that was
+# committed earlier cannot ride along unnoticed behind a clean diff.
+if ! "$root/tools/audit_private.sh" >/dev/null 2>&1; then
+  echo "BLOCKED: tools/audit_private.sh reports private material already tracked." >&2
+  "$root/tools/audit_private.sh" >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,1271 @@
+{
+  "archive_release": "1.5",
+  "source_url": "https://www.sfwriter.com/ws7.htm",
+  "zip_sha256": "10213b23b3d030951e093eba36a1e41cb3ea6732e8e761e1b356ba4bc902e1af",
+  "version_marker": {
+    "path": "DESCRIPT.ION",
+    "sha256": "d90f5efdde42a06cb4a62cd1bad3fa31db7a653fe1d06ce77987085741b13675"
+  },
+  "docs": {
+    "RJS.WS": {
+      "path": "RJS.WS",
+      "sha256": "0a53c7e64cbcad10c01b193f433a239eb8af6df7170adba14e2bb8b0de4a5100",
+      "size": 1280
+    },
+    "CONVERT.WS": {
+      "path": "CONVERT.WS",
+      "sha256": "91522613d8bce775ada1f9870169015d2d66bd1148c5e5267c8bd7480db0366a",
+      "size": 3072
+    },
+    "LJ6DTP.WS": {
+      "path": "LJ6DTP.WS",
+      "sha256": "f02af791e386c89bb40bc4697a7d3c7ed56fad6b1af9b4b089c6d3329830fbb8",
+      "size": 35712
+    },
+    "PREVIEW.WS": {
+      "path": "PREVIEW.WS",
+      "sha256": "f0b90ee4b4727b9aa9ba78573654a3d011cd20604d3258fea64628aef5336530",
+      "size": 768
+    },
+    "-SCREEN.WS": {
+      "path": "-SCREEN.WS",
+      "sha256": "ad782a250654cd20f2e4a421e4928b4b9025f747e0d94d94de758a701faead38",
+      "size": 1664
+    },
+    "-README.WS (root)": {
+      "path": "-README.WS",
+      "sha256": "cf5f525d4dc89b704b42888f8da9fcee9e65a5068a4db51c5ca6c1f7105faedd",
+      "size": 41856
+    },
+    "-README.WS (APP)": {
+      "path": "APP/-README.WS",
+      "sha256": "f0b90ee4b4727b9aa9ba78573654a3d011cd20604d3258fea64628aef5336530",
+      "size": 768
+    },
+    "-README.WS (APP/vDosPlus)": {
+      "path": "APP/vDosPlus/-README.WS",
+      "sha256": "39947460beb2300d49f277d3aca9c1f278bdbfded8fb2ab3739557fc71cde20c",
+      "size": 768
+    },
+    "SCRIPT.WS": {
+      "path": "ARTICLES/SCRIPT.WS",
+      "sha256": "f20589b861beb264e7e8b4477366399a212bc9b53d782f086ef2808a6b01d7bf",
+      "size": 22912
+    },
+    "WORDSTAR.PIX": {
+      "path": "INSET/PIX/WORDSTAR.PIX",
+      "sha256": "f678302e56e6b79d9453c525e7e1a81647683cf8ac8ec4f38a49e84cd1e02035",
+      "size": 14887
+    },
+    "BOX.WS": {
+      "path": "BOX.WS",
+      "sha256": "ca9b2927e551fd58bd36ba9a264e6850f849201101b5293cdbb0508f9d56db8a",
+      "size": 307
+    },
+    "BOXES.WS": {
+      "path": "BOXES.WS",
+      "sha256": "d4b1748f981d210e8c80754115ac850e83f8cbbc0e956d35822e914c91679eae",
+      "size": 13696
+    },
+    "DISPLAY.WS": {
+      "path": "DISPLAY.WS",
+      "sha256": "5546fac5dd344a150f9b214dba1cb673047d245ab60b46d53c34f87e950018c4",
+      "size": 2560
+    },
+    "HP-ENV.LST": {
+      "path": "HP-ENV.LST",
+      "sha256": "cda0b5588e31737ebb14a89eb2ecf07305f2efc68ff1d00b08a0e23b987f4a30",
+      "size": 1024
+    },
+    "HP2-ENV.LST": {
+      "path": "HP2-ENV.LST",
+      "sha256": "bedc5eabb15fabb429feaecd643ceae930ac4a06536b2b650eb4379095e75ec4",
+      "size": 1024
+    },
+    "KEYBOARD.MRG": {
+      "path": "KEYBOARD.MRG",
+      "sha256": "27e87a36fec539234e01a8426c3ceaec2ee748dff44e67eb2f55397cd91ae01c",
+      "size": 128
+    },
+    "LAYOUT.WS": {
+      "path": "LAYOUT.WS",
+      "sha256": "4ea03871c254d99be1f020b56611845cfa3c9eeeb4aa8f658ecd63a869ad44b3",
+      "size": 7680
+    },
+    "LIST.DOC": {
+      "path": "LIST.DOC",
+      "sha256": "02f3daac110edaf63464d44833b2db11ba984aabcd13b39661a2372b95135544",
+      "size": 640
+    },
+    "MAILING.DOC": {
+      "path": "MAILING.DOC",
+      "sha256": "060eba489e1d64063a75bf2e0eb910b67dd16938bbad8222c4443bdeba327ccf",
+      "size": 896
+    },
+    "OLDTIMES.WS": {
+      "path": "OLDTIMES.WS",
+      "sha256": "203ed05d1fcc4f584a0829cd23be7d07e211ad095862c14855a926ba0bbab818",
+      "size": 30464
+    },
+    "PLAYBILL.DOC": {
+      "path": "PLAYBILL.DOC",
+      "sha256": "e1751dfd7111c24b3772a04e651f7f9b7cacff3b5ef0227394e4aa3efc950cf8",
+      "size": 640
+    },
+    "PLAYS.DOC": {
+      "path": "PLAYS.DOC",
+      "sha256": "88df97bc2500f714d53701eea309556868a05734d5841e445c6ce591eafc35ab",
+      "size": 896
+    },
+    "PRINT.TST": {
+      "path": "PRINT.TST",
+      "sha256": "d9da9826f684838d9d76cfeba2da2d4c7d40b24511baf7407b42ba82d29a4fd8",
+      "size": 11776
+    },
+    "PRINTER.PS": {
+      "path": "PRINTER.PS",
+      "sha256": "f2c415785d4fd490d7f96832be697ccfa5158bfab7fafbaebf07a1de76716aee",
+      "size": 107136
+    },
+    "PSPRINT.TST": {
+      "path": "PSPRINT.TST",
+      "sha256": "5d08ada7b66d4e48a1d68ba2d13d6594c65d8d2993ce4ca5f213fe42354d7f33",
+      "size": 46336
+    },
+    "REGULAR.WS": {
+      "path": "REGULAR.WS",
+      "sha256": "4975f076eb963274e368e8d8b4841a53d35e17cd4ec857054c73834c156c9990",
+      "size": 1024
+    },
+    "REVIEW.DOC": {
+      "path": "REVIEW.DOC",
+      "sha256": "0da601f249c42f3cf4485a087f79c7746fc32735158ae0e9f146eb78836ce181",
+      "size": 2944
+    },
+    "SAWYER.WS": {
+      "path": "SAWYER.WS",
+      "sha256": "a3683a45b1abc4234461064691c7c634b77eb7069cb4138d346e8e1d919f42ab",
+      "size": 6656
+    },
+    "SCREEN.WS": {
+      "path": "SCREEN.WS",
+      "sha256": "0d4a4a15e2d8850c9335b2cd7b2dfb85c6101eceeb6f92f7d4238776af9ad8d6",
+      "size": 6400
+    },
+    "SHAKE.DOC": {
+      "path": "SHAKE.DOC",
+      "sha256": "04243551509f8f97978729855c3b91a05b39af3f69f11fb523730e567c721b5c",
+      "size": 5888
+    },
+    "SPELL.DOC": {
+      "path": "SPELL.DOC",
+      "sha256": "0b7a931fbb51a5a30a5d7111bcd5e7c6b47cff2554ac53aed63ec4714c2a1d55",
+      "size": 5888
+    },
+    "STRENGTH.WS": {
+      "path": "STRENGTH.WS",
+      "sha256": "d429f64549660f72681c2d4200c67abd131ad89ad9cf9df0cd48ebda18657033",
+      "size": 3456
+    },
+    "VERSIONS.WS": {
+      "path": "VERSIONS.WS",
+      "sha256": "29ef40e919d2900ca3e0364a9a09c32c846f4e0544871330afbe8cc3a02dc760",
+      "size": 14208
+    },
+    "WORDSTAR.WS": {
+      "path": "WORDSTAR.WS",
+      "sha256": "ec28625a6f86274153b0ff1b2cdb3e2043837e7b82196a763545995a553e293c",
+      "size": 23424
+    },
+    "ARTICLES/FORMFEED.WS": {
+      "path": "ARTICLES/FORMFEED.WS",
+      "sha256": "7235857d1899f94529efc424d7101dcef2697b802c546bdb6d82775b12d80d38",
+      "size": 10112
+    },
+    "ARTICLES/POWERUSE.WS": {
+      "path": "ARTICLES/POWERUSE.WS",
+      "sha256": "2299a42076bde560804d807cd2bb653cfc7b395d5f74f0425bb4b1a113e7fa78",
+      "size": 28544
+    },
+    "ARTICLES/YOURWAY.WS": {
+      "path": "ARTICLES/YOURWAY.WS",
+      "sha256": "683abf4c3ca3362fe6e036205883d31a1f1a1149d69acf2a92064c1e589e8a44",
+      "size": 32256
+    },
+    "CVWP/WP_WP_US.QRS": {
+      "path": "CVWP/WP_WP_US.QRS",
+      "sha256": "721014cd2033abb10f6550e40b90bf45156fef285c226e3262e95b89ff7fd7cc",
+      "size": 17040
+    },
+    "CVWP/WP{WPC}.QKL": {
+      "path": "CVWP/WP{WPC}.QKL",
+      "sha256": "4aac9414c8e78c0d9964df3ec1b10cbb46cc612155ea2208cc9b49009320cde7",
+      "size": 1483
+    },
+    "DEFAULT/APP/03670464.CRT/05200120.CRT": {
+      "path": "DEFAULT/APP/03670464.CRT/05200120.CRT",
+      "sha256": "536061dad15ea48737dac5f7cac01ad0c5369cbf628e4e91ee2fd78bc936dbb5",
+      "size": 53136
+    },
+    "DEFAULT/APP/03670464.CRT/08120072.CRT": {
+      "path": "DEFAULT/APP/03670464.CRT/08120072.CRT",
+      "sha256": "e592439f76bebcdfc6852a73e04a93ed515c3f4a12bdafbca4e98698c3018f91",
+      "size": 26160
+    },
+    "DEFAULT/APP/03670464.CRT/14240124.CRT": {
+      "path": "DEFAULT/APP/03670464.CRT/14240124.CRT",
+      "sha256": "b3f64c411be976f857b4ba84cc02c56e65f421af263c60c40f203a38f5be4744",
+      "size": 79744
+    },
+    "DEFAULT/APP/03670464.CRT/15240104.CRT": {
+      "path": "DEFAULT/APP/03670464.CRT/15240104.CRT",
+      "sha256": "bab38303f818c07b0792c596ea7b86d9c0a0f4022b43009638582502723ac6d0",
+      "size": 74784
+    },
+    "DEFAULT/BOX": {
+      "path": "DEFAULT/BOX",
+      "sha256": "ca9b2927e551fd58bd36ba9a264e6850f849201101b5293cdbb0508f9d56db8a",
+      "size": 307
+    },
+    "DEFAULT/DEFAULT.WS": {
+      "path": "DEFAULT/DEFAULT.WS",
+      "sha256": "4975f076eb963274e368e8d8b4841a53d35e17cd4ec857054c73834c156c9990",
+      "size": 1024
+    },
+    "DEFAULT/HP-ENV.LST": {
+      "path": "DEFAULT/HP-ENV.LST",
+      "sha256": "cda0b5588e31737ebb14a89eb2ecf07305f2efc68ff1d00b08a0e23b987f4a30",
+      "size": 1024
+    },
+    "DEFAULT/HP2-ENV.LST": {
+      "path": "DEFAULT/HP2-ENV.LST",
+      "sha256": "bedc5eabb15fabb429feaecd643ceae930ac4a06536b2b650eb4379095e75ec4",
+      "size": 1024
+    },
+    "DEFAULT/INSET/GRAPHICS.DOC": {
+      "path": "DEFAULT/INSET/GRAPHICS.DOC",
+      "sha256": "48bf57eed93c707402df3d083ae59197120110ff8cbd27bc246341444f74b6d3",
+      "size": 1536
+    },
+    "DEFAULT/KEYBOARD.MRG": {
+      "path": "DEFAULT/KEYBOARD.MRG",
+      "sha256": "27e87a36fec539234e01a8426c3ceaec2ee748dff44e67eb2f55397cd91ae01c",
+      "size": 128
+    },
+    "DEFAULT/LIST.DOC": {
+      "path": "DEFAULT/LIST.DOC",
+      "sha256": "02f3daac110edaf63464d44833b2db11ba984aabcd13b39661a2372b95135544",
+      "size": 640
+    },
+    "DEFAULT/MAILING.DOC": {
+      "path": "DEFAULT/MAILING.DOC",
+      "sha256": "060eba489e1d64063a75bf2e0eb910b67dd16938bbad8222c4443bdeba327ccf",
+      "size": 896
+    },
+    "DEFAULT/OPTIONS/ENVELOPE.LST": {
+      "path": "DEFAULT/OPTIONS/ENVELOPE.LST",
+      "sha256": "5b4eb919c2ff1dcb9ef591d134d2bb84d1ee7503a99a3bb4786733a479dbb3f4",
+      "size": 768
+    },
+    "DEFAULT/OPTIONS/HP-ENVMM.LST": {
+      "path": "DEFAULT/OPTIONS/HP-ENVMM.LST",
+      "sha256": "ae33c07b67bc83e3b9f8036cf5ca1805c0b401a068b2220215a3994279234637",
+      "size": 640
+    },
+    "DEFAULT/OPTIONS/HP-LAB3.LST": {
+      "path": "DEFAULT/OPTIONS/HP-LAB3.LST",
+      "sha256": "255279d45df06a80f8704d1de994f3134884146d4d7dc63f3142a8765dbca520",
+      "size": 3200
+    },
+    "DEFAULT/OPTIONS/HP2-ENVE.LST": {
+      "path": "DEFAULT/OPTIONS/HP2-ENVE.LST",
+      "sha256": "d5ec462f8a118b6717ca17446d20762fbfdd4c425a1f411b14dba01bded49e60",
+      "size": 768
+    },
+    "DEFAULT/OPTIONS/HP2-ENVM.LST": {
+      "path": "DEFAULT/OPTIONS/HP2-ENVM.LST",
+      "sha256": "de513215c86da9572385a1d361b1107afa94497eb3ac93ae911f8dc3581acb7e",
+      "size": 768
+    },
+    "DEFAULT/OPTIONS/INVNTORY.DOT": {
+      "path": "DEFAULT/OPTIONS/INVNTORY.DOT",
+      "sha256": "8a240a6d1341d4129f8b6b66d77894bdf19a702a11bb5702b6339114725f8b3a",
+      "size": 384
+    },
+    "DEFAULT/OPTIONS/INVNTORY.LST": {
+      "path": "DEFAULT/OPTIONS/INVNTORY.LST",
+      "sha256": "a7d0c51a2e8216c2e59cdc028d164afcd92d53a387c7a1c874ed45ae8caaef5e",
+      "size": 1280
+    },
+    "DEFAULT/OPTIONS/LABEL.LST": {
+      "path": "DEFAULT/OPTIONS/LABEL.LST",
+      "sha256": "423218a77f24b5f32bad8da439ad4b2275de20be464dad33728655bc3ee83aad",
+      "size": 128
+    },
+    "DEFAULT/OPTIONS/LABEL3.LST": {
+      "path": "DEFAULT/OPTIONS/LABEL3.LST",
+      "sha256": "0726bf73cd6713bd63969d71c2df35909f23326c311e2945790d936e7e996cac",
+      "size": 128
+    },
+    "DEFAULT/OPTIONS/LABEL3A": {
+      "path": "DEFAULT/OPTIONS/LABEL3A",
+      "sha256": "e5c738f480afee8fe7b2f9384ef5000b3948b80a56c03ce96e6a22fdface1880",
+      "size": 2560
+    },
+    "DEFAULT/OPTIONS/LABELA": {
+      "path": "DEFAULT/OPTIONS/LABELA",
+      "sha256": "4182a353186df1013ac2650270c08a0d23c620be66169f7727351dffb17319c1",
+      "size": 1152
+    },
+    "DEFAULT/OPTIONS/LABELXL.LST": {
+      "path": "DEFAULT/OPTIONS/LABELXL.LST",
+      "sha256": "ae9d26304682cd7e73c99d440f6c4d611c9883654ee107b92708cedb5bb4e23b",
+      "size": 128
+    },
+    "DEFAULT/OPTIONS/LABELXLA": {
+      "path": "DEFAULT/OPTIONS/LABELXLA",
+      "sha256": "841b916b09b2c402b34b3f1eab2533d4c83d211b664c56312d29b5b7a06f2d97",
+      "size": 1664
+    },
+    "DEFAULT/OPTIONS/LSRLABL3.LST": {
+      "path": "DEFAULT/OPTIONS/LSRLABL3.LST",
+      "sha256": "b7519ac61973686c7fe4b451a6231bf5bada034cf81c524ad3061de55da37f3d",
+      "size": 2944
+    },
+    "DEFAULT/OPTIONS/MAILLIST.DOT": {
+      "path": "DEFAULT/OPTIONS/MAILLIST.DOT",
+      "sha256": "e52deeb411a4b677f2fe92aa005d8866acdeb4221fe0e04a19cbb4f51bcf703e",
+      "size": 384
+    },
+    "DEFAULT/OPTIONS/PHONE.LST": {
+      "path": "DEFAULT/OPTIONS/PHONE.LST",
+      "sha256": "e4d1f064b64199dbfe47dcc5fd6ca46125bbc1932fda084b4b1e84c6ecd32b99",
+      "size": 768
+    },
+    "DEFAULT/OPTIONS/PROOF.LST": {
+      "path": "DEFAULT/OPTIONS/PROOF.LST",
+      "sha256": "3fcb829b6f3da15a044e7669ad2463a9abc309d21f8bf5993e897d0a9de89962",
+      "size": 1152
+    },
+    "DEFAULT/OPTIONS/ROLODEX.LST": {
+      "path": "DEFAULT/OPTIONS/ROLODEX.LST",
+      "sha256": "681c6966c9484fc8a402154aaeec3a8d642a078470677975b20002d986c0debc",
+      "size": 128
+    },
+    "DEFAULT/OPTIONS/ROLODEXA": {
+      "path": "DEFAULT/OPTIONS/ROLODEXA",
+      "sha256": "4cbb89c3e04e087df68cc80cb61b22122152a9a6780c8dab14a61a948ed6ccc2",
+      "size": 1408
+    },
+    "DEFAULT/OPTIONS/SHOLABEL": {
+      "path": "DEFAULT/OPTIONS/SHOLABEL",
+      "sha256": "d57f3ecee6e521f8ad63cb45e38f150321f94b34fa4a0dfe0628cd24f880bb32",
+      "size": 896
+    },
+    "DEFAULT/OPTIONS/SHOLABL3": {
+      "path": "DEFAULT/OPTIONS/SHOLABL3",
+      "sha256": "606396f28bda24b16499c36a835184015ed66115be88e457dfbfcb1a263621fd",
+      "size": 2816
+    },
+    "DEFAULT/OPTIONS/SHOLABLX": {
+      "path": "DEFAULT/OPTIONS/SHOLABLX",
+      "sha256": "7a9f6d4f8e679daa00c58cadea0850420fe7d00c610a2f4ec8e71f272042e966",
+      "size": 1024
+    },
+    "DEFAULT/OPTIONS/SHOROLDX": {
+      "path": "DEFAULT/OPTIONS/SHOROLDX",
+      "sha256": "8234f5a978ab8d2d896fd069a08e35c2003efb02145b50398dc08df558bad973",
+      "size": 1024
+    },
+    "DEFAULT/PLAYBILL.DOC": {
+      "path": "DEFAULT/PLAYBILL.DOC",
+      "sha256": "e1751dfd7111c24b3772a04e651f7f9b7cacff3b5ef0227394e4aa3efc950cf8",
+      "size": 640
+    },
+    "DEFAULT/PLAYS.DOC": {
+      "path": "DEFAULT/PLAYS.DOC",
+      "sha256": "88df97bc2500f714d53701eea309556868a05734d5841e445c6ce591eafc35ab",
+      "size": 896
+    },
+    "DEFAULT/PRINT.TST": {
+      "path": "DEFAULT/PRINT.TST",
+      "sha256": "3220c941e3c3ed5e78337953d0fbde2aa76d6dfc4068a7347d9f9b769baeb647",
+      "size": 11648
+    },
+    "DEFAULT/REVIEW.DOC": {
+      "path": "DEFAULT/REVIEW.DOC",
+      "sha256": "0da601f249c42f3cf4485a087f79c7746fc32735158ae0e9f146eb78836ce181",
+      "size": 2944
+    },
+    "DEFAULT/SHAKE.DOC": {
+      "path": "DEFAULT/SHAKE.DOC",
+      "sha256": "04243551509f8f97978729855c3b91a05b39af3f69f11fb523730e567c721b5c",
+      "size": 5888
+    },
+    "DEFAULT/SPELL.DOC": {
+      "path": "DEFAULT/SPELL.DOC",
+      "sha256": "0b7a931fbb51a5a30a5d7111bcd5e7c6b47cff2554ac53aed63ec4714c2a1d55",
+      "size": 5888
+    },
+    "DICT/-README.WS": {
+      "path": "DICT/-README.WS",
+      "sha256": "0a032d9ba42134b7789678c168b06da0e183655d8eae7068d778904913d072d4",
+      "size": 2304
+    },
+    "FONTS/PS/ERROR.WS": {
+      "path": "FONTS/PS/ERROR.WS",
+      "sha256": "a5aecab08d2650009f62a30b4dd5d20cebcb2441792f984b3a83e6b7d9b18a96",
+      "size": 384
+    },
+    "HIJAAK/ISI0.TMP": {
+      "path": "HIJAAK/ISI0.TMP",
+      "sha256": "74930b84c59c77302a0bb382c8b13d40716d3da231ebbec549a45a2dcd8bc3ca",
+      "size": 16256
+    },
+    "HIJAAK/ISI2.TMP": {
+      "path": "HIJAAK/ISI2.TMP",
+      "sha256": "a8b801985d54279c4ea06716c016f4e0631153705e177d326118059eeda7377d",
+      "size": 178540
+    },
+    "HIJAAK/PEANUTS.WS": {
+      "path": "HIJAAK/PEANUTS.WS",
+      "sha256": "0247e105d6d03673c12a25082bcf197930bacf2de74200b03ea26a8189276e42",
+      "size": 256
+    },
+    "INSET/GRAPHICS.DOC": {
+      "path": "INSET/GRAPHICS.DOC",
+      "sha256": "48bf57eed93c707402df3d083ae59197120110ff8cbd27bc246341444f74b6d3",
+      "size": 1536
+    },
+    "LSRBOX/ASC256.TXT": {
+      "path": "LSRBOX/ASC256.TXT",
+      "sha256": "d42b6984f7faa4f1d50bc96210f76e6522788dfab6560825cd5a3b3b0431b04e",
+      "size": 256
+    },
+    "LSRBOX/CHECKER.BRD": {
+      "path": "LSRBOX/CHECKER.BRD",
+      "sha256": "0684a842529b97e30c0bc2b5cec1e88194260c30cf787fe584af6dc4ee368d8a",
+      "size": 10880
+    },
+    "LSRBOX/LSRBOX.WS": {
+      "path": "LSRBOX/LSRBOX.WS",
+      "sha256": "a8cfe2a887b3e5c4b7217dfd23762a97de70b962cb738f15d4cd446211f8d7ad",
+      "size": 28032
+    },
+    "LSRBOX/LSRBOXES.MRG": {
+      "path": "LSRBOX/LSRBOXES.MRG",
+      "sha256": "a6b2fe4c86b950236906a9e6c2cb03efd788eda045e950f86cd3753fa624d6c7",
+      "size": 31232
+    },
+    "LSRBOX/LSRLINES.MRG": {
+      "path": "LSRBOX/LSRLINES.MRG",
+      "sha256": "ebce7b0e609037787653303dd7daedab5519196c8fa139a2ef34acbbd0e5aaf1",
+      "size": 21376
+    },
+    "LSRBOX/MAXIMUM.BOX": {
+      "path": "LSRBOX/MAXIMUM.BOX",
+      "sha256": "7671c2776e4fc73c051056fc4de9a70f6211efc1b07a12600b9480adf0699bff",
+      "size": 181
+    },
+    "LSRBOX/OHBORD.DBL": {
+      "path": "LSRBOX/OHBORD.DBL",
+      "sha256": "ec325f0fe183f281e3dcff3f4fbd23fe281f66ae02cf6b3a19a43bdd1b4ecb35",
+      "size": 361
+    },
+    "LSRBOX/OHBORD.THI": {
+      "path": "LSRBOX/OHBORD.THI",
+      "sha256": "d265c5cd7edf277739be9d300c6de79de42993f6bf1c9ebec58a54edf5b7b360",
+      "size": 181
+    },
+    "LSRBOX/OHBORD.THK": {
+      "path": "LSRBOX/OHBORD.THK",
+      "sha256": "92743c84c150beb7e9da274bdac86f0bfa1de8cd3d9bb74ecf79b84f6608f85d",
+      "size": 181
+    },
+    "LSRBOX/OHSHADED.BOX": {
+      "path": "LSRBOX/OHSHADED.BOX",
+      "sha256": "61655e748389b9c5d51af43e15a12373fbd15f6befba1c8a443f39a3b008c2bd",
+      "size": 201
+    },
+    "LSRBOX/OHTQBORD.SHD": {
+      "path": "LSRBOX/OHTQBORD.SHD",
+      "sha256": "fe2c881b786bfa14bfcb1cb8d156a1d9c82905387091ee2b31194e6cd80d58c1",
+      "size": 1280
+    },
+    "LSRBOX/PAGE.RND": {
+      "path": "LSRBOX/PAGE.RND",
+      "sha256": "abd300d5965e7ae5a467e0250d7930c173b81ce4c01db68fe3cdd383b31a8fb4",
+      "size": 8064
+    },
+    "LSRBOX/TEXTLINE.SHD": {
+      "path": "LSRBOX/TEXTLINE.SHD",
+      "sha256": "465e0e5a967d761c731d047ce1179fc6f4e3ce479b92f8cccd55cd4e4781fb75",
+      "size": 256
+    },
+    "LSRBOX/TOP&BOT.LIN": {
+      "path": "LSRBOX/TOP&BOT.LIN",
+      "sha256": "ebe21691cf36e24f05b28bd9314b6ada35625869416541b69f5cca363d1808c4",
+      "size": 384
+    },
+    "MACROS/HOLYMAC/-HOLYMAC.WS": {
+      "path": "MACROS/HOLYMAC/-HOLYMAC.WS",
+      "sha256": "bb930807f01b4d4f60e4023cb321466c5113ab84acf64be249f2b2d381bb0406",
+      "size": 538487
+    },
+    "MACROS/HOLYMAC/-README.WS": {
+      "path": "MACROS/HOLYMAC/-README.WS",
+      "sha256": "575b7caeeea8ff3f8ba38c3b7ca6c77a3fc039a7f6ac1f222bb84947b6df1cb9",
+      "size": 2944
+    },
+    "MACROS/HOLYMAC/1-3MAC": {
+      "path": "MACROS/HOLYMAC/1-3MAC",
+      "sha256": "e4d7bbae8db82e85d5ccfc8d5d565e542a2cb9c8638904d1f012081e6f5712b6",
+      "size": 53760
+    },
+    "MACROS/HOLYMAC/4MAC1": {
+      "path": "MACROS/HOLYMAC/4MAC1",
+      "sha256": "08459dddd104b7684b78fd5f5a24e49b59ae82b1c4b4cabf068184e0a0e84b5a",
+      "size": 72704
+    },
+    "MACROS/HOLYMAC/4MAC2": {
+      "path": "MACROS/HOLYMAC/4MAC2",
+      "sha256": "44c4254e0d0be3b9c6f79cf77752ab5733da8f5a23becdfe305b32b7e7301ae0",
+      "size": 74112
+    },
+    "MACROS/HOLYMAC/4MAC3": {
+      "path": "MACROS/HOLYMAC/4MAC3",
+      "sha256": "d73227c063603d14fee03a8a16dfd532a090775b778ee7dd8ebdfc4175fc6e29",
+      "size": 68480
+    },
+    "MACROS/HOLYMAC/5-6MAC": {
+      "path": "MACROS/HOLYMAC/5-6MAC",
+      "sha256": "117e023effaede51fdd30fb6df44b840e51d9311a4489e742b4dc06fb490baa4",
+      "size": 33280
+    },
+    "MACROS/HOLYMAC/7MAC1": {
+      "path": "MACROS/HOLYMAC/7MAC1",
+      "sha256": "92104385ea063718f8c7af6880e83040fcb02b36c467ab2ab0c48f961fc5b53b",
+      "size": 75776
+    },
+    "MACROS/HOLYMAC/7MAC2": {
+      "path": "MACROS/HOLYMAC/7MAC2",
+      "sha256": "5bff8f8e4208b90f10901794880fdf4e55087b1fc2163f2029e57765aaf6fb8b",
+      "size": 78336
+    },
+    "MACROS/HOLYMAC/7MAC3": {
+      "path": "MACROS/HOLYMAC/7MAC3",
+      "sha256": "f41976465b3f5a7878bc6b14c0b6b174ecd72acbe7033cde7510d8db5c01d21e",
+      "size": 77312
+    },
+    "MACROS/HOLYMAC/8MAC": {
+      "path": "MACROS/HOLYMAC/8MAC",
+      "sha256": "565cb9b10be8097b758c44652e256cc2df9f2964adbeeb14a9e0ed4d3cdb9a68",
+      "size": 16896
+    },
+    "MACROS/HOLYMAC/WOMBAT": {
+      "path": "MACROS/HOLYMAC/WOMBAT",
+      "sha256": "5f23caa04511195724a3e82ded13e852b18992c8ad8732f1749ebc90cf30049e",
+      "size": 4096
+    },
+    "MACROS/SAWYER/-MACROS.DOC": {
+      "path": "MACROS/SAWYER/-MACROS.DOC",
+      "sha256": "518c3a4c7d56fa8745e372f5eaa7c5f572861a522b204ab49d92cc863010b340",
+      "size": 19328
+    },
+    "MACROS/SAWYER/-MAKEDTP.WS": {
+      "path": "MACROS/SAWYER/-MAKEDTP.WS",
+      "sha256": "5b1f841e0b33467ccd5b08ea47c50a137ff3633d5e568d576768886330ee68cb",
+      "size": 1920
+    },
+    "MAILLIST/ENVELOPE.LST": {
+      "path": "MAILLIST/ENVELOPE.LST",
+      "sha256": "5b4eb919c2ff1dcb9ef591d134d2bb84d1ee7503a99a3bb4786733a479dbb3f4",
+      "size": 768
+    },
+    "MAILLIST/HP-ENV.LST": {
+      "path": "MAILLIST/HP-ENV.LST",
+      "sha256": "cda0b5588e31737ebb14a89eb2ecf07305f2efc68ff1d00b08a0e23b987f4a30",
+      "size": 1024
+    },
+    "MAILLIST/HP-ENVMM.LST": {
+      "path": "MAILLIST/HP-ENVMM.LST",
+      "sha256": "ae33c07b67bc83e3b9f8036cf5ca1805c0b401a068b2220215a3994279234637",
+      "size": 640
+    },
+    "MAILLIST/HP-LAB3.LST": {
+      "path": "MAILLIST/HP-LAB3.LST",
+      "sha256": "255279d45df06a80f8704d1de994f3134884146d4d7dc63f3142a8765dbca520",
+      "size": 3200
+    },
+    "MAILLIST/HP2-ENV.LST": {
+      "path": "MAILLIST/HP2-ENV.LST",
+      "sha256": "bedc5eabb15fabb429feaecd643ceae930ac4a06536b2b650eb4379095e75ec4",
+      "size": 1024
+    },
+    "MAILLIST/HP2-ENVE.LST": {
+      "path": "MAILLIST/HP2-ENVE.LST",
+      "sha256": "d5ec462f8a118b6717ca17446d20762fbfdd4c425a1f411b14dba01bded49e60",
+      "size": 768
+    },
+    "MAILLIST/HP2-ENVM.LST": {
+      "path": "MAILLIST/HP2-ENVM.LST",
+      "sha256": "de513215c86da9572385a1d361b1107afa94497eb3ac93ae911f8dc3581acb7e",
+      "size": 768
+    },
+    "MAILLIST/INVNTORY.DOT": {
+      "path": "MAILLIST/INVNTORY.DOT",
+      "sha256": "8a240a6d1341d4129f8b6b66d77894bdf19a702a11bb5702b6339114725f8b3a",
+      "size": 384
+    },
+    "MAILLIST/INVNTORY.LST": {
+      "path": "MAILLIST/INVNTORY.LST",
+      "sha256": "a7d0c51a2e8216c2e59cdc028d164afcd92d53a387c7a1c874ed45ae8caaef5e",
+      "size": 1280
+    },
+    "MAILLIST/LABEL.LST": {
+      "path": "MAILLIST/LABEL.LST",
+      "sha256": "423218a77f24b5f32bad8da439ad4b2275de20be464dad33728655bc3ee83aad",
+      "size": 128
+    },
+    "MAILLIST/LABEL3.LST": {
+      "path": "MAILLIST/LABEL3.LST",
+      "sha256": "0726bf73cd6713bd63969d71c2df35909f23326c311e2945790d936e7e996cac",
+      "size": 128
+    },
+    "MAILLIST/LABEL3A": {
+      "path": "MAILLIST/LABEL3A",
+      "sha256": "e5c738f480afee8fe7b2f9384ef5000b3948b80a56c03ce96e6a22fdface1880",
+      "size": 2560
+    },
+    "MAILLIST/LABELA": {
+      "path": "MAILLIST/LABELA",
+      "sha256": "4182a353186df1013ac2650270c08a0d23c620be66169f7727351dffb17319c1",
+      "size": 1152
+    },
+    "MAILLIST/LABELXL.LST": {
+      "path": "MAILLIST/LABELXL.LST",
+      "sha256": "ae9d26304682cd7e73c99d440f6c4d611c9883654ee107b92708cedb5bb4e23b",
+      "size": 128
+    },
+    "MAILLIST/LABELXLA": {
+      "path": "MAILLIST/LABELXLA",
+      "sha256": "841b916b09b2c402b34b3f1eab2533d4c83d211b664c56312d29b5b7a06f2d97",
+      "size": 1664
+    },
+    "MAILLIST/LSRLABL3.LST": {
+      "path": "MAILLIST/LSRLABL3.LST",
+      "sha256": "b7519ac61973686c7fe4b451a6231bf5bada034cf81c524ad3061de55da37f3d",
+      "size": 2944
+    },
+    "MAILLIST/MAILLIST.DOT": {
+      "path": "MAILLIST/MAILLIST.DOT",
+      "sha256": "e52deeb411a4b677f2fe92aa005d8866acdeb4221fe0e04a19cbb4f51bcf703e",
+      "size": 384
+    },
+    "MAILLIST/PHONE.LST": {
+      "path": "MAILLIST/PHONE.LST",
+      "sha256": "e4d1f064b64199dbfe47dcc5fd6ca46125bbc1932fda084b4b1e84c6ecd32b99",
+      "size": 768
+    },
+    "MAILLIST/PROOF.LST": {
+      "path": "MAILLIST/PROOF.LST",
+      "sha256": "3fcb829b6f3da15a044e7669ad2463a9abc309d21f8bf5993e897d0a9de89962",
+      "size": 1152
+    },
+    "MAILLIST/ROLODEX.LST": {
+      "path": "MAILLIST/ROLODEX.LST",
+      "sha256": "681c6966c9484fc8a402154aaeec3a8d642a078470677975b20002d986c0debc",
+      "size": 128
+    },
+    "MAILLIST/ROLODEXA": {
+      "path": "MAILLIST/ROLODEXA",
+      "sha256": "4cbb89c3e04e087df68cc80cb61b22122152a9a6780c8dab14a61a948ed6ccc2",
+      "size": 1408
+    },
+    "MAILLIST/SHOLABEL": {
+      "path": "MAILLIST/SHOLABEL",
+      "sha256": "d57f3ecee6e521f8ad63cb45e38f150321f94b34fa4a0dfe0628cd24f880bb32",
+      "size": 896
+    },
+    "MAILLIST/SHOLABL3": {
+      "path": "MAILLIST/SHOLABL3",
+      "sha256": "606396f28bda24b16499c36a835184015ed66115be88e457dfbfcb1a263621fd",
+      "size": 2816
+    },
+    "MAILLIST/SHOLABLX": {
+      "path": "MAILLIST/SHOLABLX",
+      "sha256": "7a9f6d4f8e679daa00c58cadea0850420fe7d00c610a2f4ec8e71f272042e966",
+      "size": 1024
+    },
+    "MAILLIST/SHOROLDX": {
+      "path": "MAILLIST/SHOROLDX",
+      "sha256": "8234f5a978ab8d2d896fd069a08e35c2003efb02145b50398dc08df558bad973",
+      "size": 1024
+    },
+    "MANUALS/WordStar Manuals Index/index1.idx": {
+      "path": "MANUALS/WordStar Manuals Index/index1.idx",
+      "sha256": "5c0ebc6765aaf756a38cdf9d6ab5cd13399ab270a1d61f0d300cd2d4e807a460",
+      "size": 1909302
+    },
+    "MICKEE/MICKEE.WS": {
+      "path": "MICKEE/MICKEE.WS",
+      "sha256": "39e5c5a828643865f3f708eac6afbe6331a5645a7aa4a0dba9eb79a6392494d0",
+      "size": 63616
+    },
+    "PRINTERS/FONTCRIB.PS": {
+      "path": "PRINTERS/FONTCRIB.PS",
+      "sha256": "f2c415785d4fd490d7f96832be697ccfa5158bfab7fafbaebf07a1de76716aee",
+      "size": 107136
+    },
+    "PRINTERS/fontcrib.ws": {
+      "path": "PRINTERS/fontcrib.ws",
+      "sha256": "64fa9fdd60144aa757549116f57546f65e9531526cdd7b1e8fa5573619cda96f",
+      "size": 72448
+    },
+    "PRINTERS/PS/PSSAMPLE.WS": {
+      "path": "PRINTERS/PS/PSSAMPLE.WS",
+      "sha256": "6e90e187605b008ad58b5c84fdc2f798585c08335bc63129951a0cc57c445c21",
+      "size": 1408
+    },
+    "REF/-ATTRIB.TST": {
+      "path": "REF/-ATTRIB.TST",
+      "sha256": "aac496adae797c012af5bcf227f1453d098ee683f00b4a81722a74b71d3558d2",
+      "size": 384
+    },
+    "REF/-HOW-TO.RJS": {
+      "path": "REF/-HOW-TO.RJS",
+      "sha256": "87cf10f037daee6a221a32eb86dd02413aaab2feec959bc1121e7188bc0f0a21",
+      "size": 13056
+    },
+    "REF/-INDEX.HOW": {
+      "path": "REF/-INDEX.HOW",
+      "sha256": "26e661977bc4e74f1147f6a8914eced5b2025efd5b124be5d3fe006228e2b21f",
+      "size": 3328
+    },
+    "REF/-LASERJE.FNT": {
+      "path": "REF/-LASERJE.FNT",
+      "sha256": "471f1085634ead2057360e30000681ea5b8b9fcc9f02802f87fc8b1f062c05c9",
+      "size": 3328
+    },
+    "REF/-PATCHES.WS": {
+      "path": "REF/-PATCHES.WS",
+      "sha256": "200b7495130b3844e743eef471f8bc3f56cf83ab21fe37d0de37e858ae2c7847",
+      "size": 59904
+    },
+    "REF/-SHOW-PP.WS": {
+      "path": "REF/-SHOW-PP.WS",
+      "sha256": "cc42968117da595af5ca7706a88fffb42ca30d6027ab71d143cc769ab14f2fbe",
+      "size": 384
+    },
+    "REF/-TOC-TAG.WS": {
+      "path": "REF/-TOC-TAG.WS",
+      "sha256": "5c76bdd6bf207121330ebb4130ea3baacb0e19ee90ae026fa0f267ee7a5e1d48",
+      "size": 1280
+    },
+    "REF/64BIT.WS": {
+      "path": "REF/64BIT.WS",
+      "sha256": "c2d953b5b47d8b012f097ca526b03ff49ce02ed89fca95b24d5be92f2fbd0064",
+      "size": 8448
+    },
+    "REF/_TABS.RR": {
+      "path": "REF/_TABS.RR",
+      "sha256": "fa8a2d49a25f283c85cd881f7ede6d756e1ee93d85a8ccb0613341eac8c964cd",
+      "size": 768
+    },
+    "REF/ACROBAT.FIX": {
+      "path": "REF/ACROBAT.FIX",
+      "sha256": "b7bbb00ac716c0b30ee0554cc98fcc0f129f7983cb16e08ce7248378520ad2fb",
+      "size": 640
+    },
+    "REF/ADVANCE.DOT": {
+      "path": "REF/ADVANCE.DOT",
+      "sha256": "dfdb9f6c8a834c75fb78ab014429ee56d11a1ea462eae842fe9cb38476fe07bc",
+      "size": 1024
+    },
+    "REF/ANDROID.WS": {
+      "path": "REF/ANDROID.WS",
+      "sha256": "5a5199b12f199bad895cdf0bc59618de21a2838b221fe0fc1a162741efd14405",
+      "size": 3328
+    },
+    "REF/ASCIITAB.WS": {
+      "path": "REF/ASCIITAB.WS",
+      "sha256": "b128028f2dfcbd93d098f252f6b272e36fdff71ac82d31dc1df00cecec6f9d2f",
+      "size": 4096
+    },
+    "REF/BOOKLET.HOW": {
+      "path": "REF/BOOKLET.HOW",
+      "sha256": "bb88dceb33bfce18ad59902f5e65fe7eff989dcb257ca2949618cad54df25c3f",
+      "size": 7552
+    },
+    "REF/BOOKLET.RJS": {
+      "path": "REF/BOOKLET.RJS",
+      "sha256": "87cf10f037daee6a221a32eb86dd02413aaab2feec959bc1121e7188bc0f0a21",
+      "size": 13056
+    },
+    "REF/BOOKLET.WS": {
+      "path": "REF/BOOKLET.WS",
+      "sha256": "984476496ca01708d4968a8b55c1d7f255958fcc285fb0200d09d8d2d087bb19",
+      "size": 11904
+    },
+    "REF/BUGS.WS": {
+      "path": "REF/BUGS.WS",
+      "sha256": "6d5b738746dafb644b14fc705e464e041420ab08e09b6cbcbe4ff5d60e45f9d8",
+      "size": 512
+    },
+    "REF/BULLET.WS": {
+      "path": "REF/BULLET.WS",
+      "sha256": "c7e3e3796daa246d955bd16cbc922501523664a59e2262f43e800472cb7a001e",
+      "size": 4864
+    },
+    "REF/CHECKBOX.WS": {
+      "path": "REF/CHECKBOX.WS",
+      "sha256": "d471ff0c6ede215d24149c100e521dc3fe43d76fba31adb2c71d7be5741ab213",
+      "size": 768
+    },
+    "REF/CLIPBOAR.HOW": {
+      "path": "REF/CLIPBOAR.HOW",
+      "sha256": "e4aa8e4ded9d3824bdc71c3932224f5a408044353dc211af6601102353ff9025",
+      "size": 2816
+    },
+    "REF/CODES": {
+      "path": "REF/CODES",
+      "sha256": "e743087ac5d89c7b10e4b5d9eb10ad2a93a079166193b93df1fbdebcfa57247c",
+      "size": 256
+    },
+    "REF/CODES.WS": {
+      "path": "REF/CODES.WS",
+      "sha256": "05da2a5686136c95e9ea1cc338443634894fd68762c3ff31d23eb8363f07d4dc",
+      "size": 768
+    },
+    "REF/COMMENT.BUG": {
+      "path": "REF/COMMENT.BUG",
+      "sha256": "8572e347bae40590cef79da2d6b61583568fc20cd88d58a47ed5a488121823f6",
+      "size": 896
+    },
+    "REF/COURIER.WS": {
+      "path": "REF/COURIER.WS",
+      "sha256": "267566a69ce7d0e672164b63642db8f89806c367ccdd46fdd6d9fea02108b3d1",
+      "size": 7168
+    },
+    "REF/CREDITS.WS": {
+      "path": "REF/CREDITS.WS",
+      "sha256": "71c9243602800d4ffa3bc99fd103757076546b1db8569521e3ad1f898d59a487",
+      "size": 896
+    },
+    "REF/CTRL-K.H1": {
+      "path": "REF/CTRL-K.H1",
+      "sha256": "fbe3be8e4bad0ade1ae8c84ad0f0561c78f40615e77cc4dda90e9696d4bcbac4",
+      "size": 2304
+    },
+    "REF/DELAYS.WS": {
+      "path": "REF/DELAYS.WS",
+      "sha256": "085c81295b515e342538c25adbaa5eef7672fa2af54d43b378acb7020d0b4c03",
+      "size": 768
+    },
+    "REF/DICT.WS": {
+      "path": "REF/DICT.WS",
+      "sha256": "366b78cab7662ba8512b13333264878c68639047689e82dfec7a06ac9fd01364",
+      "size": 512
+    },
+    "REF/DOT-WI.WS": {
+      "path": "REF/DOT-WI.WS",
+      "sha256": "c5c7e399b02f3d8d0aa1be20157a337891e637a29153ca952a03b404b89579f9",
+      "size": 1536
+    },
+    "REF/DOTCMDNS.WS": {
+      "path": "REF/DOTCMDNS.WS",
+      "sha256": "77aa3b76fb2e82477ad7eef8647132a8deeaef5f086349023642af69c581cbaf",
+      "size": 22400
+    },
+    "REF/DOTS.IF": {
+      "path": "REF/DOTS.IF",
+      "sha256": "42b207fe5e5a203228dd58d852316b9ac5351b733f44f006102ae6a11b487882",
+      "size": 768
+    },
+    "REF/DPI.TAG": {
+      "path": "REF/DPI.TAG",
+      "sha256": "f04101e6fbf5b754e2b3d2c7ef36b9926ff470047eb6b0f71590f7295e0f7efc",
+      "size": 384
+    },
+    "REF/DVORAK.WS": {
+      "path": "REF/DVORAK.WS",
+      "sha256": "980711ddac38b67757b8f6fb20cc99832ae321406fba67080c9729a85e70d09c",
+      "size": 14720
+    },
+    "REF/EMS.FIX": {
+      "path": "REF/EMS.FIX",
+      "sha256": "29182edc6206a433621d4d7c5dd33924207c3eaa03a8d031c001e00d9b6c8788",
+      "size": 2304
+    },
+    "REF/FONT-TAG.CMP": {
+      "path": "REF/FONT-TAG.CMP",
+      "sha256": "3967a5a3bcdd80e0a66207149dcf628abae489c73a82c74b1f0b37450c99d7e3",
+      "size": 11264
+    },
+    "REF/FONTS.REF": {
+      "path": "REF/FONTS.REF",
+      "sha256": "270e1ceee22a43decb329a5d341ee3486e3bf64d176051f64001849d240cca56",
+      "size": 9984
+    },
+    "REF/FUZZY.FIX": {
+      "path": "REF/FUZZY.FIX",
+      "sha256": "b0b030c85fa938e5c8f9223ca8a2f0b320766ff21b5120d2f2db6dd394745ded",
+      "size": 1024
+    },
+    "REF/GALLEYS.DOT": {
+      "path": "REF/GALLEYS.DOT",
+      "sha256": "283a3698fe2ba8684163ee7d1d6c0cb840a99b3dc31a87ea5e0ef612153ed39b",
+      "size": 1152
+    },
+    "REF/HIGHLIGH.WS": {
+      "path": "REF/HIGHLIGH.WS",
+      "sha256": "75f25e5f33d7fa38784c0d76a735117733951ae7ba6d89597f86348c45b2af7c",
+      "size": 2432
+    },
+    "REF/MAC.OSX": {
+      "path": "REF/MAC.OSX",
+      "sha256": "7f068169e768066abc51d46f0a3eb6151abb336728714d61c210f3e7ef8bab92",
+      "size": 896
+    },
+    "REF/MACBOOK.AIR": {
+      "path": "REF/MACBOOK.AIR",
+      "sha256": "70691385e0c03c7ead8ef24fedd35d580badbbe76c28b8c7ff341d8af2a519cc",
+      "size": 768
+    },
+    "REF/NOTES.TST": {
+      "path": "REF/NOTES.TST",
+      "sha256": "e51cf2ee5e46992dfc0ad7198c330432350aa614b44a7f7a4fcbc890f3b42ed1",
+      "size": 1408
+    },
+    "REF/Notes/690.TXT": {
+      "path": "REF/Notes/690.TXT",
+      "sha256": "b2fc0dc898e131ff20f8f40d5ad51831f18fcb6736dc0ad4f75ede7e9ba8c598",
+      "size": 11648
+    },
+    "REF/PAGESIZE.WS": {
+      "path": "REF/PAGESIZE.WS",
+      "sha256": "d4aa526bf1bf9456941682a0608f139ebc374396a6cbc3a76bfa4cb860f81a33",
+      "size": 8192
+    },
+    "REF/PALATINO": {
+      "path": "REF/PALATINO",
+      "sha256": "7a802fb4d79b0c1a1409b8f655218b00ce93abd9fbd68ffb6d863ac0a1711105",
+      "size": 256
+    },
+    "REF/PAPERPOR.EXT": {
+      "path": "REF/PAPERPOR.EXT",
+      "sha256": "5d4091e29163bd93d2a27b14da6d40638534f36f8240292fb0187764c96c0322",
+      "size": 3968
+    },
+    "REF/PARAGRAP.NUM": {
+      "path": "REF/PARAGRAP.NUM",
+      "sha256": "21b0fe18ad06af85b93e9c42bad63e68c5f2d1a5ecfb764e0f32ee8407cff1e7",
+      "size": 768
+    },
+    "REF/PDF.HOW": {
+      "path": "REF/PDF.HOW",
+      "sha256": "545720eac0beba6d2e5c9ccbe01db106a7b1de885b0f335bd401d9f11591eb39",
+      "size": 3840
+    },
+    "REF/PP.WS": {
+      "path": "REF/PP.WS",
+      "sha256": "b2039ef56c17214bb37d68a0b1f66ae91d1889a282a7e59681645e9cc213700a",
+      "size": 384
+    },
+    "REF/PS-FONTS.REF": {
+      "path": "REF/PS-FONTS.REF",
+      "sha256": "7a9dd4860c9ba9be0380f06a4fe04f9432fa5df86c740897a80df62466103d5b",
+      "size": 1152
+    },
+    "REF/PS.TST": {
+      "path": "REF/PS.TST",
+      "sha256": "b871b716360954e22d0daed1cfcc26776e47e24d34c4001d67873a6b506278a3",
+      "size": 3840
+    },
+    "REF/REFORM.DOT": {
+      "path": "REF/REFORM.DOT",
+      "sha256": "2014bc1b6b1838f62518788b70575fdcea9f7228a07910d348c390fc9b1478d5",
+      "size": 1024
+    },
+    "REF/ROUNDED.BRD": {
+      "path": "REF/ROUNDED.BRD",
+      "sha256": "a7d7f6c937f446241de31ebaef3cd23c8e49a9de5d0e0d2b00b34b790ae18dfe",
+      "size": 6400
+    },
+    "REF/ROUNDING.HOW": {
+      "path": "REF/ROUNDING.HOW",
+      "sha256": "610455ca9bff371ea6383b84ad152456f2c002d90f43e22e169e39aec5f3e193",
+      "size": 1664
+    },
+    "REF/SCREEN.WS": {
+      "path": "REF/SCREEN.WS",
+      "sha256": "24347c6ce613c865983cecdbcf747acbddadda679783b9a9cec33b6328a804dd",
+      "size": 2688
+    },
+    "REF/SHADES.WS": {
+      "path": "REF/SHADES.WS",
+      "sha256": "76196db3ddb287cb7c1f35f827371225de866e275b843b27bc72955f7a56542a",
+      "size": 1024
+    },
+    "REF/STYLESHE.WS": {
+      "path": "REF/STYLESHE.WS",
+      "sha256": "cff8e0e1928fcaa924e260ce6664eb404ee4dc0d9ca68bd051ad63327d192e1c",
+      "size": 1408
+    },
+    "REF/SUB-SUPE.TST": {
+      "path": "REF/SUB-SUPE.TST",
+      "sha256": "1dc609aafef2c38d48c4fa20562155c14a1f76b219aa28a4beb4d38aa264f425",
+      "size": 6144
+    },
+    "REF/SYMBOL.CHT": {
+      "path": "REF/SYMBOL.CHT",
+      "sha256": "88c8d0c60f77099762f471884fe0cd0f6d7d40b688aa27b528d931f35403d637",
+      "size": 28416
+    },
+    "REF/TEMPFILE.WS": {
+      "path": "REF/TEMPFILE.WS",
+      "sha256": "990a195cbe9ca255c3e309e3d5b806dffef4c2ac09aee83152e385cda876dbea",
+      "size": 1536
+    },
+    "REF/TOCTRICK.WS": {
+      "path": "REF/TOCTRICK.WS",
+      "sha256": "5e4b076584cf995048062823dd13f67473233eae7d531eda691dfbbd495c493f",
+      "size": 4608
+    },
+    "REF/WIN7.ETC": {
+      "path": "REF/WIN7.ETC",
+      "sha256": "d21a13c00b4061ab9ab22cdc86fcb60e6a8a2a2533cac3aae4bd3c2ff1b6e6ae",
+      "size": 40576
+    },
+    "REF/WIN7MEM.WS": {
+      "path": "REF/WIN7MEM.WS",
+      "sha256": "e86111fd67f3d70b75bcd12786fc85b78e1842c7c6a020341ebae6ef4de944b5",
+      "size": 1920
+    },
+    "REF/WINDOS.HOW": {
+      "path": "REF/WINDOS.HOW",
+      "sha256": "0d57b7402d74dead03da230c6b5e74257b574e8a7069674dadda672f3ab17191",
+      "size": 1024
+    },
+    "REF/WINDOWS.8": {
+      "path": "REF/WINDOWS.8",
+      "sha256": "757a71162344beed3a47cb67955a9c588a85d25ba061bfd880e90d702a939071",
+      "size": 6144
+    },
+    "REF/WINDOWS7.SWP": {
+      "path": "REF/WINDOWS7.SWP",
+      "sha256": "1fce0c5900c06c29b1a3cb3a712445cd8946dce162508ba889459ba1c15859c4",
+      "size": 2816
+    },
+    "REF/WINDOWS7.WS": {
+      "path": "REF/WINDOWS7.WS",
+      "sha256": "bce9241696df40e3ee33f886dbb8c1e6ee4d25ed2cb3de855415736f2b3945f5",
+      "size": 1792
+    },
+    "REF/WINGDING.CHT": {
+      "path": "REF/WINGDING.CHT",
+      "sha256": "13cc5493e72e257d61ba9068053e4e30fced5dacd6907792cdff7660b9c38fbb",
+      "size": 33024
+    },
+    "REF/WORTHING.TON": {
+      "path": "REF/WORTHING.TON",
+      "sha256": "dfaddf44f8d6fbe21daa37d5fa597c5440fb1e72ee40c809a533b22c491f46e9",
+      "size": 1920
+    },
+    "REF/WSFORMAT.WS": {
+      "path": "REF/WSFORMAT.WS",
+      "sha256": "f5284d36cea89784100a643b361982baa629ce418073ebdb11063d809de83d99",
+      "size": 64896
+    },
+    "RTF-RJS/-README.WS": {
+      "path": "RTF-RJS/-README.WS",
+      "sha256": "07ab071ee219abcb13c242d92a27ccde402e250bd3709e58489d0c9385a192b9",
+      "size": 6656
+    },
+    "RTF-RJS/-README2.WS": {
+      "path": "RTF-RJS/-README2.WS",
+      "sha256": "50a6c32ebf0bbc5fc507593b15e13a5415da351eb169e884121455e8fb3a4018",
+      "size": 1280
+    },
+    "RTF-RJS/1-5LINES.WS": {
+      "path": "RTF-RJS/1-5LINES.WS",
+      "sha256": "49f8951e141733ce9c03fd20078be4a17ebd8f1df9fd07de6dbc32e09c0bb76d",
+      "size": 17920
+    },
+    "RTF-RJS/1-SINGLE.WS": {
+      "path": "RTF-RJS/1-SINGLE.WS",
+      "sha256": "678e59b6d543da3eb7d11af0323192915c192f3bee157a2a6b0b5af23aa7fad8",
+      "size": 12416
+    },
+    "RTF-RJS/2-DOUBLE.WS": {
+      "path": "RTF-RJS/2-DOUBLE.WS",
+      "sha256": "37069440ddc5d59047b1e488dee7c79f79f014429568e9bdf208d520a33c9593",
+      "size": 12416
+    },
+    "RTF-RJS/LINKS.WS": {
+      "path": "RTF-RJS/LINKS.WS",
+      "sha256": "107a1be7699f0f120810922bbec5b5276a23e6791b7c918efeffdf693e078afa",
+      "size": 4608
+    },
+    "RTF-RJS/MARKUP.WS": {
+      "path": "RTF-RJS/MARKUP.WS",
+      "sha256": "54fa85f37f8ff49ac326b8e73fdc8277f78aa789dc1f3814aa3fcbd06d614b81",
+      "size": 1408
+    },
+    "RTF-RJS/NOTITLE.WS": {
+      "path": "RTF-RJS/NOTITLE.WS",
+      "sha256": "e0117b781869347bccfbb88911a792553c1ca4a2cd90093d705ef11d3684df15",
+      "size": 256
+    },
+    "RTF-RJS/NOVEL.WS": {
+      "path": "RTF-RJS/NOVEL.WS",
+      "sha256": "f9bd018c7479c3361709017ce16da8c16e1825de9952d8c1975ae6c86d5032e3",
+      "size": 89344
+    },
+    "RTF-RJS/RTFDS.WS": {
+      "path": "RTF-RJS/RTFDS.WS",
+      "sha256": "709327358e56763053bbf3459e4bd6f84bfd0d7d3991017488feae7d13fe83fd",
+      "size": 1792
+    },
+    "RTF-RJS/SKIPTEST.WS": {
+      "path": "RTF-RJS/SKIPTEST.WS",
+      "sha256": "9256d3ff722a0c3be9efb4f84a55b36bcf7f790514bb224734d7d7475fbbea2d",
+      "size": 1280
+    },
+    "TAGS/-README.WS": {
+      "path": "TAGS/-README.WS",
+      "sha256": "4ca03cd82adb9773efa6b53525aaed325bbebdff889f27ecee7e9a58cf33c53a",
+      "size": 2688
+    },
+    "TAGS/CHECK": {
+      "path": "TAGS/CHECK",
+      "sha256": "ac8188cdd6666826a7beb9b4ab88c994602fffafc2fff13c7a54e70cbd362104",
+      "size": 128
+    },
+    "TAGS/CHECKED": {
+      "path": "TAGS/CHECKED",
+      "sha256": "88fe16763c098a50366a5a15e9d1d803e2195d2b7f25f864f3d588aa39b5eb53",
+      "size": 128
+    },
+    "TAGS/CLARIFY": {
+      "path": "TAGS/CLARIFY",
+      "sha256": "35fea2e4f2de15f804abc7f30e385c1b1165dc604febe0f5d9ad5a62821e2ea7",
+      "size": 128
+    },
+    "TAGS/CONDENSE": {
+      "path": "TAGS/CONDENSE",
+      "sha256": "8eac72ccc2528c2f40d9e200e819ddc1c8833622ecd3a70a5423fbc8d3f7fbfd",
+      "size": 128
+    },
+    "TAGS/CUT": {
+      "path": "TAGS/CUT",
+      "sha256": "1709af474fae5ac98f77f0a82db33e20fac6479066648b4c7ac203477e3ca12f",
+      "size": 128
+    },
+    "TAGS/DW": {
+      "path": "TAGS/DW",
+      "sha256": "418d361b395f224674907183f6fa12813fca6196c6e8ac44bcb73f1c881caf3a",
+      "size": 128
+    },
+    "TAGS/ESTAB": {
+      "path": "TAGS/ESTAB",
+      "sha256": "5344f351dc5eda8afa103a36a094f18209790960bc893c62f0d630401b28a1bb",
+      "size": 128
+    },
+    "TAGS/EXPAND": {
+      "path": "TAGS/EXPAND",
+      "sha256": "6c31006fd77449b5b486a085ea8b2d6f4f1934d068b93d386345c858ff873db9",
+      "size": 128
+    },
+    "TAGS/FIX": {
+      "path": "TAGS/FIX",
+      "sha256": "95b06f534ef3c3f0e54e46614430447eedeb46cf8a87ee97edd3ebfbd2485b46",
+      "size": 128
+    },
+    "TAGS/HOW": {
+      "path": "TAGS/HOW",
+      "sha256": "80224ead35a5e558fec7306c12553c921e25f34470428409d28c5c7cc432df36",
+      "size": 128
+    },
+    "TAGS/HUH": {
+      "path": "TAGS/HUH",
+      "sha256": "5415e30c5fad599795d4d8065ea87501d9e3d9fe9419e8251a02bff6207ff0e6",
+      "size": 128
+    },
+    "TAGS/OK": {
+      "path": "TAGS/OK",
+      "sha256": "88fe16763c098a50366a5a15e9d1d803e2195d2b7f25f864f3d588aa39b5eb53",
+      "size": 128
+    },
+    "TAGS/ONCF": {
+      "path": "TAGS/ONCF",
+      "sha256": "86f3db58343a151704e3d05b48bbc82622fe8461684fd1e5b150974afd104651",
+      "size": 128
+    },
+    "TAGS/ONFC": {
+      "path": "TAGS/ONFC",
+      "sha256": "7c7a2254aeaa87e009756bebde255cfd0812829ccd1e46acca0c30d3dcc5bfe3",
+      "size": 256
+    },
+    "TAGS/R": {
+      "path": "TAGS/R",
+      "sha256": "f50e69c2f49f7cd89eeb0c4b71c212d91ea83e54738d2e32645c0b9a3da90f36",
+      "size": 128
+    },
+    "TAGS/R1": {
+      "path": "TAGS/R1",
+      "sha256": "3e3fc49e0a26cbd42a07596fd42b4ba895eb2af13dfd60599b6ee0c548cd652a",
+      "size": 128
+    },
+    "TAGS/R2": {
+      "path": "TAGS/R2",
+      "sha256": "5e87d9c8310dbf916ed54e201448cafb2c9ccd7016c8ac08957278d6f7333c45",
+      "size": 128
+    },
+    "TAGS/SHOW": {
+      "path": "TAGS/SHOW",
+      "sha256": "b0b3e534d7dd7394f43cafaff28e2bb7c8a8b151bfe30ab626d4360cf8b6d7d3",
+      "size": 128
+    },
+    "TAGS/SIMPLIFY": {
+      "path": "TAGS/SIMPLIFY",
+      "sha256": "4444a85d2ebd97690bd53d75e389d33d2223009954be151ed0851d371c9f1235",
+      "size": 128
+    },
+    "TAGS/SPLIT": {
+      "path": "TAGS/SPLIT",
+      "sha256": "93e3bc487650e1f2e7c4bb3e7b47a04693e94d48b83f928fb234f51a12940355",
+      "size": 128
+    },
+    "TAGS/TRANSIT": {
+      "path": "TAGS/TRANSIT",
+      "sha256": "ac828a8fac0e723b405cfa075c3138b912fe93b777921275d045ef4e6c890e03",
+      "size": 128
+    },
+    "TAGS/WHEN": {
+      "path": "TAGS/WHEN",
+      "sha256": "d2c6d82e55b322d5ec57628821b25b89ac3f87954bd5545161cb4656fccae35b",
+      "size": 128
+    },
+    "TAGS/WHY": {
+      "path": "TAGS/WHY",
+      "sha256": "7db4126d2bf008f5224c023a303b98dd761e4298a6b0ebf5a9675eac7fca3310",
+      "size": 128
+    },
+    "UTIL/DOSYMSEQ.WS": {
+      "path": "UTIL/DOSYMSEQ.WS",
+      "sha256": "cdf49c4b9bb3c8d288c177b2c8ef281e8b29d6bc674435ce4a885dc4fb5b61fd",
+      "size": 19200
+    },
+    "WFW/UNC0819.DAT": {
+      "path": "WFW/UNC0819.DAT",
+      "sha256": "0c76f96386e84aaf4584f5c23fb7525cfe6fd757946aeba3bdc854d1c4419d58",
+      "size": 2560
+    },
+    "WS-CON/SAMPLE.WS": {
+      "path": "WS-CON/SAMPLE.WS",
+      "sha256": "6b2ceea48d4a5bd073663dc16ffd128940e57df232937fc01e5b1da45dc92d86",
+      "size": 2176
+    }
+  }
+}
