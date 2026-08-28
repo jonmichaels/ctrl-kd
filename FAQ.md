@@ -81,6 +81,21 @@ WordStar material can try it today — and if you have such files, please open
 an issue: a genuine known-answer document is exactly what would turn this
 limitation into a feature.
 
+## Why did my two spaces after a period become one?
+
+Modern output collapses a typed double space after a sentence ender
+(`.` `?` `!`) to a single space — the modern convention, applied the same
+way in every Modern format and view. Printed and Native keep the document
+exactly as typed. `--sentence-spacing {auto,keep,single}` overrides:
+`auto` (the default) means single on Modern and as-typed on Printed;
+`keep` and `single` force one behaviour everywhere.
+
+## Are there sample documents to try?
+
+Yes — four public-domain WordStar documents ship inside the tool:
+`ctrl-kd --samples DIR` writes them into DIR, ready to convert. They are
+real period files, not synthetic fixtures.
+
 ## What do I get if I just run `ctrl-kd FILE` with no flags?
 
 A **Modern RTF**: the document reflowed for reading and editing today, with
