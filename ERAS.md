@@ -91,8 +91,7 @@ sequence" containing "the footnote number tag" -- resolved one level
 deeper, the same 5-byte shape recurring, since "currently only one level of
 this recursion is used") and the conversion-flag byte's high nybble ("0
 means to use symbols, 1 is for upper case, 2 is for lower case, and 3 is
-for numbers"). Ruled in 2026-08-24 (register: "MODERN NOTE APPEARANCE"/"TXT
-NOTE STYLE"/"CONTINUOUS RENUMBERING" rows and their trailing constraint).
+for numbers"). Behaviour settled by project decision, 2026-08-24.
 
 **What ctrl-kd does.** `core._parse_note` resolves the recursive high-bit
 case into `Note.tag` for footnote/endnote exactly as it already did for
