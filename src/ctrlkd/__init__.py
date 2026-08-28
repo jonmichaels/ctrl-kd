@@ -8,4 +8,4 @@ from .pdf import emit_pdf                        # registers the 'pdf' format
 from .convert import convert, select_notes, DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS
 from .info import document_info
 
-__version__ = '4.5.0b1'
+__version__ = '4.5.0'
