@@ -2,8 +2,8 @@
 
 ## Which WordStar versions does ctrl-kd read?
 
-- **WordStar 4** documents (and the high-bit word-wrap convention of that era).
-- **WordStar 5, 6, and 7** documents. For these, ctrl-kd follows **the WordStar 7
+- **WordStar for DOS 4** documents (and the high-bit word-wrap convention of that era).
+- **WordStar for DOS 5, 6, and 7** documents. For these, ctrl-kd follows **the WordStar 7
   standard**: MicroPro's own *File Format for WordStar Release 7.0* (17 March 1992),
   the last and most complete official format specification. A public copy lives at
   [sfwriter.com/wsformat.txt](https://www.sfwriter.com/wsformat.txt); manuals for
