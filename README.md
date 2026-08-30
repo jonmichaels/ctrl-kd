@@ -47,6 +47,7 @@ More information: **[FAQ.md](FAQ.md)**, and **[ERAS.md](ERAS.md)**.
 $ brew install jonmichaels/tap/ctrl-kd     # macOS / Linuxbrew
 $ pipx install ctrl-kd                     # or: pip install ctrl-kd
 ```
+Download Windows x86_64: [Latest Version](https://github.com/jonmichaels/ctrl-kd/releases/latest/download/ctrl-kd-windows-x86_64.zip)
 
 Python ≥ 3.9, no dependencies. Library API: `ctrlkd.convert(data, to='html')`.
 
