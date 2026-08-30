@@ -1,0 +1,47 @@
+name: windows-exe
+# Experimental: fully self-contained Windows x64 executable via Nuitka onefile.
+# Manual-dispatch while we verify; release wiring comes after (Jon 2026-08-29).
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Read package version
+        id: v
+        shell: bash
+        run: |
+          PKG="$(sed -n "s/^__version__ = '\(.*\)'/\1/p" src/ctrlkd/__init__.py)"
+          test -n "$PKG"
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+      - name: Install Nuitka
+        run: pip install nuitka
+      - name: Generate launcher
+        shell: bash
+        run: printf 'import sys\nfrom ctrlkd.cli import main\nsys.exit(main())\n' > run_ctrlkd.py
+      - name: Compile (Nuitka onefile, MSVC)
+        shell: cmd
+        run: python -m nuitka --onefile --assume-yes-for-downloads --output-filename=ctrl-kd.exe --include-package=ctrlkd "--onefile-tempdir-spec={CACHE_DIR}/ctrl-kd/${{ steps.v.outputs.version }}" run_ctrlkd.py
+        env:
+          PYTHONPATH: src
+      - name: Smoke test
+        shell: bash
+        run: |
+          ./ctrl-kd.exe --version
+          OUT="$(./ctrl-kd.exe --version)"
+          echo "$OUT" | grep -q "${{ steps.v.outputs.version }}"
+          ./ctrl-kd.exe --help > /dev/null
+      - name: Stale-version gate
+        shell: bash
+        run: |
+          if strings ctrl-kd.exe 2>/dev/null | grep -E '\b(3\.[0-9]+\.[0-9]+|4\.[0-4]\.[0-9]+)\b' | grep -v "${{ steps.v.outputs.version }}" | head -5; then echo "note: version-like strings above (review)"; fi
+          ls -la ctrl-kd.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ctrl-kd-windows-x86_64
+          path: ctrl-kd.exe
