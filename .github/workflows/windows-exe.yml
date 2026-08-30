@@ -1,24 +1,48 @@
+# Experimental self-contained Windows x64 exe via Nuitka onefile (research doc
+# 2026-08-29). Fires on release-published like publish.yml; manual dispatch
+# builds and gates but does NOT upload (safe to test). Unsigned by ruling —
+# SmartScreen bypass documented in README-WINDOWS.txt.
 name: windows-exe
-# Experimental: fully self-contained Windows x64 executable via Nuitka onefile.
-# Manual-dispatch while we verify; release wiring comes after (Jon 2026-08-29).
+
 on:
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (vX.Y.Z) to build for"
+        required: true
 
 jobs:
-  build:
-    runs-on: windows-2022
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - id: v
+        name: Tag must equal the package version
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          PKG="$(sed -n "s/^__version__ = '\(.*\)'/\1/p" src/ctrlkd/__init__.py)"
+          echo "tag=$TAG package=$PKG"
+          [ "v$PKG" = "$TAG" ] || { echo "::error::tag $TAG != package $PKG"; exit 1; }
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: guard
+    runs-on: windows-2022
+    permissions:
+      contents: write          # release asset upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Read package version
-        id: v
-        shell: bash
-        run: |
-          PKG="$(sed -n "s/^__version__ = '\(.*\)'/\1/p" src/ctrlkd/__init__.py)"
-          test -n "$PKG"
-          echo "version=$PKG" >> "$GITHUB_OUTPUT"
       - name: Install Nuitka
         run: pip install nuitka
       - name: Generate launcher
@@ -26,22 +50,54 @@ jobs:
         run: printf 'import sys\nfrom ctrlkd.cli import main\nsys.exit(main())\n' > run_ctrlkd.py
       - name: Compile (Nuitka onefile, MSVC)
         shell: cmd
-        run: python -m nuitka --onefile --assume-yes-for-downloads --output-filename=ctrl-kd.exe --include-package=ctrlkd "--onefile-tempdir-spec={CACHE_DIR}/ctrl-kd/${{ steps.v.outputs.version }}" run_ctrlkd.py
+        run: python -m nuitka --onefile --assume-yes-for-downloads --output-filename=ctrl-kd.exe --include-package=ctrlkd "--onefile-tempdir-spec={CACHE_DIR}/ctrl-kd/${{ needs.guard.outputs.version }}" run_ctrlkd.py
         env:
           PYTHONPATH: src
-      - name: Smoke test
+      - name: Smoke test (version + real conversion)
         shell: bash
         run: |
-          ./ctrl-kd.exe --version
           OUT="$(./ctrl-kd.exe --version)"
-          echo "$OUT" | grep -q "${{ steps.v.outputs.version }}"
+          echo "$OUT"
+          echo "$OUT" | grep -q "${{ needs.guard.outputs.version }}"
           ./ctrl-kd.exe --help > /dev/null
-      - name: Stale-version gate
+          mkdir smoke-out
+          ./ctrl-kd.exe src/ctrlkd/samples/OCAPTAIN.WS -t rtf -d smoke-out
+          test -s smoke-out/OCAPTAIN.rtf
+          grep -q "rtf1" smoke-out/OCAPTAIN.rtf
+          ./ctrl-kd.exe src/ctrlkd/samples/OCAPTAIN.WS -t txt -d smoke-out
+          test -s smoke-out/OCAPTAIN.txt
+      - name: Assemble zips
         shell: bash
         run: |
-          if strings ctrl-kd.exe 2>/dev/null | grep -E '\b(3\.[0-9]+\.[0-9]+|4\.[0-4]\.[0-9]+)\b' | grep -v "${{ steps.v.outputs.version }}" | head -5; then echo "note: version-like strings above (review)"; fi
-          ls -la ctrl-kd.exe
+          V="${{ needs.guard.outputs.version }}"
+          mkdir stage
+          cp ctrl-kd.exe stage/
+          {
+            echo "ctrl-kd $V -- EXPERIMENTAL Windows x64 build"
+            echo
+            echo "Fully self-contained: no Python required. Compiled with Nuitka."
+            echo
+            echo "This executable is not code-signed. On first run Windows SmartScreen"
+            echo "may warn: click 'More info' then 'Run anyway'. From a terminal it"
+            echo "usually just runs."
+            echo
+            echo "Usage:  ctrl-kd.exe FILE.WS -t rtf        (also: txt, md, html, pdf)"
+            echo "        ctrl-kd.exe --help"
+            echo
+            echo "First launch unpacks to a per-version cache; later launches are fast."
+          } > stage/README-WINDOWS.txt
+          cd stage
+          python -c "import zipfile;z=zipfile.ZipFile('../ctrl-kd-$V-windows-x86_64.zip','w',zipfile.ZIP_DEFLATED);[z.write(f) for f in ['ctrl-kd.exe','README-WINDOWS.txt']];z.close()"
+          cd ..
+          cp "ctrl-kd-$V-windows-x86_64.zip" ctrl-kd-windows-x86_64.zip
+          sha256sum ctrl-kd-*windows*.zip
       - uses: actions/upload-artifact@v4
         with:
           name: ctrl-kd-windows-x86_64
-          path: ctrl-kd.exe
+          path: ctrl-kd-*windows*.zip
+      - name: Upload to release (release event only)
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "ctrl-kd-${{ needs.guard.outputs.version }}-windows-x86_64.zip" ctrl-kd-windows-x86_64.zip --clobber
