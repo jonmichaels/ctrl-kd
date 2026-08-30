@@ -99,7 +99,14 @@ the CLI, `convert()`, or the IR contract (see above).
    green in the run; workflow_dispatch is the fallback if GitHub's event
    delivery is degraded (it was, 2026-08-06 — check githubstatus.com when
    runs go silent).
-5. Sweep README versions (download links, SPM examples, roadmap) — it went
+5. Windows exe: windows-exe.yml also fires on release-published — verify its
+   run is green and BOTH zips landed on the release (ctrl-kd-X.Y.Z-windows-
+   x86_64.zip + stable ctrl-kd-windows-x86_64.zip), then byte-check
+   releases/latest/download/ctrl-kd-windows-x86_64.zip against the versioned
+   asset. Content gate is EXECUTION (the workflow runs the exe and converts a
+   sample) — strings-scanning is blind on Nuitka onefile's compressed payload.
+   Full process doc: jon_vault WordStar/ctrl-kd-windows-exe.md.
+6. Sweep README versions (download links, SPM examples, roadmap) — it went
    stale across two releases once.
 
 **This list is MANDATORY at every release, read top to bottom.** 4.0.0
