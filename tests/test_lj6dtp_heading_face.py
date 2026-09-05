@@ -47,8 +47,9 @@ from ctrlkd.core import Block, Span, effective_span_styles
 HARD = b'\x0d\x0a'
 
 # Tier 2 (sawyer): LJ6DTP.WS, one of the ten committed manifest documents
-# (tests/SAWYER-CORPUS.md) -- migrated 2026-08-26 from CTRLKD_WS7_DOCS/
-# require_ws7, per Jon's "no third bucket" ruling that day.
+# (tests/SAWYER-CORPUS.md) -- migrated 2026-08-26 from the old
+# flat-directory env var/require_ws7 gate, per Jon's "no third bucket"
+# ruling that day.
 needs_fixture = pytest.mark.sawyer
 
 

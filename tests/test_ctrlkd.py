@@ -3581,7 +3581,8 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
     """The other half: removing the sentinels must not lose the structure they
     carried. NOTES.TST is real WordStar output with four known note kinds."""
     import os
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    from private_corpus import private_fixtures_root
+    root = private_fixtures_root()
     if not root:
         return                      # private fixtures opt in via env var; skip if absent
     p = os.path.join(root, 'NOTES.TST')
@@ -3604,9 +3605,12 @@ def test_real_structure_still_resolves_after_the_sentinel_removal():
 
 def _real_fixture(name):
     # Private fixture corpus lives OUTSIDE the repo; runners that have it
-    # export CTRLKD_PRIVATE_FIXTURES=<dir>. Everyone else skips cleanly.
+    # export CTRLKD_PRIVATE_CORPUS=<corpus clone root> (its own
+    # fixtures-ws5/ subdirectory holds these files). Everyone else skips
+    # cleanly.
     import os
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    from private_corpus import private_fixtures_root
+    root = private_fixtures_root()
     if not root:
         return None
     p = os.path.join(root, name)

@@ -4,10 +4,11 @@ permanent output-quality lint gates Jon's ruling asked for.
 Synthetic fixtures are built byte-by-byte, same discipline as
 test_ctrlkd.py (whose helper builders are copied in below rather than
 imported -- its own guidance). The lint gates additionally run against
-every real fixture in CTRLKD_PRIVATE_FIXTURES when that env var is set
-(same opt-in pattern as test_ctrlkd.py's `_real_fixture` tests); with no
-private fixtures present, the synthetic-only gates still run and the
-corpus-driven ones skip cleanly.
+every real fixture under CTRLKD_PRIVATE_CORPUS's fixtures-ws5/ subdirectory
+when that env var is set (same opt-in pattern as test_ctrlkd.py's
+`_real_fixture` tests; see tests/private_corpus.py); with no private
+fixtures present, the synthetic-only gates still run and the corpus-driven
+ones skip cleanly.
 """
 import copy
 import os
@@ -16,6 +17,7 @@ import re
 import pytest
 
 from ctrlkd import core, emit
+from private_corpus import private_fixtures_root
 
 HARD = b'\x0d\x0a'
 SOFT = b'\x8d\x0a'
@@ -1780,7 +1782,7 @@ def test_round12_note_text_backslash_escaped_in_definition():
 
 
 def _iter_private_fixtures():
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    root = private_fixtures_root()
     if not root:
         return
     for name in sorted(os.listdir(root)):
@@ -1800,7 +1802,7 @@ def _iter_private_fixtures():
 
 
 def test_lint_gates_over_private_corpus():
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    root = private_fixtures_root()
     if not root:
         return                          # private fixtures opt in via env var
     fixtures = list(_iter_private_fixtures())
@@ -1818,7 +1820,7 @@ def test_lint_no_proportional_face_over_private_corpus():
     own generic Non-PostScript letter-quality typestyles, 103/104,
     tripped: SCRIPT.WS, Jon's field review). Metrics only: typestyle
     number/name and the resolved family, never document text."""
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    root = private_fixtures_root()
     if not root:
         return
     from ctrlkd.pdf import _pdf_family
@@ -1844,7 +1846,7 @@ def test_lint_par_line_ratio_advisory_report():
     should not be drastically outnumbered by \\line -- the inverse of the
     pre-overhaul OLDTIMES numbers (39 \\par vs 182 \\line). Reported, not
     asserted, per the poem-ambiguity caveat (section 1b)."""
-    root = os.environ.get('CTRLKD_PRIVATE_FIXTURES')
+    root = private_fixtures_root()
     if not root:
         return
     for name, doc in _iter_private_fixtures():

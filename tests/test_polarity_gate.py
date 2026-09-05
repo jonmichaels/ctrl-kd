@@ -15,7 +15,7 @@ content block (1-7) selects this slot.
 
 SETTLED BY REAL WS7 BYTES (2026-08-18, this investigation): printed
 RJS.WS through the actual Sawyer WS7 install (SAWYER.EXE's own tree,
-the private Sawyer install tree, env CTRLKD_SAWYER_ROOT) under DOSBox-X via
+the Sawyer archive root, env CTRLKD_SAWYER_ARCHIVE) under DOSBox-X via
 tools/wordstar_harness.sh (LASERJET driver -- did NOT stall despite
 carrying a style library, contrary to the harness doc's OLDTIMES-based
 "styled documents stall" caveat). Decoded with tools/pcl_text.py: EVERY

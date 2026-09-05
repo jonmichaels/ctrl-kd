@@ -18,8 +18,9 @@ absolute/relative cursor position, solid or shaded rectangle fill), and
 path, anchored at wherever the running text cursor already is.
 
 Fixture: the real LJ6DTP.WS. Tier 2 (sawyer): one of the ten committed
-manifest documents (tests/SAWYER-CORPUS.md) -- migrated 2026-08-26 from
-CTRLKD_WS7_DOCS/require_ws7, per Jon's "no third bucket" ruling that day.
+manifest documents (tests/SAWYER-CORPUS.md) -- migrated 2026-08-26 from the
+old flat-directory env var/require_ws7 gate, per Jon's "no third bucket"
+ruling that day.
 
 BUG FOUND DURING THAT MIGRATION: the module-level `pytestmark =
 pytest.mark.usefixtures('require_ws7')` this docstring used to sit above

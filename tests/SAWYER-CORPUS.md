@@ -27,8 +27,15 @@ file at a time.
 
 `/path/to/WS` is the archive's own top-level directory (the one holding
 `CONVERT.WS`, `INSET/`, `ARTICLES/`, etc.) — nothing is copied into this
-repo. `CTRLKD_CORPUS_SOURCE` is honoured as a legacy alias (the name this
-project used before this tier existed); either arms the marker.
+repo.
+
+**Verify your path before arming** — a one-liner that checks for the same
+marker files the archive's own top level holds, and says which:
+
+    test -f "$CTRLKD_SAWYER_ARCHIVE/CONVERT.WS" \
+      && test -d "$CTRLKD_SAWYER_ARCHIVE/INSET" \
+      && test -d "$CTRLKD_SAWYER_ARCHIVE/ARTICLES" \
+      && echo OK || echo "wrong dir -- point CTRLKD_SAWYER_ARCHIVE at the archive's own top level"
 
 ## What this tier deliberately does NOT do
 

@@ -17,7 +17,7 @@
 # and the audit) are excluded by the scanners, not by weakening the pattern.
 
 # 1. Named private things. Historical; grows only after a leak.
-PAT_NAMES='(/mnt/md[0]|hum[u]ng|jmw[o]rk|old-files-pr[o]ject|/CEL[E]B/|/W[O]RK/[A-Z]|fl[o]ppy-[a-z])'
+PAT_NAMES='(/mnt/md[0]|hum[u]ng|jmw[o]rk|old-files-pr[o]ject|/CEL[E]B/|/W[O]RK/[A-Z]|fl[o]ppy-[a-z]|soft-return-c[o]rpus)'
 
 # 2. The SHAPE of every leak so far: a filesystem location on somebody's
 #    machine. A public repo never needs one -- corpus roots come from the

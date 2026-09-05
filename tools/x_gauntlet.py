@@ -100,10 +100,15 @@ USAGE
     python3 tools/x_gauntlet.py capture [root] -o <snapshot.json>
     python3 tools/x_gauntlet.py check   [root] <snapshot.json> [-v]
 
-`root` defaults to $CTRLKD_WS7_DOCS (the WS7 samples, read-only,
-never modified by this tool) and is resolved against FIXTURES -- a file
-missing from `root` is recorded SKIPPED, not fatal. Pass an explicit `root`
-to run the same fixed manifest against a different checkout of the corpus.
+With no explicit `root`, each FIXTURES name is resolved against the two
+corpus env vars (D3, 2026-09-03; read-only, never modified by this tool):
+CTRLKD_SAWYER_ARCHIVE (tried directly and under its ARTICLES/ subdirectory
+-- most TAB_FIXTURES/CONTROL_FIXTURES names are real Sawyer-archive
+documents) and CTRLKD_PRIVATE_CORPUS's own pd-samples/authored/
+subdirectory (the handful of authored names: WARPRAYR, LYING, OCAPTAIN). A
+name missing from every candidate is recorded SKIPPED, not fatal. Pass an
+explicit `root` to run the same fixed manifest against one flat directory
+instead (e.g. a staging directory holding all of FIXTURES together).
 
 REAL DOCUMENTS NEVER ENTER THIS REPO -- same rule as parity_gauntlet.py; the
 corpus lives outside the checkout, and the one artifact this tool DOES
@@ -125,8 +130,10 @@ from ctrlkd import core, pdf as pdfmod  # noqa: E402
 # ------------------------------------------------------------- fixture list
 # See module docstring's FIXTURES section for why each name is here.
 # The WS7 samples are not in this public repo and neither is the path to
-# them. Unset means no default: pass `root` explicitly or arm the gate.
-DEFAULT_ROOT = os.environ.get('CTRLKD_WS7_DOCS')
+# them. One var per corpus, one shape each (D3, 2026-09-03) -- see
+# resolve_fixture_path below for how a bare name is found under either.
+SAWYER_ENV = 'CTRLKD_SAWYER_ARCHIVE'
+PRIVATE_CORPUS_ENV = 'CTRLKD_PRIVATE_CORPUS'
 
 TAB_FIXTURES = [
     'OLDTIMES.WS', 'VERSIONS.WS', 'LJ6DTP.WS', '-README.WS', 'WORDSTAR.WS',
@@ -297,18 +304,48 @@ def redact_doc(doc_snap: dict) -> dict:
     return {'ok': True, 'pages': pages}
 
 
+# --------------------------------------------------------------- resolution
+def resolve_fixture_path(name: str, root: str = None) -> str:
+    """Absolute path to a FIXTURES name, or None if not found anywhere.
+
+    `root`, if given, is checked first as ONE FLAT DIRECTORY holding every
+    fixture together (back-compat with a staged/merged checkout) -- same
+    behavior this tool always had. With no `root` (the normal case), each
+    name is resolved against the two corpus env vars directly, per the
+    corpus's own known shape: CTRLKD_SAWYER_ARCHIVE (tried at its top level
+    and under ARTICLES/, since most of these names are real Sawyer-archive
+    documents) then CTRLKD_PRIVATE_CORPUS's own pd-samples/authored/
+    subdirectory (the authored names)."""
+    if root:
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            return path
+    sawyer_root = os.environ.get(SAWYER_ENV)
+    if sawyer_root:
+        for candidate in (os.path.join(sawyer_root, name),
+                          os.path.join(sawyer_root, 'ARTICLES', name)):
+            if os.path.isfile(candidate):
+                return candidate
+    private_corpus = os.environ.get(PRIVATE_CORPUS_ENV)
+    if private_corpus:
+        candidate = os.path.join(private_corpus, 'pd-samples', 'authored', name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 # --------------------------------------------------------------- snapshot
-def capture_full(root: str) -> dict:
+def capture_full(root: str = None) -> dict:
     """{name: snapshot_doc(...)} (FULL, in-memory form -- text included) for
-    every name in FIXTURES, resolved against `root`. A name FIXTURES lists
-    but `root` doesn't have is recorded {'ok': False, 'error': 'not found
-    under root'} -- SKIPPED, same as any other render failure, never fatal
-    to the run."""
+    every name in FIXTURES, resolved via `resolve_fixture_path`. A name
+    that resolves nowhere is recorded {'ok': False, 'error': 'not found
+    under any corpus root'} -- SKIPPED, same as any other render failure,
+    never fatal to the run."""
     out = {}
     for name in FIXTURES:
-        path = os.path.join(root, name)
-        if not os.path.isfile(path):
-            out[name] = {'ok': False, 'error': f'not found under {root}'}
+        path = resolve_fixture_path(name, root)
+        if path is None:
+            out[name] = {'ok': False, 'error': 'not found under any corpus root'}
             continue
         out[name] = snapshot_doc(path)
     return out
@@ -424,11 +461,15 @@ def main(argv):
     sub = ap.add_subparsers(dest='cmd', required=True)
 
     cap = sub.add_parser('capture')
-    cap.add_argument('root', nargs='?', default=DEFAULT_ROOT)
+    cap.add_argument('root', nargs='?', default=None,
+                     help='One flat directory holding every FIXTURES name '
+                     '(optional; default resolves each name against '
+                     'CTRLKD_SAWYER_ARCHIVE / CTRLKD_PRIVATE_CORPUS instead)')
     cap.add_argument('-o', '--out', required=True)
 
     chk = sub.add_parser('check')
-    chk.add_argument('root', nargs='?', default=DEFAULT_ROOT)
+    chk.add_argument('root', nargs='?', default=None,
+                     help='Same as capture\'s `root`')
     chk.add_argument('snapshot')
     chk.add_argument('-v', '--verbose', action='store_true')
 

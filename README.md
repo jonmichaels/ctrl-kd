@@ -79,7 +79,12 @@ My own test files are personal and are not distributed — this repo's tests use
 synthetic fixtures and some public domain docs I retyped in WordStar 4 and 
 WordStar 7 in DOSBox-X, plus Robert J. Sawyer's public WS7 archive (opt-in, 
 `pytest -m sawyer`; see `tests/SAWYER-CORPUS.md`) you can run your own tests
-against that if you have a copy.
+against that if you have a copy: download the archive, point
+`CTRLKD_SAWYER_ARCHIVE` at its top-level directory (the one holding
+`CONVERT.WS`, `INSET/`, `ARTICLES/`), and verify the path before arming —
+`tests/SAWYER-CORPUS.md` has a one-line smoke check. A `CTRLKD_PRIVATE_CORPUS`
+variable also exists, for my own private regression fixtures — it has no
+effect unless you're me.
 
 ## Credits
 

@@ -49,7 +49,7 @@ ctrlkd = ["samples/*.WS"]
 # a bare run's summary line is an honest denominator.
 #
 # Arming (see tests/sawyer_fixture.py, conftest.py):
-#   sawyer   CTRLKD_SAWYER_ARCHIVE=/path   (legacy alias: CTRLKD_CORPUS_SOURCE)
+#   sawyer   CTRLKD_SAWYER_ARCHIVE=/path
 #
 # tools/run-full-suite.sh overrides this filter (`-o addopts=""`) for an
 # armed run, where an unarmed gate FAILS instead of silently not running --
