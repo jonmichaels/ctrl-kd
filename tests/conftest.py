@@ -10,13 +10,17 @@ It is a fixture rather than a module-level raise because a raise at import is a
 COLLECTION error, and pytest abandons the entire run on those -- one unarmed
 gate would take every unrelated test down with it.
 
-Tier 3 (Jon's private corpus and the WS7 sample documents) is relocated
-entirely out of this public repo (K1 2026-08-26 removal) -- those tests,
-their fixtures, and their arming variables no longer exist here at all;
-private corpora are tested separately, against this package from outside it.
-Tier 2 (`sawyer` marker) is DESELECTED entirely (via pyproject.toml's
-addopts) when `CTRLKD_SAWYER_ARCHIVE` is unset -- unarmed, its tests never
-run at all, so there is nothing to fail or skip.
+Tier 3's richer suite (Jon's private corpus, Sawyer install-tree byte
+parity, cohort census floors) is relocated entirely out of this public repo
+(K1 2026-08-26 removal) and tested separately, against this package from
+outside it. A handful of tests here also opt into a private per-maintainer
+fixture set via `CTRLKD_PRIVATE_CORPUS` (one shape, defined outside this
+repo); unset, they skip silently -- deliberately opposite of tier 2's
+fail-loud convention, because this data never ships and a stranger's clone
+is never expected to have it. Tier 2 (`sawyer` marker) is DESELECTED
+entirely (via pyproject.toml's addopts) when `CTRLKD_SAWYER_ARCHIVE` is
+unset -- unarmed, its tests never run at all, so there is nothing to fail
+or skip.
 """
 import pytest
 

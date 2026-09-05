@@ -9,7 +9,7 @@ the decoder is tested against the real wire format, not a shortcut.
 A tier-2 (`sawyer` marker) check runs against the real WORDSTAR.PIX from
 Robert J. Sawyer's public WS7 archive when CTRLKD_SAWYER_ARCHIVE is armed
 (see tests/SAWYER-CORPUS.md) -- an explicit, committed single document, not
-a directory sweep (the broader CTRLKD_PIX_SAMPLES sweep this docstring used
+a directory sweep (the broader directory-sweep gate this docstring used
 to describe was retired 2026-08-26).
 
 Resolution tests: synthetic directory trees under tmp_path proving every
@@ -389,9 +389,9 @@ def test_wordstar_pix_print_options_agrees_with_pixel_ground_truth(require_sawye
     validating cross-check for a struct with no vendor source.
 
     Tier 2 (sawyer): one of the ten committed manifest documents
-    (tests/SAWYER-CORPUS.md). The broader CTRLKD_PIX_SAMPLES directory sweep
-    that used to sit here was retired 2026-08-26 (Jon's ruling: tier 2 tests
-    an explicit list, never a directory sweep of the archive) -- this single
+    (tests/SAWYER-CORPUS.md). The broader directory-sweep gate that used to
+    sit here was retired 2026-08-26 (Jon's ruling: tier 2 tests an explicit
+    list, never a directory sweep of the archive) -- this single
     manifest-checked file is the whole of this tier's PIX coverage now.
     """
     path = require_sawyer_doc('WORDSTAR.PIX')
@@ -573,11 +573,10 @@ def test_resolve_empty_payload_returns_none(tmp_path):
 
 # ============================================================== corpus gauntlet
 #
-# RETIRED 2026-08-26: this used to glob every *.PIX under $CTRLKD_PIX_SAMPLES
-# (a whole directory sweep) -- Jon's ruling that day retired every
+# RETIRED 2026-08-26: this used to glob every *.PIX under a directory-sweep
+# env var (now retired) -- Jon's ruling that day retired every
 # directory-sweep corpus test in favor of an explicit, committed doc list
 # (see tests/SAWYER-CORPUS.md). This tier's PIX coverage is now the single
 # manifest-checked WORDSTAR.PIX test above
 # (test_wordstar_pix_print_options_agrees_with_pixel_ground_truth), which
 # also exercises pix.decode()/physical_size_in() against real bytes.
-# CTRLKD_PIX_SAMPLES is no longer read anywhere in this suite.

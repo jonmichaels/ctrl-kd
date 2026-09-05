@@ -15,8 +15,11 @@ USAGE
 -----
     .venv/bin/python tools/roundtrip_census.py [ROOT] [-v]
 
-ROOT defaults to the Sawyer WS7 archive path below. -v lists every divergent
-file with its hex context (default lists one example per category).
+ROOT defaults to $CTRLKD_PRIVATE_CORPUS (the private corpus clone's own
+root; walked recursively, so every subdirectory -- sawyer/, jon-floppies/,
+ws7-private/, fixtures-ws5/, pd-samples/ -- is covered in one pass). -v
+lists every divergent file with its hex context (default lists one example
+per category).
 """
 from __future__ import annotations
 

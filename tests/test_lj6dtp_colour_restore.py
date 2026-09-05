@@ -25,9 +25,9 @@ the following blocks, so they keep `colour15`.
 
 Fixture: the real LJ6DTP.WS. Tier 2 (sawyer): LJ6DTP.WS is one of the ten
 committed manifest documents (tests/SAWYER-CORPUS.md) -- migrated 2026-08-26
-from the old CTRLKD_WS7_DOCS/require_ws7 gate to CTRLKD_SAWYER_ARCHIVE, per
-Jon's "no third bucket" ruling that day: a Sawyer-archive doc gets ONE tier,
-not a divergent duplicate under tier 3.
+from the old flat-directory env var/require_ws7 gate to CTRLKD_SAWYER_ARCHIVE,
+per Jon's "no third bucket" ruling that day: a Sawyer-archive doc gets ONE
+tier, not a divergent duplicate under tier 3.
 """
 import pytest
 

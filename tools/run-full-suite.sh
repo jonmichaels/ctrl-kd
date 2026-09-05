@@ -9,20 +9,21 @@
 # together, with the gate armed, exactly what a stranger running
 # `pytest -m sawyer` against the public Sawyer archive would see.
 #
-# (Jon's own private corpus is a separate, third tier tested from a
-# separate, private repo against this package from outside it -- it has no
-# footprint in this public repo at all: no test files, no marker, no
-# environment variable. See README.)
+# (Jon's own private corpus is tested more fully from a separate, private
+# repo against this package from outside it -- no test files or markers for
+# that live here. A handful of tests in this repo also opt into a private
+# per-maintainer fixture set via CTRLKD_PRIVATE_CORPUS; unset, they skip
+# silently rather than failing loud, since that data never ships and a
+# stranger's clone is never expected to have it -- unlike tier 2, below.)
 #
 # A reduced number was quoted through an entire release round on 2026-08-24
-# before anyone set the variable -- the reason this gate fails loud rather
-# than skipping once armed.
+# before anyone set the variable -- the reason the tier-2 gate fails loud
+# rather than skipping once armed.
 #
 #   CTRLKD_SAWYER_ARCHIVE  tier 2 (public): Robert J. Sawyer's WS7 archive
 #                          root (see tests/SAWYER-CORPUS.md) -- the
 #                          committed manifest documents are checked BY NAME,
-#                          never a directory sweep. Legacy alias:
-#                          CTRLKD_CORPUS_SOURCE (still honoured).
+#                          never a directory sweep.
 #
 # USAGE.
 #
@@ -46,10 +47,13 @@ echo "== privacy audit =="
 tools/audit_private.sh
 echo
 
-SAWYER="${CTRLKD_SAWYER_ARCHIVE:-${CTRLKD_CORPUS_SOURCE:-}}"
+SAWYER="${CTRLKD_SAWYER_ARCHIVE:-}"
 
 sawyer_status="not armed"
 [ -n "$SAWYER" ] && sawyer_status="armed"
+
+private_status="not armed"
+[ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && private_status="armed"
 
 # Clear addopts' default tier filter (-m "not sawyer") so tier 2 runs
 # alongside tier 1 when armed, in one invocation, in one report. An unarmed
@@ -72,6 +76,6 @@ public_count=$(echo "$public_line" | grep -oE '^[0-9]+')
 # Full-denominator discipline (per Jon's rule): this line names every tier's
 # state every run, not just the ones that happen to be armed today.
 echo
-echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private: tested separately (see README)"
+echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private (CTRLKD_PRIVATE_CORPUS): ${private_status}, richer suite tested separately"
 
 exit "$status"

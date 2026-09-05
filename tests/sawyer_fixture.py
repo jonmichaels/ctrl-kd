@@ -23,17 +23,16 @@ Two failure MODES, and neither is a skip (2026-08-24 rule, scoped here to
      missing or its content has drifted from the committed hash --
      sawyer_doc_problem(name).
 
-Old name: CTRLKD_CORPUS_SOURCE (still honoured, as a documented fallback
-alias -- tools/run-full-suite.sh's docs described it under that name before
-this tier existed). New name: CTRLKD_SAWYER_ARCHIVE. Presence of either
-arms the whole `sawyer` marker (see pyproject.toml's addopts).
+One name, one shape, everywhere: CTRLKD_SAWYER_ARCHIVE (D3, 2026-09-03) --
+the archive's own top-level directory. Its presence arms the whole
+`sawyer` marker (see pyproject.toml's addopts). An earlier, now-retired
+alias name is no longer honoured.
 """
 import hashlib
 import json
 import os
 
 ARCHIVE_ENV = 'CTRLKD_SAWYER_ARCHIVE'
-LEGACY_ARCHIVE_ENV = 'CTRLKD_CORPUS_SOURCE'
 
 _MANIFEST_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sawyer_manifest.json')
 with open(_MANIFEST_PATH) as _f:
@@ -48,7 +47,7 @@ SAWYER_DOCS = _MANIFEST['docs']                    # name -> {'path', 'sha256', 
 
 def sawyer_archive():
     """The archive root directory, or None if the tier is not armed."""
-    return os.environ.get(ARCHIVE_ENV) or os.environ.get(LEGACY_ARCHIVE_ENV) or None
+    return os.environ.get(ARCHIVE_ENV) or None
 
 
 def sawyer_armed():
@@ -72,8 +71,7 @@ def sawyer_manifest_problem():
     per-file mismatches."""
     root = sawyer_archive()
     if not root:
-        return ('%s (or legacy %s) is not set -- the sawyer tier is not armed.'
-                % (ARCHIVE_ENV, LEGACY_ARCHIVE_ENV))
+        return '%s is not set -- the sawyer tier is not armed.' % (ARCHIVE_ENV,)
     if not os.path.isdir(root):
         return '%s=%s is not a directory.' % (ARCHIVE_ENV, root)
     marker_path = os.path.join(root, VERSION_MARKER['path'])
