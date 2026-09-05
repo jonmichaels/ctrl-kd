@@ -68,19 +68,21 @@ USAGE
     python3 tools/fidelity_gate.py DOC --ws PATH.WS --measurements PATH.json \
         [--pcl PATH.pcl] [--out-json PATH]
 
-    # or, using the two corpus env vars + an explicit prints root:
+    # or, using --doc-style resolution (both corpus env vars):
     CTRLKD_PRIVATE_CORPUS=/path/to/corpus python3 tools/fidelity_gate.py \
-        --doc LYING --prints-root /path/to/prints --out-json /tmp/lying.json
+        --doc LYING --out-json /tmp/lying.json
 
 `--doc NAME` resolves NAME.WS from $CTRLKD_PRIVATE_CORPUS's own
 pd-samples/authored/ subdirectory (or, for SAWYER/VERSIONS/etc -- the
 PRIVATE_DOCS table below -- from $CTRLKD_SAWYER_ARCHIVE/NAME.WS, same
 shape as every other Sawyer-archive consumer in this repo; the doc is
 SKIPPED, not errored, when the relevant env var is unset) and
-NAME.measurements.json/.pcl from an explicit --prints-root (required --
-there is no env var or built-in default path: this ground-truth PCL
-capture data is a separate, vault-kept corpus, outside the scope of the
-two corpus env vars this repo otherwise standardizes on).
+NAME.measurements.json/.pcl from $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/ --
+the ground-truth PCL capture data lives inside the private corpus
+itself, same layout as the vault copy it was captured into. There is no
+separate flag for it: an unset CTRLKD_PRIVATE_CORPUS, or a missing
+measurements.json, FAILS the gate loudly (never a silent skip, never a
+silent pass) naming the exact path it looked for.
 
 CAVEAT (dx experiment 2026-08-20): core.parse() auto-detect classifies
 minimal plain-ASCII dot-command replica docs as 'printstream', which
@@ -117,6 +119,14 @@ _PRIVATE_CORPUS_ROOT = os.environ.get(PRIVATE_CORPUS_ENV)
 DEFAULT_AUTHORED_ROOT = (
     os.path.join(_PRIVATE_CORPUS_ROOT, 'pd-samples', 'authored')
     if _PRIVATE_CORPUS_ROOT else None)
+# The ground-truth PCL capture directory (NAME.measurements.json/.pcl) now
+# lives INSIDE the private corpus too, at ws7-prints/v1/ -- same relative
+# layout as the vault copy it was captured into (verified: v1/ holds the
+# .measurements.json/.pcl pairs; ws7-captures/ holds only raw .pcl). No
+# flag, no separate env var -- the old required flag for this directory
+# was removed 2026-09-05 once the data moved into the corpus (Jon: "I
+# don't love that we have it").
+PRINTS_SUBDIR = 'v1'
 ARCHIVE_ENV = 'CTRLKD_SAWYER_ARCHIVE'
 # Values in PRIVATE_DOCS below are paths RELATIVE to the archive root.
 PRIVATE_DOCS = {
@@ -589,31 +599,38 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
 
 
 # ------------------------------------------------------------- doc lookup
-def resolve_doc_paths(doc_name: str, prints_root: str):
+def resolve_doc_paths(doc_name: str):
     """(ws_path, measurements_path, pcl_path) for a known corpus doc name,
-    or (None, ...) if a required private root is unset -- SKIP, not error.
+    or (None, ...) if $CTRLKD_SAWYER_ARCHIVE is unset for an archive-only
+    doc -- SKIP, not error (the archive is a legitimately optional public
+    corpus; see the module docstring).
 
-    `prints_root` (the ground-truth PCL capture directory) has no env var
-    of its own: that data is a separate, vault-kept corpus, out of scope
-    for the two corpus env vars this repo otherwise standardizes on
-    (CTRLKD_SAWYER_ARCHIVE, CTRLKD_PRIVATE_CORPUS) -- callers pass it
-    explicitly via --prints-root."""
-    if not prints_root:
+    The ground-truth PCL capture data (NAME.measurements.json/.pcl) is
+    NOT optional in the same way: it lives at
+    $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/, and there is no flag or default
+    to fall back to. An unset CTRLKD_PRIVATE_CORPUS, or a measurements.json
+    that isn't there, FAILS LOUD naming the exact path -- never a silent
+    skip, never a silent pass -- because a fidelity number computed
+    against nothing would be worse than no number."""
+    if not _PRIVATE_CORPUS_ROOT:
         raise RuntimeError(
-            '--prints-root is required. This gate FAILS rather than '
-            'quietly measuring nothing.')
-    measurements_path = os.path.join(prints_root, f'{doc_name}.measurements.json')
-    pcl_path = os.path.join(prints_root, f'{doc_name}.pcl')
+            f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures '
+            f'for {doc_name} are expected at $'
+            f'{PRIVATE_CORPUS_ENV}/ws7-prints/{PRINTS_SUBDIR}/'
+            f'{doc_name}.measurements.json -- set {PRIVATE_CORPUS_ENV} to '
+            'the private corpus root.')
+    prints_dir = os.path.join(_PRIVATE_CORPUS_ROOT, 'ws7-prints', PRINTS_SUBDIR)
+    measurements_path = os.path.join(prints_dir, f'{doc_name}.measurements.json')
+    pcl_path = os.path.join(prints_dir, f'{doc_name}.pcl')
+    if not os.path.exists(measurements_path):
+        raise RuntimeError(
+            f'ground-truth measurements not found: {measurements_path}')
     if doc_name in PRIVATE_DOCS:
         root = os.environ.get(ARCHIVE_ENV)
         if not root:
             return None, measurements_path, pcl_path
         ws_path = os.path.join(root, PRIVATE_DOCS[doc_name])
     else:
-        if not DEFAULT_AUTHORED_ROOT:
-            raise RuntimeError(
-                f'{PRIVATE_CORPUS_ENV} is not set and there is no default path. '
-                'This gate FAILS rather than quietly measuring nothing.')
         ws_path = os.path.join(DEFAULT_AUTHORED_ROOT, f'{doc_name}.WS')
     return ws_path, measurements_path, pcl_path
 
@@ -659,9 +676,6 @@ def main(argv=None):
     ap.add_argument('--ws')
     ap.add_argument('--measurements')
     ap.add_argument('--pcl')
-    ap.add_argument('--prints-root', help='Ground-truth PCL capture directory '
-                    '(NAME.measurements.json/.pcl) for --doc-style resolution '
-                    '-- no env var; this data is outside the two corpus vars.')
     ap.add_argument('--out-json')
     ap.add_argument('--batch', nargs='+', help='Doc names to run in one pass '
                     '(each via --doc-style resolution); writes one JSON per '
@@ -672,14 +686,14 @@ def main(argv=None):
     reports = []
     if a.batch:
         for name in a.batch:
-            ws_path, mpath, pcl_path = resolve_doc_paths(name, a.prints_root)
+            ws_path, mpath, pcl_path = resolve_doc_paths(name)
             if ws_path is None:
                 print(f'fidelity_gate: {name}: skipped -- ${ARCHIVE_ENV} unset',
                       file=sys.stderr)
                 continue
-            if not os.path.exists(ws_path) or not os.path.exists(mpath):
-                print(f'fidelity_gate: {name}: skipped -- source or '
-                      f'measurements not found', file=sys.stderr)
+            if not os.path.exists(ws_path):
+                print(f'fidelity_gate: {name}: skipped -- source not found',
+                      file=sys.stderr)
                 continue
             r = run_gate(name, ws_path, mpath, pcl_path)
             reports.append(r)
@@ -694,7 +708,7 @@ def main(argv=None):
         if a.ws and a.measurements:
             ws_path, mpath, pcl_path = a.ws, a.measurements, a.pcl
         else:
-            ws_path, mpath, pcl_path = resolve_doc_paths(name, a.prints_root)
+            ws_path, mpath, pcl_path = resolve_doc_paths(name)
             if ws_path is None:
                 print(f'fidelity_gate: {name}: skipped -- ${ARCHIVE_ENV} unset',
                       file=sys.stderr)

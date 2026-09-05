@@ -9,6 +9,8 @@ import os
 import re
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 'tools'))
 import fidelity_gate as fg  # noqa: E402
@@ -184,6 +186,65 @@ def test_extract_pcl_top_margin_fields_reads_combined_group():
 
 def test_extract_pcl_top_margin_fields_empty_when_absent():
     assert fg.extract_pcl_top_margin_fields(b'no escape sequences here') == []
+
+
+# --------------------------------------------------------- doc-path resolution
+def test_resolve_doc_paths_fails_loud_when_private_corpus_unset(monkeypatch):
+    """No flag, no default -- an unset CTRLKD_PRIVATE_CORPUS must raise,
+    never SKIP, since the ground-truth prints directory can't be found at
+    all without it."""
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', None)
+    with pytest.raises(RuntimeError, match='CTRLKD_PRIVATE_CORPUS'):
+        fg.resolve_doc_paths('LYING')
+
+
+def test_resolve_doc_paths_fails_loud_when_measurements_missing(tmp_path, monkeypatch):
+    """CTRLKD_PRIVATE_CORPUS set but ws7-prints/v1/NAME.measurements.json
+    absent -- FAIL LOUD naming the exact path, never a silent skip."""
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.setattr(fg, 'DEFAULT_AUTHORED_ROOT',
+                        os.path.join(str(tmp_path), 'pd-samples', 'authored'))
+    expected = os.path.join(str(tmp_path), 'ws7-prints', 'v1', 'LYING.measurements.json')
+    with pytest.raises(RuntimeError, match=re.escape(expected)):
+        fg.resolve_doc_paths('LYING')
+
+
+def test_resolve_doc_paths_resolves_measurements_from_private_corpus_env(tmp_path, monkeypatch):
+    """The real resolution this used to need a dedicated flag for: a
+    ws7-prints/v1/ subdirectory INSIDE the private corpus, same relative
+    layout as the vault copy it was captured into."""
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'LYING.measurements.json').write_text('{}')
+    (prints_dir / 'LYING.pcl').write_bytes(b'')
+    authored_root = tmp_path / 'pd-samples' / 'authored'
+    authored_root.mkdir(parents=True)
+    (authored_root / 'LYING.WS').write_bytes(b'')
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.setattr(fg, 'DEFAULT_AUTHORED_ROOT', str(authored_root))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('LYING')
+    assert ws_path == str(authored_root / 'LYING.WS')
+    assert mpath == str(prints_dir / 'LYING.measurements.json')
+    assert pcl_path == str(prints_dir / 'LYING.pcl')
+
+
+def test_resolve_doc_paths_skips_archive_doc_when_sawyer_archive_unset(tmp_path, monkeypatch):
+    """A PRIVATE_DOCS entry (e.g. SAWYER) still SKIPS -- not errors -- when
+    only $CTRLKD_SAWYER_ARCHIVE is unset, once the prints directory itself
+    resolves fine; the archive corpus is a separate, legitimately-optional
+    concern from the ground-truth prints directory."""
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.delenv(fg.ARCHIVE_ENV, raising=False)
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('SAWYER')
+    assert ws_path is None
+    assert mpath == str(prints_dir / 'SAWYER.measurements.json')
 
 
 # -------------------------------------------------------------- end to end
