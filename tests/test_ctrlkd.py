@@ -5507,6 +5507,93 @@ def test_running_head_toggle_bytes_become_styles_not_glyphs():
     assert xs == sorted(xs)                          # strictly left-to-right
 
 
+def test_running_head_right_tab_repositions_when_the_page_number_widens():
+    """Planning #202, -README.WS's own running head: a right-align tab
+    (WSFORMAT symmetrical-sequence type 9, tab-type byte '[' documented or
+    ']' undocumented -- both render identically, see core.py's own
+    TAB_RIGHT_TYPES) typed before '#' in a `.h1`/`.f1` argument gets its
+    padding BAKED at parse time to whatever the eventual page number's
+    width was assumed to be THEN -- always 1 digit (WordStar's own screen
+    shows the literal '#' token). Real WS7 re-evaluates the tab at PRINT
+    TIME against THAT page's own actual page-number width instead:
+    measured on -README.WS pages 9->10 (ws7-prints/v2), the running head's
+    own "WordStar" moves 7.2pt (one Courier column) LEFT the instant the
+    page number grows from 1 digit to 2, while the number's own right edge
+    never moves. This fixture reproduces the exact shape (a right-align
+    tab immediately followed by 'TEST / #') with a `.pn 9` start so the
+    SAME two-page document carries both a 1-digit and a 2-digit page
+    number, and the arithmetic pinned here (`_hf_line_ops`'s own tab_rec
+    branch) is `-README`'s own real numbers, re-derived from a synthetic
+    tab whose `content[2:4]` ("absolute tab size in HMIs") is chosen so
+    the recovered target column is a round number, not copied from the
+    real file."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+
+    def tab_block(cols, abs_hmi, tab_type=0x5D):
+        size = cols * 180                  # core.TAB_HMI_PER_COL
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b' ')
+
+    # abs_hmi (2340 HMI = 13 cols) + len('TEST / #') (8, un-substituted) - 1
+    # (the same confirmed off-by-one -README's own real tab carries, see
+    # _hf_line_ops's own docstring) recovers target_col = 20.
+    tab = tab_block(13, 2340)
+    data = (b'.pn 9\r\n' +
+            b'.h1 ' + tab + b'TEST / #' + HARD +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page two prose, also plain, ordinary, long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.header_tabs[1] == (0, 13, 2340)
+    pdf = emit_pdf(doc, 'printed')
+    ops = _td_ops6(pdf)
+    # No font block on this `.h1` -> a fontless header with no toggle bytes
+    # of its own takes `_hf_line_ops`'s single-Tj fast path (register C6's
+    # own docstring): padding and text ride in ONE Tj string, at the SAME
+    # `left` x on every page -- the repositioning shows up as a shorter
+    # leading-space RUN, not a different Td x. target_col 20: page 9's
+    # 8-char suffix ('TEST / 9') pads to 12 cols, page 10's 9-char suffix
+    # ('TEST / 10') pads to 11 -- ONE column (7.2pt) narrower, the exact
+    # -README shape (its own header shifts 7.2pt LEFT the same way).
+    heads = [t for x, y, t in ops if y > 720 and b'TEST' in t]
+    assert heads == [b' ' * 12 + b'TEST / 9', b' ' * 11 + b'TEST / 10']
+
+
+def test_running_head_right_tab_leaves_a_fonted_header_alone():
+    """`_hf_line_ops`'s tab_rec branch is gated on `entry is None` (no
+    `.h#`/`.f#` font block -- Courier, the SAME condition the fast single-
+    Tj path already keys on) -- a `.h1` that opens its OWN type-2 Font
+    block (register C6, LJ6DTP's own Antique Olive running head) is left
+    at its baked, page-1-shaped padding column count regardless: this
+    branch's own column-width arithmetic is 10cpi Courier's fixed 7.2pt,
+    which a DIFFERENT resolved face's own per-character advance (even a
+    fixed-pitch one, let alone a proportional one) has no reason to
+    share, and no oracle in the corpus combines the two. Same baked
+    13-column padding on both pages, unchanged."""
+    from ctrlkd.pdf import emit_pdf
+
+    def tab_block(cols, abs_hmi, tab_type=0x5D):
+        size = cols * 180
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b' ')
+
+    font_block = ws7_block(0x02, (200).to_bytes(2, 'little')
+                           + (240).to_bytes(2, 'little') + (0).to_bytes(2, 'little')
+                           + b'\x00' * 6)
+    tab = tab_block(13, 2340)
+    data = (b'.pn 9\r\n' +
+            b'.h1 ' + font_block + tab + b'TEST / #' + HARD +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page two prose, also plain, ordinary, long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'printed')
+    ops = _td_ops6(pdf)
+    heads = [t for x, y, t in ops if y > 700 and b'TEST' in t]
+    assert heads == [b' ' * 13 + b'TEST / 9', b' ' * 13 + b'TEST / 10']
+
+
 def test_modern_draws_fontless_cp437_square_bullet_as_vector():
     """Round 3 (2026-08-06): -README's list bullets are cp437 0xFE black
     squares in FONTLESS spans -- no cp1252 slot, and the graphics vector

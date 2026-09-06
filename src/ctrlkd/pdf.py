@@ -28,7 +28,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     detect_screenplay_blocks as _detect_screenplay_blocks, \
     sentence_spacing_texts as _sentence_spacing_texts, \
     resolve_sentence_spacing as _resolve_sentence_spacing, \
-    _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48
+    _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
 from . import layout as _layout
@@ -3752,7 +3752,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     def render(txt):
         return txt.replace('#', str(page_no))
 
-    def _hf_line_ops(txt, y, font_idx):
+    def _hf_line_ops(txt, y, font_idx, tab_rec=None):
         """One header/footer LINE's ops (register C6). `font_idx` is the
         doc.fonts index found on this line's own .h#/.f# (doc.header_fonts/
         footer_fonts -- None when that line opened with no font-change block
@@ -3765,6 +3765,44 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         a genuinely bold run still renders bold in whatever face this
         resolves to, and the toggle bytes themselves never reach the page as
         literal control characters.
+
+        `tab_rec` (planning #202, -README's own running head) is this
+        line's own `doc.header_tabs`/`footer_tabs` entry: `(char_idx, cols,
+        abs_hmi)`, or None. A right/center/decimal-align tab typed into a
+        `.h#`/`.f#` argument gets its own `cols` spaces BAKED into the text
+        at parse time (`_symmetric_blocks`/`_tab_columns`, same as a body
+        span's) -- sized for whatever the eventual `#` substitution was
+        assumed to be wide when the file was LAST SAVED (always 1 column:
+        WordStar's own screen shows the literal '#' token, never the
+        eventual printed number). Real WS7 re-evaluates the tab at PRINT
+        TIME against THAT page's own actual page-number width instead
+        (measured, -README.WS pages 9->10: WS7's own "WordStar" moves 7.2pt
+        LEFT the instant the page number grows a second digit, while the
+        number's own right edge -- the tab's real target column -- never
+        moves).
+
+        `abs_hmi` (content[2:4], "absolute tab size in HMIs" -- the SAME
+        field a body span's own tab mark carries) is WHERE THE BAKED
+        PADDING ITSELF ENDS, measured from the document's own left
+        reference -- i.e. it already encodes `target_col - saved_suffix_
+        width`, using the file's OWN (1-digit-'#') suffix width at save
+        time. Reversing that (`+ the STORED suffix's own un-substituted
+        width, un-styled control bytes stripped`) recovers `target_col`
+        without ever hardcoding a right margin -- EXCEPT a confirmed,
+        constant off-by-one (-README.WS: content[2:4] cols 41 + stored
+        suffix width 24 = 65, but the real print-time target measures
+        64 -- WS7's own suffix-final print column is exclusive of the tab's
+        own SIZE-convention column 65, not inclusive): `- 1` corrects it.
+        Re-deriving `target_col` this way, then subtracting THIS page's
+        own ACTUAL (post-`#`-substitution) suffix width, reproduces both
+        of -README's real WS7 x positions exactly (345.6pt page 9, 338.4pt
+        pages 10-16) -- see `tests/test_ctrlkd.py`'s own synthetic case for
+        the same arithmetic against a made-up right-tab and page number.
+
+        Fixed-pitch (`entry is None`, Courier) only: a proportional header
+        face has no single column width to divide the HMI target by, and no
+        oracle in the corpus combines the two, so that case is left at the
+        baked `cols` -- unchanged, same as before this existed.
 
         No font on this line (the overwhelmingly common case -- every
         document that never opens a `.h#`/`.f#` with a font block) is
@@ -3789,6 +3827,15 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         entry = (doc.fonts[font_idx]
                 if font_idx is not None and res is not None
                 and 0 <= font_idx < len(doc.fonts) else None)
+        if entry is None and tab_rec is not None:
+            char_idx, cols, abs_hmi = tab_rec
+            if 0 <= char_idx and char_idx + cols <= len(txt):
+                suffix = txt[char_idx + cols:]
+                stripped_suffix = ''.join(c for c in suffix if ord(c) >= 0x20)
+                saved_target_col = (round(abs_hmi / _TAB_HMI_PER_COL)
+                                    + len(stripped_suffix) - 1)
+                new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
+                txt = txt[:char_idx] + (' ' * new_cols) + suffix
         if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
             return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
@@ -3927,7 +3974,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         if not txt:
             continue
         y = page_h - (head_base + n - 1) * LEAD - size
-        ops += _hf_line_ops(txt, y, doc.header_fonts.get(n))
+        ops += _hf_line_ops(txt, y, doc.header_fonts.get(n), doc.header_tabs.get(n))
     # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
     # same default/explicit asymmetry `.hm` turned out to have, above, and
     # NOT applying it here on the evidence actually available. No oracle in
@@ -3949,7 +3996,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         y = page_h - (foot_line + n - 1) * lead - size
         if y < 0:
             continue
-        ops += _hf_line_ops(txt, y, doc.footer_fonts.get(n))
+        ops += _hf_line_ops(txt, y, doc.footer_fonts.get(n), doc.footer_tabs.get(n))
     if show_auto_num:
         # WordStar's own AUTOMATIC number rides the SAME row a footer line 1
         # would (n=1: `foot_line + 1 - 1 == foot_line`) -- measured, every

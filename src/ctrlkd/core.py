@@ -1260,6 +1260,37 @@ class Document:
     # FONT (not just its text) mid-file keeps only the last one seen.
     header_fonts: dict = field(default_factory=dict)
     footer_fonts: dict = field(default_factory=dict)
+    # A `.h#`/`.f#` line's own RIGHT/CENTER/DECIMAL-align tab (WSFORMAT type-9
+    # symmetric sequence), when its typed text carries one: (char_idx, cols,
+    # abs_hmi) -- char_idx is where the tab's own BAKED padding run (already
+    # expanded to `cols` space characters when the file was last saved,
+    # exactly like a body span's tab, see `_symmetric_blocks`' `_tab_columns`)
+    # sits within the FINAL decoded `headers[line]`/`footers[line]` string;
+    # `abs_hmi` is the tab's own absolute target column (content[2:4], same
+    # field a body span's `tabN` mark carries), from the document's own left
+    # reference, in HMI (1/1800in).
+    #
+    # WHY THIS EXISTS (planning #202, -README's own running head): a body
+    # span's tab gets this same absolute target as a MARK a Printed-mode
+    # renderer can consult live (`_decode_spans`' `tab_target_at`) -- but
+    # `.h#`/`.f#` text is stored as a flat, already-`#`-unaware STRING, so the
+    # `cols` count baked into it was fixed FOREVER at whatever the page
+    # number's width was assumed to be WHEN THE FILE WAS SAVED (always 1
+    # digit -- WordStar's own screen shows the LITERAL '#' token, one column,
+    # never the eventual printed number). Real WS7 re-evaluates the tab at
+    # PRINT TIME, using THAT page's own actual page-number width, so a
+    # right-aligned "WordStar 7.0 Archive / #" header shifts one column
+    # LEFT the moment the page number grows a second digit (measured,
+    # -README.WS pages 9->10: WS7's own "WordStar" moves from x=345.6pt to
+    # x=338.4pt, exactly 7.2pt = one Courier column, while the text's own
+    # RIGHT edge -- "9" ends at 518.4pt, "10" also ends at 518.4pt -- stays
+    # utterly fixed). Carrying `(char_idx, cols, abs_hmi)` lets the Printed
+    # emitter redo that same per-page arithmetic instead of trusting the
+    # baked, page-1-shaped `cols`. None when this line's text has no tab of
+    # its own (the common case, and the only case before this existed) --
+    # `_hf_line_ops` falls back to the baked text unchanged, byte-identical.
+    header_tabs: dict = field(default_factory=dict)
+    footer_tabs: dict = field(default_factory=dict)
     # Every .he/.h1-.h5/.fo/.f1-.f5 IN DOCUMENT ORDER, with the block it
     # precedes: ('H'|'F', line 1-5, text, block_index). WordStar applies a
     # running head from the page where it is defined -- on that page itself
@@ -2538,7 +2569,8 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
             doc.meta['line_numbering'] = value if value > 0 else None
 
 
-def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None):
+def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
+                     tab_mark=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -2554,6 +2586,12 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None)
     Font block exactly like body text can, and that block contributes no
     bytes of its own to the cleaned stream, so nothing but the caller's own
     line_marks lookup can recover it once we are down here working on bytes.
+
+    `tab_mark` (planning #202, -README's own running head) is the caller's
+    own `line_marks` 'tab' entry for this line, if any: `(rel, abs_hmi,
+    leader, cols)` -- `rel` a BYTE offset from the start of `cmd` (the SAME
+    coordinate space `_symmetric_blocks` recorded it in), the rest exactly
+    what a body span's own tab mark carries. See `Document.header_tabs`.
     """
     m = _HEAD_FOOT_RE.match(cmd)
     if not m:
@@ -2565,22 +2603,38 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None)
     # body uses -- control-range middles are chart glyphs, the rest are the
     # byte's own cp437 character.
     raw_txt = m.group(2)
+    tab_byte_idx = tab_mark[0] - m.start(2) if tab_mark is not None else None
+    tab_char_idx = None
     parts, pos = [], 0
     for t in re.finditer(rb'\x1b(.)\x1c', raw_txt, re.S):
+        if (tab_char_idx is None and tab_byte_idx is not None
+                and tab_byte_idx <= t.start()):
+            tab_char_idx = sum(len(p) for p in parts) + (tab_byte_idx - pos)
         parts.append(raw_txt[pos:t.start()].decode(encoding, 'replace'))
         x = t.group(1)[0]
         parts.append(CP437_GRAPHICS[x] if x < 0x20 or x == 0x7F
                      else bytes([x]).decode(encoding, 'replace'))
         pos = t.end()
+    if tab_char_idx is None and tab_byte_idx is not None:
+        tab_char_idx = sum(len(p) for p in parts) + (tab_byte_idx - pos)
     parts.append(raw_txt[pos:].decode(encoding, 'replace'))
     text = ''.join(parts).rstrip()
     kind = 'H' if tag.startswith(b'H') else 'F'
     which = doc.headers if kind == 'H' else doc.footers
     which_fonts = doc.header_fonts if kind == 'H' else doc.footer_fonts
+    which_tabs = doc.header_tabs if kind == 'H' else doc.footer_tabs
     second = tag[1:2]
     line = 1 if second in (b'E', b'O') else int(second)
     which[line] = text
     which_fonts[line] = font_idx
+    # A tab whose own byte offset landed at or past the '#'-bearing text (or
+    # whose target char offset ended up past what rstrip() kept) has nothing
+    # left to reposition -- None, same as a line with no tab at all.
+    if (tab_mark is not None and tab_char_idx is not None
+            and 0 <= tab_char_idx <= len(text)):
+        which_tabs[line] = (tab_char_idx, tab_mark[3], tab_mark[1])
+    else:
+        which_tabs[line] = None
     if anchor is not None:
         doc.hf_events.append((kind, line, text, anchor))
 
@@ -4251,11 +4305,18 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # dot-command check) is the only place left to find it.
             hf_font_idx = next((m[1] for _rel, m in line_marks if m[0] == 'font'),
                                None)
+            # planning #202: a right/center/decimal-align tab typed into a
+            # `.h#`/`.f#` argument (-README's own running head) is the SAME
+            # 'tab' mark a body span reads via tab_target_at -- found here the
+            # same way hf_font_idx is, since _parse_head_foot only ever sees
+            # bytes, never this line's own marks.
+            hf_tab_mark = next(((rel, m[1], m[2], m[3]) for rel, m in line_marks
+                               if m[0] == 'tab'), None)
             _parse_head_foot(cmd if strip_hibit else raw.rstrip(), doc,
                              encoding,
                              anchor=len(doc.blocks) + (1 if cur.lines or
                                                        cur_line.spans else 0),
-                             font_idx=hf_font_idx)
+                             font_idx=hf_font_idx, tab_mark=hf_tab_mark)
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.
