@@ -1,0 +1,30 @@
+# Tier 1 (bare `pytest`, no corpus) on every push/PR to main. NO schedule
+# (planning #201, "tests run when testing" -- no scheduled/just-in-case test
+# timers). Tier 2 (`sawyer`, needs the public Sawyer archive) and the `pcl`
+# tier (needs Jon's private WS7 LaserJet corpus) stay local -- see
+# tools/run-full-suite.sh and CLAUDE.md; neither ships data this workflow
+# could arm, so neither belongs in CI.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tier1:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # requires-python = ">=3.9" (pyproject.toml): the floor and the
+        # newest release actually in use elsewhere in this repo's own CI
+        # (publish.yml, windows-exe.yml both pin 3.12).
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e . pytest
+      - run: pytest -q
