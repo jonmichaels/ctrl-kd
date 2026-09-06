@@ -97,7 +97,7 @@ changes it describes are the only outputs.
 | P. A WS7 chunk glues two adjacent, already-correct engine words with no space, where mechanism C's own x-gap epsilon genuinely (not a capture artifact) passes for two real separate words that just happen to sit close together | LYING (`lies--everyday;`, `failing--awholly`, `case--aspersonal`), WARPRAYR (`"Blessour`) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, post-match reconciliation against the engine's own already-correct split — mechanism C's own epsilon is untouched) | **FIXED** (`tools/pcl_tolerance.py` `_reconcile_glued_ws7_chunks`, second residuals round) |
 | Q. A `.h#`/`.f#` right-align tab's own padding is baked to the width the eventual `#` substitution was ASSUMED to have when the file was last saved (always 1 digit — WordStar's own screen shows the literal `#` token) instead of THIS page's own real page-number width | -README (running head "WordStar 7.0 Archive / #", pages 10-16, all seven 2-digit pages) | exact-drift, line-start-shift (the whole header line, every 2-digit page) | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab and crosses a page-number digit-count boundary) | **FIXED** (`src/ctrlkd/core.py` `Document.header_tabs`/`footer_tabs`, `_parse_head_foot`'s new `tab_mark`; `src/ctrlkd/pdf.py` `_hf_line_ops`'s new `tab_rec` branch; second residuals round) |
 | R. A footnote's own `1.`-style marker gets a literal space appended even when WS7's real capture glues it directly to the note text with no separator at all; separately, the footnote AREA's own bottom-anchor override was gated on exceeding one FULL default-lead gap, silently accepting any SMALLER (but still real) overshoot | LYING (its own single footnote, `1.Did not take the prize.`) | word-unmatched, extra-word-in-engine, baseline-shift (the whole footnote line, both effects) | **BROAD SUPPORT** (any document with a footnote, for the marker join; any document whose footnote area's own natural flow position overshoots the bottom anchor by LESS than one lead, for the anchor gate) | **FIXED** (`src/ctrlkd/pdf.py` `_note_marker`'s default join, `_paginate_printed_notes`'s `override > 0` gate; second residuals round) |
-| S. `core.DEFAULT_PO_COLS` (an UNSET `.po`'s resolved value) was 8.0, the WS7 manual's stated ".8 inch" default — but real WS7's own factory default measures column 7 (0.7in), one column LEFT, confirmed across all 18 `ws7-prints/v1` captures (17 that never set `.po` at all, all off by exactly 7.2pt; the 18th, LJ6DTP, sets `.po .7"` explicitly and matches exactly, proving the pt/column formula itself was always right) | Every document above whose body-margin question mechanism Q left open — -README, LYING (confirmed directly) — PLUS every other document in the corpus that never sets its own `.po`, silently correct-by-coincidence at the `pcl` tier's own normalized level but absolutely wrong until now | exact-drift, line-start-shift, and (for -README/LYING specifically) the residuals mechanism Q/R's own entries already named as "newly-surfaced, not attempted" | **BROAD SUPPORT** (every Printed-mode document, this repo's and the sr port's, that never declares its own page offset) | **FIXED** (`src/ctrlkd/core.py` `DEFAULT_PO_COLS`; third residuals round) |
+| S. `core.DEFAULT_PO_COLS` (an UNSET `.po`'s resolved value) was briefly changed 8.0 → 7.0 on the theory that real WS7's own factory default was column 7, not the manual's stated column 8 — measured across all 18 `ws7-prints/v1` captures, all 17 undeclared-`.po` documents landing 7.2pt LEFT of the manual's figure. A direct probe of stock WordStar 7 (`PRISTINE.EXE`, untouched, no WSCHANGE) settled it the other way: stock's real factory default IS column 8, exactly as the manual says. Every one of those 18 captures was made through Robert J. Sawyer's own WSCHANGE-customized install, whose `.po` factory default he had personally set to 0.7in/column 7 — the corpus is uniformly Sawyer's-install, not stock, so it measured Sawyer's customization and reported it as WordStar's | Every document above whose body-margin question mechanism Q left open — -README, LYING (confirmed directly) — PLUS every other document in the corpus that never sets its own `.po`; the true state is a real, expected, and now-explained +7.2pt frame offset in the `ws7-prints/v1` corpus against this engine's STOCK rendering, not an engine bug | exact-drift, line-start-shift, and (for -README/LYING specifically) the residuals mechanism Q/R's own entries already named as "newly-surfaced, not attempted" — all attributable to the corpus's own install customization, not to `_resolve_left_pt`/`_printed_left` | **CORPUS PROVENANCE, not an engine bug** (the engine models STOCK WordStar 7; the capture corpus is uniformly Sawyer's customized install) | **REVERTED** (`src/ctrlkd/core.py` `DEFAULT_PO_COLS` restored to 8.0; Jon's ruling 2026-09-06, after the `PRISTINE.EXE` probe — see UPDATE at the end of mechanism S, below) |
 
 ---
 
@@ -1020,12 +1020,23 @@ visible body-margin residual almost entirely, not a header regression —
 the header words themselves (`'WordStar'`/`'7.0'`/`'Archive'`) now show
 ZERO raw positional difference from WS7 on every page.
 
-**UPDATE, same day, follow-up round: FIXED — see mechanism S, below.** The
-body-margin question this entry named and deliberately left open turned
-out to be a single wrong constant, `core.DEFAULT_PO_COLS`, not a `.lm`/`.po`
-interaction or an addressing-convention mismatch. Traced across all 18
-`ws7-prints/v1` captures (not just -README), fixed, and verified pixel-
-exact — mechanism S has the evidence table and the fix.
+**UPDATE, same day, follow-up round: see mechanism S, below.** The
+body-margin question this entry named and deliberately left open was NOT
+a `.lm`/`.po` interaction or an addressing-convention mismatch — it was
+traced across all 18 `ws7-prints/v1` captures to a single constant,
+`core.DEFAULT_PO_COLS`, and briefly "fixed" by moving it 8.0 → 7.0.
+
+**SECOND UPDATE, later the same day, after a direct `PRISTINE.EXE`
+probe: REVERTED, root cause was the corpus, not the engine.** The 7.2pt
+this entry measures for -README is real, but it is not a bug in
+`_resolve_left_pt`/`_printed_left`: every `ws7-prints/v1` capture,
+-README included, was produced through Robert J. Sawyer's own
+WSCHANGE-customized WordStar 7 install, whose `.po` factory default he
+had personally set to 0.7in (column 7). Stock WordStar 7's real,
+untouched factory default — confirmed directly against `PRISTINE.EXE` —
+is column 8, exactly as the manual states and exactly as
+`core.DEFAULT_PO_COLS` already modelled before this round ever started.
+Mechanism S has the full evidence table and the reversal.
 
 ---
 
@@ -1105,7 +1116,7 @@ a regression from this fix and not attempted here for the same reason.
 
 ---
 
-## S. `core.DEFAULT_PO_COLS` was one column too far right — FIXED (engine)
+## S. `core.DEFAULT_PO_COLS` was one column too far right — REVERTED (root cause was the corpus, not the engine; see UPDATE below)
 
 **Third residuals round, planning #202, 2026-09-06.** Mechanism Q's own
 follow-up left one question open: -README's real body text sits at
@@ -1237,20 +1248,61 @@ together) both show IDENTICAL pass/fail counts before and after this
 fix (74 failed / 5904 passed, both runs) — zero regressions anywhere in
 the repository.
 
-**What this changes for a consumer.** Every PRINTED-mode PDF/RTF/layout
-output for a document that never sets its own `.po` now renders its body
-7.2pt (one Courier column) further LEFT than before — this repo's own
-`tests/answer_key.json` self-recorded oracle moved 1060 of its 4620
-cells as a direct, single-cause consequence (`rtf.printed`/`pdf.printed`/
-`layout.printed`/`layout.modern` for every affected document, plus
-`rtf.modern` for the printstream/columnar subset whose modern cell is
-already defined to equal its printed cell). This is real Printed-mode
-geometry, not a formatting nicety: the sr/Soft Return port shares this
-exact `.po`-default resolution path (`_printed_left`/`_resolve_left_pt`'s
-own doctrine already crosses into that engine per the "measured bytes
-beat manual prose" precedent) and should pick up the same one-column
-correction wherever it renders a WS7-era document that never declares
-its own page offset.
+**What this changed for a consumer, while it stood.** Every PRINTED-mode
+PDF/RTF/layout output for a document that never sets its own `.po` would
+have rendered its body 7.2pt (one Courier column) further LEFT than
+before — this repo's own `tests/answer_key.json` self-recorded oracle
+moved 1060 of its 4620 cells as a direct, single-cause consequence
+(`rtf.printed`/`pdf.printed`/`layout.printed`/`layout.modern` for every
+affected document, plus `rtf.modern` for the printstream/columnar subset
+whose modern cell is already defined to equal its printed cell).
+
+**UPDATE, later the same day, after a direct `PRISTINE.EXE` probe:
+REVERTED — the fix above was real evidence pointed at the wrong cause.**
+Everything in the evidence table is still true as a measurement: all 17
+undeclared-`.po` captures in `ws7-prints/v1` really do print 7.2pt left
+of column 8, and LJ6DTP's explicit `.po .7"` really does match the
+engine's `cols * 7.2pt` formula exactly. What the table does NOT
+establish — and this round wrongly assumed — is that column 7 is
+WordStar 7's own out-of-box factory default. Jon's ruling, 2026-09-06,
+after probing a genuinely stock install: **`PRISTINE.EXE`, WS7 with no
+customization applied, prints its body at column 8 (0.8in) — exactly
+the manual's stated default, exactly what `core.DEFAULT_PO_COLS` already
+modelled before this round began.** The 0.7in/column-7 default measured
+in all 18 `ws7-prints/v1` captures is not WordStar's default at all — it
+is Robert J. Sawyer's own WSCHANGE customization, baked into the single
+install every one of these captures was made on. The corpus is uniformly
+one customized machine, not a random sample of stock WS7 behavior, so
+"17 of 18 documents agree" measured the install, not the program.
+
+`core.DEFAULT_PO_COLS` is reverted to 8.0 (the engine models STOCK
+WordStar 7, per this ruling, not any one archive's customized install);
+the `pdf.py`/`emit.py` fallback literals revert alongside it; every test
+value this round pinned at 7-column arithmetic is restored to its
+8-column value; `tests/answer_key.json` is regenerated and its 1060
+moved cells confirmed IDENTICAL to their pre-this-round values
+(`git show 8f5be69:tests/answer_key.json`). This does NOT make the
+evidence table wrong or the `ws7-prints/v1` corpus wrong — it means every
+comparison against that corpus carries a real, now-understood,
+install-specific +7.2pt frame offset for any document that relies on
+`.po`'s default (LJ6DTP is exempt: its explicit `.po .7"` is Sawyer's own
+file setting the SAME value his install would have defaulted to anyway,
+not evidence about the default itself). `tests/pcl_fidelity_manifest.json`
+now carries this in its header (`captures_install`) and, per document, an
+ABSOLUTE (pre-per-page-calibration) frame-offset report — see
+`tools/pcl_tolerance.py`'s `document_frame_offset_pt` field — so a
+systematic corpus-wide shift like this one is surfaced every time the
+manifest is regenerated, never silently normalized away again by the
+tier's own per-page calibration (the same masking mechanism this entry's
+own "why 13 of 18 never showed this" section above already named).
+
+**What this means for a consumer, going forward.** Nothing — this
+engine's Printed-mode `.po` default was correct all along (column 8,
+stock WS7). Anyone comparing this engine's output against the
+`ws7-prints/v1` corpus specifically (not against real stock WS7) should
+expect a uniform +7.2pt body-position offset on every document that
+never declares its own `.po`, and should attribute it to Sawyer's own
+WSCHANGE setting, not to this engine.
 
 ---
 
@@ -1306,13 +1358,17 @@ Tier-1 test:**
 - Mechanism R: `_note_marker`'s default join, `_paginate_printed_notes`'s
   `override > 0` gate (`src/ctrlkd/pdf.py`) — second residuals round.
 
-**Fixed this round (third residuals round, planning #202), with a
-Tier-1 test:**
+**Attempted this round (third residuals round, planning #202), then
+REVERTED the same day after a direct `PRISTINE.EXE` probe:**
 - Mechanism S: `core.DEFAULT_PO_COLS` 8.0 → 7.0 (`src/ctrlkd/core.py`),
   plus two dead-code fallback literals kept in step
-  (`src/ctrlkd/pdf.py`/`emit.py`) — the body-margin question mechanism
-  Q's own entry named and left open, traced and closed across all 18
-  captures.
+  (`src/ctrlkd/pdf.py`/`emit.py`) — traced the body-margin question
+  mechanism Q's own entry left open to all 18 `ws7-prints/v1` captures
+  agreeing on column 7, but that agreement measured Robert J. Sawyer's
+  own WSCHANGE-customized install, not WordStar 7's stock factory
+  default (confirmed column 8 via `PRISTINE.EXE`, Jon's ruling
+  2026-09-06). Reverted back to 8.0; see mechanism S's own UPDATE for
+  the full reversal and the manifest/answer-key re-record it required.
 
 **-SCREEN's own "extra Ω" claim: does not reproduce, verified directly.**
 An earlier round's own diagnosis (Jon's brief for the second residuals

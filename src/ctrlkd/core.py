@@ -2037,25 +2037,12 @@ PAGE_SIZE_SNAP_IN = 0.25
 DEFAULT_PL_LINES = 66.0    # WordStar's own default: 66 lines = 11in = US Letter
 DEFAULT_MT_LINES = 3.0     # spec: ".MT ... Default value is 3 lines."
 DEFAULT_MB_LINES = 8.0     # spec: ".MB ... The default value is 8 lines."
-DEFAULT_PO_COLS = 7.0      # WS7 manual, "Page Layout": "The default page offset
-                           # is .8 inch" -- but measured bytes beat manual prose
-                           # (`_printed_left`'s own doctrine, pdf.py): EVERY captured
-                           # WS7 document that never sets its own `.po` (16 of the 18
-                           # ws7-prints/v1 captures; the 18th, LJ6DTP, sets `.po .7"`
-                           # explicitly and matches at 7 exactly) prints its body flush
-                           # at column 7 (50.4pt), one column LEFT of the manual's
-                           # stated 8 (57.6pt) -- confirmed independently by pdf.py's
-                           # own `_auto_pageno_x_pt` dosbox-x probes (PN_PC10_PROBE:
-                           # "`.po` at this install's own factory-configured 7.0"),
-                           # a wholly separate measurement method that already named
-                           # the same number. tools/PCL-DIVERGENCE-TRIAGE.md mechanism
-                           # Q's own follow-up (planning #202, 2026-09-06) traced this
-                           # directly: -README's real body left edge sits at column 7,
-                           # not the `.po 8` this constant used to resolve to.
+DEFAULT_PO_COLS = 8.0      # WS7 manual, "Page Layout": "The default page offset
+                           # is .8 inch" -- 8 print columns at the default 10 CPI.
                            # (Through 1.3.0 this was 0, "least presumptuous", from
-                           # the file-format spec stating none; 2.0.0 moved it to the
-                           # manual's stated 8 without a real-capture check; THIS
-                           # figure is the first one checked against actual WS7 output.)
+                           # the file-format spec stating none; the manual DOES
+                           # state one, and 2.0.0 actually renders the offset, so
+                           # the manual's figure governs.)
 DEFAULT_HM_LINES = 2.0     # spec: ".HM ... Default is 2." (header sits INSIDE .mt)
 DEFAULT_FM_LINES = 2.0     # spec: ".FM ... Default is 2." (footer sits INSIDE .mb)
 DEFAULT_LH_48 = 8.0        # spec: ".LH ... The default is 8/48 or 6 lines per inch."

@@ -896,6 +896,25 @@ def doc_report(doc_name: str) -> dict:
     for (w, e), d in zip(m['pairs'], deltas):
         by_page[d['ws7_page']].append((w, e, d))
 
+    # ABSOLUTE (not per-page-normalized) frame offset for the whole
+    # document -- restricted to line-start words, since those are pure
+    # left-margin measurements (the page's own resolved `.po`) and aren't
+    # diluted by mid-line font-substitution width drift the way an
+    # arbitrary word's dx would be. This is reported only, never used to
+    # fail anything -- it exists so a real, corpus-wide, systematic shift
+    # (mechanism S's own reversal, tools/PCL-DIVERGENCE-TRIAGE.md: every
+    # ws7-prints/v1 capture was made on Robert J. Sawyer's own
+    # WSCHANGE-customized WordStar 7 install, whose `.po` factory default
+    # is one column, 7.2pt, off stock WS7's) stays VISIBLE here instead of
+    # being silently absorbed the way the per-page median-dx calibration
+    # below absorbs it before anything downstream ever sees it.
+    line_start_same_page_deltas = [d for (w, e), d in zip(m['pairs'], deltas)
+                                   if w['is_line_start'] and d['same_page']]
+    _doc_offset = fg.frame_offset(line_start_same_page_deltas)
+    document_frame_offset_pt = {'n': _doc_offset['n_dx'],
+                                'median_dx': _doc_offset['median_dx'],
+                                'iqr_dx': _doc_offset['iqr_dx']}
+
     no_substitute_word_count = 0
     for page, items in sorted(by_page.items()):
         page_deltas = [d for (_, _, d) in items]
@@ -965,6 +984,7 @@ def doc_report(doc_name: str) -> dict:
         'no_substitute_word_count': no_substitute_word_count,
         'counts_by_reason': dict(sorted(counts.items())),
         'divergences': [d for r in sorted(by_reason) for d in by_reason[r]],
+        'document_frame_offset_pt': document_frame_offset_pt,
     }
 
 
@@ -981,6 +1001,22 @@ def regenerate_manifest(doc_names=None) -> dict:
                  'tier). Regenerate with the command above whenever a real engine or '
                  'tolerance change is expected to move these numbers -- review the diff, '
                  'never regenerate inside the test run itself.'),
+        'captures_install': ('sawyer-wschange (measured `.po` factory default: column 7, '
+                             '0.7in) -- every ws7-prints/v1 capture was produced through '
+                             "Robert J. Sawyer's own WSCHANGE-customized WordStar 7 install, "
+                             'NOT a stock one. Stock WordStar 7 (confirmed against '
+                             'PRISTINE.EXE, Jon\'s ruling 2026-09-06) defaults `.po` to column '
+                             "8 (0.8in), matching the manual and this engine's own "
+                             'core.DEFAULT_PO_COLS. Every document below that never sets its '
+                             'own `.po` therefore carries a real, expected, install-specific '
+                             '+7.2pt (one Courier column) frame offset against this engine\'s '
+                             'stock-default rendering -- see each document\'s own '
+                             "`document_frame_offset_pt` (absolute, NOT the per-page-"
+                             'normalized residuals `counts_by_reason` reports on) and '
+                             'tools/PCL-DIVERGENCE-TRIAGE.md mechanism S\'s reversal for the '
+                             'full trace. This field exists so a future systematic shift like '
+                             'this one is never again silently calibrated away by the per-page '
+                             'median-dx normalization before anyone sees it.'),
         'documents': documents,
     }
     return manifest
@@ -1011,7 +1047,9 @@ def main(argv=None):
             f.write('\n')
         print(f'wrote {MANIFEST_PATH}', file=sys.stderr)
         for name, entry in manifest['documents'].items():
-            print(f"  {name}: {entry['verdict']}  {entry.get('counts_by_reason', {})}")
+            offset = entry.get('document_frame_offset_pt') or {}
+            print(f"  {name}: {entry['verdict']}  {entry.get('counts_by_reason', {})}  "
+                 f"abs_offset_dx={offset.get('median_dx')}pt (n={offset.get('n')})")
         return 0
 
     ap.error('need --record or --doc NAME')
