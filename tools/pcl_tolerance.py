@@ -595,6 +595,82 @@ def _correct_toggle_boundary_chunks(items):
     return out
 
 
+def _reconcile_glued_ws7_chunks(eng_tokens, unmatched_ws7, unmatched_engine):
+    """Mechanism P (triage 2026-09-06, second residuals round): a WS7
+    word-unmatched chunk that is the EXACT concatenation of two ADJACENT
+    (in the engine's own reading-order token stream, no other word
+    between them) still-unmatched engine words, with no separator, is a
+    correct match this gate's own text-equality alignment (fg.match_doc,
+    difflib.SequenceMatcher over two FLAT word lists) can never make on
+    its own -- it only ever compares one WS7 token against one engine
+    token, never a WS7 token against a multi-token engine run.
+
+    Confirmed real (not a guess at the shape): LYING.WS's own
+    'lies--everyday;' (WS7) / 'lies--every'+'day;' (engine),
+    'failing--awholly' / 'failing--a'+'wholly', 'case--aspersonal' /
+    'case--as'+'personal'; WARPRAYR.WS's own '"Blessour' /
+    '"Bless'+'our' -- checked directly (mechanism C's own
+    `_merge_kerning_split_chunks`, whose confirmed-correct territory is
+    a WS7 driver kerning-pair split): in EVERY one of these four, mechanism
+    C's own x-gap epsilon test genuinely passes for the WS7 measurement
+    (a coincidentally tight inter-word gap in this corpus's CG-Times-
+    substituted running sizes, not a kerning-pair split at all -- both
+    fragments are already complete, real, separate words on their own),
+    which is what glued them into one WS7 chunk with no space character
+    in the first place; nothing about that decision is reversible from
+    the WS7 side alone (the merge already happened by the time this gate
+    ever sees the token), and the confirmed shape (two real words with
+    no space) is fundamentally indistinguishable from mechanism C's own
+    genuine kerning splits using x-gap alone -- KERNING_MERGE_EPS_PT
+    stays exactly where mechanism C's own docstring already argues it
+    must (widening it regresses the rest of the corpus). Reconciling
+    against the ENGINE's own already-correct word split, post-match, is
+    the one place this can be caught without touching that epsilon at
+    all -- the same "capture-artifact, not a real position" treatment as
+    every other mechanism in this file, just applied one stage later,
+    directly against `fg.match_doc`'s own leftover unmatched lists
+    instead of the WS7 chunk stream `load_ws7_tokens` builds.
+
+    `eng_tokens` is the FULL (already box-drawing/`_is_unreliable_to_align`
+    -filtered, same list `doc_report` builds) engine token stream in
+    document reading order -- the adjacency check walks THIS list's own
+    consecutive indices, not `unmatched_engine`'s (which drops the
+    ordering a merge needs the instant anything between two candidates
+    already matched). `unmatched_ws7`/`unmatched_engine` are
+    `fg.match_doc`'s own leftover lists. Returns
+    `(new_unmatched_ws7, new_unmatched_engine)` with every resolved
+    token removed from both -- resolved pairs are not added to `pairs`
+    (position-level comparison for a glued WS7 chunk is not meaningful:
+    there is no single correct x for the boundary between two words
+    inside one PCL chunk, the same reasoning `_merge_trailing_
+    punctuation_chunks`'s own merged chunk already carries for its own
+    x). A token is consumed by at most one reconciliation."""
+    idx_of = {id(t): i for i, t in enumerate(eng_tokens)}
+    unmatched_eng_ids = {id(t) for t in unmatched_engine}
+    resolved_ws7_ids, resolved_eng_ids = set(), set()
+    for w in unmatched_ws7:
+        for e1 in unmatched_engine:
+            if id(e1) in resolved_eng_ids or e1['page'] != w['page']:
+                continue
+            i = idx_of.get(id(e1))
+            if i is None or i + 1 >= len(eng_tokens):
+                continue
+            e2 = eng_tokens[i + 1]
+            if (id(e2) in resolved_eng_ids or id(e2) not in unmatched_eng_ids
+                    or e2['page'] != w['page']
+                    or abs(e2['y_top'] - e1['y_top']) > 0.5):
+                continue
+            if e1['text'] + e2['text'] != w['text']:
+                continue
+            resolved_ws7_ids.add(id(w))
+            resolved_eng_ids.add(id(e1))
+            resolved_eng_ids.add(id(e2))
+            break
+    new_unmatched_ws7 = [w for w in unmatched_ws7 if id(w) not in resolved_ws7_ids]
+    new_unmatched_engine = [e for e in unmatched_engine if id(e) not in resolved_eng_ids]
+    return new_unmatched_ws7, new_unmatched_engine
+
+
 def load_ws7_tokens(pcl_path: str, measurements_path: str):
     """[{text, x, y_top, size, basefont, font_class, page, tid, tier,
     dist_into_line_pt, is_line_start}, ...] -- fg.ws7_page_tokens()'s own
@@ -797,12 +873,21 @@ def doc_report(doc_name: str) -> dict:
     m = fg.match_doc(ws7_tokens, eng_tokens)
     deltas = fg.pair_deltas(m['pairs'])
 
-    for t in m['unmatched_ws7']:
+    # Mechanism P: reconcile a WS7 chunk that glues two adjacent engine
+    # words together with no space (LYING/WARPRAYR's own residual
+    # 'lies--everyday;'/'"Blessour' shape) BEFORE either leftover list
+    # becomes a divergence -- see _reconcile_glued_ws7_chunks's own
+    # docstring. `pairs`/`deltas` are unaffected (nothing resolved here
+    # has a meaningful single x to compare).
+    unmatched_ws7, unmatched_engine = _reconcile_glued_ws7_chunks(
+        eng_tokens, m['unmatched_ws7'], m['unmatched_engine'])
+
+    for t in unmatched_ws7:
         add(REASON_WORD_UNMATCHED, t['page'], round(t['y_top'], 1), [t['text']],
             [round(t['x'], 1), round(t['y_top'], 1)], None, t['tier'],
             detail='WS7 word has no corresponding word anywhere in the engine output')
 
-    for t in m['unmatched_engine']:
+    for t in unmatched_engine:
         add(REASON_EXTRA_WORD_IN_ENGINE, t['page'], round(t['y_top'], 1), [t['text']],
             None, [round(t['x'], 1), round(t['y_top'], 1)], t['font_class'],
             detail='engine word has no corresponding word anywhere in the WS7 capture')

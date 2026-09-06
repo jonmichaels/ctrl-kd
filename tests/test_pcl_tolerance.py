@@ -410,3 +410,96 @@ def test_source_ws_for_report_withholds_the_path_for_a_non_public_group(tmp_path
     assert 'some-other-group' not in published
     assert 'MISC' not in published
     assert 'WIDGET' in published
+
+
+# --------------------------------------- mechanism P: glued-chunk reconcile
+def _ws7_word(text, page=1, y_top=100.0):
+    return {'text': text, 'page': page, 'y_top': y_top, 'x': 50.0, 'tier': 'exact'}
+
+
+def _eng_word(text, page=1, y_top=100.0):
+    return {'text': text, 'page': page, 'y_top': y_top, 'x': 50.0, 'font_class': 'serif'}
+
+
+def test_reconcile_glued_ws7_chunks_resolves_a_two_word_glue():
+    # LYING.WS's own shape: WS7's own chunk 'lies--everyday;' is really the
+    # engine's own two adjacent, already-correct words 'lies--every' and
+    # 'day;' glued with no space -- mechanism C's own kerning-merge (a
+    # WS7-side chunk-split fix) already ran and produced this single WS7
+    # token before this function ever sees it.
+    eng_tokens = [_eng_word('Everybody'), _eng_word('lies--every'),
+                 _eng_word('day;'), _eng_word('every')]
+    unmatched_ws7 = [_ws7_word('lies--everyday;')]
+    unmatched_engine = [eng_tokens[1], eng_tokens[2]]
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == []
+    assert new_eng == []
+
+
+def test_reconcile_glued_ws7_chunks_leaves_a_real_single_word_mismatch_alone():
+    # A genuine content mismatch (no engine pair concatenates to the WS7
+    # text) must never be silently swallowed.
+    eng_tokens = [_eng_word('Something'), _eng_word('Else')]
+    unmatched_ws7 = [_ws7_word('Different')]
+    unmatched_engine = list(eng_tokens)
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_reconcile_glued_ws7_chunks_requires_true_adjacency_in_the_engine_stream():
+    # 'lies--every' and 'day;' are NOT next to each other in the engine's
+    # own reading order here (an unrelated word sits between them) -- the
+    # WS7 chunk must NOT be reconciled against two words it never sat
+    # between on the real page.
+    eng_tokens = [_eng_word('lies--every'), _eng_word('unrelated'),
+                 _eng_word('day;')]
+    unmatched_ws7 = [_ws7_word('lies--everyday;')]
+    unmatched_engine = [eng_tokens[0], eng_tokens[2]]
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_reconcile_glued_ws7_chunks_requires_both_engine_words_still_unmatched():
+    # If the SequenceMatcher already paired 'day;' with some other real
+    # 'day;' occurrence elsewhere in the document, it is no longer in
+    # unmatched_engine -- this must not double-claim it.
+    eng_tokens = [_eng_word('lies--every'), _eng_word('day;')]
+    unmatched_ws7 = [_ws7_word('lies--everyday;')]
+    unmatched_engine = [eng_tokens[0]]              # 'day;' already matched elsewhere
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_reconcile_glued_ws7_chunks_respects_page_boundaries():
+    # Same text, but the WS7 chunk and the candidate engine pair are on
+    # different pages -- a coincidental cross-page text match must never
+    # merge (page-count-mismatch/pagination-drift is its own, separate
+    # finding, not this mechanism's territory).
+    eng_tokens = [_eng_word('lies--every', page=2), _eng_word('day;', page=2)]
+    unmatched_ws7 = [_ws7_word('lies--everyday;', page=1)]
+    unmatched_engine = list(eng_tokens)
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_reconcile_glued_ws7_chunks_only_consumes_each_token_once():
+    # Two separate WS7 glue chunks on the same line must each claim their
+    # OWN engine pair, never double-claim a word already spent resolving
+    # the other one.
+    eng_tokens = [_eng_word('failing--a'), _eng_word('wholly'),
+                 _eng_word('case--as'), _eng_word('personal')]
+    unmatched_ws7 = [_ws7_word('failing--awholly'), _ws7_word('case--aspersonal')]
+    unmatched_engine = list(eng_tokens)
+    new_ws7, new_eng = pt._reconcile_glued_ws7_chunks(
+        eng_tokens, unmatched_ws7, unmatched_engine)
+    assert new_ws7 == []
+    assert new_eng == []
