@@ -49,6 +49,25 @@ remaining 14 divergences were traced and fixed in a follow-up round the
 same day (mechanism O, below) — see the "Summary — all rounds" section
 at the end for the full before/after table.
 
+**Second residuals round (planning #202, same corpus):** four more items
+— traced and fixed the -README header/page-number digit-width bug
+(mechanism Q) and LYING's footnote-marker/vertical-anchor bug (mechanism
+R), extended the glued-chunk chunk-normalisation family with mechanism
+P (LYING's/WARPRAYR's own remaining `lies--everyday;`/`"Blessour`-shape
+residuals), and re-verified -SCREEN's own "extra Ω" claim directly
+against a rendered crop — it does not reproduce on this tree; see
+mechanism G's own entry and -SCREEN's updated note below. -README's own
+fix, once verified pixel-exact against real WS7, surfaced a SEPARATE,
+previously-hidden, real divergence in this document's own BODY TEXT
+left margin (WS7's own body left edge measures one Courier column
+LEFT of where `.po`'s default resolves it, `_resolve_left_pt`/
+`_printed_left`'s own domain, confirmed identically in LYING's own
+footnote-area text) — named, not fixed, see mechanism Q's own entry;
+it was invisible before only because -README's OLD (broken) header
+happened to carry the exact same wrong offset, which the per-page
+frame-offset normalization then silently absorbed as "the page's own
+consistent calibration."
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -75,6 +94,9 @@ changes it describes are the only outputs.
 | M. A fontless `.h#`/`.f#` header/footer line's own inline style-toggle byte (e.g. `^Y` italic) leaked into the Printed PDF as a literal control character instead of being interpreted | -README (`.h1`, wrapped in one `^Y`...`^Y` pair) | extra-word-in-engine, word-unmatched, exact-drift, line-start-shift (everything on the header line after the phantom glyph) | **BROAD SUPPORT** (any fontless header/footer with an inline toggle) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`, residuals round) |
 | N. A WS7 chunk that glues a box-drawing/table-border character directly onto a word with no space | SCRIPT ("│Figure") | word-unmatched, extra-word-in-engine | **TOOLING** (WS7's LaserJet Courier charset draws box-drawing as a font glyph; our engine draws it as a vector) | **FIXED** (`tools/pcl_tolerance.py` `_strip_leading_box_drawing_chunks`, residuals round) |
 | O. A page-local `.po` (page offset) override was carried to the body text (per-line) but never to that page's own running head/footer, which stayed at the document's global `.po` | SCRIPT (running head "PROFILES MONTH '88 SCRIPT.001..." on its two figure pages, whose `.po .5"` resets alongside their `.mt`/`.hm` changes) | exact-drift, line-start-shift (the whole header line, both figure pages) | **BROAD SUPPORT** (any document whose running head/footer sits on a page with its own `.po` override) | **FIXED** (`src/ctrlkd/pdf.py` `_po_checkpoints`/`_po_at`, `Page.po_cols`, per-page `left` fed to `_running_ops`; SCRIPT-correction round) |
+| P. A WS7 chunk glues two adjacent, already-correct engine words with no space, where mechanism C's own x-gap epsilon genuinely (not a capture artifact) passes for two real separate words that just happen to sit close together | LYING (`lies--everyday;`, `failing--awholly`, `case--aspersonal`), WARPRAYR (`"Blessour`) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, post-match reconciliation against the engine's own already-correct split — mechanism C's own epsilon is untouched) | **FIXED** (`tools/pcl_tolerance.py` `_reconcile_glued_ws7_chunks`, second residuals round) |
+| Q. A `.h#`/`.f#` right-align tab's own padding is baked to the width the eventual `#` substitution was ASSUMED to have when the file was last saved (always 1 digit — WordStar's own screen shows the literal `#` token) instead of THIS page's own real page-number width | -README (running head "WordStar 7.0 Archive / #", pages 10-16, all seven 2-digit pages) | exact-drift, line-start-shift (the whole header line, every 2-digit page) | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab and crosses a page-number digit-count boundary) | **FIXED** (`src/ctrlkd/core.py` `Document.header_tabs`/`footer_tabs`, `_parse_head_foot`'s new `tab_mark`; `src/ctrlkd/pdf.py` `_hf_line_ops`'s new `tab_rec` branch; second residuals round) |
+| R. A footnote's own `1.`-style marker gets a literal space appended even when WS7's real capture glues it directly to the note text with no separator at all; separately, the footnote AREA's own bottom-anchor override was gated on exceeding one FULL default-lead gap, silently accepting any SMALLER (but still real) overshoot | LYING (its own single footnote, `1.Did not take the prize.`) | word-unmatched, extra-word-in-engine, baseline-shift (the whole footnote line, both effects) | **BROAD SUPPORT** (any document with a footnote, for the marker join; any document whose footnote area's own natural flow position overshoots the bottom anchor by LESS than one lead, for the anchor gate) | **FIXED** (`src/ctrlkd/pdf.py` `_note_marker`'s default join, `_paginate_printed_notes`'s `override > 0` gate; second residuals round) |
 
 ---
 
@@ -824,6 +846,257 @@ diff is scoped to SCRIPT's own object, verified).
 
 ---
 
+## P. WS7 glues two adjacent, already-correct engine words with no space — FIXED (tooling)
+
+**Second residuals round, 2026-09-06.** The triage doc's own earlier
+framing of LYING's/WARPRAYR's remaining residuals ("a CG-Times word-wrap
+cascade," mechanism I's own territory) does not fit these specific
+instances — checked directly by rendering and cropping the actual named
+lines (LYING page 1 "lies--every"/"day;", page 2 "failing--a"/"wholly",
+page 3 "case--as"/"personal"; WARPRAYR page 1 "\"Bless"/"our"): the
+visible text is byte-for-byte identical on the same physical line in
+both renders, no wrap difference anywhere.
+
+**Root cause.** Mechanism C's own kerning-pair merge
+(`_merge_kerning_split_chunks`) is genuinely, correctly firing on these
+— its x-gap epsilon test measures the real WS7 gap between "lies--every"
+and "day;" (two REAL, complete, separate WS7 chunks, confirmed in
+`measurements.json`: `'lies--every'` at x=293.5pt, `'day;'` at
+x=346.0pt) at 1.19pt, comfortably inside `KERNING_MERGE_EPS_PT` (1.5pt)
+— so it merges them into one WS7 token, `'lies--everyday;'`, with no
+space, exactly as it is designed to do for a genuine kerning-pair split
+like "W"+"ar". The difference is invisible from x-gap alone: a genuine
+kerning split's SECOND fragment is a continuation of the SAME word (no
+dictionary meaning of its own); here both fragments are already
+complete, independent, real words that simply sit close together in
+this corpus's CG-Times-substituted running sizes. `WARPRAYR`'s own
+`'"Bless'`/`'our'` gap (1.50pt, a floating-point hair under the same
+bound) is the identical shape. Tightening C's own epsilon, or adding a
+length-based guard to C directly, was checked and rejected: instrumenting
+C's own merges across the full 18-document corpus found 502 real merges,
+250 of which have a first fragment LONGER than one character (`'giv'` +
+`'es'` -> `'gives'`, `'se'` + `'veral'` -> `'several'`, and so on) — any
+guard general enough to exclude the four false positives here would also
+block the overwhelming majority of C's own genuine, already-correct
+merges elsewhere in the corpus.
+
+**Fix.** A new, separate, POST-MATCH reconciliation,
+`tools/pcl_tolerance.py`'s `_reconcile_glued_ws7_chunks`, called from
+`doc_report` right after `fg.match_doc` returns its own leftover
+`unmatched_ws7`/`unmatched_engine` lists (not inside `load_ws7_tokens`'s
+own WS7-only chunk pipeline, unlike mechanisms C/D/J/K/N — this one
+inherently needs the engine's own already-correct word split to
+recognize the glue at all): for a remaining WS7-unmatched token, if its
+text is the EXACT concatenation of two ADJACENT (in the engine's own
+reading-order token stream, no other word between them, same page) still-
+unmatched engine tokens, all three are resolved and removed from both
+leftover lists. `KERNING_MERGE_EPS_PT` is untouched. Unit-tested (6
+tests: the four confirmed real shapes plus a real-mismatch guard, an
+adjacency guard, and a page-boundary guard) — `tests/test_pcl_tolerance.py`.
+
+**Before/after:** LYING `extra-word-in-engine` 14→7, `word-unmatched`
+6→2 (both `'lies--everyday;'`/`'failing--awholly'`/`'case--aspersonal'`
+and their engine-side halves resolved; the remaining 2+7 are a
+DIFFERENT, unrelated shape — see LYING's own line in the Summary table
+below). WARPRAYR `extra-word-in-engine` 6→4, `word-unmatched` 1→0
+(`'"Blessour'` resolved; the remaining 4 `extra-word-in-engine` are all
+the SAME accepted kerning-split-miss class as "War" itself — see
+mechanism C's own `KERNING_MERGE_EPS_PT` comment). No regression on any
+of the other 16 documents (re-measured all 18); LJ6DTP (parked, reported
+for completeness only) also improves slightly (`extra-word-in-engine`
+296→292, `word-unmatched` 152→150), the same mechanism firing there too.
+
+**LYING's own remaining 2 word-unmatched / 7 extra-word-in-engine, named
+not fixed:** `'es,'`(WS7)/`'"Yes,'`(engine) is WS7's own kerning-pair
+split of `'"Yes,'` into `'"Y'` + `'es,'` — `'"Y'` itself never reaches a
+checkable token at all (`_is_unreliable_to_align`'s own length-2 floor),
+so there is nothing left on the WS7 side to concatenate against; the
+SAME accepted-miss class as WARPRAYR's own `"You`/`You`/`"Ye` (all four:
+a genuine kerning pair whose real gap, ~-2.0pt, sits just OUTSIDE
+`KERNING_MERGE_EPS_PT` in the other direction — mechanism C's own
+documented, deliberately-not-widened limit). `'thoughtfully,'`
+(engine)/`'thoughtfully'`(WS7) is mechanism K's own territory (WS7 splits
+trailing punctuation into its own chunk) missed by 0.06pt
+(`TRAILING_PUNCT_MERGE_EPS_PT` 3.0pt, real gap 3.06pt) — a genuine, tiny,
+tolerance-boundary miss, left alone per this task's own "no tolerance
+changes" instruction rather than widening a bound already documented as
+carefully calibrated against the rest of the corpus.
+
+---
+
+## Q. A `.h#`/`.f#` right-align tab's own padding is baked for a 1-digit `#` and never recomputed per page — FIXED (engine)
+
+**Second residuals round, 2026-09-06.** -README's own running head
+("WordStar 7.0 Archive / #") sits 7.2pt (one Courier column) too far
+right on every 2-digit page (10-16, all seven) — confirmed directly
+against `ws7-prints/v2`: WS7's own "WordStar" measures x=345.6pt on
+page 9 (1 digit) but x=338.4pt on pages 10 and 16 (2 digits), while the
+line's own RIGHT edge (the page number itself) stays utterly fixed at
+x=518.4pt on every page checked (page 9's "9" ends at 518.4pt exactly;
+page 10's/16's "10"/"16" both also end at 518.4pt) — a genuine WS7
+right-align behaviour, not a rendering artifact.
+
+**Root cause.** The header's own leading run is 41 literal SPACE
+characters, baked into `doc.headers[1]` at PARSE time
+(`core._parse_head_foot`) from a WSFORMAT type-9 symmetric-sequence
+right-align tab (`_symmetric_blocks`/`_tab_columns`, tab-type byte
+`0x5D` — the undocumented right-align variant, `core.TAB_RIGHT_TYPES`)
+that the author typed before `#`. That block's own `cols` (41) was
+computed by WordStar's OWN EDITOR when the file was last saved, sized
+for the width its screen showed THEN — always 1 digit, since WordStar's
+editor displays the literal `#` token, never the eventual printed page
+number. Once parsed, this padding is a flat, permanent string:
+`_running_ops`'s `render()` only ever substitutes `#` INSIDE the already-
+fixed text, so nothing downstream ever revisited how much padding a
+DIFFERENT page's own digit count would need. Real WS7 re-evaluates the
+tab at PRINT TIME against each page's own actual substituted width
+instead.
+
+**Fix.** `src/ctrlkd/core.py`: a new `Document.header_tabs`/`footer_tabs`
+dict (mirroring `header_fonts`/`footer_fonts`'s own shape) carrying
+`(char_idx, cols, abs_hmi)` for a `.h#`/`.f#` line whose own text opened
+with a tab — `char_idx`/`cols` locate the baked padding run inside the
+FINAL decoded string, `abs_hmi` is `content[2:4]` ("absolute tab size in
+HMIs," the SAME field a body span's own tab mark already carries,
+`_symmetric_blocks`), threaded from the SAME `line_marks` lookup that
+already recovers a `.h#`/`.f#` line's own font block (register C6).
+`src/ctrlkd/pdf.py`: `_hf_line_ops`'s new `tab_rec` parameter, fontless
+lines only (`entry is None` — a proportional or otherwise custom header
+face has no single column width to divide the HMI target by, and no
+oracle in the corpus combines the two). Reverses `abs_hmi`'s own
+recorded value (WHERE THE BAKED PADDING ENDS, i.e. `target_col -
+saved_suffix_width`, using the file's own 1-digit-`#` suffix width) to
+recover `target_col` — `saved_target_col = round(abs_hmi /
+TAB_HMI_PER_COL) + len(stored, un-substituted suffix) - 1` (the `-1`: a
+confirmed, constant off-by-one between the tab's own SIZE-convention
+column count and its TARGET-convention column position — -README's own
+content[2:4] recovers col 41 by this formula, but the real print-time
+target measures col 40 relative to the same reference; verified against
+BOTH of -README's own real x positions, not assumed) — then subtracts
+THIS page's own actual (post-`#`-substitution) suffix width to get the
+padding for THIS specific page. No `.rm`/right-margin constant is
+hardcoded anywhere; the whole computation comes from the tab's own
+recorded HMI field plus the stored text's own un-substituted width.
+Unit-tested (2 tests, a synthetic right-align tab across a `.pn 9`
+two-page document exercising both the 1-digit and 2-digit case, plus a
+fonted-header guard) — `tests/test_ctrlkd.py`.
+
+**Verification.** Re-rendered -README directly: page 9's "WordStar" now
+lands at x=345.6pt, pages 10/16 at x=338.4pt — both exactly matching the
+real WS7 measurements above, not merely "closer."
+
+**A separate, previously-hidden finding this fix surfaced, named not
+fixed.** Making the header pixel-exact against WS7's own ABSOLUTE
+coordinates broke a coincidence that was silently absorbing a SEPARATE,
+real, pre-existing bug: -README's own BODY TEXT is systematically 7.2pt
+(one Courier column) to the RIGHT of WS7's real position, on EVERY page,
+confirmed unchanged before and after this fix (git-stashed comparison) —
+WS7's own body text starts at x=50.4pt (column 7 from the page's true
+left edge) while `.po 8`'s own documented resolution
+(`_resolve_left_pt`/`_printed_left`, "measured... .po 8 lands at
+57.6pt") puts our engine's body text at column 8 (57.6pt). This project's
+own frame-offset normalization (`tools/fidelity_gate.py`'s
+`frame_offset`, used throughout `pcl_tolerance.py`'s per-page residual
+math) treats a CONSISTENT per-page offset as the page's own acceptable
+calibration and subtracts it before flagging anything — so as long as
+the header carried the SAME wrong +7.2pt offset the body always has
+(true for every 1-digit page, by coincidence, before this fix), nothing
+here was ever flagged. The header's OWN target (this mechanism's fix)
+comes from the tab's own recorded HMI field, independent of `.po`
+resolution entirely, so it now lands EXACTLY on WS7's real absolute
+pixels — correctly, but no longer coincidentally consistent with the
+body's own uncorrected +7.2pt. `_resolve_left_pt`'s own measured
+comment cites PCL `ESC&aH` cursor-position captures for the `.po`-to-pt
+conversion itself, not body TEXT's own real left edge — whatever
+produces WS7's real col-7 body start (a `.lm`/`.po` interaction, or a
+column-numbering convention difference between the header's own
+absolute-tab addressing and the body's own per-line cursor addressing)
+is a SEPARATE, corpus-wide-reaching question (`_resolve_left_pt` is used
+by every Printed document's body text, not -README-specific), well
+outside this item's own scope, and NOT attempted here. -README's own
+`exact-drift`/`line-start-shift` counts (31/16) reflect this newly-
+visible body-margin residual almost entirely, not a header regression —
+the header words themselves (`'WordStar'`/`'7.0'`/`'Archive'`) now show
+ZERO raw positional difference from WS7 on every page.
+
+---
+
+## R. A footnote marker's own trailing space, and a too-strict bottom-anchor override gate — FIXED (engine)
+
+**Second residuals round, 2026-09-06.** LYING.WS's own single footnote
+("Did not take the prize.," referenced once, early in the essay) sits
+~4.5pt too low on the page and reads "1. Did not take the prize." where
+WS7's own capture reads "1.Did not take the prize." — no space at all.
+
+**Root cause 1 (missing/extra space).** `pdf.py`'s `_note_marker`
+appended a literal trailing space (`f'{base} '`) whenever a document's
+own footnote markers are all the same width (`_notes_marker_pad_cols`
+returns `None`, the common case, LYING included) — this function's own
+docstring already NAMED the correct measurement ("LYING.pcl's own
+`'1.Did'`") in an earlier round but read it backwards ("ONE space") and
+left the join unchanged rather than acting on it. The real WS7 capture
+(`measurements.json`: one literal chunk, `'1.Did'`) has zero characters
+between the marker's own period and the note text's first letter.
+
+**Root cause 2 (vertical settle).** `_paginate_printed_notes`'s own
+bottom-anchor override (Finding 2, an earlier round) computes exactly
+the right target Y for the footnote area (`_notes_reserve`, independently
+verified against LYING.pcl's own y=708pt with zero decipoint residual)
+but only APPLIES it when `override > default_lead` — i.e. only when the
+natural (unadjusted) flow position would UNDERSHOOT the target by a
+FULL line or more. LYING's own footnote area, on a completely full
+page, computes `override = 7.2pt` (target 672.0pt vs the body's own
+flow position 664.8pt) — genuinely less than one 12pt lead, so the gate
+skipped it, and the area rendered at its own natural (default-lead,
+12pt) gap instead, OVERSHOOTING the target by 12 - 7.2 = 4.8pt. The
+gate's own prior docstring asserted "a full page (LYING.WS) already
+lands within a line of the target on its own, so this is a no-op there,
+byte-identical" — true only in the sense that 4.8pt is less than one
+12pt line; it was never actually verified as an exact match, only
+assumed close enough.
+
+**Fix.** `src/ctrlkd/pdf.py`: `_note_marker`'s default (no `pad_cols`)
+join drops the trailing space entirely for a FOOTNOTE (`base` alone,
+not `f'{base} '`) — ANNOTATIONS keep the original space (their own
+marker is a free-text tag with no trailing punctuation of its own,
+unlike a footnote's period, and no corpus capture has ever measured
+one; widening to a kind with zero evidence would be exactly the guess
+this fix replaces). `_paginate_printed_notes`'s own override gate
+changes from `override > default_lead` to `override > 0` — applying the
+SAME correction mechanism whenever it would push the area down at all,
+not only when the push exceeds one whole line; a negative or zero
+override (flow already at or past the target) is still left alone, "never
+move backward into the body" unchanged. Updated 7 existing Tier-1 tests
+that pinned the OLD (wrong) `'1. '`-with-space marker text to the new,
+WS7-confirmed `'1.'`-no-space shape (`tests/test_ctrlkd.py`) — none of
+their own underlying assertions (reference position, overflow/
+continuation behaviour, completeness-of-text-across-pages, the anchor
+gate's own "still a no-op at override==0.0 exactly" case) changed, only
+the literal marker string they check for.
+
+**Verification.** Re-rendered LYING directly: footnote separator now at
+PDF y=108.0pt (top-down 684.0pt, matching WS7's own measured dash-rule
+position exactly); footnote text at PDF y=84.0pt (top-down 708.0pt,
+matching WS7's own measured `'1.Did'` position exactly) — both, not
+just the text line, land pixel-exact.
+
+**Before/after (LYING):** `baseline-shift` 4→0 (the vertical-settle fix
+resolves every instance — all four were the same footnote line's own
+four words). The marker-text fix, combined with mechanism P above,
+drops `word-unmatched` 6→2 and `extra-word-in-engine` 14→7 together (the
+marker fix alone resolves `'1.Did'`'s own former mismatch against `'Did'`;
+the remaining residuals are mechanism P's own territory, or named
+separately in mechanism P's own entry above). A NEW `exact-drift` (4,
+the footnote's own body words `'not'`/`'take'`/`'the'`/`'prize.'`)
+appears as a direct consequence of the marker fix removing the extra
+column of horizontal padding the space used to add — these are the SAME
+newly-surfaced body-left-margin residual mechanism Q's own entry names
+for -README (confirmed here too: WS7's own footnote text starts at
+x=50.4pt, this engine's at x=57.6pt, the identical one-column gap), not
+a regression from this fix and not attempted here for the same reason.
+
+---
+
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)
 
 **Fixed, in the engine (`src/ctrlkd`), each with a Tier-1 test:**
@@ -866,56 +1139,90 @@ word-wrap-point cascade it causes — see mechanism I's own entry, updated
 this round). WARPRAYR's own `cgtimes-drift-exceeds-tolerance` count
 confirmed 0 (was 25 before mechanism C landed).
 
-**Diagnosed with concrete evidence, not fixed this round:**
-- Mechanism M's own side effect on -README: real WS7 evidently recomputes
-  a header/footer's own tab-derived leading indent PER PAGE based on the
-  substituted page number's actual width (a true right-tab); our engine
-  bakes the indent once at parse time. Affects only documents crossing a
-  page-number digit-count boundary with a tab-padded `#` header/footer —
-  -README is the only one in this corpus's named set.
-- -SCREEN's remaining 6 divergences (`extra-word-in-engine` 2,
-  `word-unmatched` 4, exposed only after mechanism G's fix stopped them
-  hiding behind the sup/sub exact-drift noise): a Symbol-font Greek
-  alphabet demo where SOME characters are typed via cp437's own native
-  Greek-lookalike bytes (e.g. 0xE1/0xE6, cp437's own "ß"/"µ" glyphs used
-  as a Beta/mu stand-in) mixed with OTHERS typed as ASCII + an explicit
-  Symbol-font toggle in the SAME visual run — our engine renders the
-  cp437-native bytes as literal Courier "ß"/"µ" text (their genuine
-  cp437 decode) rather than routing them through the Symbol font the
-  surrounding toggle established, while the ASCII+toggle characters
-  round-trip correctly. One contrived reference/demo line, not
-  reproduced elsewhere in the corpus; not investigated further this
-  round (a real fix needs tracing exactly which code path a Symbol-font
-  span's own cp437-native-byte characters take through
-  `core.py`'s parser, separate from this triage's own scope).
+**Fixed this round (second residuals round, planning #202), each with a
+Tier-1 test:**
+- Mechanism P: `_reconcile_glued_ws7_chunks` (`tools/pcl_tolerance.py`) —
+  second residuals round.
+- Mechanism Q: `Document.header_tabs`/`footer_tabs`, `_hf_line_ops`'s new
+  `tab_rec` branch (`src/ctrlkd/core.py`/`pdf.py`) — second residuals
+  round.
+- Mechanism R: `_note_marker`'s default join, `_paginate_printed_notes`'s
+  `override > 0` gate (`src/ctrlkd/pdf.py`) — second residuals round.
 
-**Result after both rounds plus the SCRIPT-correction round**
+**-SCREEN's own "extra Ω" claim: does not reproduce, verified directly.**
+An earlier round's own diagnosis (Jon's brief for the second residuals
+round repeated it: "we emit an extra 'Ω' glyph WS7 never prints") does
+not hold against this tree. Traced the full pipeline end to end
+(`_split_symbol_fallback`, `_symbol_style_op`, the fixed-pitch Tj
+emission loop in `_line_ops_printed`) and rendered the actual page to a
+PNG at 200dpi: all four styled repetitions of the Greek/math demo line
+("αßΓπΣσµτΦΘΩδφε", plain/bold/italic/bold-italic) show every one of
+their 14 characters, in order, with nothing extra and nothing missing —
+`ß`/`µ` stay on the Courier face (cp1252-representable, mechanism G's
+own `_split_symbol_fallback` exclusion), the rest correctly switch to
+Symbol and back. An earlier debugging pass here mis-extracted the
+italic/bold-italic runs (they use `Tm`, not `Td`, for the shear —
+Finding 3's own `_symbol_style_op` docstring already documents the Tr-
+survives-BT/ET fix that this same round appears to have already landed
+on this tree) and read their absence as missing glyphs; a corrected
+extraction shows them present and correct. **No engine change made for
+this item** — the code was already right.
+
+The document's own remaining 6 divergences (`extra-word-in-engine` 2,
+`word-unmatched` 4, unchanged by this round) are a HARNESS/matcher
+limitation, the same class mechanism P fixes for LYING/WARPRAYR but not
+extended here: WS7's own capture prints the whole 14-character phrase as
+ONE chunk (its LaserJet's own resident Courier carries these Greek/math
+positions directly, no font switch needed at the printer), while this
+engine's own "zero embedded fonts, base-14 only" design constraint
+requires it to split the SAME visual result into five alternating
+Courier/Symbol sub-word fragments (`a`/`ß`/`GpSs`/`µ`/`tFQWdfe`) to
+render at all. Reconciling this specific shape needs the SHORT (1-2
+character) fragments `_is_unreliable_to_align` already filters out of
+BOTH sides' checkable-token pools before mechanism P (or any post-match
+reconciliation) ever sees them — a real, larger change to
+`load_ws7_tokens`'s/`doc_report`'s own filtering order, out of proportion
+to one contrived reference/demo line the pack itself already named as
+"not reproduced elsewhere in the corpus."
+
+**Result after both residuals rounds plus the SCRIPT-correction round**
 (`pytest -m pcl`, corpus armed): of the 13 documents named in planning
 #202, BOXES, DOCC, OCAPTAIN, PREVIEW, SAWYER, SCRIPT, TWAINLET and
-VERSIONS now PASS (8 of 13, up from 3 after the first follow-up round).
-LJ6DTP (parked, by instruction), LYING, -README, -SCREEN and WARPRAYR
-still FAIL BY NAME. Per-document divergence counts, before this round's
-fixes → after (LJ6DTP included for completeness only; excluded from the
-"fixed" claim by Jon's ruling):
+VERSIONS PASS (8 of 13). LJ6DTP (parked, by instruction), LYING,
+-README, -SCREEN and WARPRAYR still FAIL BY NAME — every remaining
+divergence on all four is named above (mechanisms P/Q/R's own "named,
+not fixed" residuals, mechanism I's own accepted font-substitution
+class, or -SCREEN's own harness-limitation note), none unexplained.
+Per-document divergence counts, mechanism-G round's own starting point
+→ after the first residuals round → after this (second) residuals
+round (LJ6DTP included for completeness only; excluded from the "fixed"
+claim by Jon's ruling):
 
-| Doc | Before (mechanism-G round's own starting point) | After |
-|---|---|---|
-| WARPRAYR | 13 | 11 |
-| VERSIONS | 2 | 0 (PASSES) |
-| PREVIEW | 3 | 0 (PASSES) |
-| BOXES | 1 | 0 (PASSES) |
-| LYING | 41 | 31 |
-| SCRIPT | 31 | 0 (PASSES) |
-| -README | 88 | 23 |
-| -SCREEN (after mechanism G) | 8 | 6 |
-| DOCC (mechanism G) | 83 | 0 (PASSES) |
-| LJ6DTP (parked) | 1260-ish, unchanged in kind | still large, not a target |
+| Doc | mechanism-G round | 1st residuals round | 2nd residuals round |
+|---|---|---|---|
+| WARPRAYR | 13 | 11 | 8 |
+| VERSIONS | 2 | 0 (PASSES) | 0 (PASSES) |
+| PREVIEW | 3 | 0 (PASSES) | 0 (PASSES) |
+| BOXES | 1 | 0 (PASSES) | 0 (PASSES) |
+| LYING | 41 | 31 | 16 |
+| SCRIPT | 31 | 0 (PASSES, after mechanism O) | 0 (PASSES) |
+| -README | 88 | 23 | 47 (mechanism Q's own newly-surfaced body-margin finding, named not fixed — see mechanism Q's own entry; the HEADER itself is now pixel-exact) |
+| -SCREEN (after mechanism G) | 8 | 6 | 6 (unchanged — verified already correct, see -SCREEN's own note above) |
+| DOCC (mechanism G) | 83 | 0 (PASSES) | 0 (PASSES) |
+| LJ6DTP (parked) | 1260-ish, unchanged in kind | still large, not a target | still large, not a target |
 
-SCRIPT's own column shows its FINAL count after both the residuals
-round (31 → 14, mechanism N) and the SCRIPT-correction round (14 → 0,
-mechanism O) — see mechanism O's own entry, above, for that second step
-and the correction to this document's earlier (wrong) driver-mismatch
-diagnosis.
+SCRIPT's own column shows its FINAL count after both the first
+residuals round (31 → 14, mechanism N) and the SCRIPT-correction round
+(14 → 0, mechanism O) — see mechanism O's own entry, above, for that
+second step and the correction to this document's earlier (wrong)
+driver-mismatch diagnosis. -README's own count RISES this round despite
+a real, pixel-verified header fix (mechanism Q) — its own entry explains
+why: the fix breaks a coincidence that was silently absorbing an
+unrelated, real, previously-invisible body-text-margin bug, moving the
+count from "wrong but internally consistent" to "the header is now
+verifiably correct against real WS7 pixels; the pre-existing body bug is
+visible for the first time." Named, not fixed — see mechanism Q's own
+entry for the full trace and why it is out of this round's scope.
 
 See `tools/pcl_tolerance.py`'s own commit history and `tests/
 pcl_fidelity_manifest.json` for the exact current counts by reason, per
