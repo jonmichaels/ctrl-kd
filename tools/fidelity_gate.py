@@ -186,10 +186,25 @@ _FONT_ENTRY_RE = re.compile(rb'/(\S+)\s+(\d+)\s+0\s+R')
 _BASEFONT_RE = re.compile(rb'/BaseFont\s*/([^\s/>]+)')
 
 # One shape covers every `ops.append(b'BT ...')` call site in pdf.py.
+#
+# ORDER BUG (PCL tier, WARPRAYR.WS): every `ops.append(b'BT ...')` call
+# site in pdf.py (all 12 of them, checked 2026-09-06) writes `Tf <rise> Ts`
+# FIRST and the optional `<tz> Tz` SECOND, immediately before `Td` -- this
+# regex previously expected the reverse order (`Tz` before `Ts`), so it
+# NEVER matched a single Tz-scaled op (every CG-Times/Univers-substituted
+# proportional word -- the whole reason a Tz scale exists at all, see
+# pdf.py's Tz docstring). `parse_text_ops` silently dropped every such
+# word, `engine_page_tokens` never saw it, and this gate reported it as a
+# WS7-side `word-unmatched` (or shifted its neighbour's own alignment) on
+# EVERY document with a CG-Times/Univers-tier line -- confirmed by hand:
+# WARPRAYR's own '"God the all-terrible...' Quote line (a Tz-scaled run,
+# `104.15 Tz`/`101.12 Tz` are real values from its own PDF) had `"God`
+# literally present in the raw content stream (`("God) Tj`) but absent
+# from `engine_page_tokens`'s output before this fix.
 _TEXT_OP_RE = re.compile(
     rb'BT /(?P<font>\S+) (?P<size>-?\d+) Tf '
-    rb'(?:(?P<tz>-?[\d.]+) Tz )?'
     rb'(?P<rise>-?\d+) Ts '
+    rb'(?:(?P<tz>-?[\d.]+) Tz )?'
     rb'(?P<x>-?[\d.]+) (?P<y>-?[\d.]+) Td '
     rb'\((?P<text>(?:[^()\\]|\\.)*)\) Tj ET')
 _UNESC_RE = re.compile(rb'\\(.)')

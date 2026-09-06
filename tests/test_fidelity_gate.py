@@ -31,8 +31,15 @@ def _plain_doc(body):
 
 # --------------------------------------------------------------- PDF parsing
 def test_parse_text_ops_reads_plain_and_tz_scaled_runs():
+    # ORDER BUG fixed alongside `_TEXT_OP_RE` itself (2026-09-06): every one
+    # of pdf.py's own `ops.append(b'BT ...')` call sites writes `Tf <rise>
+    # Ts` FIRST and the optional `<tz> Tz` SECOND, immediately before `Td`
+    # -- this fixture previously encoded the reverse order (`Tz` before
+    # `Ts`), which matched the regex's OWN prior (wrong) assumption but
+    # never matched a real pdf.py content stream, so this test could never
+    # have caught the bug it was meant to guard against.
     content = (b'BT /F1 12 Tf 3 Ts 100.0 700.0 Td (Hello) Tj ET\n'
-              b'BT /F1 12 Tf 85.00 Tz 0 Ts 200.0 700.0 Td (World) Tj ET\n'
+              b'BT /F1 12 Tf 0 Ts 85.00 Tz 200.0 700.0 Td (World) Tj ET\n'
               # a third op with NO Tz -- must carry the 85.00 scale forward,
               # exactly like pdf.py's own per-page tz_state does
               b'BT /F1 12 Tf 0 Ts 300.0 700.0 Td (Again) Tj ET\n')
