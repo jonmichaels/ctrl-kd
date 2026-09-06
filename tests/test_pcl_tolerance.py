@@ -176,6 +176,152 @@ def test_dedupe_double_strike_chunks_requires_matching_font_and_typeface_id():
     assert len(deduped) == 2
 
 
+def test_dedupe_double_strike_chunks_collapses_a_small_slant_offset():
+    # PREVIEW.WS's own shape: WS7 fakes italic AND bold via double-strike on
+    # the same pass, offsetting the second strike by a small amount (~14dp
+    # = 1.4pt measured) to simulate the slant instead of an exact repeat.
+    items = [(_pc('Italic', 3446, font='Times-Bold'), _tc()),
+             (_pc('Italic', 3460, font='Times-Bold'), _tc())]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 1
+    assert deduped[0][0]['x_decipoints'] == 3446    # keeps the FIRST chunk's position
+
+
+def test_dedupe_double_strike_chunks_epsilon_does_not_swallow_a_real_word_gap():
+    # The same small epsilon must not collapse two genuinely different
+    # occurrences of the same word separated by a real word-to-word gap --
+    # only PREVIEW's own ~1.4pt slant offset is this close.
+    items = [(_pc('the', 2000, font='Courier'), _tc()),
+             (_pc('the', 2000 + 200, font='Courier'), _tc())]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 2
+
+
+# --------------------------------------- mechanism J: toggle-boundary advance
+def _natural_end_dp(text, x_dp, font, size):
+    return x_dp + round(pt.fg.afm.string_width_pt(text, font, size) * pt.fg.DECIPT_PER_PT)
+
+
+def test_merge_trailing_punctuation_chunks_joins_a_trailing_comma():
+    # WARPRAYR.WS's own shape: 'country' at 12pt Times-Roman -- WS7's own
+    # ',' chunk starts 19dp (1.9pt) past 'country's own natural AFM end,
+    # just outside KERNING_MERGE_EPS_PT (15dp) but inside this function's
+    # own 3.0pt (30dp) bound.
+    end_dp = _natural_end_dp('country', 1000, 'Times-Roman', 12)
+    items = [(_pc('country', 1000, size=12, font='Times-Roman'), _tc()),
+             (_pc(',', end_dp + 19, size=12, font='Times-Roman'), _tc())]
+    merged = pt._merge_trailing_punctuation_chunks(items)
+    assert len(merged) == 1
+    assert merged[0][0]['text'] == 'country,'
+    assert merged[0][0]['x_decipoints'] == 1000
+
+
+def test_merge_trailing_punctuation_chunks_leaves_two_real_words_alone():
+    # The next chunk has real alnum content -- never this mechanism's
+    # territory, no matter how close the gap (mechanism C's own, narrower,
+    # is the only one allowed to merge two alnum chunks).
+    end_dp = _natural_end_dp('country', 1000, 'Times-Roman', 12)
+    items = [(_pc('country', 1000, size=12, font='Times-Roman'), _tc()),
+             (_pc('and', end_dp + 19, size=12, font='Times-Roman'), _tc())]
+    merged = pt._merge_trailing_punctuation_chunks(items)
+    assert len(merged) == 2
+
+
+def test_merge_trailing_punctuation_chunks_respects_its_own_gap_bound():
+    # A punctuation chunk far beyond even this wider bound is a real,
+    # separate thing (or a different sentence entirely) -- left alone.
+    end_dp = _natural_end_dp('country', 1000, 'Times-Roman', 12)
+    items = [(_pc('country', 1000, size=12, font='Times-Roman'), _tc()),
+             (_pc(',', end_dp + 200, size=12, font='Times-Roman'), _tc())]
+    merged = pt._merge_trailing_punctuation_chunks(items)
+    assert len(merged) == 2
+
+
+def test_merge_trailing_punctuation_chunks_does_not_merge_across_a_font_change():
+    end_dp = _natural_end_dp('country', 1000, 'Times-Roman', 12)
+    items = [(_pc('country', 1000, size=12, font='Times-Roman'), _tc(4101)),
+             (_pc(',', end_dp + 19, size=12, font='Times-Bold'), _tc(4102))]
+    merged = pt._merge_trailing_punctuation_chunks(items)
+    assert len(merged) == 2
+
+
+def test_is_pure_punctuation_excludes_real_single_letter_words():
+    # A lone letter is a real word ('I', 'a') -- must never be swept up by
+    # this mechanism, unlike a lone comma or closing quote.
+    assert pt._is_pure_punctuation(',')
+    assert pt._is_pure_punctuation('."')
+    assert not pt._is_pure_punctuation('a')
+    assert not pt._is_pure_punctuation('I')
+    assert not pt._is_pure_punctuation('')
+
+
+def test_strip_leading_box_drawing_chunks_separates_a_glued_border_char():
+    # SCRIPT.WS's own shape: a table-border '│' glued directly onto the
+    # caption word with no space, one literal WS7 chunk. '│' (U+2502) at
+    # 24pt Courier has natural width 14.4pt = 144dp.
+    items = [(_pc('│Figure', 1000), _tc())]
+    stripped = pt._strip_leading_box_drawing_chunks(items)
+    assert len(stripped) == 1
+    assert stripped[0][0]['text'] == 'Figure'
+    assert stripped[0][0]['x_decipoints'] == 1000 + 144
+
+
+def test_strip_leading_box_drawing_chunks_leaves_plain_text_alone():
+    items = [(_pc('Figure', 1000), _tc())]
+    stripped = pt._strip_leading_box_drawing_chunks(items)
+    assert stripped[0][0]['text'] == 'Figure'
+    assert stripped[0][0]['x_decipoints'] == 1000
+
+
+def test_strip_leading_box_drawing_chunks_leaves_a_pure_box_run_alone():
+    # Nothing but box-drawing characters -- _is_box_drawing_text's own
+    # territory (applied later, in load_ws7_tokens), not this function's.
+    items = [(_pc('│──', 1000), _tc())]
+    stripped = pt._strip_leading_box_drawing_chunks(items)
+    assert stripped[0][0]['text'] == '│──'
+    assert stripped[0][0]['x_decipoints'] == 1000
+
+
+def test_correct_toggle_boundary_chunks_shifts_a_style_change_with_no_advance():
+    # BOXES.WS's own shape: '(' (24pt Courier, natural width 14.4pt = 144dp)
+    # immediately followed by a bold toggle with no space -- WS7's own
+    # capture puts the bold chunk at the SAME x as '(' itself (a full
+    # character's advance dropped), not at '('s natural end.
+    items = [(_pc('(', 1000, font='Courier'), _tc(4099)),
+             (_pc("^K'", 1000, font='Courier-Bold'), _tc(4099))]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    assert len(corrected) == 2
+    assert corrected[0][0]['x_decipoints'] == 1000        # '(' itself untouched
+    assert corrected[1][0]['x_decipoints'] == 1000 + 144   # shifted to '('s natural end
+
+
+def test_correct_toggle_boundary_chunks_leaves_a_same_font_coincidence_alone():
+    # Same x, but the SAME font on both -- not a style toggle, mechanism D's
+    # (double-strike dedupe) territory, not this one's. Must not fire.
+    items = [(_pc('Foo', 2000, font='Courier'), _tc(4099)),
+             (_pc('Bar', 2000, font='Courier'), _tc(4099))]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    assert [c[0]['x_decipoints'] for c in corrected] == [2000, 2000]
+
+
+def test_correct_toggle_boundary_chunks_leaves_a_normal_font_change_alone():
+    # A font change that does NOT start at the exact same x as the
+    # preceding chunk (the ordinary, overwhelmingly common case -- a normal
+    # word boundary or gap) is untouched; only an EXACT x coincidence is
+    # this mechanism's own confirmed shape.
+    items = [(_pc('(', 1000, font='Courier'), _tc(4099)),
+             (_pc("^K'", 1000 + 144, font='Courier-Bold'), _tc(4099))]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    assert [c[0]['x_decipoints'] for c in corrected] == [1000, 1144]
+
+
+def test_correct_toggle_boundary_chunks_single_item_is_a_no_op():
+    items = [(_pc('Hello', 1000), _tc())]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    assert len(corrected) == 1
+    assert corrected[0][0]['x_decipoints'] == 1000
+
+
 # ------------------------------------------------------- token exclusions
 def test_box_drawing_text_detects_pure_border_and_block_runs():
     assert pt._is_box_drawing_text('│')            # vertical bar

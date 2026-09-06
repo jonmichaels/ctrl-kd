@@ -122,6 +122,25 @@ def test_split_engine_op_single_word_run_is_unaffected():
     assert words == [('Solo', 42.0)]
 
 
+# ---------------------------------------- image-placeholder token exclusion
+def test_engine_page_tokens_excludes_a_picture_placeholder_span():
+    # core.py's own literal `[image: NAME]` text for an unembedded picture
+    # (pictures.py: the CLI default is --pictures off) has, by
+    # construction, no WS7 text counterpart at all -- real WS7 printed the
+    # actual raster, never this label (confirmed on PREVIEW.WS's own
+    # `[image: WORDSTAR.PIX]`, previously two `extra-word-in-engine`
+    # divergences neither position nor content could ever resolve).
+    content = (b'BT /F1 12 Tf 0 Ts 72.0 700.0 Td (Body text before the image.) Tj ET\n'
+               b'BT /F1 12 Tf 0 Ts 72.0 680.0 Td ([image: WORDSTAR.PIX]) Tj ET\n'
+               b'BT /F1 12 Tf 0 Ts 72.0 660.0 Td (Body text after it.) Tj ET')
+    page = {'mediabox': (612, 792), 'fonts': {'F1': 'Courier'}, 'content': content}
+    tokens = fg.engine_page_tokens(page, 1)
+    texts = [t['text'] for t in tokens]
+    assert texts == ['Body', 'text', 'before', 'the', 'image.',
+                     'Body', 'text', 'after', 'it.']
+    assert not any('PIX' in t or '[' in t for t in texts)
+
+
 # -------------------------------------------------------------------- match
 def _tok(text, x, y_top, page=1, size=12, font='Courier'):
     return {'text': text, 'x': x, 'y_top': y_top, 'size': size,

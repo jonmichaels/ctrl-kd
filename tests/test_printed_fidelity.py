@@ -307,6 +307,44 @@ def test_headers_flag_never_disables_body_text():
     assert 'Body text of the document' in r
 
 
+# --------------------- mechanism L (residuals round, 2026-09-06): a fontless
+# header/footer line's own inline style toggle used to leak straight into
+# the Printed PDF's Tj string as a literal control byte -- confirmed on
+# -README.WS's real `.h1` (wrapped in one `^Y`...`^Y` italic pair, no font
+# block): the phantom byte's own Courier advance shifted everything on the
+# header line after it 7.2-14.4pt right of WS7's real position.
+_HF_ITALIC = b'\x19'   # WS_TOGGLES[0x19] == 'i'
+
+
+def test_hf_line_toggle_bytes_never_reach_the_pdf_as_literal_control_chars():
+    doc = _headed_doc(h1=_HF_ITALIC + b'WordStar 7.0 Archive / #' + _HF_ITALIC)
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'\x19' not in out
+    m = re.search(rb'/(F\d+) (\d+) Tf 0 Ts ([\d.]+) ([\d.]+) Td '
+                  rb'\(WordStar 7\.0 Archive / 1\) Tj', out)
+    assert m, out
+    assert float(m.group(3)) == 57.6     # this doc's own left margin -- no phantom glyph ahead of it
+    # italic (WS_TOGGLES[0x19] == 'i') resolves to Courier's own oblique
+    # variant, not a hardcoded plain Courier -- the toggle really was read,
+    # not merely stripped.
+    objs = dict(re.findall(rb'(\d+) 0 obj\n<< /Type /Font /Subtype /Type1 '
+                           rb'/BaseFont /([^\s/>]+)(?: /Encoding'
+                           rb' /WinAnsiEncoding)? >>', out))
+    basefonts = {n.decode(): objs[num] for n, num in re.findall(rb'/(F\d+) (\d+) 0 R', out)}
+    assert basefonts[m.group(1).decode()] == b'Courier-Oblique'
+
+
+def test_hf_line_with_no_toggle_bytes_is_unaffected_by_mechanism_l():
+    """The overwhelmingly common case (a plain `.h1`/`.f1` with no inline
+    style toggle at all) must stay on the exact prior single-Tj path --
+    mechanism L only changes behaviour for a line that actually has a
+    toggle byte to interpret."""
+    doc = _headed_doc()   # 'Sawyer / Old Times / #', no toggle bytes
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert re.search(rb'/F1 12 Tf 0 Ts [\d.]+ [\d.]+ Td '
+                     rb'\(Sawyer / Old Times / 1\) Tj', out)
+
+
 # ------------------------- register b31, E3 item 2: --page-numbers (2026-08-25)
 # WordStar's own AUTOMATIC page number -- the one `.pc` positions, a
 # completely separate mechanism from a `#` the author placed inside a real

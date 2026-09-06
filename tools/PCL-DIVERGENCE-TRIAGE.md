@@ -31,6 +31,23 @@ diagnosis into "resolved -- it was a v1 CAPTURE artifact, not a real WS7
 behavior." See each mechanism's own updated entry below for what changed
 and why.
 
+**Mechanism-G round (commit f328838):** implemented WS7's real sup/sub
+pitch behaviour in fixed-pitch text (see mechanism G's own entry below,
+rewritten from "diagnosed, fix attempted and reverted" to FIXED).
+DOCC drops to 0 divergences (PASSES); -SCREEN's `exact-drift` drops
+to 0, 8 unrelated divergences remain.
+
+**Residuals round, same day:** part 2 of this task — traced and fixed
+five more mechanisms (J, K, L, M, N; see each entry below) covering
+BOXES, VERSIONS, PREVIEW, WARPRAYR, LYING, -README and SCRIPT.
+BOXES/VERSIONS/PREVIEW now PASS outright; the rest have real,
+substantial reductions with the remainder either traced to mechanism
+I's font-substitution wrap cascade (accepted by design) or diagnosed
+and documented as out-of-round (-README's own dynamic-right-tab header
+question, -SCREEN's Symbol/cp437 mixed-encoding edge case, SCRIPT's
+LQ-850-dot-matrix corpus mismatch). See the "Summary — all rounds"
+section at the end for the full before/after table.
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -48,9 +65,14 @@ changes it describes are the only outputs.
 | D. Duplicate-position WS7 chunks (double-strike bold) | BOXES, SAWYER, VERSIONS (~all of their word-unmatched); partial in PREVIEW, SCRIPT, -SCREEN | word-unmatched, line-start-shift | **TOOLING** (harness word-matching) | **FIXED** (`tools/pcl_tolerance.py` `_dedupe_double_strike_chunks`, same-day follow-up) |
 | E. `-README` v1 capture predates the current Sawyer archive file (v1.4 → v1.5) | -README, plus (once generalized) 13 more of this triage's 18 documents that already have a `ws7-prints/v2` capture | page-count-mismatch, and very likely most of its baseline-shift/word-unmatched/extra-word-in-engine | **CORPUS STALENESS** (not an engine bug) | **FIXED, generalized** (`tools/fidelity_gate.py` `resolve_doc_paths` now prefers any doc's own `v2` capture over `v1`, same-day follow-up) |
 | F. 2 consecutive blank source lines print as 1 blank line's advance, but ONLY in plain-default-leading (no `.lh`/style) documents | OCAPTAIN, TWAINLET | baseline-shift (all of it, both docs) | Looked BROAD SUPPORT, but... | **RESOLVED — was a v1 CAPTURE artifact, not a real WS7 behavior** (see below) |
-| G. Superscript/subscript advance width computed at the RAISED/reduced glyph size rather than the document's fixed-pitch cell, in a fixed-pitch document | DOCC (footnote references), -SCREEN (explicit sup/sub demo) | exact-drift | **BROAD SUPPORT** (a real, cumulative, per-occurrence drift) | **DIAGNOSED, fix attempted and reverted — root cause not yet pinned** |
+| G. Superscript/subscript advance width computed at the RAISED/reduced glyph size rather than the document's fixed-pitch cell, in a fixed-pitch document | DOCC (footnote references), -SCREEN (explicit sup/sub demo) | exact-drift | **BROAD SUPPORT** (a real, cumulative, per-occurrence drift) | **FIXED** (`src/ctrlkd/pdf.py` `_sized`/`_sup_sub_span_pitch`, commit f328838 — mechanism-G round) |
 | H. LJ6DTP's own printing-hack items (title fragmentation, table numbers, shading headings, Univers/CG-Times mapping residuals) | LJ6DTP only | baseline-shift, extra-word-in-engine, word-unmatched, line-start-shift, exact-drift, cgtimes-drift | **PARKED per Jon's ruling** | not attempted, by instruction |
-| I. Font-substitution residuals (CG-Times/Univers drift beyond the modelled tolerance) | LYING, SCRIPT, WARPRAYR | cgtimes-drift-exceeds-tolerance | **FONT SUBSTITUTION** | named, not fixed (by design) |
+| I. Font-substitution residuals (CG-Times/Univers drift beyond the modelled tolerance), INCLUDING the word-wrap-point cascade it causes | LYING, WARPRAYR, SCRIPT (partial) | cgtimes-drift-exceeds-tolerance, and (once traced) most of LYING's/WARPRAYR's own remaining baseline-shift/extra-word-in-engine/word-unmatched/line-start-shift | **FONT SUBSTITUTION** | named, not fixed (by design) — see below for the wrap-cascade trace |
+| J. A style toggle immediately after a character (no space) sometimes drops that character's own advance in WS7's own capture | BOXES ("(" + bold "^K'"), VERSIONS (its own 22 duplicate-position rows partly overlapped this) | exact-drift, word-unmatched | **TOOLING** (WS7 driver capture artifact) | **FIXED** (`tools/pcl_tolerance.py` `_correct_toggle_boundary_chunks`, residuals round) |
+| K. WS7 emits a word's trailing punctuation as its own separate chunk, just outside mechanism C's own kerning-pair bound | WARPRAYR ("country"+","), LYING (comma/period splits), -README, LJ6DTP (partial) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, wider sibling of mechanism C) | **FIXED** (`tools/pcl_tolerance.py` `_merge_trailing_punctuation_chunks`, own wider epsilon — widening C's OWN bound instead was tried and reverted, see below) |
+| L. `[image: NAME]` picture placeholder has no WS7 text counterpart (real WS7 printed the raster) | PREVIEW (`[image: WORDSTAR.PIX]`) | extra-word-in-engine | **STRUCTURAL** (text vs. raster, not a position or content bug) | **FIXED** (`tools/fidelity_gate.py` `engine_page_tokens`/`_IMAGE_PLACEHOLDER_RE`, residuals round) |
+| M. A fontless `.h#`/`.f#` header/footer line's own inline style-toggle byte (e.g. `^Y` italic) leaked into the Printed PDF as a literal control character instead of being interpreted | -README (`.h1`, wrapped in one `^Y`...`^Y` pair) | extra-word-in-engine, word-unmatched, exact-drift, line-start-shift (everything on the header line after the phantom glyph) | **BROAD SUPPORT** (any fontless header/footer with an inline toggle) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`, residuals round) |
+| N. A WS7 chunk that glues a box-drawing/table-border character directly onto a word with no space | SCRIPT ("│Figure") | word-unmatched, extra-word-in-engine | **TOOLING** (WS7's LaserJet Courier charset draws box-drawing as a font glyph; our engine draws it as a vector) | **FIXED** (`tools/pcl_tolerance.py` `_strip_leading_box_drawing_chunks`, residuals round) |
 
 ---
 
@@ -353,7 +375,7 @@ directly.
 
 ---
 
-## G. Superscript/subscript advance width in fixed-pitch text — diagnosed, fix attempted and reverted
+## G. Superscript/subscript advance width in fixed-pitch text — FIXED
 
 **Evidence.** DOCC.WS4 (a WS4 paper with inline footnote references)
 shows 83 `exact-drift` divergences, every one showing a residual of
@@ -384,31 +406,70 @@ drawn glyph (the physical print head doesn't narrow its step for a
 raised character), so every character after a sup/sub run should land
 on the SAME grid a same-size run would, not a size-scaled one.
 
-**Attempted fix:** changed the fixed-pitch pitch computation
-(`_span_pitch(entry, pt)` → `_span_pitch(entry, size_here)`, using the
-span's pre-reduction declared size for the WIDTH target while keeping
-the reduced size for the drawn `Tf`) in `_line_ops_printed`'s
-non-proportional branch. **Result: no change whatsoever to either
-DOCC's or -SCREEN's live divergence counts**, and it broke an
-existing, correct test
-(`test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise`) by
-introducing a Tz operator that test's regex didn't expect. **Reverted**
-(not committed) — this means the code path I fixed is not the one
-DOCC/-SCREEN's footnote/sup-sub spans actually take at render time
-(most likely: WS4 parsing populates `doc.fonts` with a synthetic
-Courier entry carrying `width_1800`, which makes `_span_pitch` take its
-OTHER branch — `w / HMI_PER_POINT`, ignoring `pt`/`size_here` entirely
-either way — so the real bug, if it's in pitch computation at all, is
-somewhere I haven't yet located; it's equally possible the real cause is
-in `_tz_scale`'s own scale computation, or somewhere in `_sized`/`rise`
-interacting with the glyph's OWN natural AFM width at the reduced size
-in a way I haven't traced).
+**Root cause, found** (2026-09-06 research pass,
+`jon_vault/.../research/2026-09-06_ws7-blank-lines-and-superscript-advance.md`,
+section G): the first attempted fix's own hypothesis was half right and
+half wrong. Instrumented raw PCL from two independent WS7 captures
+(DOCC.pcl, -SCREEN.pcl) shows the SAME byte-identical font-select pair
+in both: body `ESC(sp12v10.00hsb4099T` (12pt, 10.00cpi = 7.2pt/char
+cell) vs. sup/sub `ESC(sp9.25v13.04hsb4099T` (9.25pt, 13.04cpi =
+5.5pt/char cell). Real WS7 does not merely draw a smaller glyph at the
+document's ambient pitch (the first attempt's assumption) — it
+RESELECTS an independently narrower PITCH, a separate field of the same
+PCL command, restored to the body's own values on exit. Confirmed this
+was also the reason the first attempt found "no change whatsoever": it
+changed the WIDTH TARGET passed to `_span_pitch`, but `_span_pitch`
+ignores that argument entirely once a real font block exists (`w /
+HMI_PER_POINT`) — the exact suspicion the first attempt's own status
+note raised, now confirmed directly (`_span_font`/`doc.fonts` dump
+against both real corpus files: -SCREEN's demo characters carry a real
+`font0` tag with `width_1800`; DOCC's own fnref markers carry NO font
+tag at all, `entry` is `None`). The two documents therefore hit
+DIFFERENT existing code branches of the SAME underlying bug: -SCREEN
+(entry present) drew the FULL un-narrowed 7.2pt body cell for every
+sup/sub character, landing everything after it +1.7pt (7.2-5.5) too far
+right each occurrence; DOCC (entry `None`, `_span_pitch` falls back to
+`pt * 0.6`) used the ALREADY-reduced `pt` (the old flat-2/3-ratio 8pt),
+narrowing the cell TWICE to 4.8pt, 0.7pt narrower than WS7's real 5.5pt,
+landing everything after it 0.7pt too far LEFT — opposite sign, same
+root cause, matching both documents' own measured residuals exactly.
 
-**Status:** open, with two independent real-document confirmations and
-a disproven first hypothesis. The next step is tracing the ACTUAL code
-path a fixed-pitch document's sup/sub span takes (instrument
-`_line_ops_printed` directly against DOCC's own rendering, don't
-reason from the docstrings alone) before attempting a second fix.
+**Fix.** Two independent, additive changes in `src/ctrlkd/pdf.py`,
+scoped to Printed mode's fixed-pitch line renderer only:
+- `_sized()` now looks up a per-family sup/sub SIZE ratio
+  (`_SUP_SUB_XHEIGHT_RATIO`), Courier keyed to the measured 9.25/12 =
+  0.7708 (confirmed DIFFERENT from the manual's own Times-Roman worked
+  example, 8.1/12 = 0.675 — a real font-specific x-height fraction, not
+  a universal constant). Every other family keeps the prior flat 2/3
+  default unconditionally (a new `family=None` default keeps every
+  other call site, including all of Modern mode, byte-for-byte
+  unaffected).
+- A new `_sup_sub_span_pitch()` overrides the fixed-pitch CELL width for
+  a sup/sub run: `body_cell * (5.5/7.2)`, keyed off the span's own
+  UNREDUCED declared size (`size_here`, available at the same call
+  site) rather than the already-reduced `pt` — this one change fixes
+  BOTH real shapes (entry-present and entry-`None`) with the same call,
+  since `_span_pitch(entry, size_here)` always answers "the span's own
+  BODY cell" regardless of which branch it takes internally.
+
+**Tests.** Two new Tier-1 unit tests
+(`test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell`,
+`test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice`,
+`tests/test_ctrlkd.py`) reproduce both shapes with synthetic content and
+the measured decipoint arithmetic, mirroring -SCREEN's own mid-line
+unjustified demo and DOCC's own no-gap-before-the-toggle shape
+respectively. One existing test's regex widened to allow the optional
+`Tz` operator this fix now sometimes needs for a Courier sup/sub run
+(5.5pt no longer always equals Courier's own natural glyph width at the
+reduced size).
+
+**Result** (`tools/pcl_tolerance.py --doc`): DOCC 83 exact-drift → 0
+(clean, PASSES `pytest -m pcl`). -SCREEN 25 exact-drift → 0; 8 unrelated
+divergences remain (extra-word-in-engine 4, word-unmatched 4 — a
+completely separate Symbol-font/cp437 encoding issue, not diagnosed
+further this round, see the residuals-round summary below).
+
+Commit f328838.
 
 ---
 
@@ -433,31 +494,269 @@ to fix every single thing there") — not attempted, by instruction.
 
 ## I. Font-substitution residuals — named, not fixed (by design)
 
-`cgtimes-drift-exceeds-tolerance`: LYING (3), WARPRAYR (25), LJ6DTP (2)
-— real CG-Times-substituted-to-Times word positions whose drift exceeds
-the modelled bounded-per-line-distance tolerance (`tools/
+`cgtimes-drift-exceeds-tolerance`: LYING (4), WARPRAYR (0, see below),
+LJ6DTP (4) — real CG-Times-substituted-to-Times word positions whose
+drift exceeds the modelled bounded-per-line-distance tolerance (`tools/
 pcl_tolerance.py`'s own `cgtimes_tolerance_pt`). Per the finalization
 plan and Jon's ruling, this class is accepted by rule (a base-14-only
 PDF cannot metrically match CG Times) — not touched, not tolerance-
-widened. WARPRAYR's 25 are the largest count; worth a closer look in a
-future round to confirm they're genuinely all font-metric drift and not
-ANOTHER instance of mechanism C's alignment-desync (some plausibly are,
-given how entangled WARPRAYR's numbers turned out to be) — not verified
-individually this round.
+widened. WARPRAYR's own count is confirmed 0 as of the residuals round
+below (it was 25 before mechanism C landed — the alignment-desync
+explanation this entry used to flag as unverified is now confirmed:
+mechanism C's own merge fixed essentially all of it).
+
+**The word-wrap-point cascade (residuals round, 2026-09-06).** Traced
+LYING's and WARPRAYR's own remaining post-mechanism-J/K/L/M/N residuals
+(LYING: 27 of 31; WARPRAYR: 6 of 11) to ONE shared root, not a new
+mechanism: CG-Times' real metrics differ from Times' just enough that
+our engine sometimes WRAPS a line at a different word boundary than
+real WS7 did. Confirmed directly — LYING's own "lies--every" (engine,
+end of one visual line) / "day;" (engine, start of the next) vs. WS7's
+own single, unbroken "lies--everyday;" chunk (same visual line, no
+wrap at all); the identical shape recurs at "failing--a"/"wholly" vs.
+"failing--awholly", "case--as"/"personal" vs. "case--aspersonal", and
+WARPRAYR's own "\"Bless"/"our" vs. "\"Blessour". Every one of these is
+a real, DIFFERENT wrap decision, not a position or chunk-splitting bug
+— a base-14 Times substitute inevitably accumulates a different
+line-fill total than real CG-Times over a long enough run, and once a
+line wraps differently, the following words' `extra-word-in-engine`/
+`word-unmatched`/`baseline-shift`/`line-start-shift` divergences are
+mechanical consequences of that ONE upstream difference, not four
+separate bugs. This is the SAME accepted-by-design limitation this
+section already names for `cgtimes-drift-exceeds-tolerance` — extended
+here to its DOWNSTREAM effect on where lines wrap, still governed by
+the same ruling (not touched, not tolerance-widened; fixing it would
+mean either embedding CG-Times' own metrics, which the base-14-only
+ruling rules out, or reverse-engineering WordStar's own exact
+line-fill arithmetic well enough to match a font we do not have — out
+of scope). **Named, not fixed**, same as every other font-substitution
+residual in this section.
 
 ---
 
-## Summary for Part 2/3
+## J. A style toggle with no space drops the preceding character's own advance — FIXED (tooling)
+
+**Evidence.** BOXES.WS: source `...to double lines (` + BOLD-toggle +
+`^K'` + BOLD-toggle-off (no space between "(" and the toggle). Real
+WS7's own measurements.json records BOTH the plain "(" chunk and the
+bold "^K'" chunk starting at the IDENTICAL x (489.6pt) — one full
+7.2pt Courier column short of where "(" 's own natural width would put
+it. Our engine draws the two runs CONTIGUOUSLY (correct, unambiguous
+fixed-pitch typesetting — nothing in WordStar's own spec says a toggle
+eats a character's advance), so this is WS7's own driver artifact at a
+style-change boundary, the same class of "capture artifact, not a real
+position" mechanisms C and D already give this driver's other quirks.
+
+**Fix.** `tools/pcl_tolerance.py`'s `_correct_toggle_boundary_chunks`:
+when a chunk's x is EXACTLY equal to the immediately preceding chunk's
+own x AND its font differs (a style toggle, not two chunks of the same
+run mechanism C already owns), its x is corrected forward to the
+preceding chunk's own natural AFM end before matching. Scoped tightly
+to an EXACT x match (not a fuzzy epsilon) — the one confirmed shape.
+Unit-tested (4 tests, `tests/test_pcl_tolerance.py`) including two
+near-misses that must NOT fire (same font, or not an exact x match).
+
+**Before/after:** BOXES `exact-drift` 1 → 0 (clean, PASSES). VERSIONS
+`line-start-shift` 2 → 0 (clean, PASSES) — its own remaining
+divergence after mechanism D turned out to be this same shape.
+
+---
+
+## K. WS7 splits a word's trailing punctuation into its own chunk — FIXED (tooling)
+
+**Evidence.** WARPRAYR.WS: "country" at x=92.4pt (12pt Times-Roman,
+natural AFM width 36.66pt → expected continuation at 129.06pt), but
+WS7's own "," chunk starts at 131.0pt — a 1.94pt gap, just OUTSIDE
+`KERNING_MERGE_EPS_PT` (1.5pt). The same shape recurs in LYING and
+-README. This is mechanism C's own territory (a WS7 driver chunk
+split) but with a WIDER, more variable gap than a kerning-pair split —
+trailing punctuation apparently kerns slightly looser than a genuine
+kerning PAIR does.
+
+**Widening `KERNING_MERGE_EPS_PT` directly was tried and reverted.**
+2.0pt and 2.5pt were each tested against the full 10-document set:
+BOTH made every other document WORSE, not better (WARPRAYR itself
+13→24 divergences at 2.0pt, 13→65 at 2.5pt; LYING 41→42/157; LJ6DTP
+worse at every step) — real inter-word gaps in this corpus's smaller
+CG-Times/Univers-substituted running sizes get that close too, so
+widening mechanism C's own bound merges genuinely separate WORDS far
+more often than it catches real kerning-pair splits. `KERNING_MERGE_EPS_PT`
+stays 1.5, documented in its own comment as deliberately not widened.
+
+**Fix.** A SEPARATE function, `tools/pcl_tolerance.py`'s
+`_merge_trailing_punctuation_chunks`, with its OWN wider bound
+(`TRAILING_PUNCT_MERGE_EPS_PT` = 3.0pt) — safe specifically because the
+chunk being merged IN must be PURE punctuation
+(`_is_pure_punctuation`: every character in `,.;:!?'")]-` and nothing
+else), a shape a real standalone word's own WS7 chunk never takes (a
+lone letter like "I"/"a" is explicitly excluded). This can never
+mistake two adjacent short words for a word-plus-its-own-trailing-mark,
+so widening it carries none of the direct-epsilon-widening risk.
+Unit-tested (5 tests) including the "leaves two real words alone" and
+"respects its own gap bound" cases.
+
+**Before/after:** WARPRAYR `extra-word-in-engine` 7→6, `word-unmatched`
+2→1. LYING `extra-word-in-engine` 19→14, `word-unmatched` 11→6.
+LJ6DTP (parked, reported for completeness only) `extra-word-in-engine`
+332→327, `word-unmatched` 187→183 — no regression anywhere in the
+10-document set.
+
+---
+
+## L. `[image: NAME]` picture placeholder has no WS7 text counterpart — FIXED (tooling)
+
+**Evidence.** PREVIEW.WS's own `[image: WORDSTAR.PIX]` (core.py's
+literal placeholder text for an unembedded picture — `--pictures off`
+is the CLI default) reads as TWO `extra-word-in-engine` divergences
+("[image:" and "WORDSTAR.PIX]"), plus a separate, unrelated
+`word-unmatched` for real WS7 content ("Italic" — see mechanism D's
+own epsilon widening below, which resolved that one). This is not a
+position bug: real WS7 printed the actual embedded raster, never a
+text label — a structural difference this text-position gate was
+never going to be able to check either way.
+
+**Fix.** `tools/fidelity_gate.py`'s `engine_page_tokens` now skips any
+text-showing op whose FULL text matches `_IMAGE_PLACEHOLDER_RE`
+(`^\[image: .*\]$`) before word-splitting — the same class of
+exclusion `_is_box_drawing_text`/`_is_unreliable_to_align` already give
+WS7-side chunks the gate cannot meaningfully align. Unit-tested
+(`test_engine_page_tokens_excludes_a_picture_placeholder_span`,
+`tests/test_fidelity_gate.py`) with real prose before/after the
+placeholder in the same page, confirming only the placeholder's own
+tokens are dropped.
+
+Also independently fixed this round: `_dedupe_double_strike_chunks`
+(mechanism D) widened from an EXACT x match to a `DOUBLE_STRIKE_EPS_PT`
+(2.0pt) tolerance — PREVIEW's own "Italic" label is WS7's own
+double-strike fake-ITALIC (not just bold), and its second strike is
+offset ~1.4pt (a slant simulation) rather than landing at the exact
+same x a plain bold double-strike does. Verified this widening does
+not swallow a real word-to-word gap anywhere in the 10-document set
+(unit test: `test_dedupe_double_strike_chunks_epsilon_does_not_swallow_a_real_word_gap`).
+
+**Before/after:** PREVIEW `extra-word-in-engine` 2→0,
+`word-unmatched` 1→0 (clean, PASSES).
+
+---
+
+## M. A fontless header/footer line's own inline style toggle leaked as a literal control byte — FIXED (broad support, engine)
+
+**Evidence.** -README.WS's own `.h1` (no font block, wrapped in one
+`^Y`...`^Y` italic pair — WS_TOGGLES[0x19] == 'i'):
+`src/ctrlkd/pdf.py`'s `_hf_line_ops` had TWO code paths — a
+font-present branch that correctly runs the line through `hf_runs`
+(interpreting toggle bytes into styles) and drawing per styled run, and
+a "byte-identical to before this existed" fast path for the
+overwhelmingly common fontless case that wrote the WHOLE raw string,
+UNPROCESSED, into ONE `Tj` call. That fast path never checked whether
+the raw string actually contained a toggle byte — so a fontless header
+WITH an inline toggle (real, common: many documents style part of
+their own running head) had its literal `\x19` control byte written
+straight into the PDF. A PDF viewer (and this repo's own fidelity gate,
+reproducing what one would compute) then advances the pen by whatever
+width Courier's own AFM table gives an undefined glyph code —
+`src/ctrlkd/afm.py`'s `_COURIER` table is `(COURIER_WIDTH,) * 256`,
+i.e. EVERY byte value including the control range gets a full 7.2pt
+advance — landing a phantom extra character glued onto the following
+word. Confirmed on -README's own header: the engine's Printed PDF
+carried `\x19WordStar` on every page (2-16), and `"N\x19"` (the page
+number plus the CLOSING toggle, no space) wherever the substituted
+page number was 2+ digits long enough to survive
+`_is_unreliable_to_align`'s own length-2 filter (single-digit pages'
+own `"N\x19"` are 2 characters, filtered out the same way a lone
+comma is — this is why the bug was invisible on pages 2-9 and only
+showed up as divergences on 10-16). "7.0"/"Archive" (the words AFTER
+the phantom glyph) landed 7.2-14.4pt right of WS7's own real
+(correctly-italic-then-restored, no phantom glyph) position.
+
+**Fix.** `_hf_line_ops`'s fontless fast path is now taken ONLY when the
+line has no byte below 0x20 at all (`res is None or not any(ord(c) <
+0x20 for c in txt)`, `entry is None` unchanged) — otherwise it falls
+through to the SAME run-by-run `hf_runs` loop the font-present branch
+already used, with `family='Courier'`/`pt=size` substituted for the
+missing font entry. A `res is None` caller (there is no way to
+register a font without one) always keeps the old single-Tj behaviour,
+matching the docstring's own prior guarantee. Two new Tier-1 tests
+(`tests/test_printed_fidelity.py`): one confirms no `\x19` byte reaches
+the PDF and that "WordStar 7.0 Archive / 1" renders as real italic
+Courier-Oblique text at the document's own left margin; the other
+confirms a PLAIN header (no toggle bytes at all — the overwhelmingly
+common case) stays on the exact prior single-Tj path, byte for byte.
+
+**Before/after (-README):** `extra-word-in-engine` 22→0,
+`word-unmatched` 15→0. `exact-drift` 31→15 (the running-head
+cascade this phantom character caused on every page). One NEW class of
+divergence appeared as a side effect of the fix correctly EXPOSING
+content that previously never reached text comparison at all —
+`line-start-shift` 1→8, all "WordStar" itself, all on 2-digit pages
+(10-16) only, all a consistent 7.2pt raw offset. Traced as far as: the
+header's own SOURCE carries a `\t` (TAB) inside a paragraph-style
+property block immediately before the toggle-wrapped text, which core.py
+converts to a fixed 41-space run at PARSE time (same for every page);
+real WS7 evidently recomputes this padding PER PAGE based on the
+ACTUAL substituted page-number width (a true right-tab), narrowing by
+one column when the page number grows from 1 to 2 digits, while our
+engine's baked-once padding does not. **Diagnosed, not fixed this
+round** — reproducing WordStar's own dynamic right-tab arithmetic for
+a header/footer `#` token is a real, separate architecture question,
+out of this round's scope; -README's own `sources.json` v1.4→v1.5
+staleness is NOT a factor here (mechanism E already generalized past
+it).
+
+---
+
+## N. A WS7 chunk glues a box-drawing character onto an adjoining word — FIXED (tooling)
+
+**Evidence.** SCRIPT.WS: a table-bordered figure caption, "│Figure" —
+ONE literal WS7 print chunk combining the border character and the
+word with no space. The LaserJet's resident Courier charset draws a
+box-drawing character (cp437's own extended range, U+2500-25FF) as an
+ORDINARY GLYPH, same font, same advance as any other character — WS7's
+own driver never distinguishes it from real text. Our own engine draws
+a box-drawing character as a VECTOR (`_graphic_ops`, Jon's ruling: real
+drawn lines, not a font glyph standing in for one) and keeps it
+entirely separate from the adjoining text span (`_split_graphics`) — so
+our own "Figure" token never carries a box character, and never will,
+no matter how correct its position.
+
+**Fix.** `tools/pcl_tolerance.py`'s `_strip_leading_box_drawing_chunks`
+strips a WS7 chunk's own LEADING box-drawing/block/geometric run
+(reusing `_BOX_DRAWING_RANGES`, the same ranges `_is_box_drawing_text`
+already uses for a chunk that is NOTHING BUT box-drawing characters)
+before matching, correcting the chunk's x forward by the stripped
+run's own natural AFM width — the same "this is what our engine's own
+text stream would show" normalization mechanisms C/J/K already give
+this driver's other representation differences. Unit-tested (3 tests)
+including a pure-box-drawing chunk (left alone — `_is_box_drawing_text`'s
+own territory) and plain text (left alone).
+
+**Before/after (SCRIPT):** `extra-word-in-engine` 2→0 (the "Figure"
+half), `word-unmatched` 2→0 (the "│Figure" half).
+
+---
+
+## Summary — all rounds (mechanism-G round + residuals round, 2026-09-06)
 
 **Fixed, in the engine (`src/ctrlkd`), each with a Tier-1 test:**
 - Mechanism A: `_printed_pm_fi_pt` (pdf.py) — commit 8956ad4.
+- Mechanism G: `_sized`/`_sup_sub_span_pitch` (pdf.py) — commit f328838.
+- Mechanism M: `_hf_line_ops` (pdf.py) — residuals round.
 
 **Fixed, in the test harness (`tools/fidelity_gate.py`/`tools/pcl_tolerance.py`), not the engine:**
 - Mechanism B: `_TEXT_OP_RE` operator order — commit 7285270.
 - Mechanism C: `_merge_kerning_split_chunks` — same-day follow-up.
-- Mechanism D: `_dedupe_double_strike_chunks` — same-day follow-up.
+- Mechanism D: `_dedupe_double_strike_chunks` — same-day follow-up;
+  widened to a 2.0pt slant-offset tolerance in the residuals round
+  (`DOUBLE_STRIKE_EPS_PT`, mechanism L's own follow-on).
 - Mechanism E: `resolve_doc_paths` prefers a doc's own `v2` capture over
   `v1` when one exists — same-day follow-up, generalized beyond -README.
+- Mechanism J: `_correct_toggle_boundary_chunks` — residuals round.
+- Mechanism K: `_merge_trailing_punctuation_chunks` — residuals round
+  (its own wider epsilon; widening C's directly was tried and reverted,
+  see mechanism K's own entry).
+- Mechanism L: `_IMAGE_PLACEHOLDER_RE` exclusion in
+  `fidelity_gate.engine_page_tokens` — residuals round.
+- Mechanism N: `_strip_leading_box_drawing_chunks` — residuals round.
 - The `pcl` tier's own reason-filter defect (`tests/test_pcl_fidelity.py`
   used to filter on a reason string `doc_report()` never emitted) — same-
   day follow-up, `FONT_SUBSTITUTION_REASONS`/`is_font_substitution_reason`.
@@ -469,26 +768,74 @@ individually this round.
   uncollapsed advance our engine already produces. Resolved as a side
   effect of generalizing E, not sought directly.
 
-**Diagnosed with concrete evidence, not fixed this round:**
-- G (sup/sub fixed-pitch advance width — first hypothesis disproven, root cause not yet located)
-
 **Parked per Jon's ruling:** H (LJ6DTP printing hacks).
 
-**Accepted by design:** I (font-substitution residuals) — note WARPRAYR's
-own count dropped from 25 to 0 once C landed; see mechanism C's entry.
+**Accepted by design:** I (font-substitution residuals, INCLUDING the
+word-wrap-point cascade it causes — see mechanism I's own entry, updated
+this round). WARPRAYR's own `cgtimes-drift-exceeds-tolerance` count
+confirmed 0 (was 25 before mechanism C landed).
 
-**Result after this round** (`pytest -m pcl`, corpus armed): of the 13
-documents named in planning #202, OCAPTAIN, TWAINLET and SAWYER now PASS
-(mechanisms D and E resolved every one of their real divergences); BOXES,
-DOCC, LJ6DTP, LYING, PREVIEW, -README, -SCREEN, SCRIPT, VERSIONS and
-WARPRAYR still FAIL BY NAME — every remaining failure is either mechanism
-G (DOCC, -SCREEN), mechanism H (LJ6DTP, parked by instruction), or a
-real remaining divergence this round did not address (the others). No
-document's pass/fail status flips purely from the reason-filter fix in
-this snapshot: every document carrying a font-substitution-tier residual
-either also carries an unrelated real divergence (LJ6DTP, LYING), or had
-its font-substitution count fall to zero once mechanism C landed
-(WARPRAYR) — the fix is still correct and unit-tested infrastructure, it
-simply had no live document to flip from fail to pass today. See
-tools/pcl_tolerance.py's own commit history and `tests/
-pcl_fidelity_manifest.json` for the exact before/after counts by reason.
+**Diagnosed with concrete evidence, not fixed this round:**
+- Mechanism M's own side effect on -README: real WS7 evidently recomputes
+  a header/footer's own tab-derived leading indent PER PAGE based on the
+  substituted page number's actual width (a true right-tab); our engine
+  bakes the indent once at parse time. Affects only documents crossing a
+  page-number digit-count boundary with a tab-padded `#` header/footer —
+  -README is the only one in this corpus's named set.
+- -SCREEN's remaining 6 divergences (`extra-word-in-engine` 2,
+  `word-unmatched` 4, exposed only after mechanism G's fix stopped them
+  hiding behind the sup/sub exact-drift noise): a Symbol-font Greek
+  alphabet demo where SOME characters are typed via cp437's own native
+  Greek-lookalike bytes (e.g. 0xE1/0xE6, cp437's own "ß"/"µ" glyphs used
+  as a Beta/mu stand-in) mixed with OTHERS typed as ASCII + an explicit
+  Symbol-font toggle in the SAME visual run — our engine renders the
+  cp437-native bytes as literal Courier "ß"/"µ" text (their genuine
+  cp437 decode) rather than routing them through the Symbol font the
+  surrounding toggle established, while the ASCII+toggle characters
+  round-trip correctly. One contrived reference/demo line, not
+  reproduced elsewhere in the corpus; not investigated further this
+  round (a real fix needs tracing exactly which code path a Symbol-font
+  span's own cp437-native-byte characters take through
+  `core.py`'s parser, separate from this triage's own scope).
+- SCRIPT's remaining 14 divergences (`exact-drift` 12,
+  `line-start-shift` 2, all one running-head/footer line, "PROFILES
+  MONTH '88 SCRIPT.001..."): a consistent 21.6pt (3-character) left
+  offset between our engine's rendered position and WS7's own capture.
+  SCRIPT.WS is one of the triage's own noted `driver-missing` stalls
+  (mechanism E's entry) — its embedded printer driver is LQ-850, an
+  EPSON DOT-MATRIX driver, never installed in the `ws7-prints/v2` batch
+  harness, so SCRIPT's own capture is still on `v1` while every other
+  document in this round switched to `v2`'s LaserJet-driver captures.
+  This document's own real-WS7 ground truth was produced by a
+  DIFFERENT printer driver family than the LaserJet conventions this
+  engine (and the rest of this corpus) targets — plausibly a genuine
+  driver-specific margin convention, not an engine bug to chase. Not
+  investigated further this round; would need either a LaserJet
+  recapture of SCRIPT (planning #196's own job) or explicit
+  LQ-850-aware modelling, out of this round's scope.
+
+**Result after both rounds** (`pytest -m pcl`, corpus armed): of the 13
+documents named in planning #202, BOXES, DOCC, OCAPTAIN, PREVIEW,
+SAWYER, TWAINLET and VERSIONS now PASS (7 of 13, up from 3 after the
+first follow-up round). LJ6DTP (parked, by instruction), LYING,
+-README, -SCREEN, SCRIPT and WARPRAYR still FAIL BY NAME. Per-document
+divergence counts, before this round's fixes → after (LJ6DTP included
+for completeness only; excluded from the "fixed" claim by Jon's
+ruling):
+
+| Doc | Before (mechanism-G round's own starting point) | After |
+|---|---|---|
+| WARPRAYR | 13 | 11 |
+| VERSIONS | 2 | 0 (PASSES) |
+| PREVIEW | 3 | 0 (PASSES) |
+| BOXES | 1 | 0 (PASSES) |
+| LYING | 41 | 31 |
+| SCRIPT | 31 | 14 |
+| -README | 88 | 23 |
+| -SCREEN (after mechanism G) | 8 | 6 |
+| DOCC (mechanism G) | 83 | 0 (PASSES) |
+| LJ6DTP (parked) | 1260-ish, unchanged in kind | still large, not a target |
+
+See `tools/pcl_tolerance.py`'s own commit history and `tests/
+pcl_fidelity_manifest.json` for the exact current counts by reason, per
+document.

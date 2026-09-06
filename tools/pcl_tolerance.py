@@ -338,29 +338,106 @@ def _is_unreliable_to_align(text: str) -> bool:
 # result -- so a reconstructed word is judged (and, when genuinely short,
 # filtered) as the ONE token it visually is, never as separate fragments
 # too short to align reliably.
-KERNING_MERGE_EPS_PT = 1.5  # generous vs decipoint quantization + AFM rounding
+KERNING_MERGE_EPS_PT = 1.5  # generous vs decipoint quantization + AFM rounding.
+                            # NOT widened further despite one confirmed
+                            # miss (WARPRAYR's title 'War' in the
+                            # ws7-prints/v2 recapture kerns 2.0pt short, just
+                            # outside this bound -- the same title matched
+                            # inside 1.5pt against the older v1 capture) --
+                            # tried 2.0 and 2.5pt directly against the full
+                            # 10-document set and BOTH made every other
+                            # document worse (WARPRAYR itself 13->24/65,
+                            # LYING 41->42/157, LJ6DTP worse at every step):
+                            # real inter-word gaps in this corpus's smaller
+                            # CG-Times/Univers-substituted running sizes get
+                            # that close too, so widening the bound merges
+                            # genuine separate words far more often than it
+                            # catches real kerning-pair splits. WARPRAYR's
+                            # 'War'/'country'/similar residuals are left
+                            # NAMED, not fixed, rather than regress the rest
+                            # of the corpus to chase one document's own
+                            # kerning-pair magnitude.
 
 
-def _dedupe_double_strike_chunks(items):
-    """Mechanism D: WS7's HP-resident-font double-strike fake-bold technique
-    prints the identical chunk TWICE at the identical position (confirmed
-    duplicate (text, x, font) chunks in BOXES/SAWYER/VERSIONS's own
-    measurements.json -- bolded filenames/command names). Our engine
-    renders bold as one real bold-font glyph run, never a doubled strike
-    (the correct choice under Jon's base-14-only ruling), so the SECOND
-    copy has no engine counterpart to align to at all -- drop it (keep the
-    first) before matching, so it stops reporting as `word-unmatched`. A
-    pair counts as a duplicate only when text, x position, size, WS7's own
-    post-substitution font name AND the pre-substitution PCL typeface id
-    all match exactly -- position AND identity, never text alone (two
-    different words can share an x by coincidence)."""
+DOUBLE_STRIKE_EPS_PT = 2.0  # generous vs the ~1.4pt slant offset a faux-italic
+                            # double-strike sometimes carries (PREVIEW.WS's
+                            # own "Italic" duplicate, measured x=344.6pt/
+                            # 346.0pt -- WS7 fakes italic AND bold on the
+                            # same double-strike pass, offsetting the second
+                            # strike slightly to simulate the slant, not
+                            # printing it at the identical position the way
+                            # a plain bold double-strike does), while nowhere
+                            # near a real word-to-word gap (BOXES/SAWYER/
+                            # VERSIONS's own EXACT-position duplicates, and
+                            # any genuine adjacent word, are all comfortably
+                            # outside it).
+
+
+def _strip_leading_box_drawing_chunks(items):
+    """Mechanism N (triage 2026-09-06 residuals round): a WS7 print chunk
+    that combines a box-drawing/table-border character directly against a
+    real word with no space (SCRIPT.WS's own '│Figure', a
+    table-bordered figure caption) is, for WS7's own driver, one literal
+    character run -- the LaserJet's resident Courier charset draws
+    box-drawing glyphs as ordinary text, same font, same advance, no
+    different from any other character. Our own engine draws a
+    box-drawing character as a VECTOR (`_graphic_ops`, Jon's ruling:
+    box/rule fidelity is a real drawn line, not a font glyph standing in
+    for one) and keeps it entirely separate from the adjoining text span
+    (`_split_graphics`) -- so the two sides' text streams can never
+    literally match on a chunk like this no matter how correct the
+    position: our own 'Figure' token never carries a box character, and
+    never will. Strips a WS7 chunk's own LEADING box-drawing/block/
+    geometric run (`_BOX_DRAWING_RANGES`) before matching, correcting its
+    x forward by the stripped run's own natural AFM width -- the same
+    "this is what our engine's own text stream would show" normalization
+    mechanisms C/J/K already give this driver's other representation
+    differences. A chunk that is NOTHING BUT box-drawing characters is
+    left alone -- `_is_box_drawing_text`'s own territory, applied later in
+    `load_ws7_tokens`."""
     out = []
-    seen = set()
     for pc, tc in items:
-        key = (pc['text'], pc['x_decipoints'], pc['size_pt'], pc.get('font'), tc.get('_T'))
-        if key in seen:
+        text = pc['text']
+        i = 0
+        while i < len(text) and any(lo <= ord(text[i]) < hi
+                                    for lo, hi in _BOX_DRAWING_RANGES):
+            i += 1
+        if i == 0 or i == len(text):
+            out.append((pc, tc))
             continue
-        seen.add(key)
+        prefix, rest = text[:i], text[i:]
+        shift_dp = round(fg.afm.string_width_pt(prefix, pc.get('font'),
+                                                 pc['size_pt']) * fg.DECIPT_PER_PT)
+        out.append((dict(pc, text=rest, x_decipoints=pc['x_decipoints'] + shift_dp), tc))
+    return out
+
+
+def _dedupe_double_strike_chunks(items, eps_pt=DOUBLE_STRIKE_EPS_PT):
+    """Mechanism D: WS7's HP-resident-font double-strike fake-bold/italic
+    technique prints the identical chunk TWICE at (near-)identical position
+    (confirmed duplicate (text, x, font) chunks in BOXES/SAWYER/VERSIONS's
+    own measurements.json -- bolded filenames/command names -- and, with a
+    small slant offset rather than an exact one, PREVIEW's own faux-italic
+    "Italic" label). Our engine renders bold/italic as one real glyph run,
+    never a doubled strike (the correct choice under Jon's base-14-only
+    ruling), so the SECOND copy has no engine counterpart to align to at
+    all -- drop it (keep the first) before matching, so it stops reporting
+    as `word-unmatched`. A pair counts as a duplicate only when text, size,
+    WS7's own post-substitution font name AND the pre-substitution PCL
+    typeface id all match exactly, and x is within `eps_pt` of the most
+    recent kept chunk in that same group -- identity AND (near-)position,
+    never text alone (two different words can share an x by coincidence,
+    and two genuinely different words never land within so small a gap)."""
+    out = []
+    last_x = {}
+    eps_dp = eps_pt * fg.DECIPT_PER_PT
+    for pc, tc in items:
+        key = (pc['text'], pc['size_pt'], pc.get('font'), tc.get('_T'))
+        x = pc['x_decipoints']
+        prev_x = last_x.get(key)
+        if prev_x is not None and abs(x - prev_x) <= eps_dp:
+            continue
+        last_x[key] = x
         out.append((pc, tc))
     return out
 
@@ -406,6 +483,118 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
     return merged
 
 
+TRAILING_PUNCT_MERGE_EPS_PT = 3.0  # wider than KERNING_MERGE_EPS_PT (1.5pt)
+                                   # on purpose: a real inter-word GAP never
+                                   # shows up as a WS7 chunk containing
+                                   # NOTHING but punctuation (that shape is
+                                   # unique to a word's own trailing mark),
+                                   # so widening it here carries none of
+                                   # mechanism C's own risk of swallowing a
+                                   # genuine short word -- confirmed against
+                                   # the full 10-document set below.
+_TRAILING_PUNCT_CHARS = frozenset(',.;:!?\'")]-')
+
+
+def _is_pure_punctuation(text: str) -> bool:
+    """True for a chunk that is NOTHING but trailing-punctuation characters
+    (never a real standalone word -- a lone letter or digit chunk is
+    excluded on purpose, see `_merge_trailing_punctuation_chunks`)."""
+    return bool(text) and all(ch in _TRAILING_PUNCT_CHARS for ch in text)
+
+
+def _merge_trailing_punctuation_chunks(items, eps_pt=TRAILING_PUNCT_MERGE_EPS_PT):
+    """Mechanism K (triage 2026-09-06 residuals round): WS7's own driver
+    sometimes emits a word's trailing punctuation (a comma, period, closing
+    quote/paren...) as its OWN separate print chunk, close behind but not
+    always within mechanism C's own tighter kerning-pair bound. Confirmed
+    on WARPRAYR.WS ('country' at x=92.4pt, natural AFM width 36.66pt at
+    12pt Times-Roman would put a continuation at 129.06pt, but WS7's own
+    ',' chunk actually starts at 131.0pt -- a 1.94pt gap, just outside
+    `KERNING_MERGE_EPS_PT`) and LYING.WS's own similar trailing-comma/
+    period splits. Our engine always attaches trailing punctuation to its
+    word (one span, one Tj), so the split WS7 chunk has no engine
+    counterpart to align to UNLESS it is re-fused first -- the same
+    "capture artifact, not a real position" treatment as mechanisms C/D/J.
+
+    Deliberately its OWN function with its OWN wider epsilon rather than
+    just widening `KERNING_MERGE_EPS_PT`: widening that bound to cover this
+    gap directly was tried and reverted (see its own docstring) because it
+    also merges genuinely separate short WORDS elsewhere in the corpus.
+    That risk does not apply here -- the chunk being merged INTO the
+    running word must be PURE punctuation (`_is_pure_punctuation`, e.g. a
+    lone ',' or '."'), a shape a real standalone word's own chunk never
+    takes, so this can never mistake two adjacent short words for a
+    word-plus-its-own-trailing-mark."""
+    merged = []
+    i = 0
+    n = len(items)
+    while i < n:
+        pc, tc = items[i]
+        text = pc['text']
+        start_x = pc['x_decipoints']
+        j = i + 1
+        while j < n:
+            npc, ntc = items[j]
+            if not _is_pure_punctuation(npc['text']):
+                break
+            if (npc['size_pt'] != pc['size_pt'] or npc.get('font') != pc.get('font')
+                    or ntc.get('_T') != tc.get('_T')):
+                break
+            expected_end_dp = start_x + (
+                fg.afm.string_width_pt(text, pc.get('font'), pc['size_pt']) * fg.DECIPT_PER_PT)
+            if abs(npc['x_decipoints'] - expected_end_dp) > eps_pt * fg.DECIPT_PER_PT:
+                break
+            text += npc['text']
+            j += 1
+        merged.append((dict(pc, text=text), tc))
+        i = j
+    return merged
+
+
+def _correct_toggle_boundary_chunks(items):
+    """Mechanism J (triage 2026-09-06 residuals round): WS7's own driver,
+    when a style toggle (here: bold) immediately follows a character with
+    NO space between them, sometimes emits the toggled run's own PCL
+    horizontal-position escape at the SAME absolute x as the character
+    immediately before it -- dropping that one character's own advance
+    entirely, so the toggled run's ink overlaps the untoggled character's
+    on the real printed page. Confirmed on BOXES.WS: source `...double
+    lines (^Bbold^B^K'^B...` (a literal "(" immediately followed by a bold
+    toggle, no space) -- measurements.json records BOTH the plain "("
+    chunk and the bold "^K'" chunk starting at the identical x=489.6pt,
+    one full 7.2pt Courier column short of where "(" 's own natural width
+    would put it. Our engine draws the two runs CONTIGUOUSLY (correct,
+    unambiguous fixed-pitch typesetting -- nothing in WordStar's own spec
+    says a toggle eats a character's advance), so this is WS7's own driver
+    artifact, not an engine bug to reproduce: the same "capture artifact,
+    not a real position" treatment mechanisms C and D already give this
+    driver's other toggle-adjacent quirks.
+
+    Scoped tightly to the one confirmed shape -- a chunk whose x is
+    EXACTLY equal to the immediately preceding chunk's own x (a full
+    character's advance dropped, not merely a small kerning-style
+    discrepancy `_merge_kerning_split_chunks` already owns) AND whose font
+    differs from that preceding chunk's (a style toggle, not two chunks of
+    the same run WS7 happened to split -- mechanism C's own territory).
+    `items` is one WS7 print line's (pc, tc) pairs, already sorted by x
+    and already through `_dedupe_double_strike_chunks`/
+    `_merge_kerning_split_chunks`. The corrected chunk's x moves forward to
+    the preceding chunk's own natural end; nothing else about it changes."""
+    out = []
+    prev_pc = None
+    for pc, tc in items:
+        cur = dict(pc)
+        if (prev_pc is not None and cur['x_decipoints'] == prev_pc['x_decipoints']
+                and cur.get('font') != prev_pc.get('font')):
+            prev_end_dp = prev_pc['x_decipoints'] + (
+                fg.afm.string_width_pt(prev_pc['text'], prev_pc.get('font'),
+                                       prev_pc['size_pt']) * fg.DECIPT_PER_PT)
+            cur['x_decipoints'] = round(prev_end_dp)
+        out.append((cur, tc))
+        prev_pc = cur
+    return out
+
+
 def load_ws7_tokens(pcl_path: str, measurements_path: str):
     """[{text, x, y_top, size, basefont, font_class, page, tid, tier,
     dist_into_line_pt, is_line_start}, ...] -- fg.ws7_page_tokens()'s own
@@ -440,8 +629,11 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             by_y[pc['y_decipoints']].append((pc, tc))
         for _y, items in by_y.items():
             items.sort(key=lambda pt: pt[0]['x_decipoints'])
+            items = _strip_leading_box_drawing_chunks(items)  # mechanism N
             items = _dedupe_double_strike_chunks(items)   # mechanism D, before C
             items = _merge_kerning_split_chunks(items)    # mechanism C
+            items = _merge_trailing_punctuation_chunks(items)  # mechanism K
+            items = _correct_toggle_boundary_chunks(items)  # mechanism J
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0
             for pc, tc in items:

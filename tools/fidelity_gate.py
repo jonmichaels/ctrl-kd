@@ -328,6 +328,21 @@ def classify_font(basefont) -> str:
 # --------------------------------------------------- engine word splitting
 _TOKEN_RE = re.compile(r' +|[^ ]+')
 
+# Mechanism L (triage 2026-09-06 residuals round). A `[image: NAME]` picture
+# placeholder (core.py's own byte-for-byte
+# `b'[image: ' + name + b']'`, written as ONE coalesced span -- pictures.py's
+# own docstring: "off" is the CLI default, so this text stands in for a
+# raster WordStar embedded via its own .PIX inset format) has, BY
+# CONSTRUCTION, no WS7 text counterpart at all -- real WS7 printed the
+# actual raster, not a text label. Confirmed on PREVIEW.WS (its own
+# `[image: WORDSTAR.PIX]` reads as two `extra-word-in-engine` divergences
+# for exactly this reason). This is not a position or content bug to fix --
+# it is a structural difference (text vs. raster) this text-position gate
+# was never going to be able to check either way, the same class of
+# exclusion `_is_box_drawing_text`/`_is_unreliable_to_align` already give
+# WS7-side chunks the gate cannot meaningfully align.
+_IMAGE_PLACEHOLDER_RE = re.compile(r'^\[image: .*\]$')
+
 
 def split_engine_op(op: dict, basefont) -> list:
     """One text op -> [(word_text, x_pt), ...] for its non-space tokens,
@@ -363,6 +378,8 @@ def engine_page_tokens(page: dict, page_no: int) -> list:
     mb_h = page['mediabox'][1]
     out = []
     for op in parse_text_ops(page['content']):
+        if _IMAGE_PLACEHOLDER_RE.match(op['text']):
+            continue
         basefont = page['fonts'].get(op['font'])
         for text, x in split_engine_op(op, basefont):
             out.append({

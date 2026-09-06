@@ -3692,24 +3692,40 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         No font on this line (the overwhelmingly common case -- every
         document that never opens a `.h#`/`.f#` with a font block) is
         BYTE-IDENTICAL to before this existed: one Tj, the whole string,
-        Courier. `res` is required for the new path (it registers whatever
-        base-14 font gets used in the page's own /Font resources); a caller
-        that omits it gets the old behaviour rather than a crash."""
+        Courier -- PROVIDED the line has no toggle bytes of its own to
+        interpret (mechanism M residuals round, 2026-09-06): a fontless
+        `.h#`/`.f#` line that DOES type an inline style toggle (WS_TOGGLES,
+        e.g. `^Y` for italic) used to skip `hf_runs` entirely and write the
+        raw control byte straight into the Tj string -- a real PDF viewer
+        (and this repo's own fidelity gate, reproducing one) then advances
+        the pen by whatever width its font gives an undefined glyph code,
+        landing it as a phantom extra character glued onto the following
+        word. Confirmed on -README.WS's own running head (`.h1`, no font
+        block, wrapped in a single `^Y`...`^Y` italic pair): the engine's
+        Printed PDF carried a literal `\\x19` before "WordStar" on every
+        page, shifting "7.0"/"Archive" 7.2-14.4pt right of WS7's own real
+        (correctly italic-then-restored, no phantom glyph) position. `res`
+        is required for the run-by-run path (it registers whatever base-14
+        font gets used in the page's own /Font resources); a caller that
+        omits it gets the old single-Tj behaviour regardless (there is no
+        way to register a font without one), same as before this fix."""
         entry = (doc.fonts[font_idx]
                 if font_idx is not None and res is not None
                 and 0 <= font_idx < len(doc.fonts) else None)
-        if entry is None:
+        if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
             return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
                     _esc(render(txt)))]
-        family = _pdf_family(entry)
-        pt = max(1, round(entry['points'])) if entry.get('points') else size
+        family = _pdf_family(entry) if entry is not None else 'Courier'
+        pt = (max(1, round(entry['points']))
+              if entry is not None and entry.get('points') else size)
         ops, x = [], left
         for i, (run_text, styles) in enumerate(_hf_runs(txt)):
             run_text = render(run_text)
             if not run_text:
                 continue
-            if i == 0 and not run_text.strip() and entry.get('proportional'):
+            if (i == 0 and not run_text.strip()
+                    and entry is not None and entry.get('proportional')):
                 # WordStar re-stamps a tab-derived leading indent as 10-CPI
                 # machine spaces regardless of the font in force (the SAME
                 # rule this module's own _split_indent applies to body
@@ -3718,6 +3734,10 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                 # back toward the margin instead of where WS7's own
                 # absolute-position PCL puts it (measured: LJ6DTP.pcl's
                 # `&a1718H` immediately before this exact line's "LJ6DTP").
+                # A fontless (Courier) line never takes this branch --
+                # Courier's own per-character advance already IS
+                # `_PDF_PT_PER_COL`, so the general natural-width path
+                # below already lands leading spaces correctly.
                 x += len(run_text) * _PDF_PT_PER_COL
                 continue
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
