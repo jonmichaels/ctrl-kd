@@ -2759,34 +2759,115 @@
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 3,
-      "n_engine_pages": 4,
-      "no_substitute_word_count": 32,
+      "n_engine_pages": 3,
+      "no_substitute_word_count": 1565,
       "counts_by_reason": {
-        "baseline-shift": 1175,
-        "extra-word-in-engine": 12,
-        "page-count-mismatch": 1,
-        "word-unmatched": 7
+        "baseline-shift": 5,
+        "cgtimes-drift-exceeds-tolerance": 4,
+        "extra-word-in-engine": 7,
+        "line-start-shift": 1,
+        "word-unmatched": 2
       },
       "divergences": [
         {
           "doc": "LYING",
           "page": 1,
-          "line_y_top_pt": 52.0,
+          "line_y_top_pt": 684.0,
+          "words": [
+            "1.Did",
+            "1.Did"
+          ],
+          "ws7_pos": [
+            57.6,
+            684.0
+          ],
+          "pdf_pos": [
+            57.6,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "LYING",
+          "page": 1,
+          "line_y_top_pt": 684.0,
+          "words": [
+            "not",
+            "not"
+          ],
+          "ws7_pos": [
+            100.8,
+            684.0
+          ],
+          "pdf_pos": [
+            100.8,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "LYING",
+          "page": 1,
+          "line_y_top_pt": 684.0,
+          "words": [
+            "take",
+            "take"
+          ],
+          "ws7_pos": [
+            129.6,
+            684.0
+          ],
+          "pdf_pos": [
+            129.6,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "LYING",
+          "page": 1,
+          "line_y_top_pt": 684.0,
           "words": [
             "the",
             "the"
           ],
           "ws7_pos": [
-            203.2,
-            52.0
+            165.6,
+            684.0
           ],
           "pdf_pos": [
-            201.1,
-            79.2
+            165.6,
+            720.0
           ],
-          "font_class": "cgtimes",
+          "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -52.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "LYING",
+          "page": 1,
+          "line_y_top_pt": 684.0,
+          "words": [
+            "prize.",
+            "prize."
+          ],
+          "ws7_pos": [
+            194.4,
+            684.0
+          ],
+          "pdf_pos": [
+            194.4,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "LYING",
@@ -2802,11 +2883,11 @@
           ],
           "pdf_pos": [
             225.2,
-            79.2
+            76.0
           ],
           "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -52.00pt (tolerance 1.0pt)"
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -5.30pt at 52.3pt into the line (tolerance 4.55pt)"
         },
         {
           "doc": "LYING",
@@ -2822,11 +2903,11 @@
           ],
           "pdf_pos": [
             285.3,
-            79.2
+            76.0
           ],
           "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -52.00pt (tolerance 1.0pt)"
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -10.00pt at 117.1pt into the line (tolerance 5.84pt)"
         },
         {
           "doc": "LYING",
@@ -2842,11 +2923,11 @@
           ],
           "pdf_pos": [
             309.4,
-            79.2
+            76.0
           ],
           "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -52.00pt (tolerance 1.0pt)"
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -12.10pt at 143.3pt into the line (tolerance 6.37pt)"
         },
         {
           "doc": "LYING",
@@ -2862,803 +2943,23 @@
           ],
           "pdf_pos": [
             352.5,
-            79.2
+            76.0
           ],
           "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -52.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 68.0,
-          "words": [
-            "Mark",
-            "Mark"
-          ],
-          "ws7_pos": [
-            262.0,
-            68.0
-          ],
-          "pdf_pos": [
-            262.1,
-            98.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -48.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 68.0,
-          "words": [
-            "Twain",
-            "Twain"
-          ],
-          "ws7_pos": [
-            301.4,
-            68.0
-          ],
-          "pdf_pos": [
-            302.3,
-            98.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -48.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Essay,",
-            "Essay,"
-          ],
-          "ws7_pos": [
-            57.6,
-            96.0
-          ],
-          "pdf_pos": [
-            57.6,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "For",
-            "For"
-          ],
-          "ws7_pos": [
-            91.6,
-            96.0
-          ],
-          "pdf_pos": [
-            92.0,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Discussion,",
-            "Discussion,"
-          ],
-          "ws7_pos": [
-            112.8,
-            96.0
-          ],
-          "pdf_pos": [
-            111.9,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Read",
-            "Read"
-          ],
-          "ws7_pos": [
-            173.0,
-            96.0
-          ],
-          "pdf_pos": [
-            171.2,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Meeting",
-            "Meeting"
-          ],
-          "ws7_pos": [
-            228.9,
-            96.0
-          ],
-          "pdf_pos": [
-            226.1,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            288.9,
-            96.0
-          ],
-          "pdf_pos": [
-            285.4,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Historical",
-            "Historical"
-          ],
-          "ws7_pos": [
-            311.2,
-            96.0
-          ],
-          "pdf_pos": [
-            307.3,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "And",
-            "And"
-          ],
-          "ws7_pos": [
-            362.6,
-            96.0
-          ],
-          "pdf_pos": [
-            358.2,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Antiquarian",
-            "Antiquarian"
-          ],
-          "ws7_pos": [
-            386.8,
-            96.0
-          ],
-          "pdf_pos": [
-            382.2,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Club",
-            "Club"
-          ],
-          "ws7_pos": [
-            448.0,
-            96.0
-          ],
-          "pdf_pos": [
-            443.2,
-            132.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -43.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Hartford,",
-            "Hartford,"
-          ],
-          "ws7_pos": [
-            57.6,
-            108.0
-          ],
-          "pdf_pos": [
-            57.6,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "And",
-            "And"
-          ],
-          "ws7_pos": [
-            107.5,
-            108.0
-          ],
-          "pdf_pos": [
-            105.4,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Offered",
-            "Offered"
-          ],
-          "ws7_pos": [
-            131.7,
-            108.0
-          ],
-          "pdf_pos": [
-            129.4,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "For",
-            "For"
-          ],
-          "ws7_pos": [
-            173.0,
-            108.0
-          ],
-          "pdf_pos": [
-            170.1,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            194.1,
-            108.0
-          ],
-          "pdf_pos": [
-            190.0,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Thirty-Dollar",
-            "Thirty-Dollar"
-          ],
-          "ws7_pos": [
-            216.4,
-            108.0
-          ],
-          "pdf_pos": [
-            211.9,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Prize.",
-            "Prize."
-          ],
-          "ws7_pos": [
-            285.8,
-            108.0
-          ],
-          "pdf_pos": [
-            280.3,
-            146.4
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -40.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "Observe,",
-            "Observe,"
-          ],
-          "ws7_pos": [
-            93.6,
-            132.0
-          ],
-          "pdf_pos": [
-            93.6,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "not",
-            "not"
-          ],
-          "ws7_pos": [
-            164.4,
-            132.0
-          ],
-          "pdf_pos": [
-            164.8,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "mean",
-            "mean"
-          ],
-          "ws7_pos": [
-            184.8,
-            132.0
-          ],
-          "pdf_pos": [
-            184.1,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "suggest",
-            "suggest"
-          ],
-          "ws7_pos": [
-            228.2,
-            132.0
-          ],
-          "pdf_pos": [
-            227.4,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "that",
-            "that"
-          ],
-          "ws7_pos": [
-            266.6,
-            132.0
-          ],
-          "pdf_pos": [
-            268.3,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            289.6,
-            132.0
-          ],
-          "pdf_pos": [
-            290.3,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "custom",
-            "custom"
-          ],
-          "ws7_pos": [
-            308.6,
-            132.0
-          ],
-          "pdf_pos": [
-            308.8,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "lying",
-            "lying"
-          ],
-          "ws7_pos": [
-            361.4,
-            132.0
-          ],
-          "pdf_pos": [
-            361.9,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "has",
-            "has"
-          ],
-          "ws7_pos": [
-            390.0,
-            132.0
-          ],
-          "pdf_pos": [
-            390.9,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "suffered",
-            "suffered"
-          ],
-          "ws7_pos": [
-            409.2,
-            132.0
-          ],
-          "pdf_pos": [
-            410.8,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "any",
-            "any"
-          ],
-          "ws7_pos": [
-            451.6,
-            132.0
-          ],
-          "pdf_pos": [
-            455.1,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "decay",
-            "decay"
-          ],
-          "ws7_pos": [
-            473.0,
-            132.0
-          ],
-          "pdf_pos": [
-            476.4,
-            175.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "interruption--no,",
-            "interruption--no,"
-          ],
-          "ws7_pos": [
-            57.6,
-            144.0
-          ],
-          "pdf_pos": [
-            57.6,
-            189.6
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -33.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            145.2,
-            144.0
-          ],
-          "pdf_pos": [
-            144.2,
-            189.6
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -33.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            163.2,
-            144.0
-          ],
-          "pdf_pos": [
-            162.0,
-            189.6
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -33.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "Lie,",
-            "Lie,"
-          ],
-          "ws7_pos": [
-            182.1,
-            144.0
-          ],
-          "pdf_pos": [
-            180.6,
-            189.6
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -33.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "1.Did"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "not"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "take"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            129.6,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            165.6,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "prize."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            194.4,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -16.00pt at 190.3pt into the line (tolerance 7.31pt)"
         },
         {
           "doc": "LYING",
           "page": 2,
-          "line_y_top_pt": 348.0,
+          "line_y_top_pt": 192.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             281.9,
-            348.0
+            192.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3666,15 +2967,15 @@
         },
         {
           "doc": "LYING",
-          "page": 3,
-          "line_y_top_pt": 74.4,
+          "page": 2,
+          "line_y_top_pt": 504.0,
           "words": [
             "\"Yes,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            74.4
+            504.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3682,15 +2983,15 @@
         },
         {
           "doc": "LYING",
-          "page": 3,
-          "line_y_top_pt": 261.6,
+          "page": 2,
+          "line_y_top_pt": 660.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             175.3,
-            261.6
+            660.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3698,15 +2999,15 @@
         },
         {
           "doc": "LYING",
-          "page": 3,
-          "line_y_top_pt": 290.4,
+          "page": 2,
+          "line_y_top_pt": 684.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             122.6,
-            290.4
+            684.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3714,15 +3015,15 @@
         },
         {
           "doc": "LYING",
-          "page": 3,
-          "line_y_top_pt": 333.6,
+          "page": 2,
+          "line_y_top_pt": 720.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             82.1,
-            333.6
+            720.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3731,14 +3032,14 @@
         {
           "doc": "LYING",
           "page": 3,
-          "line_y_top_pt": 463.2,
+          "line_y_top_pt": 168.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             203.3,
-            463.2
+            168.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3746,15 +3047,15 @@
         },
         {
           "doc": "LYING",
-          "page": 4,
-          "line_y_top_pt": 74.4,
+          "page": 3,
+          "line_y_top_pt": 384.0,
           "words": [
             "thoughtfully,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             136.9,
-            74.4
+            384.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -3762,94 +3063,23 @@
         },
         {
           "doc": "LYING",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 3 pages, engine 4 pages"
-        },
-        {
-          "doc": "LYING",
           "page": 1,
-          "line_y_top_pt": 684.0,
+          "line_y_top_pt": 52.0,
           "words": [
-            "1.Did"
-          ],
-          "ws7_pos": [
-            57.6,
-            684.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 684.0,
-          "words": [
-            "not"
-          ],
-          "ws7_pos": [
-            100.8,
-            684.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 684.0,
-          "words": [
-            "take"
-          ],
-          "ws7_pos": [
-            129.6,
-            684.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 684.0,
-          "words": [
+            "the",
             "the"
           ],
           "ws7_pos": [
-            165.6,
-            684.0
+            203.2,
+            52.0
           ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 684.0,
-          "words": [
-            "prize."
+          "pdf_pos": [
+            201.1,
+            76.0
           ],
-          "ws7_pos": [
-            194.4,
-            684.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "font_class": "cgtimes",
+          "reason": "line-start-shift",
+          "detail": "line-start residual -3.20pt (tolerance 2.5pt)"
         },
         {
           "doc": "LYING",
@@ -3885,7 +3115,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 101,
+        "n": 145,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -3926,518 +3156,15 @@
     },
     "PREVIEW": {
       "doc": "PREVIEW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/PREVIEW.WS",
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
-      "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "baseline-shift": 25
-      },
-      "divergences": [
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "Have",
-            "Have"
-          ],
-          "ws7_pos": [
-            144.0,
-            83.7
-          ],
-          "pdf_pos": [
-            144.0,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "look",
-            "look"
-          ],
-          "ws7_pos": [
-            194.4,
-            83.7
-          ],
-          "pdf_pos": [
-            194.4,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "this",
-            "this"
-          ],
-          "ws7_pos": [
-            252.0,
-            83.7
-          ],
-          "pdf_pos": [
-            252.0,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "file",
-            "file"
-          ],
-          "ws7_pos": [
-            288.0,
-            83.7
-          ],
-          "pdf_pos": [
-            288.0,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "under",
-            "under"
-          ],
-          "ws7_pos": [
-            324.0,
-            83.7
-          ],
-          "pdf_pos": [
-            324.0,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 83.7,
-          "words": [
-            "WordStar's",
-            "WordStar's"
-          ],
-          "ws7_pos": [
-            367.2,
-            83.7
-          ],
-          "pdf_pos": [
-            367.2,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 95.7,
-          "words": [
-            "Advanced",
-            "Advanced"
-          ],
-          "ws7_pos": [
-            216.0,
-            95.7
-          ],
-          "pdf_pos": [
-            216.0,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -16.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 95.7,
-          "words": [
-            "Page",
-            "Page"
-          ],
-          "ws7_pos": [
-            280.8,
-            95.7
-          ],
-          "pdf_pos": [
-            280.8,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -16.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 95.7,
-          "words": [
-            "Preview",
-            "Preview"
-          ],
-          "ws7_pos": [
-            316.8,
-            95.7
-          ],
-          "pdf_pos": [
-            316.8,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -16.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 107.7,
-          "words": [
-            "feature",
-            "feature"
-          ],
-          "ws7_pos": [
-            208.8,
-            107.7
-          ],
-          "pdf_pos": [
-            208.8,
-            117.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 107.7,
-          "words": [
-            "issuing",
-            "issuing"
-          ],
-          "ws7_pos": [
-            288.0,
-            107.7
-          ],
-          "pdf_pos": [
-            288.0,
-            117.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 107.7,
-          "words": [
-            "^OP",
-            "^OP"
-          ],
-          "ws7_pos": [
-            345.6,
-            107.7
-          ],
-          "pdf_pos": [
-            345.6,
-            117.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 227.7,
-          "words": [
-            "Univers",
-            "Univers"
-          ],
-          "ws7_pos": [
-            121.6,
-            227.7
-          ],
-          "pdf_pos": [
-            121.2,
-            261.6
-          ],
-          "font_class": "univers",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 227.7,
-          "words": [
-            "Bold",
-            "Bold"
-          ],
-          "ws7_pos": [
-            220.5,
-            227.7
-          ],
-          "pdf_pos": [
-            222.8,
-            261.6
-          ],
-          "font_class": "univers",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 227.7,
-          "words": [
-            "Italic",
-            "Italic"
-          ],
-          "ws7_pos": [
-            284.6,
-            227.7
-          ],
-          "pdf_pos": [
-            289.2,
-            261.6
-          ],
-          "font_class": "univers",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 227.7,
-          "words": [
-            "Bold-Italic",
-            "Bold-Italic"
-          ],
-          "ws7_pos": [
-            353.0,
-            227.7
-          ],
-          "pdf_pos": [
-            356.4,
-            261.6
-          ],
-          "font_class": "univers",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 275.7,
-          "words": [
-            "Albertus",
-            "Albertus"
-          ],
-          "ws7_pos": [
-            182.4,
-            275.7
-          ],
-          "pdf_pos": [
-            182.0,
-            319.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 275.7,
-          "words": [
-            "Bold",
-            "Bold"
-          ],
-          "ws7_pos": [
-            284.1,
-            275.7
-          ],
-          "pdf_pos": [
-            279.9,
-            319.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 275.7,
-          "words": [
-            "Italic",
-            "Italic"
-          ],
-          "ws7_pos": [
-            351.8,
-            275.7
-          ],
-          "pdf_pos": [
-            338.9,
-            319.2
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +19.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 323.7,
-          "words": [
-            "Courier",
-            "Courier"
-          ],
-          "ws7_pos": [
-            87.6,
-            323.7
-          ],
-          "pdf_pos": [
-            87.6,
-            376.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +28.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 323.7,
-          "words": [
-            "Bold",
-            "Bold"
-          ],
-          "ws7_pos": [
-            195.6,
-            323.7
-          ],
-          "pdf_pos": [
-            195.6,
-            376.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +28.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 323.7,
-          "words": [
-            "Italic",
-            "Italic"
-          ],
-          "ws7_pos": [
-            267.6,
-            323.7
-          ],
-          "pdf_pos": [
-            267.6,
-            376.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +28.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 323.7,
-          "words": [
-            "Bold-Italic",
-            "Bold-Italic"
-          ],
-          "ws7_pos": [
-            363.6,
-            323.7
-          ],
-          "pdf_pos": [
-            363.6,
-            376.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +28.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 407.7,
-          "words": [
-            "sample",
-            "sample"
-          ],
-          "ws7_pos": [
-            244.8,
-            407.7
-          ],
-          "pdf_pos": [
-            244.8,
-            477.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +45.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 407.7,
-          "words": [
-            "graphic:",
-            "graphic:"
-          ],
-          "ws7_pos": [
-            295.2,
-            407.7
-          ],
-          "pdf_pos": [
-            295.2,
-            477.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +45.60pt (tolerance 1.0pt)"
-        }
-      ],
+      "no_substitute_word_count": 2,
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 8,
         "median_dx": 0.0,
@@ -6606,7 +5333,6 @@
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 79,
         "extra-word-in-engine": 5,
         "word-unmatched": 4
       },
@@ -6614,814 +5340,14 @@
         {
           "doc": "-SCREEN",
           "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "Issue",
-            "Issue"
-          ],
-          "ws7_pos": [
-            57.6,
-            60.0
-          ],
-          "pdf_pos": [
-            57.6,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "^OD",
-            "^OD"
-          ],
-          "ws7_pos": [
-            100.8,
-            60.0
-          ],
-          "pdf_pos": [
-            100.8,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "(Ctrl-O",
-            "(Ctrl-O"
-          ],
-          "ws7_pos": [
-            129.6,
-            60.0
-          ],
-          "pdf_pos": [
-            129.6,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "followed",
-            "followed"
-          ],
-          "ws7_pos": [
-            187.2,
-            60.0
-          ],
-          "pdf_pos": [
-            187.2,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "Ctrl-D)",
-            "Ctrl-D)"
-          ],
-          "ws7_pos": [
-            309.6,
-            60.0
-          ],
-          "pdf_pos": [
-            309.6,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "toggle",
-            "toggle"
-          ],
-          "ws7_pos": [
-            388.8,
-            60.0
-          ],
-          "pdf_pos": [
-            388.8,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "display",
-            "display"
-          ],
-          "ws7_pos": [
-            439.2,
-            60.0
-          ],
-          "pdf_pos": [
-            439.2,
-            88.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "codes.",
-            "codes."
-          ],
-          "ws7_pos": [
-            57.6,
-            72.0
-          ],
-          "pdf_pos": [
-            57.6,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Issue",
-            "Issue"
-          ],
-          "ws7_pos": [
-            115.2,
-            72.0
-          ],
-          "pdf_pos": [
-            115.2,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "^OP",
-            "^OP"
-          ],
-          "ws7_pos": [
-            158.4,
-            72.0
-          ],
-          "pdf_pos": [
-            158.4,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "try",
-            "try"
-          ],
-          "ws7_pos": [
-            208.8,
-            72.0
-          ],
-          "pdf_pos": [
-            208.8,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "out",
-            "out"
-          ],
-          "ws7_pos": [
-            237.6,
-            72.0
-          ],
-          "pdf_pos": [
-            237.6,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "WordStar's",
-            "WordStar's"
-          ],
-          "ws7_pos": [
-            266.4,
-            72.0
-          ],
-          "pdf_pos": [
-            266.4,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Advanced",
-            "Advanced"
-          ],
-          "ws7_pos": [
-            345.6,
-            72.0
-          ],
-          "pdf_pos": [
-            345.6,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Page",
-            "Page"
-          ],
-          "ws7_pos": [
-            410.4,
-            72.0
-          ],
-          "pdf_pos": [
-            410.4,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Preview.",
-            "Preview."
-          ],
-          "ws7_pos": [
-            446.4,
-            72.0
-          ],
-          "pdf_pos": [
-            446.4,
-            103.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -21.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Normal",
-            "Normal"
-          ],
-          "ws7_pos": [
-            57.6,
-            96.0
-          ],
-          "pdf_pos": [
-            57.6,
-            132.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -16.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "text",
-            "text"
-          ],
-          "ws7_pos": [
-            108.0,
-            96.0
-          ],
-          "pdf_pos": [
-            108.0,
-            132.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -16.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Bold,",
-            "Bold,"
-          ],
-          "ws7_pos": [
-            57.6,
-            108.0
-          ],
-          "pdf_pos": [
-            57.6,
-            146.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "doublestrike,",
-            "doublestrike,"
-          ],
-          "ws7_pos": [
-            100.8,
-            108.0
-          ],
-          "pdf_pos": [
-            100.8,
-            146.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "command",
-            "command"
-          ],
-          "ws7_pos": [
-            201.6,
-            108.0
-          ],
-          "pdf_pos": [
-            201.6,
-            146.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "tags",
-            "tags"
-          ],
-          "ws7_pos": [
-            259.2,
-            108.0
-          ],
-          "pdf_pos": [
-            259.2,
-            146.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -14.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Italics",
-            "Italics"
-          ],
-          "ws7_pos": [
-            57.6,
-            120.0
-          ],
-          "pdf_pos": [
-            57.6,
-            160.8
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "Bold",
-            "Bold"
-          ],
-          "ws7_pos": [
-            57.6,
-            132.0
-          ],
-          "pdf_pos": [
-            57.6,
-            175.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            "Italic",
-            "Italic"
-          ],
-          "ws7_pos": [
-            93.6,
-            132.0
-          ],
-          "pdf_pos": [
-            93.6,
-            175.2
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "Underline",
-            "Underline"
-          ],
-          "ws7_pos": [
-            57.6,
-            144.0
-          ],
-          "pdf_pos": [
-            57.6,
-            189.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -7.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "Superscript",
-            "Superscript"
-          ],
-          "ws7_pos": [
-            57.6,
-            156.0
-          ],
-          "pdf_pos": [
-            57.6,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "E=mc",
-            "E=mc"
-          ],
-          "ws7_pos": [
-            187.2,
-            156.0
-          ],
-          "pdf_pos": [
-            187.2,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "(DOSBox-X",
-            "(DOSBox-X"
-          ],
-          "ws7_pos": [
-            257.5,
-            156.0
-          ],
-          "pdf_pos": [
-            257.5,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "can't",
-            "can't"
-          ],
-          "ws7_pos": [
-            329.5,
-            156.0
-          ],
-          "pdf_pos": [
-            329.5,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "show",
-            "show"
-          ],
-          "ws7_pos": [
-            372.7,
-            156.0
-          ],
-          "pdf_pos": [
-            372.7,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "true",
-            "true"
-          ],
-          "ws7_pos": [
-            408.7,
-            156.0
-          ],
-          "pdf_pos": [
-            408.7,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "superscript",
-            "superscript"
-          ],
-          "ws7_pos": [
-            444.7,
-            156.0
-          ],
-          "pdf_pos": [
-            444.7,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "Subscript",
-            "Subscript"
-          ],
-          "ws7_pos": [
-            57.6,
-            168.0
-          ],
-          "pdf_pos": [
-            57.6,
-            218.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "subscript,",
-            "subscript,"
-          ],
-          "ws7_pos": [
-            322.3,
-            168.0
-          ],
-          "pdf_pos": [
-            322.3,
-            218.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "but",
-            "but"
-          ],
-          "ws7_pos": [
-            401.5,
-            168.0
-          ],
-          "pdf_pos": [
-            401.5,
-            218.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "vDosPlus",
-            "vDosPlus"
-          ],
-          "ws7_pos": [
-            430.3,
-            168.0
-          ],
-          "pdf_pos": [
-            430.3,
-            218.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "can)",
-            "can)"
-          ],
-          "ws7_pos": [
-            495.1,
-            168.0
-          ],
-          "pdf_pos": [
-            495.1,
-            218.4
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "Combinations:",
-            "Combinations:"
-          ],
-          "ws7_pos": [
-            57.6,
-            204.0
-          ],
-          "pdf_pos": [
-            57.6,
-            261.6
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "Bold",
-            "Bold"
-          ],
-          "ws7_pos": [
-            72.0,
-            216.0
-          ],
-          "pdf_pos": [
-            72.0,
-            276.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +7.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 405.6,
+          "line_y_top_pt": 348.0,
           "words": [
             "GpSs"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             72.0,
-            405.6
+            348.0
           ],
           "font_class": "symbol",
           "reason": "extra-word-in-engine",
@@ -7430,14 +5356,14 @@
         {
           "doc": "-SCREEN",
           "page": 1,
-          "line_y_top_pt": 405.6,
+          "line_y_top_pt": 348.0,
           "words": [
             "tFQWdfe"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             108.0,
-            405.6
+            348.0
           ],
           "font_class": "symbol",
           "reason": "extra-word-in-engine",
@@ -7637,825 +5563,24 @@
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 2,
-      "n_engine_pages": 3,
-      "no_substitute_word_count": 316,
+      "n_engine_pages": 2,
+      "no_substitute_word_count": 784,
       "counts_by_reason": {
-        "baseline-shift": 716,
         "extra-word-in-engine": 4,
-        "page-count-mismatch": 1
+        "line-start-shift": 2
       },
       "divergences": [
         {
           "doc": "WARPRAYR",
           "page": 1,
-          "line_y_top_pt": 52.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            235.4,
-            52.0
-          ],
-          "pdf_pos": [
-            234.7,
-            79.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -3.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 52.0,
-          "words": [
-            "Prayer",
-            "Prayer"
-          ],
-          "ws7_pos": [
-            300.7,
-            52.0
-          ],
-          "pdf_pos": [
-            297.3,
-            79.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -3.20pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "\"God",
-            "\"God"
-          ],
-          "ws7_pos": [
-            129.6,
-            428.0
-          ],
-          "pdf_pos": [
-            129.6,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            159.3,
-            428.0
-          ],
-          "pdf_pos": [
-            158.5,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "all-terrible!",
-            "all-terrible!"
-          ],
-          "ws7_pos": [
-            177.6,
-            428.0
-          ],
-          "pdf_pos": [
-            176.3,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "Thou",
-            "Thou"
-          ],
-          "ws7_pos": [
-            236.6,
-            428.0
-          ],
-          "pdf_pos": [
-            234.6,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "who",
-            "who"
-          ],
-          "ws7_pos": [
-            265.6,
-            428.0
-          ],
-          "pdf_pos": [
-            263.3,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 428.0,
-          "words": [
-            "ordainest,",
-            "ordainest,"
-          ],
-          "ws7_pos": [
-            289.9,
-            428.0
-          ],
-          "pdf_pos": [
-            287.2,
-            460.8
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +2.40pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "Thunder",
-            "Thunder"
-          ],
-          "ws7_pos": [
-            129.6,
-            440.0
-          ],
-          "pdf_pos": [
-            129.6,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "thy",
-            "thy"
-          ],
-          "ws7_pos": [
-            174.2,
-            440.0
-          ],
-          "pdf_pos": [
-            173.7,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "clarion",
-            "clarion"
-          ],
-          "ws7_pos": [
-            193.2,
-            440.0
-          ],
-          "pdf_pos": [
-            192.3,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            230.4,
-            440.0
-          ],
-          "pdf_pos": [
-            229.0,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "lightning",
-            "lightning"
-          ],
-          "ws7_pos": [
-            251.2,
-            440.0
-          ],
-          "pdf_pos": [
-            249.6,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "thy",
-            "thy"
-          ],
-          "ws7_pos": [
-            298.3,
-            440.0
-          ],
-          "pdf_pos": [
-            296.4,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 440.0,
-          "words": [
-            "sword!\"",
-            "sword!\""
-          ],
-          "ws7_pos": [
-            317.2,
-            440.0
-          ],
-          "pdf_pos": [
-            315.0,
-            475.2
-          ],
-          "font_class": "cgtimes",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +4.80pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "Then",
-            "Then"
-          ],
-          "ws7_pos": [
-            93.6,
-            464.0
-          ],
-          "pdf_pos": [
-            93.6,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "came",
-            "came"
-          ],
-          "ws7_pos": [
-            123.3,
-            464.0
-          ],
-          "pdf_pos": [
-            122.6,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            151.4,
-            464.0
-          ],
-          "pdf_pos": [
-            152.3,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "\"long\"",
-            "\"long\""
-          ],
-          "ws7_pos": [
-            170.4,
-            464.0
-          ],
-          "pdf_pos": [
-            170.8,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "prayer.",
-            "prayer."
-          ],
-          "ws7_pos": [
-            205.6,
-            464.0
-          ],
-          "pdf_pos": [
-            206.6,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "None",
-            "None"
-          ],
-          "ws7_pos": [
-            244.0,
-            464.0
-          ],
-          "pdf_pos": [
-            245.0,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "could",
-            "could"
-          ],
-          "ws7_pos": [
-            275.5,
-            464.0
-          ],
-          "pdf_pos": [
-            275.4,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "remember",
-            "remember"
-          ],
-          "ws7_pos": [
-            306.2,
-            464.0
-          ],
-          "pdf_pos": [
-            306.4,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            359.7,
-            464.0
-          ],
-          "pdf_pos": [
-            360.6,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "like",
-            "like"
-          ],
-          "ws7_pos": [
-            378.7,
-            464.0
-          ],
-          "pdf_pos": [
-            379.1,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            424.3,
-            464.0
-          ],
-          "pdf_pos": [
-            424.9,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 464.0,
-          "words": [
-            "passionate",
-            "passionate"
-          ],
-          "ws7_pos": [
-            442.3,
-            464.0
-          ],
-          "pdf_pos": [
-            442.7,
-            504.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "pleading",
-            "pleading"
-          ],
-          "ws7_pos": [
-            57.6,
-            476.0
-          ],
-          "pdf_pos": [
-            57.6,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            102.4,
-            476.0
-          ],
-          "pdf_pos": [
-            104.1,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "moving",
-            "moving"
-          ],
-          "ws7_pos": [
-            123.6,
-            476.0
-          ],
-          "pdf_pos": [
-            125.4,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            164.6,
-            476.0
-          ],
-          "pdf_pos": [
-            166.9,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "beautiful",
-            "beautiful"
-          ],
-          "ws7_pos": [
-            185.7,
-            476.0
-          ],
-          "pdf_pos": [
-            188.3,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "language.",
-            "language."
-          ],
-          "ws7_pos": [
-            233.0,
-            476.0
-          ],
-          "pdf_pos": [
-            236.1,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            282.0,
-            476.0
-          ],
-          "pdf_pos": [
-            287.8,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "burden",
-            "burden"
-          ],
-          "ws7_pos": [
-            305.0,
-            476.0
-          ],
-          "pdf_pos": [
-            310.5,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "its",
-            "its"
-          ],
-          "ws7_pos": [
-            357.1,
-            476.0
-          ],
-          "pdf_pos": [
-            362.2,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "supplication",
-            "supplication"
-          ],
-          "ws7_pos": [
-            372.0,
-            476.0
-          ],
-          "pdf_pos": [
-            377.2,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "was,",
-            "was,"
-          ],
-          "ws7_pos": [
-            436.3,
-            476.0
-          ],
-          "pdf_pos": [
-            441.9,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 476.0,
-          "words": [
-            "that",
-            "that"
-          ],
-          "ws7_pos": [
-            461.0,
-            476.0
-          ],
-          "pdf_pos": [
-            467.7,
-            516.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 488.0,
-          "words": [
-            "ever-merciful",
-            "ever-merciful"
-          ],
-          "ws7_pos": [
-            57.6,
-            488.0
-          ],
-          "pdf_pos": [
-            57.6,
-            528.0
-          ],
-          "font_class": "no_substitute",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +9.60pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "WARPRAYR",
-          "page": 1,
-          "line_y_top_pt": 79.2,
+          "line_y_top_pt": 76.0,
           "words": [
             "War"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             263.9,
-            79.2
+            76.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -8464,14 +5589,14 @@
         {
           "doc": "WARPRAYR",
           "page": 2,
-          "line_y_top_pt": 216.0,
+          "line_y_top_pt": 204.0,
           "words": [
             "\"You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             93.6,
-            216.0
+            204.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -8480,14 +5605,14 @@
         {
           "doc": "WARPRAYR",
           "page": 2,
-          "line_y_top_pt": 252.0,
+          "line_y_top_pt": 240.0,
           "words": [
             "You"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            252.0
+            240.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -8496,14 +5621,14 @@
         {
           "doc": "WARPRAYR",
           "page": 2,
-          "line_y_top_pt": 614.4,
+          "line_y_top_pt": 552.0,
           "words": [
             "\"Ye"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             177.6,
-            614.4
+            552.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -8511,18 +5636,47 @@
         },
         {
           "doc": "WARPRAYR",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 2 pages, engine 3 pages"
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "have",
+            "have"
+          ],
+          "ws7_pos": [
+            121.4,
+            180.0
+          ],
+          "pdf_pos": [
+            123.5,
+            204.0
+          ],
+          "font_class": "no_substitute",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +2.90pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "WARPRAYR",
+          "page": 2,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "heard",
+            "heard"
+          ],
+          "ws7_pos": [
+            80.4,
+            216.0
+          ],
+          "pdf_pos": [
+            82.4,
+            240.0
+          ],
+          "font_class": "no_substitute",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +2.80pt (tolerance 2.5pt)"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 93,
+        "n": 96,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }

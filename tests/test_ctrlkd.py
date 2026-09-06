@@ -5010,9 +5010,16 @@ def test_a_tab_never_moves_a_line_vertically():
     `state` was raised the same way), 9.6pt cumulative for the rest of the
     document, which cost page 1 a line.
 
+    (Mechanism T, PCL-DIVERGENCE-TRIAGE.md, 2026-09-07: the "1.2x" factor
+    this defect's own arithmetic used has since been corrected to stock
+    WS7's real AUTO_LEAD_FACTOR, 1.0 -- the defect's SHAPE, a larger
+    outgoing font bleeding into a smaller line's advance, is unchanged by
+    that fix and is what this test still guards; only the literal
+    point values below moved from the 1.2x figures to 1.0x ones.)
+
     Pinned as the arithmetic, not just "unchanged": the 14pt line's own
-    baseline-to-baseline advance must be 1.2 x 14 = 16.8pt whether its text
-    is reached by a tab or typed flush, never 1.2 x 18 = 21.6pt. The
+    baseline-to-baseline advance must be 1.0 x 14 = 14.0pt whether its text
+    is reached by a tab or typed flush, never 1.0 x 18 = 18.0pt. The
     fixture's two documents differ ONLY in the tab.
     """
     from ctrlkd.pdf import emit_pdf
@@ -5040,11 +5047,12 @@ def test_a_tab_never_moves_a_line_vertically():
     tabbed = _ys(tab)
     # The tab moves the BYLINE sideways and nothing else: every y identical.
     assert tabbed == typed
-    # ...and the 14pt line's advance is its OWN font's 1.2x lead, not the
-    # 18pt title's, in both spellings.
+    # ...and the 14pt line's advance is its OWN font's AUTO_LEAD_FACTOR
+    # lead (1.0x stock, mechanism T -- was 1.2x under Sawyer's install),
+    # not the 18pt title's, in both spellings.
     for ys in (typed, tabbed):
-        assert round(ys[b'Byline'] - ys[b'Third'], 1) == 16.8   # 1.2 x 14
-        assert round(ys[b'Byline'] - ys[b'Third'], 1) != 21.6   # NOT 1.2 x 18
+        assert round(ys[b'Byline'] - ys[b'Third'], 1) == 14.0   # 1.0 x 14
+        assert round(ys[b'Byline'] - ys[b'Third'], 1) != 18.0   # NOT 1.0 x 18
 
 
 def test_a_font_change_at_a_tabs_own_offset_reaches_the_tabs_padding():

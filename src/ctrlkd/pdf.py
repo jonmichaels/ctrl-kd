@@ -775,6 +775,51 @@ def _lead_pt(lh_48):
     return lh_48 * 1.5
 
 
+# Mechanism T (PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3 round): the factor
+# `_style_lead_pt`'s "auto" (vmi==-2) branch, its too-small-explicit-vmi
+# fallback, and `_font_lead_pt`'s WS5+ font-block formula all multiply a
+# governing font size by, for STOCK WordStar 7's single-spacing leading.
+#
+# Every prior measurement of this factor (1.2, "19.2pt on a 16pt style",
+# etc. -- see this module's git history and test_style_leading.py before
+# this fix) was taken from `ws7-prints/v1`/`v2`, both captured through
+# Robert J. Sawyer's own WSCHANGE-customized `WS.EXE` -- the SAME install
+# mechanism S already found responsible for the `.po` contamination
+# (column 7 vs the manual's/stock's column 8). WSCHANGE's own settings
+# chart (`Installing and Customizing (WordStar 7)`, the "Changing WordStar
+# Settings in WSCHANGE" appendix) lists this exact feature by name, twice
+# (once under the alphabetical chart, once under its own "Leading" cluster
+# alongside "Leading (line height)" BCJ/240):
+#
+#     Automatic leading, 120% of text size        BCL     OFF
+#
+# i.e. "120% of text size" (1.2x) is a WSCHANGE-toggleable setting whose
+# FACTORY DEFAULT IS OFF. Confirmed directly against a `PRISTINE.EXE`
+# (factory, no WSCHANGE) recapture of the same 4 documents whose leading
+# this module already modelled from Sawyer's install (`ws7-prints/v3`,
+# captured 2026-09-06/07): every baseline gap driven by this formula
+# scales by EXACTLY 1/1.2 under pristine, with zero exceptions --
+#   LYING.pcl   Title(16pt)->Author gap:   19.2pt (v1, Sawyer) -> 16.0pt (v3, pristine)
+#   WARPRAYR.pcl Title(16pt)->Author gap:  19.2pt (v1)         -> 16.0pt (v3)
+#   -SCREEN.pcl body (12pt, font-block, no style) gaps: 14.4pt (v1) -> 12.0pt (v3)
+#   PREVIEW.pcl  every font_lead_pt-governed gap: v3 == v1 / 1.2 exactly
+#     (14.4->12.0, 86.4->72.0, 57.6->48.0, 100.8->84.0)
+# Every OTHER transition this module measured against v1 (explicit vmi
+# that already fits its own font, `.lh`-governed lines, blank lines' own
+# RAW lead) is IDENTICAL between v1 and v3 -- confirming the factor above
+# is the ONLY thing that moved between the two installs; nothing else in
+# this leading model is Sawyer-specific.
+#
+# So: 1.0 (plain single-spacing, no auto-leading padding) is STOCK
+# WordStar 7's real behaviour; 1.2 was Sawyer's own personalization,
+# exactly like `.po` column 7 and page-numbering-off before it. The
+# engine models stock -- see this repo's own standing ruling. A document
+# that explicitly wants the 120%-padded look would need to say so via its
+# own dot commands/style vmi (an explicit vmi is UNCHANGED by this
+# constant either way); nothing in the corpus does.
+AUTO_LEAD_FACTOR = 1.0
+
+
 def _style_lead_pt(block, doc, raw=False):
     """The baseline-to-baseline leading a WS7 paragraph STYLE dictates for
     every physical line in `block` (core.Block.line_height_vmi/style_font_pt,
@@ -797,6 +842,23 @@ def _style_lead_pt(block, doc, raw=False):
     core.Block.style_font_pt's docstring). Falls back to the document's own
     printed SIZE (_printed_size) if the style declared no font of its own
     (an all-zero/recordless font triple).
+
+    UPDATE 2026-09-07 (mechanism T, PCL-DIVERGENCE-TRIAGE.md): the "1.2 x"
+    figure above, and every specific point value in this docstring derived
+    from it (19.2, 14.4, 33.6, ...), was measured against `ws7-prints/v1`,
+    captured through Robert J. Sawyer's own WSCHANGE-customized `WS.EXE` --
+    the SAME install mechanism S already found responsible for contaminating
+    `.po`. A `PRISTINE.EXE` (factory, no WSCHANGE) recapture of the SAME
+    documents (`ws7-prints/v3`) shows every one of these gaps at exactly
+    1/1.2 of the number above (Title/Author 19.2pt -> 16.0pt, Body-to-Body
+    14.4pt -> 12.0pt, the blank-line-spanning 33.6pt -> 28.0pt) -- stock
+    WordStar 7's real auto-leading factor is 1.0, not 1.2; see
+    `AUTO_LEAD_FACTOR`'s own docstring for the manual citation ("Automatic
+    leading, 120% of text size", WSCHANGE path BCL, factory default OFF)
+    and the full v1-vs-v3 evidence table. Left the rest of this docstring's
+    OLD (Sawyer-measured) numbers as written below -- they are still an
+    accurate record of what was measured and when -- rather than editing
+    every instance; only the LIVE factor (`AUTO_LEAD_FACTOR`) changed.
 
     vmi > 0: an EXPLICIT count, in the same 1/1440in VMI unit WSFORMAT.WS
     documents for a font's own height word ("Font height in VMIs
@@ -877,18 +939,21 @@ def _style_lead_pt(block, doc, raw=False):
         size = getattr(block, 'style_font_pt', None)
         if not size:
             size = _printed_size(doc)
-        return size * 1.2
+        return size * AUTO_LEAD_FACTOR
     if vmi > 0:
         # Finding B (b26-print-fidelity-2): an explicit vmi too SMALL for
-        # the style's own font falls back to the SAME auto formula (1.2x
-        # the style's own size) an unset vmi already gets -- WARPRAYR's
-        # Author style (vmi=240=12pt on a 16pt font; 12pt lead on 16pt
-        # type would overlap ascender-to-descender) measures 19.2pt
-        # (1.2x16) for its byline's OWN entry gap. The Body style's
-        # vmi=240 on its OWN 12pt font is the negative case PROVING
-        # vmi/20 remains correct when it fits (240/20 = 12.0 >= 12.0, no
-        # fallback) -- the already-CONFIRMED 12.0pt body leading (~20
-        # consecutive lines, zero drift), unmoved by this fix.
+        # the style's own font falls back to the SAME auto formula
+        # (AUTO_LEAD_FACTOR x the style's own size) an unset vmi already
+        # gets -- WARPRAYR's Author style (vmi=240=12pt on a 16pt font;
+        # 12pt lead on 16pt type would overlap ascender-to-descender)
+        # measures 16.0pt (stock, AUTO_LEAD_FACTOR x 16 -- see that
+        # constant's own docstring for the v1-Sawyer-vs-v3-pristine
+        # measurement this factor is now taken from) for its byline's OWN
+        # entry gap. The Body style's vmi=240 on its OWN 12pt font is the
+        # negative case PROVING vmi/20 remains correct when it fits
+        # (240/20 = 12.0 >= 12.0, no fallback) -- the already-CONFIRMED
+        # 12.0pt body leading (~20 consecutive lines, zero drift), unmoved
+        # by this fix.
         #
         # `raw` (Fix C, b26-print-fidelity-2): the fallback above protects
         # a REAL line's ascender/descender from clipping into the line
@@ -902,7 +967,7 @@ def _style_lead_pt(block, doc, raw=False):
         size = getattr(block, 'style_font_pt', None)
         pt = vmi / 20.0
         if not raw and size and pt < size:
-            return size * 1.2
+            return size * AUTO_LEAD_FACTOR
         return pt
     return None
 
@@ -916,33 +981,47 @@ def _entering_lead_pt(block, doc, prev_block):
     content's own RAW lead was -- i.e. entering an explicitly, tightly-
     leaded block never crowds whatever was above it.
 
+    UPDATE 2026-09-07 (mechanism T): the inventory and cross-check below
+    are re-stated at STOCK WS7's real `AUTO_LEAD_FACTOR` (1.0, not the
+    1.2 the WARPRAYR.pcl/LYING.pcl oracle behind them was originally
+    measured at -- see `AUTO_LEAD_FACTOR`'s own docstring). The two
+    transitions that route entirely through RAW/fitting values (never
+    through the `size * AUTO_LEAD_FACTOR` fallback line) are IDENTICAL
+    between Sawyer's install and stock -- confirmed directly against both
+    `ws7-prints/v1` and `ws7-prints/v3` captures of the same document.
+
     Full block-transition inventory (WARPRAYR.pcl, WS7 frame, blank-line
     + entering-line combined gaps -- a blank line carries no glyph, so
-    only the PAIR is independently measurable):
-        Author(auto,19.2)   -> Body(vmi 240=12, fits)   24.0 = 12.0 + 12.0
-        Body(vmi 240=12)    -> Quote(auto,14.4)  x2      26.4 = 12.0 + 14.4
-        Quote(auto,14.4)    -> Body(vmi 240=12)  x2      28.8 = 14.4 + 14.4
+    only the PAIR is independently measurable; stock/v3 numbers, 1.2x/v1
+    Sawyer numbers alongside where they differ):
+        Author(fallback,16.0; was 19.2) -> Body(vmi 240=12, fits)   24.0 = 12.0 + 12.0 (UNCHANGED -- all-raw/fitting)
+        Body(vmi 240=12)    -> Quote(auto,12.0; was 14.4)  x2       24.0 = 12.0 + 12.0 (was 26.4 = 12.0 + 14.4)
+        Quote(auto,12.0; was 14.4)    -> Body(vmi 240=12)  x2       24.0 = 12.0 + 12.0 (was 28.8 = 14.4 + 14.4)
     Only the Quote -> Body pairs need MORE than `_style_lead_pt` alone
-    gives (26.4, Body's own 12.0 entering gap) -- WS7 floors Body's own
-    entering gap at Quote's own 14.4 instead. Author -> Body does NOT
+    gives (Body's own 12.0 entering gap) -- WS7 floors Body's own
+    entering gap at Quote's own 12.0 instead (a no-op at stock's factor,
+    since Quote's own and Body's own both land on 12.0 already; the
+    floor's EXISTENCE is still proven by the Sawyer/v1 numbers, where
+    12.0 < 14.4 and the floor visibly engages). Author -> Body does NOT
     need this floor once Finding B's fallback is correctly scoped to
     REAL lines only (`raw=True` for Author's OWN blank line, above):
-    Author's raw/exported lead is 12.0 (not its 19.2pt entry fallback),
-    so Body's own entering gap (12.0) is ALREADY >= it, no floor needed
-    -- matching the measured 24.0 exactly with no special case.
+    Author's raw/exported lead is 12.0 (not its fallback value, whatever
+    the live factor makes that), so Body's own entering gap (12.0) is
+    ALREADY >= it, no floor needed -- matching the measured 24.0 exactly
+    with no special case, at either factor.
 
     Cross-checked against LYING.WS, which is entirely auto styles (no
     vmi>0 block exists there to test the floor itself) but DOES cover
     the discriminating case this floor must NOT fire for: Author(auto,
-    19.2) -> Subtitle(auto,14.4) measures 33.6 = 19.2 + 14.4 -- Subtitle's
-    OWN entering gap, NOT floored up to Author's outgoing 19.2 (which
-    would give 38.4, wrong). The floor therefore only applies when the
-    block being ENTERED has an EXPLICIT vmi (this function's own `vmi>0`
-    guard below) -- a genuinely auto style already computes generously
-    relative to its own font and needs no protection against the block
-    before it; this is the ONE rule shape that fits every transition in
-    both measured styled documents, in both directions, with no
-    unexplained gap.
+    16.0; was 19.2) -> Subtitle(auto,12.0; was 14.4) measures 28.0 (was
+    33.6) = 16.0 + 12.0 -- Subtitle's OWN entering gap, NOT floored up to
+    Author's outgoing 16.0 (which would give 32.0, wrong). The floor
+    therefore only applies when the block being ENTERED has an EXPLICIT
+    vmi (this function's own `vmi>0` guard below) -- a genuinely auto
+    style already computes generously relative to its own font and needs
+    no protection against the block before it; this is the ONE rule
+    shape that fits every transition in both measured styled documents,
+    in both directions, with no unexplained gap, at either factor.
 
     NOT independently confirmed: a SECOND real (non-blank) line inside a
     too-small-vmi style also getting the fallback rather than the raw
@@ -995,7 +1074,12 @@ def _font_lead_pt(line, fonts, base_size, state):
 
     RULE (measured 2026-08-20 against PREVIEW.WS/PREVIEW.pcl,
     fidelity_gate.py Finding B -- every gap on the page decomposes to
-    0.3pt residual under it): 1.2 x the largest PROPORTIONAL font size
+    0.3pt residual under it, THEN re-measured 2026-09-07 against the same
+    document's `ws7-prints/v3` PRISTINE.EXE recapture, which shows the
+    identical shape at exactly 1/1.2 of every v1 number -- see
+    `AUTO_LEAD_FACTOR`'s own docstring, the SAME WSCHANGE "Automatic
+    leading, 120% of text size" setting Sawyer's install had ON):
+    AUTO_LEAD_FACTOR x the largest PROPORTIONAL font size
     (doc.fonts[n]['proportional'] True) active anywhere on the line,
     carried forward through blank lines. A FIXED-PITCH font block
     (Courier, any declared point size) NEVER raises the governing size
@@ -1003,11 +1087,12 @@ def _font_lead_pt(line, fonts, base_size, state):
     line, RESETS the carried state -- WS5+ Courier font blocks change
     PITCH (historically elite/pica variants of the one typewriter face),
     not real vertical measure, so a 20pt Courier block's own line and
-    every blank line after it print at the plain 1.2x12=14.4pt default,
-    not 1.2x20. Confirmed on PREVIEW's OWN 12pt intro (no font tag at
-    all yet -- 14.4pt gaps) and its trailing Courier-20pt block (6 blank
-    continuation lines, all 14.4pt, not 24.0pt) alike -- both land on the
-    SAME formula via `state`, not a special case. A line whose OWN
+    every blank line after it print at the plain AUTO_LEAD_FACTOR x 12 =
+    12.0pt (stock) default, not AUTO_LEAD_FACTOR x 20. Confirmed on
+    PREVIEW's OWN 12pt intro (no font tag at all yet -- 12.0pt gaps,
+    14.4pt under Sawyer's install) and its trailing Courier-20pt block (6
+    blank continuation lines, all 12.0pt, not 20.0pt) alike -- both land
+    on the SAME formula via `state`, not a special case. A line whose OWN
     leading spaces still carry the OUTGOING tag before a mid-line font
     change (WordStar's own encoding: the change lands after the
     characters it precedes, not at line start) takes the LARGER of every
@@ -1042,7 +1127,7 @@ def _font_lead_pt(line, fonts, base_size, state):
         state[0] = None
     elif prop_sizes_here:
         state[0] = max(prop_sizes_here)
-    return (governing if governing else base_size) * 1.2
+    return (governing if governing else base_size) * AUTO_LEAD_FACTOR
 
 
 def _printed_lead(doc):

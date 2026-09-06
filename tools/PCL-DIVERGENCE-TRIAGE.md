@@ -68,6 +68,18 @@ happened to carry the exact same wrong offset, which the per-page
 frame-offset normalization then silently absorbed as "the page's own
 consistent calibration."
 
+**Mechanism-T round, 2026-09-07 (planning task, `ws7-prints/v3` PRISTINE.EXE
+recapture):** traced and fixed the engine's "auto"/single-spacing leading
+factor for proportional/sized text, the SAME class of bug as mechanism S
+(a real, install-specific WSCHANGE customization on Robert J. Sawyer's
+`WS.EXE` that `ws7-prints/v1`/`v2` had been (wrongly) modelling as
+WordStar 7's own stock behaviour). LYING/WARPRAYR/-SCREEN/PREVIEW's
+`baseline-shift` and `page-count-mismatch` divergences, previously
+attributed to unexplained drift, all resolve to zero (WARPRAYR, -SCREEN,
+PREVIEW) or drop to a small, separately-diagnosed residual (LYING) once
+the factor is corrected to stock's real value. See mechanism T's own
+entry, below mechanism S.
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -98,6 +110,7 @@ changes it describes are the only outputs.
 | Q. A `.h#`/`.f#` right-align tab's own padding is baked to the width the eventual `#` substitution was ASSUMED to have when the file was last saved (always 1 digit — WordStar's own screen shows the literal `#` token) instead of THIS page's own real page-number width | -README (running head "WordStar 7.0 Archive / #", pages 10-16, all seven 2-digit pages) | exact-drift, line-start-shift (the whole header line, every 2-digit page) | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab and crosses a page-number digit-count boundary) | **FIXED** (`src/ctrlkd/core.py` `Document.header_tabs`/`footer_tabs`, `_parse_head_foot`'s new `tab_mark`; `src/ctrlkd/pdf.py` `_hf_line_ops`'s new `tab_rec` branch; second residuals round) |
 | R. A footnote's own `1.`-style marker gets a literal space appended even when WS7's real capture glues it directly to the note text with no separator at all; separately, the footnote AREA's own bottom-anchor override was gated on exceeding one FULL default-lead gap, silently accepting any SMALLER (but still real) overshoot | LYING (its own single footnote, `1.Did not take the prize.`) | word-unmatched, extra-word-in-engine, baseline-shift (the whole footnote line, both effects) | **BROAD SUPPORT** (any document with a footnote, for the marker join; any document whose footnote area's own natural flow position overshoots the bottom anchor by LESS than one lead, for the anchor gate) | **FIXED** (`src/ctrlkd/pdf.py` `_note_marker`'s default join, `_paginate_printed_notes`'s `override > 0` gate; second residuals round) |
 | S. `core.DEFAULT_PO_COLS` (an UNSET `.po`'s resolved value) was briefly changed 8.0 → 7.0 on the theory that real WS7's own factory default was column 7, not the manual's stated column 8 — measured across all 18 `ws7-prints/v1` captures, all 17 undeclared-`.po` documents landing 7.2pt LEFT of the manual's figure. A direct probe of stock WordStar 7 (`PRISTINE.EXE`, untouched, no WSCHANGE) settled it the other way: stock's real factory default IS column 8, exactly as the manual says. Every one of those 18 captures was made through Robert J. Sawyer's own WSCHANGE-customized install, whose `.po` factory default he had personally set to 0.7in/column 7 — the corpus is uniformly Sawyer's-install, not stock, so it measured Sawyer's customization and reported it as WordStar's | Every document above whose body-margin question mechanism Q left open — -README, LYING (confirmed directly) — PLUS every other document in the corpus that never sets its own `.po`; the true state is a real, expected, and now-explained +7.2pt frame offset in the `ws7-prints/v1` corpus against this engine's STOCK rendering, not an engine bug | exact-drift, line-start-shift, and (for -README/LYING specifically) the residuals mechanism Q/R's own entries already named as "newly-surfaced, not attempted" — all attributable to the corpus's own install customization, not to `_resolve_left_pt`/`_printed_left` | **CORPUS PROVENANCE, not an engine bug** (the engine models STOCK WordStar 7; the capture corpus is uniformly Sawyer's customized install) | **REVERTED** (`src/ctrlkd/core.py` `DEFAULT_PO_COLS` restored to 8.0; Jon's ruling 2026-09-06, after the `PRISTINE.EXE` probe — see UPDATE at the end of mechanism S, below) |
+| T. The engine's "auto"/single-spacing leading for a paragraph style's `vmi==-2`, a too-small explicit `vmi`'s fallback, and a WS5+ font-block's own proportional-size leading (no style) all multiplied the governing font size by 1.2 — measured 2026-08-20 against `ws7-prints/v1` (Sawyer's `WS.EXE`), the SAME install mechanism S already found to have contaminated `.po`. A `PRISTINE.EXE` recapture of the same 4 documents (`ws7-prints/v3`, 2026-09-06/07) shows every one of these gaps at exactly 1/1.2 of the v1 figure, with zero exceptions | LYING, WARPRAYR (both styled, `vmi==-2`/too-small-`vmi` fallback), -SCREEN, PREVIEW (both WS5+ font-block, no style) — would also hit any other styled or font-block document using proportional/sized text, corpus-wide | baseline-shift (nearly all of it, all 4 documents), page-count-mismatch (LYING, WARPRAYR) | **BROAD SUPPORT** (any document using a paragraph style or a WS5+ proportional font block) | **FIXED** (`src/ctrlkd/pdf.py` `AUTO_LEAD_FACTOR` 1.2 → 1.0, consumed by `_style_lead_pt`/`_font_lead_pt`; mechanism-T round, cites "Automatic leading, 120% of text size" WSCHANGE path BCL, factory default OFF, `Installing and Customizing (WordStar 7)`) |
 
 ---
 
@@ -1303,6 +1316,179 @@ stock WS7). Anyone comparing this engine's output against the
 expect a uniform +7.2pt body-position offset on every document that
 never declares its own `.po`, and should attribute it to Sawyer's own
 WSCHANGE setting, not to this engine.
+
+---
+
+## T. Printed's "auto"/single-spacing leading multiplier was Sawyer's WSCHANGE setting (120%), not WordStar 7's stock default (100%) — FIXED
+
+**Task.** Planning-assigned suspicion: `_style_lead_pt`/`_font_lead_pt`'s
+"auto" leading formula (`size * 1.2`, first measured 2026-08-20 against
+`ws7-prints/v1`) produces LYING/WARPRAYR/-SCREEN/PREVIEW's `baseline-
+shift` divergences and LYING/WARPRAYR's `page-count-mismatch` against
+the `ws7-prints/v3` PRISTINE.EXE recapture — the same class of
+contamination mechanism S already found and fixed for `.po`.
+
+**Evidence.** Direct side-by-side of the SAME baseline gap, same
+document, same font size, `v1` (Sawyer's `WS.EXE`) vs `v3` (`PRISTINE.EXE`,
+factory, no WSCHANGE), both read straight from `measurements.json`'s own
+`baseline_gaps_pt`/`chunks` (decoded via the PCL `ESC&aV` vertical-position
+escape, `tools/pcl_text.py`'s grammar):
+
+| Doc | Transition (font size) | v1 (Sawyer) gap | v3 (pristine) gap | ratio |
+|---|---|---:|---:|---:|
+| LYING | Title(16pt, style auto) → Author(16pt) | 19.2pt | 16.0pt | 1/1.2 |
+| LYING | Author(16pt) → Subtitle(12pt), across a blank line | 33.6pt | 28.0pt | 1/1.2 |
+| WARPRAYR | Title(16pt, style auto) → Author(16pt) | 19.2pt | 16.0pt | 1/1.2 |
+| -SCREEN | body (12pt, WS5+ font block, no style) | 14.4pt | 12.0pt | 1/1.2 |
+| PREVIEW | 12pt intro (no font tag yet) | 14.4pt | 12.0pt | 1/1.2 |
+| PREVIEW | Courier-20pt block, blank continuation lines | 86.4pt | 72.0pt | 1/1.2 |
+| PREVIEW | further font-size transitions (2 more) | 57.6pt, 100.8pt | 48.0pt, 84.0pt | 1/1.2 |
+
+Every single gap this formula governs, across all four documents, scales
+by EXACTLY 1/1.2 under the pristine recapture — no exceptions, no
+partial cases. Transitions this formula does NOT govern (an explicit
+`vmi` that already fits its own font, a blank line's own RAW/unfallen-
+back lead, `.lh`-driven lines) are IDENTICAL between `v1` and `v3` —
+e.g. WARPRAYR's Author(fallback)→Body(vmi=240, fits) gap is 24.0pt in
+BOTH captures, because that specific transition's arithmetic never
+touches the size-scaling formula at all (see `pdf._entering_lead_pt`'s
+own docstring for the full transition inventory). This isolates the
+factor itself as the ONLY thing that moved between the two installs.
+
+**The manual.** `Installing and Customizing (WordStar 7)`, the "Changing
+WordStar Settings in WSCHANGE" chart (the archive's own manuals, read
+read-only from the preservation copy), lists this exact feature by name,
+twice — once alphabetically, once in its own "Leading" cluster next to
+"Leading (line height)" (`BCJ`, default 240 VMI = 12pt, the plain
+document-default leading this engine already modelled correctly):
+
+```
+Automatic leading, 120% of text size        BCL              OFF
+```
+
+"120% of text size" is 1.2x — the exact factor this engine had been
+using unconditionally — and its own row states the FACTORY DEFAULT is
+OFF. A WSCHANGE-toggleable setting whose factory default is OFF, uniformly
+ON across every `v1`/`v2` capture (all made on Sawyer's own `WS.EXE`),
+is precisely the shape of a personalized install being mistaken for
+stock behaviour — the identical pattern mechanism S already established
+for `.po` (factory column 8 vs Sawyer's personal column 7) and the v3
+README's own findings #1-#3 (`.po`, page-numbering default, footnote/
+endnote printing) already established for three OTHER settings on the
+same machine.
+
+**What "OFF" means concretely.** With automatic leading off, a style's
+"auto" (`vmi==-2`) or a too-small explicit `vmi`'s fallback advances by
+exactly 1.0x its own governing font size — plain single-spacing, the
+line's own height and nothing more — not 120% of it. This is a genuine
+behavioural fact about stock WordStar 7's typesetting, not a rounding
+quirk: LYING's 16pt Title/Author lines advance by exactly 16.0pt on real
+stock WS7, not 19.2pt.
+
+**Fix.** `src/ctrlkd/pdf.py`: new module constant `AUTO_LEAD_FACTOR = 1.0`
+(placed beside `_lead_pt`, with the full evidence table and manual
+citation in its own docstring), replacing the three previously-hardcoded
+`* 1.2` call sites: `_style_lead_pt`'s `vmi==-2` branch, its too-small-
+explicit-`vmi` fallback branch, and `_font_lead_pt`'s WS5+ proportional-
+size formula. `MODERN_LINE = 1.2` (Modern's OWN, deliberate, Word-
+convention single-spacing constant — CLAUDE.md: "Modern diverges from
+paper BY DESIGN") is untouched; this is a Printed-only fix, confirmed by
+`test_style_auto_leading_never_reaches_modern_pdf` (updated alongside,
+see below).
+
+**Tests.** `tests/test_style_leading.py`: every numeric assertion this
+factor drives (`test_auto_vmi_leading_matches_measured_lying_gap_profile`,
+`test_blank_line_between_styles_advances_at_its_own_blocks_leading`,
+`test_entering_line_after_auto_style_is_floored_at_the_auto_lead`,
+`test_entering_an_auto_style_is_never_floored`,
+`test_explicit_vmi_is_absolute_points_unless_too_small_for_its_font`,
+`test_style_auto_with_no_font_of_its_own_falls_back_to_document_size`,
+`test_auto_vmi_leading_reaches_printed_rtf_as_two_distinct_sl_values`,
+`test_explicit_vmi_too_small_for_font_reaches_printed_rtf_too`) re-pinned
+to the stock (1.0x) values, each docstring citing both the old (Sawyer)
+and new (stock) number so the change is auditable line-by-line.
+`test_style_auto_leading_never_reaches_modern_pdf`'s own fixture changed
+(vmi=240 on a 12pt font, an explicit value that FITS, now numerically
+coincides with 1.0x12=12.0 auto leading — the sibling case needed to stay
+distinguishing swapped to vmi=300/15.0pt, still fits its font, still
+distinct from auto at any factor). `tests/test_ctrlkd.py`:
+`test_a_tab_never_moves_a_line_vertically`'s pinned arithmetic (14pt line
+gets its OWN 1.0x14=14.0pt lead, never the 18pt title's 1.0x18=18.0pt)
+— the OLDTIMES.WS regression this test guards is a font-bleed SHAPE bug,
+independent of which factor is live, so only the literal numbers moved.
+
+**Before/after, `tools/pcl_tolerance.py --doc`, real (non-font-
+substitution) divergence counts against `ws7-prints/v3`:**
+
+| Doc | baseline-shift before → after | page-count-mismatch before → after | other reasons before → after | verdict after |
+|---|---:|---:|---|---|
+| LYING | 40 → 5 | 1 → 0 | word-unmatched 7→2, extra-word-in-engine 12→7, line-start-shift 0→1 | divergent (residual below) |
+| WARPRAYR | 40 → 0 | 1 → 0 | extra-word-in-engine 4→4, line-start-shift 0→2 | divergent (pre-existing content mismatch, see `ws7-prints/v3/README.md`'s own WARPRAYR section — a glossary/abbreviation-expansion difference between installs, not a position bug; not this task's scope) |
+| -SCREEN | 79 → 0 | n/a | word-unmatched 4→4, extra-word-in-engine 5→5 (pre-existing: `v3`'s footnote/endnote block is genuinely absent from the pristine capture, per that README's finding #3, plus the already-named Symbol/cp437 mixed-encoding edge case) | divergent (both pre-existing, unrelated to this fix) |
+| PREVIEW | 25 → 0 | n/a | none | **clean** |
+
+`.po` and the page-numbering-default fix (mechanisms S/v3-finding-#2)
+re-checked against this same run: unaffected — every document's own
+`document_frame_offset_pt` (`n`, `median_dx`, `iqr_dx`) is unchanged
+before/after this fix, and `-README`'s own divergence counts (35
+baseline-shift / 6 exact-drift / 785 extra-word-in-engine / 1
+page-count-mismatch / 136 word-unmatched — a PRE-EXISTING, unrelated
+issue, confirmed bit-for-bit identical with `AUTO_LEAD_FACTOR` reverted
+to 1.2 and restored to 1.0) prove this fix touches nothing outside the
+styled/font-block leading path. Every OTHER document in the corpus
+(BOXES, DOCA, DOCB, DOCC, DOCD, OCAPTAIN, DOCE, SAWYER, SCRIPT, DOCF,
+TWAINLET, VERSIONS) is **clean** against `v3` both before and after —
+`pytest tests/ -q` (reduced tier): 844 passed both before and after,
+zero regressions; `tests/answer_key.json` regenerated (`tools/
+answer_key.py --record`), 23 documents' cells moved (LYING.WS/WARPRAYR.WS
+— the two public bundled samples — plus 21 real Sawyer-archive documents
+using paragraph styles or WS5+ proportional font blocks: -README.WS,
+-SCREEN.WS, OLDTIMES.WS, PREVIEW.WS, WSFORMAT.WS, and others), all
+consistent with this being a genuine, correct, corpus-wide leading
+change rather than a narrow fix; `tests/pcl_fidelity_manifest.json`
+regenerated (`tools/pcl_tolerance.py --record`).
+
+**Residual, named not fixed: LYING's footnote area (5 `baseline-shift`
+entries, all on `"1.Did not take the prize."`).** WS7's real footnote
+line sits at y=684.0pt under pristine; the engine (post-fix) places it
+at y=720.0pt, a 36pt (3-line) gap. This is NOT the auto-leading factor —
+`_printed_notes_reserve_pt`'s formula (`(mb_lines - 1) * 12`) has no
+font-size term at all, so `AUTO_LEAD_FACTOR` cannot be the cause, and
+the SAME document's OWN body-text baseline gaps (the ones this
+mechanism does govern) all match `v3` exactly once this fix landed.
+Direct comparison against `v1` shows the SAME document's footnote line
+at y=708.0pt under Sawyer's install — 24pt higher than the mechanism-R-
+era measurement this constant was calibrated from — and LYING's own
+TITLE (page 1, top of page, governed by an entirely separate function,
+`_printed_top`'s `.mt`/`.hm`-line reserve) shows a comparable but not
+identical ~27pt shift between `v1` and `v3`. Both look like a THIRD,
+not-yet-isolated WSCHANGE vertical-margin customization (top and/or
+bottom reserve line-counts) analogous to mechanism S's `.po` and this
+entry's own leading factor — but a quick cross-check against other
+`v3`-clean documents (OCAPTAIN, TWAINLET, SAWYER, BOXES: all land their
+own first baseline at 48.0pt = 36pt reserve + 12pt lead, i.e. NO `.hm`
+addition either, and are already clean) shows the top-margin shift is
+NOT a simple uniform constant across the whole corpus — it interacts
+with something per-document not yet identified (most likely each
+document's own `.mt`/`.hm` dot-command state, or a leading-blank-line
+count, not yet isolated). Flagged for its own future investigation,
+scoped and evidenced the same way mechanism S's `.po` saga was — **not
+attempted here**, per this task's own scope (the auto-leading factor
+only). LYING's `verdict` stays `divergent` for this reason alone; every
+other divergence on this document (the `cgtimes-drift-exceeds-tolerance`
+count, `extra-word-in-engine`/`word-unmatched` on pages 2-3) is the
+PRE-EXISTING, already-accepted-by-design mechanism I font-substitution
+wrap cascade, unchanged in kind by this fix.
+
+**What this changed for a consumer.** Every PRINTED-mode PDF/RTF/layout
+output for a document using a WS7 paragraph style (`vmi==-2` or a
+too-small explicit `vmi`) or a WS5+ proportional font block with no
+governing style now advances vertically at 1.0x the governing font size
+instead of 1.2x — tighter line spacing on titles, bylines, and any
+proportional-font passage in a fontless-by-default document. A document
+that genuinely wants the 120%-padded look would need to say so via its
+own dot commands; nothing in the corpus does, and `MODERN_LINE` (Modern
+mode's own, separate, Word-convention 1.2x) is unaffected either way.
 
 ---
 
