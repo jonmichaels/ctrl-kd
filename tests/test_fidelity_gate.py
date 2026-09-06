@@ -297,6 +297,56 @@ def test_resolve_doc_paths_index_overrides_private_docs_archive_search(tmp_path,
     assert ws_path == str(tmp_path / 'sawyer' / 'SAWYER.WS')
 
 
+def test_resolve_doc_paths_prefers_a_v2_capture_of_the_same_source(tmp_path, monkeypatch):
+    """Mechanism E (tools/PCL-DIVERGENCE-TRIAGE.md): a v2 recapture of the
+    SAME sources.json 'source' path is preferred over v1 when it exists on
+    disk -- v2's own layout nests the capture under the source path itself
+    (v2/sawyer/-README.WS.measurements.json), not v1's flat
+    NAME.measurements.json."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / '-README.measurements.json').write_text('{"v": 1}')
+    (prints_dir / '-README.pcl').write_bytes(b'v1')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'-README': {'source': 'sawyer/-README.WS', 'group': 'sawyer'}},
+    }))
+    v2_dir = tmp_path / 'ws7-prints' / 'v2' / 'sawyer'
+    v2_dir.mkdir(parents=True)
+    (v2_dir / '-README.WS.measurements.json').write_text('{"v": 2}')
+    (v2_dir / '-README.WS.pcl').write_bytes(b'v2')
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('-README')
+    assert ws_path == str(tmp_path / 'sawyer' / '-README.WS')
+    assert mpath == str(v2_dir / '-README.WS.measurements.json')
+    assert pcl_path == str(v2_dir / '-README.WS.pcl')
+
+
+def test_resolve_doc_paths_uses_v1_when_no_v2_capture_exists_for_that_source(tmp_path, monkeypatch):
+    """Same index shape as above, but no v2 directory at all -- must fall
+    back to v1 exactly as before this mechanism-E change (every other
+    document in the corpus, which has no v2 recapture yet)."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    (prints_dir / 'SAWYER.pcl').write_bytes(b'')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'SAWYER': {'source': 'sawyer/SAWYER.WS', 'group': 'sawyer'}},
+    }))
+    assert not (tmp_path / 'ws7-prints' / 'v2').exists()
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('SAWYER')
+    assert mpath == str(prints_dir / 'SAWYER.measurements.json')
+    assert pcl_path == str(prints_dir / 'SAWYER.pcl')
+
+
 def test_resolve_doc_paths_falls_back_to_group_search_when_index_absent(tmp_path, monkeypatch):
     """No sources.json in the corpus at all (an older clone) -- resolution
     must still work the old way, unchanged."""

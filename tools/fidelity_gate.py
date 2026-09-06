@@ -154,6 +154,21 @@ DEFAULT_AUTHORED_ROOT = (
 # was removed 2026-09-05 once the data moved into the corpus (Jon: "I
 # don't love that we have it").
 PRINTS_SUBDIR = 'v1'
+# A second, newer capture round lives alongside v1 at ws7-prints/v2/ --
+# NOT one flat NAME.measurements.json/.pcl pair per doc like v1, but the
+# doc's own sources.json-relative SOURCE PATH plus the same two
+# extensions (e.g. v1 has 'sawyer/-README.WS' captured at
+# v1/-README.measurements.json; v2 has the SAME capture at
+# v2/sawyer/-README.WS.measurements.json). See resolve_doc_paths and
+# tools/PCL-DIVERGENCE-TRIAGE.md mechanism E: -README's own v1 capture
+# predates the current Sawyer-archive file (v1.4 vs v1.5) and undercounts
+# its real page count by 2; a v2 recapture already exists and matches the
+# CURRENT engine's output verbatim. resolve_doc_paths therefore prefers
+# the v2 capture for ANY doc that has one (checked via sources.json's own
+# 'source' path, not a doc-name allowlist -- so a future v2 recapture of
+# any other Sawyer-archive document is picked up with no code change
+# here), falling back to v1 when no v2 capture exists for that source yet.
+PRINTS_SUBDIR_V2 = 'v2'
 # The capture index (see module docstring): one entry per NAME, giving a
 # corpus-relative source path -- resolved BEFORE the group-search fallback
 # below, so a new capture only needs an index entry, never a code change
@@ -688,7 +703,15 @@ def resolve_doc_paths(doc_name: str):
     index names resolves to $CTRLKD_PRIVATE_CORPUS/<its 'source' path>,
     regardless of which private group it lives under. Only when the
     index file itself is absent does this fall back to the older
-    PRIVATE_DOCS/DEFAULT_AUTHORED_ROOT group search."""
+    PRIVATE_DOCS/DEFAULT_AUTHORED_ROOT group search.
+
+    When the index resolves a 'source' path, a v2 capture of that SAME
+    source (see PRINTS_SUBDIR_V2 above) is preferred over v1 whenever one
+    exists on disk -- v1 stays the default and the only capture directory
+    ever required to exist at all (the RuntimeError below still checks v1
+    first, so an entirely uncaptured doc still fails loud naming its v1
+    path); a v2 capture only ever REPLACES which measurements_path/pcl_path
+    this function returns, never which doc names are known."""
     if not _PRIVATE_CORPUS_ROOT:
         raise RuntimeError(
             f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures '
@@ -708,6 +731,11 @@ def resolve_doc_paths(doc_name: str):
         entry = index.get('captures', {}).get(doc_name)
         if entry is not None:
             ws_path = os.path.join(_PRIVATE_CORPUS_ROOT, entry['source'])
+            v2_dir = os.path.join(_PRIVATE_CORPUS_ROOT, 'ws7-prints', PRINTS_SUBDIR_V2)
+            v2_measurements = os.path.join(v2_dir, f"{entry['source']}.measurements.json")
+            v2_pcl = os.path.join(v2_dir, f"{entry['source']}.pcl")
+            if os.path.exists(v2_measurements):
+                measurements_path, pcl_path = v2_measurements, v2_pcl
             return ws_path, measurements_path, pcl_path
 
     if doc_name in PRIVATE_DOCS:

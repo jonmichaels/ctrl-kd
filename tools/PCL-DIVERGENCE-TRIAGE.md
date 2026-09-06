@@ -9,6 +9,28 @@ DOCC). Jon's ruling (#202, verbatim): fix the BROAD SUPPORT mechanisms
 things every document relies on); LJ6DTP's own "printing hack" items stay
 parked; font-substitution residuals are named, not fixed.
 
+**Follow-up round, same day:** mechanisms C and D (both diagnosed-but-
+unfixed harness bugs below) are now FIXED in `tools/pcl_tolerance.py`
+(`_merge_kerning_split_chunks`, `_dedupe_double_strike_chunks`), and
+mechanism E's recommendation ("recapture/re-point for every Sawyer-archive
+document, not just -README") is now live: `tools/fidelity_gate.py`'s
+`resolve_doc_paths` prefers a `ws7-prints/v2/<source path>` capture over
+`v1/NAME` for ANY document that has one, keyed by `sources.json`'s own
+`source` field, not a doc-name allowlist. Also fixed: the `pcl` tier's own
+reason-filter defect (`tests/test_pcl_fidelity.py` used to filter out
+divergences whose reason was the literal `'font-substitution'` — a string
+`doc_report()` never emitted; see `tools/pcl_tolerance.py`'s new
+`FONT_SUBSTITUTION_REASONS`/`is_font_substitution_reason`). One
+consequence worth flagging loudly: `ws7-prints/v2` turned out to already
+cover 14 of this triage's 18 captured documents (the v2 full-corpus batch,
+paused at 188/467 for stall diagnosis as of today), not just -README —
+every one of those 14 automatically switched ground truth as a direct
+result of the general (not -README-specific) fix, and one of them
+(mechanism F, below) turned out to flip an "OPEN, insufficient evidence"
+diagnosis into "resolved -- it was a v1 CAPTURE artifact, not a real WS7
+behavior." See each mechanism's own updated entry below for what changed
+and why.
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -22,10 +44,10 @@ changes it describes are the only outputs.
 |---|---|---|---|---|
 | A. `.pm`/style first-line indent double-counted a typed leading indent | WARPRAYR, (would also have hit any other style-governed document that types its own hanging indent) | baseline-shift (indirectly, via alignment desync), line-start-shift, word-unmatched | **BROAD SUPPORT** | **FIXED** (`src/ctrlkd/pdf.py` `_printed_pm_fi_pt`, commit 8956ad4) |
 | B. Harness `Tz`/`Ts` operator order (test tooling, not the engine) | WARPRAYR, LYING, PREVIEW, and every other document with a CG-Times/Univers-tier (Tz-scaled) line | word-unmatched, extra-word-in-engine, and everything a mismatched word desyncs downstream | **TOOLING** (harness bug, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `_TEXT_OP_RE`, commit 7285270) |
-| C. WS7's own kerning-pair chunk-split ("W"+"ar", "Y"+"ou", "T"+"wain") | WARPRAYR (title "War"), TWAINLET/-README/others ("You", "Twain") — recurring across the corpus wherever a kerned pair starts a chunk | word-unmatched, extra-word-in-engine, and the alignment desync this causes for everything after it on the page | **TOOLING** (harness word-matching, not an engine behaviour — see below) | **DIAGNOSED, NOT FIXED** |
-| D. Duplicate-position WS7 chunks (double-strike bold) | BOXES, SAWYER, VERSIONS (~all of their word-unmatched); partial in PREVIEW, SCRIPT, -SCREEN | word-unmatched, line-start-shift | **TOOLING** (harness word-matching) | **DIAGNOSED, NOT FIXED** |
-| E. `-README` v1 capture predates the current Sawyer archive file (v1.4 → v1.5) | -README | page-count-mismatch, and very likely most of its baseline-shift/word-unmatched/extra-word-in-engine | **CORPUS STALENESS** (not an engine bug) | **DIAGNOSED**, needs corpus recapture (planning #196/task 2), out of this repo's scope |
-| F. 2 consecutive blank source lines print as 1 blank line's advance, but ONLY in plain-default-leading (no `.lh`/style) documents | OCAPTAIN, TWAINLET | baseline-shift (all of it, both docs) | Looked BROAD SUPPORT, but... | **OPEN — insufficient evidence for a safe rule** (see below) |
+| C. WS7's own kerning-pair chunk-split ("W"+"ar", "Y"+"ou", "T"+"wain") | WARPRAYR (title "War"), TWAINLET/-README/others ("You", "Twain") — recurring across the corpus wherever a kerned pair starts a chunk | word-unmatched, extra-word-in-engine, and the alignment desync this causes for everything after it on the page | **TOOLING** (harness word-matching, not an engine behaviour — see below) | **FIXED** (`tools/pcl_tolerance.py` `_merge_kerning_split_chunks`, same-day follow-up) |
+| D. Duplicate-position WS7 chunks (double-strike bold) | BOXES, SAWYER, VERSIONS (~all of their word-unmatched); partial in PREVIEW, SCRIPT, -SCREEN | word-unmatched, line-start-shift | **TOOLING** (harness word-matching) | **FIXED** (`tools/pcl_tolerance.py` `_dedupe_double_strike_chunks`, same-day follow-up) |
+| E. `-README` v1 capture predates the current Sawyer archive file (v1.4 → v1.5) | -README, plus (once generalized) 13 more of this triage's 18 documents that already have a `ws7-prints/v2` capture | page-count-mismatch, and very likely most of its baseline-shift/word-unmatched/extra-word-in-engine | **CORPUS STALENESS** (not an engine bug) | **FIXED, generalized** (`tools/fidelity_gate.py` `resolve_doc_paths` now prefers any doc's own `v2` capture over `v1`, same-day follow-up) |
+| F. 2 consecutive blank source lines print as 1 blank line's advance, but ONLY in plain-default-leading (no `.lh`/style) documents | OCAPTAIN, TWAINLET | baseline-shift (all of it, both docs) | Looked BROAD SUPPORT, but... | **RESOLVED — was a v1 CAPTURE artifact, not a real WS7 behavior** (see below) |
 | G. Superscript/subscript advance width computed at the RAISED/reduced glyph size rather than the document's fixed-pitch cell, in a fixed-pitch document | DOCC (footnote references), -SCREEN (explicit sup/sub demo) | exact-drift | **BROAD SUPPORT** (a real, cumulative, per-occurrence drift) | **DIAGNOSED, fix attempted and reverted — root cause not yet pinned** |
 | H. LJ6DTP's own printing-hack items (title fragmentation, table numbers, shading headings, Univers/CG-Times mapping residuals) | LJ6DTP only | baseline-shift, extra-word-in-engine, word-unmatched, line-start-shift, exact-drift, cgtimes-drift | **PARKED per Jon's ruling** | not attempted, by instruction |
 | I. Font-substitution residuals (CG-Times/Univers drift beyond the modelled tolerance) | LYING, SCRIPT, WARPRAYR | cgtimes-drift-exceeds-tolerance | **FONT SUBSTITUTION** | named, not fixed (by design) |
@@ -149,19 +171,30 @@ don't correspond to any real 12pt positional error once you look at the
 raw x/y values directly — see the fork investigation this triage is
 built on).
 
-**Recommended fix (not attempted — out of my remaining budget this
-round):** in `tools/pcl_tolerance.py`'s `load_ws7_tokens`, before
-building tokens, merge two adjacent same-line WS7 chunks when the
-second's `x_decipoints` start lands within a small epsilon of the
-first's own AFM-measured natural end (`fg.afm.string_width_pt`) — i.e.
-undo WS7's own kerning-pair chunk split before alignment, the same way
-`_is_box_drawing_text`/`_is_unreliable_to_align` already pre-filter WS7
-chunks before matching. This is squarely a harness fix, not an engine
-change.
+**Fix (same-day follow-up).** `tools/pcl_tolerance.py`'s
+`_merge_kerning_split_chunks` merges two-or-more adjacent same-line WS7
+chunks, before `_is_box_drawing_text`/`_is_unreliable_to_align` ever run
+on them, whenever they share the same size and font (both the
+post-substitution name and the pre-substitution PCL typeface id) and the
+next chunk's own x lands within `KERNING_MERGE_EPS_PT` (1.5pt) of where
+the running merged text's own AFM natural width says it should end —
+exactly undoing WS7's own kerning-pair chunk split before alignment, the
+same way `_is_box_drawing_text`/`_is_unreliable_to_align` already
+pre-filter WS7 chunks. Wired into `load_ws7_tokens` right after the new
+mechanism-D dedupe (below) and before the exclusion filters. Unit-tested
+against synthetic two- and three-way splits, a real gap (not merged), and
+a font change at the split point (not merged) — `tests/test_pcl_tolerance.py`.
+
+Confirms the triage's own suspicion above: WARPRAYR's `cgtimes-drift-
+exceeds-tolerance` count (mechanism I) dropped from 25 to 0 once this
+landed — essentially ALL of it was this mechanism's own alignment desync
+cascading through the page, not real font-metric drift. WARPRAYR's
+`baseline-shift` count (title/byline residuals) also dropped from 431 to
+0 for the same reason.
 
 ---
 
-## D. Duplicate-position WS7 chunks (double-strike bold) — diagnosed, not fixed
+## D. Duplicate-position WS7 chunks (double-strike bold) — FIXED
 
 **Evidence** (from the parallel six-document investigation this triage
 also drew on): WS7's own raw PCL emits each BOLDED word/token TWICE at
@@ -179,11 +212,20 @@ always leaves one WS7 copy stranded as `word-unmatched`.
 This accounts for essentially ALL of BOXES's, SAWYER's, and VERSIONS's
 non-font divergences, and a meaningful share of PREVIEW/SCRIPT/-SCREEN's.
 
-**Recommended fix (not attempted):** `load_ws7_tokens` should de-duplicate
-consecutive identical-text WS7 chunks at the identical (x, y) position
-before handing them to `fg.match_doc` — a harness fix, not an engine
-change; it would clear most of these three documents' counts without
-touching the engine at all.
+**Fix (same-day follow-up).** `tools/pcl_tolerance.py`'s
+`_dedupe_double_strike_chunks` drops the second (and any further) copy of
+an identical (text, x, size, post-substitution font, pre-substitution
+typeface id) chunk on the same WS7 line, keeping the first, before
+`load_ws7_tokens` hands anything to `fg.match_doc` — a harness fix, not
+an engine change. Unit-tested for the exact-duplicate case and three
+near-miss cases that must NOT dedupe (same x different text, same text
+different x, same text/x but a different font). Confirmed: SAWYER and
+VERSIONS both went fully `word-unmatched`-clean (SAWYER's `PATCH.LST`,
+VERSIONS's 22 duplicate-position chunks); BOXES's `word-unmatched`
+cleared too (its `"SAWYER.EXE"`/`"^K'"` duplicates), leaving only an
+unrelated single `exact-drift`; PREVIEW and SCRIPT's `word-unmatched`
+counts both dropped as documented ("partial" — the rest is mechanism C,
+also fixed above).
 
 ---
 
@@ -220,19 +262,31 @@ this repo's. **Part 3 below deliberately does NOT bless -README's
 manifest entry** — regenerating it now would launder a data problem as
 an accepted result.
 
-**Recommendation to whoever owns task 2:** recapture (or re-point
-`pcl_tolerance.py`'s `PRINTS_SUBDIR`/doc resolution at) `v2` for every
-Sawyer-archive document, not just -README — I did not find evidence any
-of the other 6 Sawyer-group documents in this triage (BOXES, SAWYER,
-SCRIPT, VERSIONS, PREVIEW, -SCREEN) have the SAME page-count-jump
-problem (their own WS7/engine page counts already agree), but I also
-didn't do a byte-for-byte content diff of every one against `v2` where
-one exists — only BOXES and -SCREEN were spot-checked (their v2
-captures matched v1, not stale).
+**Fix (same-day follow-up), generalized beyond the recommendation
+above.** `tools/fidelity_gate.py`'s `resolve_doc_paths` now prefers a
+`ws7-prints/v2/<sources.json source path>` capture over the flat
+`v1/NAME` one whenever the v2 file exists on disk — keyed by the source
+path the index already carries, not a doc-name allowlist, so this
+resolves -README (and any future v2 recapture) with no further code
+change. Turned out to matter far beyond -README: as of this same-day
+follow-up, `ws7-prints/v2` (a full-corpus recapture batch, 188/467
+documents done, paused for stall diagnosis) already covers 14 of this
+triage's 18 documents. All 14 switched ground truth automatically. Spot
+checks across several of them (not exhaustive) found no case where the
+switch made a real bug disappear rather than a stale-capture artifact —
+see mechanism F below for the one case (OCAPTAIN/TWAINLET) where it
+resolved what had been an open question, and mechanism I's WARPRAYR note
+for how switching plus mechanism C together collapsed a large apparent
+divergence that turned out to be almost entirely a harness alignment
+artifact, not font drift. The 4 still on v1 (SAWYER, SCRIPT, PREVIEW,
+VERSIONS) simply have no v2 capture yet as of this batch's current
+progress (SCRIPT specifically is one of the batch's known
+`driver-missing` stalls — its embedded printer driver, LQ-850, was never
+installed in the v2 harness tree).
 
 ---
 
-## F. Two consecutive blank lines print as one, in plain-leading documents only — OPEN
+## F. Two consecutive blank lines print as one, in plain-leading documents only — RESOLVED (v1 capture artifact)
 
 **Evidence.** OCAPTAIN.WS and TWAINLET.WS (both single-page, NO `.lh`
 and NO paragraph styles at all — the plain document-default 12pt
@@ -266,9 +320,36 @@ probe (dosbox-x, a constructed document with 2/3/4 consecutive blank
 lines at plain default leading, both with and without a following rule
 line) before writing any fix, not a code change today.
 
-**Divergence counts, unaffected by anything landed this round:**
-OCAPTAIN `baseline-shift` 22 (all of it), TWAINLET `baseline-shift` 25
-(all of it).
+**Resolution (same-day follow-up).** Once mechanism E's v2 preference
+picked up OCAPTAIN's and TWAINLET's own v2 captures (both `pd-samples/
+authored`, part of the same full-corpus batch), both documents'
+`baseline-shift` divergences vanished entirely (verdict: clean). Direct
+comparison of the two captures' own `baseline_gaps_pt` confirms why: at
+the EXACT gap this section describes, OCAPTAIN's v1 capture records
+`24.0` (the "collapsed" one-blank-line advance) while its v2 capture of
+the identical source file records `36.0` (the full, uncollapsed
+three-line advance our engine already produces); TWAINLET shows the
+identical pattern at its own equivalent gap (v1 `24.0`, v2 `36.0`, same
+position in each list). Both v1 and v2 are genuine real-WS7-LaserJet
+captures of the SAME unchanged source file, produced by DIFFERENT
+tooling (v1: `pcl_render.py`'s own analysis; v2: `gpcl6`, Ghostscript's
+PCL interpreter, adopted after Jon ruled the `pcl_render.py` PNG path
+broken 2026-08-24) — so this was never a real WS7 print behavior at all,
+on either side of the LYING/WARPRAYR counter-evidence below: it was a
+bug in the v1 capture pipeline specific to how it counted blank-line
+advances near the end of these two short, single-page documents, which
+the batch's own tooling change happened to fix as a side effect. This
+also confirms the original diagnosis was right to stay OPEN rather than
+guess a general "2+ blank lines collapse" rule from it — there never was
+such a rule to find; LYING and WARPRAYR's own gap lists are byte-
+identical between v1 and v2 (spot-checked directly), so their
+"uncollapsed" counter-evidence stands unchanged.
+
+**No code or tolerance change was needed for this document pair** —
+their divergence disappeared purely from the corpus now offering a
+correct capture (mechanism E), the same class of fix as -README's, just
+discovered as a side effect of generalizing E rather than sought
+directly.
 
 ---
 
@@ -371,29 +452,43 @@ individually this round.
 **Fixed, in the engine (`src/ctrlkd`), each with a Tier-1 test:**
 - Mechanism A: `_printed_pm_fi_pt` (pdf.py) — commit 8956ad4.
 
-**Fixed, in the test harness (`tools/fidelity_gate.py`), not the engine:**
+**Fixed, in the test harness (`tools/fidelity_gate.py`/`tools/pcl_tolerance.py`), not the engine:**
 - Mechanism B: `_TEXT_OP_RE` operator order — commit 7285270.
+- Mechanism C: `_merge_kerning_split_chunks` — same-day follow-up.
+- Mechanism D: `_dedupe_double_strike_chunks` — same-day follow-up.
+- Mechanism E: `resolve_doc_paths` prefers a doc's own `v2` capture over
+  `v1` when one exists — same-day follow-up, generalized beyond -README.
+- The `pcl` tier's own reason-filter defect (`tests/test_pcl_fidelity.py`
+  used to filter on a reason string `doc_report()` never emitted) — same-
+  day follow-up, `FONT_SUBSTITUTION_REASONS`/`is_font_substitution_reason`.
 
-**Diagnosed with concrete evidence, not fixed this round (documented
-above for whoever picks each one up next):**
-- C (WS7 kerning-pair chunk split — harness fix, `load_ws7_tokens` merge)
-- D (WS7 duplicate-strike-bold chunks — harness fix, `load_ws7_tokens` dedupe)
-- E (-README stale v1 capture — corpus recapture, outside this repo)
-- F (2-blank-line collapse — needs a real WS7 probe before any fix)
+**Resolved as a corpus/tooling artifact, not an engine or harness change:**
+- Mechanism F: OCAPTAIN/TWAINLET's `baseline-shift` was a bug in the v1
+  capture pipeline's own blank-line accounting, not a real WS7 print
+  behavior — the v2 recapture (different tooling) shows the full,
+  uncollapsed advance our engine already produces. Resolved as a side
+  effect of generalizing E, not sought directly.
+
+**Diagnosed with concrete evidence, not fixed this round:**
 - G (sup/sub fixed-pitch advance width — first hypothesis disproven, root cause not yet located)
 
 **Parked per Jon's ruling:** H (LJ6DTP printing hacks).
 
-**Accepted by design:** I (font-substitution residuals).
+**Accepted by design:** I (font-substitution residuals) — note WARPRAYR's
+own count dropped from 25 to 0 once C landed; see mechanism C's entry.
 
-No document in this batch is fully clean after this round's fixes — the
-manifest is regenerated (see the commit that updates
-`tests/pcl_fidelity_manifest.json`) but NOT blessed/loosened for any of
-the 13 named documents: every one of A-I above is either a real
-remaining bug (F, G), a parked/accepted class (H, I), or a harness/
-corpus problem outside this repo's engine (B is fixed in the harness
-already; C, D, E are diagnosed but not yet fixed in the harness). The
-`pcl` tier will keep failing by name on all 13 documents until the
-harness fixes (C, D) and the real remaining engine bugs (F, G) are
-addressed — which is the correct, honest state per this repo's own
-"a divergence outside tolerance fails the test by name" doctrine.
+**Result after this round** (`pytest -m pcl`, corpus armed): of the 13
+documents named in planning #202, OCAPTAIN, TWAINLET and SAWYER now PASS
+(mechanisms D and E resolved every one of their real divergences); BOXES,
+DOCC, LJ6DTP, LYING, PREVIEW, -README, -SCREEN, SCRIPT, VERSIONS and
+WARPRAYR still FAIL BY NAME — every remaining failure is either mechanism
+G (DOCC, -SCREEN), mechanism H (LJ6DTP, parked by instruction), or a
+real remaining divergence this round did not address (the others). No
+document's pass/fail status flips purely from the reason-filter fix in
+this snapshot: every document carrying a font-substitution-tier residual
+either also carries an unrelated real divergence (LJ6DTP, LYING), or had
+its font-substitution count fall to zero once mechanism C landed
+(WARPRAYR) — the fix is still correct and unit-tested infrastructure, it
+simply had no live document to flip from fail to pass today. See
+tools/pcl_tolerance.py's own commit history and `tests/
+pcl_fidelity_manifest.json` for the exact before/after counts by reason.
