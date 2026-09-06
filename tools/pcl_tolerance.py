@@ -178,6 +178,62 @@ def tier_for_typeface(tid) -> str:
     return FONT_TIER_BY_TYPEFACE_ID.get(tid, TIER_UNKNOWN)
 
 
+# ------------------------------------------------------------ reason vocabulary
+# The literal 'reason' strings doc_report() ever emits into a divergence or
+# counts_by_reason entry -- a constants block, not a docstring promise. A
+# docstring promise is exactly what silently rotted last time:
+# tests/test_pcl_fidelity.py used to pass a document only if it had no
+# divergence whose reason equalled the literal 'font-substitution' -- a
+# string doc_report() never actually emitted (its real font-substitution
+# reasons are REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE /
+# REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE below). The filter therefore
+# matched nothing, ever, and every document carrying an accepted-by-design
+# font-substitution residual FAILED the tier for a class of divergence
+# Jon's ruling says should pass. See tools/PCL-DIVERGENCE-TRIAGE.md
+# mechanism I. Every `add(...)` call in doc_report() below passes one of
+# these constants -- never a bare string literal -- so this block is the
+# one place that can ever drift from what the function actually emits.
+REASON_PAGE_COUNT_MISMATCH = 'page-count-mismatch'
+REASON_PCL_REPARSE_MISMATCH = 'pcl-reparse-mismatch'
+REASON_WORD_UNMATCHED = 'word-unmatched'
+REASON_EXTRA_WORD_IN_ENGINE = 'extra-word-in-engine'
+REASON_BASELINE_SHIFT = 'baseline-shift'
+REASON_LINE_START_SHIFT = 'line-start-shift'
+REASON_EXACT_DRIFT = 'exact-drift'
+REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE = 'cgtimes-drift-exceeds-tolerance'
+REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE = 'univers-drift-exceeds-tolerance'
+REASON_UNCLASSIFIED_FONT_TIER = 'unclassified-font-tier'
+
+ALL_REASONS = frozenset({
+    REASON_PAGE_COUNT_MISMATCH, REASON_PCL_REPARSE_MISMATCH,
+    REASON_WORD_UNMATCHED, REASON_EXTRA_WORD_IN_ENGINE,
+    REASON_BASELINE_SHIFT, REASON_LINE_START_SHIFT, REASON_EXACT_DRIFT,
+    REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE,
+    REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, REASON_UNCLASSIFIED_FONT_TIER,
+})
+
+# Mechanism I (tools/PCL-DIVERGENCE-TRIAGE.md): real CG-Times/Univers
+# font-substitution drift that exceeds the modelled per-line-distance
+# tolerance. Accepted by design -- a base-14-only PDF cannot metrically
+# match an HP-resident face -- so a document whose ONLY divergences carry
+# one of these two reasons PASSES the `pcl` tier (the count is still
+# reported in counts_by_reason, never silently dropped). No other reason
+# belongs in this set: a no-substitute-tier face's word-level x isn't even
+# evaluated (see doc_report's own no_substitute_word_count), so it never
+# produces a divergence reason at all, font-substitution or otherwise.
+FONT_SUBSTITUTION_REASONS = frozenset({
+    REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE,
+    REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE,
+})
+
+
+def is_font_substitution_reason(reason: str) -> bool:
+    """True for exactly the two reasons mechanism I names (see
+    FONT_SUBSTITUTION_REASONS) -- the test for whether a divergence is an
+    accepted-by-design font-substitution residual rather than a real bug."""
+    return reason in FONT_SUBSTITUTION_REASONS
+
+
 # --------------------------------------------------------- tolerances (pt)
 # See module docstring "TOLERANCE EVIDENCE" for the data behind every
 # number below. ONE constants block, as the finalization plan asks --
@@ -455,11 +511,11 @@ def doc_report(doc_name: str) -> dict:
             by_reason[reason].append(_divergence(doc_name, *args, reason=reason, detail=detail))
 
     if n_ws7_pages != n_engine_pages:
-        add('page-count-mismatch', None, None, None, None, None, None,
+        add(REASON_PAGE_COUNT_MISMATCH, None, None, None, None, None, None,
             detail=f'WS7 {n_ws7_pages} pages, engine {n_engine_pages} pages')
 
     for pidx in mismatched_pages:
-        add('pcl-reparse-mismatch', pidx, None, None, None, None, None,
+        add(REASON_PCL_REPARSE_MISMATCH, pidx, None, None, None, None, None,
             detail='raw .pcl re-parse chunk count disagrees with the committed '
                    'measurements.json for this page -- the corpus data is stale '
                    'relative to tools/pcl_render.py, or the .pcl file changed')
@@ -468,12 +524,12 @@ def doc_report(doc_name: str) -> dict:
     deltas = fg.pair_deltas(m['pairs'])
 
     for t in m['unmatched_ws7']:
-        add('word-unmatched', t['page'], round(t['y_top'], 1), [t['text']],
+        add(REASON_WORD_UNMATCHED, t['page'], round(t['y_top'], 1), [t['text']],
             [round(t['x'], 1), round(t['y_top'], 1)], None, t['tier'],
             detail='WS7 word has no corresponding word anywhere in the engine output')
 
     for t in m['unmatched_engine']:
-        add('extra-word-in-engine', t['page'], round(t['y_top'], 1), [t['text']],
+        add(REASON_EXTRA_WORD_IN_ENGINE, t['page'], round(t['y_top'], 1), [t['text']],
             None, [round(t['x'], 1), round(t['y_top'], 1)], t['font_class'],
             detail='engine word has no corresponding word anywhere in the WS7 capture')
 
@@ -499,34 +555,35 @@ def doc_report(doc_name: str) -> dict:
 
             # Baseline exactness applies to EVERY font (layout, not glyph width).
             if abs(resid_dy) > BASELINE_EPS_PT:
-                add('baseline-shift', page, round(w['y_top'], 1), words, ws7_pos, pdf_pos, tier,
-                    detail=f'baseline residual {resid_dy:+.2f}pt (tolerance {BASELINE_EPS_PT}pt)')
+                add(REASON_BASELINE_SHIFT, page, round(w['y_top'], 1), words, ws7_pos, pdf_pos,
+                    tier, detail=f'baseline residual {resid_dy:+.2f}pt '
+                                 f'(tolerance {BASELINE_EPS_PT}pt)')
                 continue
 
             # Line-start x applies to EVERY font too (margin/indent, not glyph width).
             if w['is_line_start']:
                 if abs(resid_dx) > LINE_START_EPS_PT:
-                    add('line-start-shift', page, round(w['y_top'], 1), words, ws7_pos, pdf_pos,
-                        tier, detail=f'line-start residual {resid_dx:+.2f}pt '
+                    add(REASON_LINE_START_SHIFT, page, round(w['y_top'], 1), words, ws7_pos,
+                        pdf_pos, tier, detail=f'line-start residual {resid_dx:+.2f}pt '
                                      f'(tolerance {LINE_START_EPS_PT}pt)')
                 continue
 
             if tier == TIER_EXACT:
                 if abs(resid_dx) > EXACT_EPS_PT:
-                    add('exact-drift', page, round(w['y_top'], 1), words, ws7_pos, pdf_pos, tier,
-                        detail=f'residual {resid_dx:+.2f}pt (tolerance {EXACT_EPS_PT}pt, '
+                    add(REASON_EXACT_DRIFT, page, round(w['y_top'], 1), words, ws7_pos, pdf_pos,
+                        tier, detail=f'residual {resid_dx:+.2f}pt (tolerance {EXACT_EPS_PT}pt, '
                                f'exact/fixed-pitch font)')
             elif tier == TIER_CGTIMES:
                 tol = cgtimes_tolerance_pt(w['dist_into_line_pt'])
                 if abs(resid_dx) > tol:
-                    add('cgtimes-drift-exceeds-tolerance', page, round(w['y_top'], 1), words,
+                    add(REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE, page, round(w['y_top'], 1), words,
                         ws7_pos, pdf_pos, tier,
                         detail=f'residual {resid_dx:+.2f}pt at {w["dist_into_line_pt"]:.1f}pt '
                                f'into the line (tolerance {tol:.2f}pt)')
             elif tier == TIER_UNIVERS:
                 tol = univers_tolerance_pt(w['dist_into_line_pt'])
                 if abs(resid_dx) > tol:
-                    add('univers-drift-exceeds-tolerance', page, round(w['y_top'], 1), words,
+                    add(REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, page, round(w['y_top'], 1), words,
                         ws7_pos, pdf_pos, tier,
                         detail=f'residual {resid_dx:+.2f}pt at {w["dist_into_line_pt"]:.1f}pt '
                                f'into the line (tolerance {tol:.2f}pt)')
@@ -536,10 +593,10 @@ def doc_report(doc_name: str) -> dict:
                 # words fell outside this check's scope without spamming entries.
                 no_substitute_word_count += 1
             else:
-                add('unclassified-font-tier', page, round(w['y_top'], 1), words, ws7_pos,
+                add(REASON_UNCLASSIFIED_FONT_TIER, page, round(w['y_top'], 1), words, ws7_pos,
                     pdf_pos, tier, detail=f'WS7 typeface id {w.get("tid")!r} has no tier mapping')
 
-    real_reasons = [r for r in counts if r != 'font-substitution']
+    real_reasons = [r for r in counts if not is_font_substitution_reason(r)]
     verdict = 'divergent' if any(counts[r] for r in real_reasons) else 'clean'
 
     return {

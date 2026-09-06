@@ -36,6 +36,42 @@ def test_pcl_render_typeface_family_has_univers_entry():
     assert pt.pr.TYPEFACE_FAMILY.get(4148) == 'Helvetica'
 
 
+# ------------------------------------------------------- reason vocabulary
+def test_font_substitution_reasons_are_exactly_cgtimes_and_univers():
+    assert pt.FONT_SUBSTITUTION_REASONS == {
+        pt.REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE,
+        pt.REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE,
+    }
+    assert pt.FONT_SUBSTITUTION_REASONS <= pt.ALL_REASONS
+
+
+def test_is_font_substitution_reason_true_only_for_the_two_named_reasons():
+    assert pt.is_font_substitution_reason(pt.REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE)
+    assert pt.is_font_substitution_reason(pt.REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE)
+    for other in pt.ALL_REASONS - pt.FONT_SUBSTITUTION_REASONS:
+        assert not pt.is_font_substitution_reason(other), other
+    # Regression guard for the actual bug: the OLD literal the test used to
+    # filter on was never a real reason at all.
+    assert not pt.is_font_substitution_reason('font-substitution')
+
+
+def test_doc_report_verdict_ignores_only_font_substitution_reasons(monkeypatch):
+    """A document whose ONLY divergences are font-substitution passes
+    (verdict 'clean'); any other reason, even alongside font-substitution
+    ones, is 'divergent'. Exercises the exact `real_reasons`/`verdict`
+    logic in doc_report() via a synthetic counts dict, since doc_report()
+    itself needs the private corpus."""
+    def real_reasons(counts):
+        return [r for r in counts if not pt.is_font_substitution_reason(r)]
+
+    only_font_sub = {pt.REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE: 25,
+                     pt.REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE: 2}
+    assert not any(only_font_sub[r] for r in real_reasons(only_font_sub))
+
+    mixed = dict(only_font_sub, **{pt.REASON_WORD_UNMATCHED: 1})
+    assert any(mixed[r] for r in real_reasons(mixed))
+
+
 # -------------------------------------------------------------- tolerances
 def test_cgtimes_tolerance_grows_with_distance_into_line():
     at_start = pt.cgtimes_tolerance_pt(0.0)

@@ -14,15 +14,18 @@ unarmed states need to read differently in the output.
 
 WHAT A FAILURE MEANS. Per the finalization plan: any residual beyond its
 font-class tolerance is a NAMED divergence, and any divergence whose
-reason isn't "this is expected font-substitution drift" is a bug -- so
-this test FAILS BY NAME (one parametrized case per document) whenever the
-checked-in manifest records a real (non-font-substitution) divergence for
-that document. That is intentional: a document with a known, unfixed
-placement bug stays visibly red in this suite until the bug is fixed or
-the manifest's classification of it is corrected with evidence -- it does
-not go green just because the number was written down once (see
-tests/conftest.py's "a skipped check is not a passing check" doctrine,
-same spirit applied to a failing one).
+reason isn't one of tools/pcl_tolerance.py's own FONT_SUBSTITUTION_REASONS
+(mechanism I: CG-Times/Univers drift beyond the modelled tolerance -- see
+that module's reason-vocabulary block) is a bug -- so this test FAILS BY
+NAME (one parametrized case per document) whenever the checked-in manifest
+records a real (non-font-substitution) divergence for that document. A
+document whose ONLY divergences are font-substitution PASSES -- the count
+is still printed, never silently dropped. That is intentional: a document
+with a known, unfixed placement bug stays visibly red in this suite until
+the bug is fixed or the manifest's classification of it is corrected with
+evidence -- it does not go green just because the number was written down
+once (see tests/conftest.py's "a skipped check is not a passing check"
+doctrine, same spirit applied to a failing one).
 
 The test also fails if a LIVE run's divergence set has drifted from the
 manifest -- regenerate with `python3 tools/pcl_tolerance.py --record` and
@@ -80,7 +83,13 @@ def test_pcl_fidelity(doc_name):
             f'Regenerate with `python3 tools/pcl_tolerance.py --record` and review the diff '
             f'before committing -- this test never regenerates its own answer key.')
 
-    real_bugs = [d for d in live['divergences'] if d['reason'] != 'font-substitution']
+    font_sub_counts = {r: c for r, c in live['counts_by_reason'].items()
+                       if pt.is_font_substitution_reason(r)}
+    if font_sub_counts:
+        print(f'{doc_name}: {sum(font_sub_counts.values())} accepted font-substitution '
+              f'divergence(s), by reason: {font_sub_counts}')
+
+    real_bugs = [d for d in live['divergences'] if not pt.is_font_substitution_reason(d['reason'])]
     if real_bugs:
         lines = '\n'.join(
             f"  [{d['reason']}] page {d['page']} words={d['words']} "
