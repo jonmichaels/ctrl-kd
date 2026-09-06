@@ -1,78 +1,60 @@
-"""Tier 2 -- the FULL identified-document manifest, not just the
-ten richly-tested documents in tests/SAWYER-CORPUS.md's dedicated tests.
+"""Tier 2 -- EVERY file in the Sawyer archive tree this repo's own
+tooling classified, not just the ten richly-tested documents in
+tests/SAWYER-CORPUS.md's dedicated tests.
 
-WHY THIS EXISTS. Jon's own vault catalog (jon_vault/Projects/software/
-WordStar/Corpus-Document-Catalog.md, companion to Corpus-And-Filetype-
-Index.md) enumerates the FULL set of genuine WordStar documents Robert J.
-Sawyer's public WS7 archive contains: 251, by a stated rule ("document" =
-what the rebuilt manifest marks include_in_parity: true -- corroborated,
-not raw detect()-only, per the index's false-positive register). That
-catalog is the authoritative source for WHICH documents this corpus
-contains -- not re-derived here, not re-swept with classify_sawyer.py,
-taken verbatim per the catalog's own "about 200 is retired" ruling and
-Jon's explicit instruction to use the written-down list rather than
-re-deriving it.
+WHY THIS EXISTS. Planning #205(a), 2026-09-06: this used to sweep a
+hand-picked 252-entry tests/sawyer_manifest.json (itself an expansion,
+2026-08-26, of the original ten, taken verbatim from Jon's own vault
+catalog of "genuine WordStar documents"). That manifest covered only a
+subset of the corpus's own documents-only trim -- 144 more real documents
+(plain-text README/reference prose, `.LST`/`.DOC` content, extensionless
+`TAGS/` tag documents, and the `.PAT`/`.MRG` engine-input files WSChange
+config dumps and mail-merge templates) sat in the trimmed `sawyer/` tree
+un-tested simply because nobody had added them to the hand-picked list.
 
-sawyer_manifest.json now carries all 251 catalog paths reconciled against
-archive release 1.5 (this repo's pinned release), MINUS 2 that no longer
-exist upstream (see RECONCILIATION below) = 249, PLUS the 3 pre-existing
-non-catalog entries the original ten-document manifest already carried
-for their own dedicated tests (two APP/vDosPlus -README.WS duplicates, and
-the WORDSTAR.PIX image asset) = 252 manifest entries total. This file is
-the generic sweep over all of them; the richer per-feature tests named in
-SAWYER-CORPUS.md (polarity, glyph aspect, screenplay detection, LJ6DTP
-symbol/shading/rectangle checks, pix resolution, ...) still run against
-the original ten and are UNCHANGED by this file.
+sawyer_manifest.json is RETIRED. `tests/answer_key.json` (tools/
+answer_key.py) is now the single committed record: every file
+`--record` finds under `CTRLKD_SAWYER_ARCHIVE` at generation time gets
+run through this engine's real `core.detect()`/`core.parse()`, and the
+result -- not a catalog, not a hand list -- decides which of three
+buckets it lands in (`sawyer_fixture.sawyer_classify()`, the single
+shared partition tools/answer_key.py also reads):
 
-RECONCILIATION vs the catalog (built against a July archive copy, ~v1.4):
-this repo pins release 1.5 (tests/SAWYER-CORPUS.md). Two catalog-listed
-documents no longer exist under that release's tree at all:
-DICT/-CTRL.P and DICT/TEST-ALL.WS -- both confirmed absent (not renamed,
-not moved) by a full-tree search of release 1.5. They are dropped from the
-manifest and are not tested here. Every other catalog path IS present in
-1.5, but the raw bytes differ from the catalog's recorded sizes for the
-overwhelming majority of them (241 of the 249 present documents) -- sizes
-in sawyer_manifest.json are release-1.5's ACTUAL on-disk sizes, not the
-catalog's (stale, v1.4-copy) numbers; see the commit message / task report
-for the full byte-level reconciliation. This is expected: WordStar rewrites
-a file's own internal trailer (cursor position, block pointers) on every
-save, so a from-scratch resave of the whole tree between releases shifts
-nearly every file's total length slightly even where the visible prose is
-identical -- confirmed on the 7 documents already covered by the original
-ten-document manifest, which match this pass's independently-computed
-release-1.5 hashes exactly.
+1. NON_DOCUMENT_ASSETS -- not a WordStar document at all. One hand-
+   identified rule (`sawyer_fixture.sawyer_is_non_document_asset`): a
+   `.PIX` Inset image a handful of kept documents embed-reference is
+   image data, never even attempted through parse(). Source-hash-checked
+   here like everything else.
 
-TWO KINDS OF "can't fully test this one" (sawyer_fixture.sawyer_classify(),
-the single shared partition also read by tools/answer_key.py -- see that
-tool's docstring for the full reasoning behind each set):
+2. KNOWN_NONCONVERTIBLE -- this engine's actual `core.parse()` raises on
+   these, and the exact recorded reason is `str()` of that real
+   exception, not a hand-typed guess -- font/cartridge width tables,
+   WordPerfect-conversion keystroke data, HiJaak intermediate files, a
+   search-index blob, all correctly floored to 'binary' by
+   `core.detect()`'s text-density gate. Recorded as a NAMED, asserted
+   fact -- each one checked to fail in exactly this way -- not silently
+   excluded and not force-fed through convert() to manufacture a false
+   pass. A future engine change that starts parsing one of these (e.g. a
+   detect() threshold fix) is caught here as a thing that moved buckets,
+   not a silent pass.
 
-1. NON_DOCUMENT_ASSETS -- not a WordStar document at all (WORDSTAR.PIX is
-   the Inset image the pix-reference tests resolve against; it was never
-   one of the catalog's 251 documents). Source-hash-checked here like
-   everything else; never run through parse()/emit().
+3. CONVERTIBLE -- everything else: `core.parse()` succeeds, so it gets
+   the full format x mode grid, pinned by hash in `tests/answer_key.json`.
 
-2. KNOWN_NONCONVERTIBLE -- the catalog counts these as ws4/ws5+ documents
-   (an earlier classify_sawyer.py pass corroborated them structurally --
-   soft-return bytes / symmetric header blocks present), and the catalog's
-   OWN notes already describe every one of them as "non-prose, binary-
-   shaped content" (font/cartridge width tables, WordPerfect-conversion
-   keystroke data, HiJaak intermediate files, a search-index blob) -- not
-   prose a human would read. Running THIS engine's actual core.parse() on
-   release-1.5's bytes for all ten, today, at this commit: every one raises
-   ParseError, because core.detect()'s overall-text-density gate (not the
-   narrower structural signature classify_sawyer.py checked) correctly
-   floors them to 'binary'. Recorded here as a NAMED, asserted fact --
-   each one checked to fail in exactly this way -- not silently excluded
-   and not force-fed through convert() to manufacture a false pass.
+Net effect of the #205(a) expansion: sawyer coverage went from 252 total
+entries (241 convertible + 10 known-nonconvertible + 1 asset) to the
+corpus's full 396 (385 convertible + 10 known-nonconvertible + 1 asset).
+Every file that moved from "not tested at all" to a bucket landed in
+CONVERTIBLE -- the known-nonconvertible and non-document-asset sets are
+byte-for-byte the same ten and one they always were; nothing that used to
+convert stopped converting, and nothing new failed to parse either. See
+the commit message for the full before/after counts.
 
-ANSWER KEY (Task 3, planning #198/#195, 2026-09): the convert+hash gate
-below used to check only `text`+`layout` (mode=modern) against this file's
-own tests/sawyer_oracle.json. It now checks EVERY registered format x
-EVERY mode against tests/answer_key.json -- the ONE shared key this file
-shares with tests/test_samples.py, generated by tools/answer_key.py. One
-named test per (doc, format, mode) cell -- 241 convertible docs x 6
-formats x 2 modes = 2892 cases -- so a failure names exactly which cell of
-which document changed, not just "the sawyer oracle gate failed".
+ANSWER KEY (Task 3, planning #198/#195, then #205a): one named test per
+(doc, format, mode) cell against `tests/answer_key.json` -- the ONE shared
+key this file shares with tests/test_samples.py, generated by
+tools/answer_key.py -- so a failure names exactly which cell of which
+document changed, not just "the sawyer gate failed".
 """
 import functools
 import json
@@ -83,7 +65,8 @@ import pytest
 from ctrlkd import core
 from ctrlkd.core import ParseError
 
-from sawyer_fixture import SAWYER_DOCS, sawyer_classify, KNOWN_NONCONVERTIBLE, NON_DOCUMENT_ASSETS
+from sawyer_fixture import (SAWYER_DOCS, sawyer_classify,
+                             sawyer_doc_name, sawyer_is_non_document_asset)
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
@@ -102,27 +85,37 @@ pytestmark = pytest.mark.sawyer
 # ================================================== manifest self-checks
 
 def test_manifest_shape_matches_this_files_bookkeeping():
-    """Every KNOWN_NONCONVERTIBLE/NON_DOCUMENT_ASSETS name must still be a
-    real manifest entry (catch a stale exclusion list before it silently
-    stops covering anything), and the answer key must cover exactly the
-    remaining convertible set -- no more, no less."""
-    for name in NON_DOCUMENT_ASSETS:
-        assert name in SAWYER_DOCS, f'{name} no longer in sawyer_manifest.json'
-    for name in NONCONVERTIBLE_NAMES:
-        assert name in SAWYER_DOCS
-    assert set(SAWYER_KEY['convertible']) == set(CONVERTIBLE_NAMES), (
-        set(SAWYER_KEY['convertible']) ^ set(CONVERTIBLE_NAMES))
-    assert set(SAWYER_KEY['known_nonconvertible']) == set(NONCONVERTIBLE_NAMES)
-    assert set(SAWYER_KEY['non_document_assets']) == set(NON_DOCUMENT_NAMES)
+    """The three buckets partition ALL_NAMES exactly (every name in
+    exactly one group, nothing left over), and the mechanical rule that
+    decides NON_DOCUMENT_ASSETS at generation time
+    (sawyer_is_non_document_asset) still agrees with what's committed --
+    catches a hand-edited answer_key.json drifting from the rule that's
+    supposed to produce it."""
+    assert set(CONVERTIBLE_NAMES) | set(NONCONVERTIBLE_NAMES) | set(NON_DOCUMENT_NAMES) == set(ALL_NAMES)
+    assert not (set(CONVERTIBLE_NAMES) & set(NONCONVERTIBLE_NAMES))
+    assert not (set(CONVERTIBLE_NAMES) & set(NON_DOCUMENT_NAMES))
+    assert not (set(NONCONVERTIBLE_NAMES) & set(NON_DOCUMENT_NAMES))
+    for name in NON_DOCUMENT_NAMES:
+        assert sawyer_is_non_document_asset(SAWYER_DOCS[name]['path']), (
+            f'{name} is recorded as a non-document asset but its path no '
+            f'longer matches sawyer_is_non_document_asset()')
+    for name in CONVERTIBLE_NAMES + NONCONVERTIBLE_NAMES:
+        assert not sawyer_is_non_document_asset(SAWYER_DOCS[name]['path']), (
+            f'{name} matches sawyer_is_non_document_asset() but is not '
+            f'recorded as a non-document asset')
+    # name assignment round-trips through the path -- every key really is
+    # sawyer_doc_name() of its own recorded path, not a stray hand edit.
+    for name, entry in SAWYER_DOCS.items():
+        assert sawyer_doc_name(entry['path']) == name, (name, entry['path'])
 
 
 def test_dropped_v14_docs_are_confirmed_absent_not_just_unlisted():
-    """DICT/-CTRL.P and DICT/TEST-ALL.WS were in the vault catalog's 251
-    (built against a ~v1.4 copy) but do not exist anywhere in release 1.5
-    -- confirmed by a full-tree search, not merely absent from this
-    manifest. Documented as a standing fact, not re-checked against the
-    live archive here (that would just be the same missing-file check
-    require_sawyer_doc already performs for every listed name)."""
+    """DICT/-CTRL.P and DICT/TEST-ALL.WS were named in an earlier (~v1.4)
+    vault catalog pass but do not exist anywhere in release 1.5's tree --
+    confirmed by a full-tree search at the time, not merely absent from
+    this repo's own enumeration. Documented as a standing fact: a full
+    mechanical sweep of the archive (this file's whole point, since
+    #205a) still finds nothing at either path."""
     dropped = {'DICT/-CTRL.P', 'DICT/TEST-ALL.WS'}
     listed_paths = {e['path'] for e in SAWYER_DOCS.values()}
     assert dropped.isdisjoint(listed_paths)
@@ -132,7 +125,7 @@ def test_dropped_v14_docs_are_confirmed_absent_not_just_unlisted():
 
 @pytest.mark.parametrize('name', ALL_NAMES)
 def test_manifest_doc_source_hash_matches(name, require_sawyer_doc):
-    """Every manifest entry, convertible or not: the archive byte content
+    """Every recorded entry, convertible or not: the archive byte content
     at its path still matches the committed sha256. This is
     require_sawyer_doc's own job (sawyer_doc_problem) -- calling it IS the
     check; a tamper/drift/missing-file failure comes from that fixture,
@@ -144,7 +137,7 @@ def test_manifest_doc_source_hash_matches(name, require_sawyer_doc):
 # ==================================================== (b)/(c) answer-key grid gate
 #
 # One parsed Document per name, shared across its 12 (format, mode) cells
-# -- 241 docs x 1 parse instead of 241 x 12, cached per test-session name.
+# -- one parse per doc instead of one per cell, cached per test-session name.
 
 @functools.lru_cache(maxsize=None)
 def _parsed(name, path):
@@ -183,29 +176,33 @@ def test_sawyer_doc_matches_answer_key(name, fmt, mode, require_sawyer_doc):
 
 @pytest.mark.parametrize('name', NONCONVERTIBLE_NAMES)
 def test_known_nonconvertible_doc_fails_exactly_as_recorded(name, require_sawyer_doc):
-    """These manifest entries are catalogued as ws4/ws5+ documents by the
-    vault's classify_sawyer.py pass, but are also described in that same
-    catalog as non-prose/binary-shaped content -- and this engine's real
-    core.parse() rejects every one of them as 'binary' today. Asserted by
-    name and by exact reason (not just 'raises'), so a future engine
-    change that starts parsing one of these (e.g. a detect() threshold
-    fix) is caught here as a thing to move into CONVERTIBLE_NAMES, not a
-    silent pass."""
+    """These are real files in the archive tree that this engine's real
+    core.parse() rejects -- asserted by name and by the EXACT reason
+    recorded in tests/answer_key.json (str() of the real ParseError raised
+    at generation time, not a hand-typed guess), so a future engine change
+    that starts parsing one of these (e.g. a detect() threshold fix) is
+    caught here as a thing to move into CONVERTIBLE_NAMES, not a silent
+    pass."""
     path = require_sawyer_doc(name)
     data = open(path, 'rb').read()
     with pytest.raises(ParseError) as excinfo:
         core.parse(data)
-    expected_reason = KNOWN_NONCONVERTIBLE[SAWYER_DOCS[name]['path']]
+    expected_reason = SAWYER_KEY['known_nonconvertible'][name]['reason']
     assert expected_reason in str(excinfo.value), (
         name, str(excinfo.value), expected_reason)
-    assert expected_reason == SAWYER_KEY['known_nonconvertible'][name]['reason']
 
 
-def test_wordstar_pix_is_not_run_through_parse():
-    """WORDSTAR.PIX is the Inset image asset, not a WordStar document --
-    documenting that fact here explicitly rather than leaving it as a
+# ================================================= named non-document assets
+
+@pytest.mark.parametrize('name', NON_DOCUMENT_NAMES)
+def test_non_document_asset_is_never_run_through_parse(name, require_sawyer_doc):
+    """A non-document asset (today: WORDSTAR.PIX, the Inset image five
+    kept documents embed-reference) is not a WordStar document -- never
+    fed to core.parse()/emit() by this suite or by tools/answer_key.py,
+    only source-hash-checked like everything else. Its own recorded
+    'reason' documents WHY it's excluded rather than leaving that as a
     silent omission from CONVERTIBLE_NAMES."""
-    assert 'WORDSTAR.PIX' in NON_DOCUMENT_ASSETS
-    assert 'WORDSTAR.PIX' not in CONVERTIBLE_NAMES
-    assert 'WORDSTAR.PIX' not in NONCONVERTIBLE_NAMES
-    assert 'WORDSTAR.PIX' in SAWYER_KEY['non_document_assets']
+    require_sawyer_doc(name)  # hash check only -- the point of this test
+    assert name not in CONVERTIBLE_NAMES
+    assert name not in NONCONVERTIBLE_NAMES
+    assert SAWYER_KEY['non_document_assets'][name]['reason']

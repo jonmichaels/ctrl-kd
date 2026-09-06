@@ -16,7 +16,7 @@ NARROWED 2026-08-26 (Jon's ruling, tier 2/sawyer): this gate used to glob
 every `.WS` in the whole real archive (~86 files at the time). Tier 2 tests
 an explicit, committed doc list only, never a directory sweep -- see
 tests/SAWYER-CORPUS.md. The gate is now: every OTHER document in the
-committed manifest (the ten in sawyer_manifest.json, minus SCRIPT.WS
+committed answer key (the ten sawyer entries in tests/answer_key.json, minus SCRIPT.WS
 itself, minus WORDSTAR.PIX which isn't a WordStar document at all) must
 show zero detected screenplay blocks, and SCRIPT.WS must show some. This is
 a real reduction in exhaustiveness (9 documents, not ~86) -- traded
@@ -143,7 +143,7 @@ def test_region_stops_at_a_heading():
 
 # =================================================== real-corpus acceptance
 
-# The nine committed manifest documents (sawyer_manifest.json) that are
+# The nine committed answer-key documents (tests/answer_key.json) that are
 # actual WordStar documents and are NOT SCRIPT.WS itself -- WORDSTAR.PIX is
 # an Inset image, not a WordStar document, so it's excluded here.
 _NON_SCRIPT_MANIFEST_DOCS = [

@@ -71,15 +71,30 @@ still means something (when the engine that produced this key was last
 committed), consistent with "regeneration is a reviewed diff, checked in
 alongside the commit that motivated it."
 
-NEGATIVES. The 10 KNOWN_NONCONVERTIBLE Sawyer entries (catalogued as ws4/
-ws5+ by an earlier, looser structural pass, but binary-shaped, non-prose
-content that this engine's real core.parse() rejects) get their recorded
-failure reason, not a format/mode grid -- core.parse() itself raises before
-any emitter would run. WORDSTAR.PIX (the one NON_DOCUMENT_ASSET -- an Inset
-image, never a WordStar document) is recorded with its own reason and is
-never run through parse() either. Both sets are the single shared
+NEGATIVES. Sawyer entries this engine's real core.parse() rejects get their
+recorded failure reason, not a format/mode grid -- core.parse() itself
+raises before any emitter would run. The one NON_DOCUMENT_ASSET (an Inset
+image a handful of kept documents embed-reference, never a WordStar
+document itself) is recorded with its own reason and is never run through
+parse() either. Both sets, plus the convertible set, are the single
 sawyer_fixture.sawyer_classify() partition -- tests/test_sawyer_corpus.py
 reads the exact same partition, so the two can't silently drift apart.
+
+FULL-CORPUS COVERAGE (planning #205a, 2026-09-06). This file originally
+covered the 4 bundled samples plus a hand-picked 252-entry
+tests/sawyer_manifest.json subset of the Sawyer archive (241 convertible +
+10 known-nonconvertible + 1 asset). build_sawyer() now walks EVERY file
+under CTRLKD_SAWYER_ARCHIVE at generation time
+(sawyer_fixture.sawyer_enumerate_archive) and classifies each one the same
+mechanical way -- run it through detect()/parse() and record what actually
+happens -- so every file in the archive tree this variable is pointed at
+ends up in exactly one of the three groups, not just the previously
+hand-picked subset. sawyer_manifest.json is retired: its per-doc hashes
+are now this key's own 'source_sha256' fields, one per entry, in whichever
+group that entry landed in. A maintainer running --record is expected to
+point CTRLKD_SAWYER_ARCHIVE at a tree that is ALREADY the intended
+population (this project's own documents-only trim of the archive, not an
+arbitrary raw download) -- see tests/SAWYER-CORPUS.md.
 
 USAGE
     CTRLKD_SAWYER_ARCHIVE=/path/to/WS python3 tools/answer_key.py --record
@@ -102,10 +117,9 @@ sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from ctrlkd import core, emit                                     # noqa: E402
 from ctrlkd.pdf import emit_pdf                                   # noqa: E402
 from ctrlkd import __version__ as ENGINE_VERSION                  # noqa: E402
-from sawyer_fixture import (SAWYER_DOCS, sawyer_classify,          # noqa: E402
-                             KNOWN_NONCONVERTIBLE, NON_DOCUMENT_ASSETS,
-                             sawyer_manifest_problem, sawyer_doc_path,
-                             ARCHIVE_RELEASE)
+from sawyer_fixture import (sawyer_manifest_problem, sawyer_archive,  # noqa: E402
+                             sawyer_enumerate_archive, sawyer_doc_name,
+                             sawyer_is_non_document_asset, ARCHIVE_RELEASE)
 
 KEY_PATH = os.path.join(ROOT, 'tests', 'answer_key.json')
 SAMPLES_DIR = os.path.join(ROOT, 'samples')
@@ -173,32 +187,39 @@ def build_samples():
 
 
 def build_sawyer():
-    convertible, nonconvertible, non_document = sawyer_classify()
-    docs = {}
-    for name in convertible:
-        entry = SAWYER_DOCS[name]
-        path = sawyer_doc_path(name)
-        data = open(path, 'rb').read()
-        doc = core.parse(data)
-        docs[name] = {
-            'path': entry['path'],
-            'source_sha256': entry['sha256'],
-            'cells': _grid(doc),
-        }
-    known_nonconvertible = {
-        name: {'path': SAWYER_DOCS[name]['path'],
-               'source_sha256': SAWYER_DOCS[name]['sha256'],
-               'reason': KNOWN_NONCONVERTIBLE[SAWYER_DOCS[name]['path']]}
-        for name in nonconvertible
-    }
-    non_document_assets = {
-        name: {'path': SAWYER_DOCS[name]['path'],
-               'source_sha256': SAWYER_DOCS[name]['sha256'],
-               'reason': 'not a WordStar document (Inset image asset) -- '
-                         'source-hash-checked only, never run through parse()'}
-        for name in non_document
-    }
-    return docs, known_nonconvertible, non_document_assets, len(convertible)
+    """Walk the ENTIRE tree at CTRLKD_SAWYER_ARCHIVE (expected to already be
+    the intended population -- e.g. the corpus's own documents-only trim,
+    never an arbitrary raw archive dump) and mechanically classify every
+    file it contains, via this engine's real detect()/parse(), into
+    exactly one of three buckets. Nothing is hand-curated except
+    sawyer_is_non_document_asset()'s rule (one file today: the Inset image
+    a handful of kept documents embed-reference) -- everything else is
+    "what actually happens when you run it," recorded, not decided."""
+    root = sawyer_archive()
+    convertible = {}
+    known_nonconvertible = {}
+    non_document_assets = {}
+    for rel in sawyer_enumerate_archive(root):
+        name = sawyer_doc_name(rel)
+        data = open(os.path.join(root, rel), 'rb').read()
+        sha = hashlib.sha256(data).hexdigest()
+        if sawyer_is_non_document_asset(rel):
+            non_document_assets[name] = {
+                'path': rel,
+                'source_sha256': sha,
+                'reason': 'not a WordStar document (Inset image asset) -- '
+                          'source-hash-checked only, never run through parse()',
+            }
+            continue
+        try:
+            doc = core.parse(data)
+        except core.ParseError as e:
+            known_nonconvertible[name] = {
+                'path': rel, 'source_sha256': sha, 'reason': str(e)}
+            continue
+        convertible[name] = {
+            'path': rel, 'source_sha256': sha, 'cells': _grid(doc)}
+    return convertible, known_nonconvertible, non_document_assets, len(convertible)
 
 
 def build():
@@ -239,7 +260,9 @@ def build():
             },
             'sawyer': {
                 'source': "Robert J. Sawyer's public WS7 archive, release %s "
-                          "(tests/sawyer_manifest.json, tests/SAWYER-CORPUS.md)" % ARCHIVE_RELEASE,
+                          "(tests/SAWYER-CORPUS.md) -- every file under "
+                          "CTRLKD_SAWYER_ARCHIVE at generation time, mechanically "
+                          "classified via this engine's own detect()/parse()" % ARCHIVE_RELEASE,
                 'convertible': sawyer_docs,
                 'known_nonconvertible': known_nonconvertible,
                 'non_document_assets': non_document_assets,
@@ -247,7 +270,8 @@ def build():
         },
         'counts': {
             'samples_docs': n_samples,
-            'sawyer_total_manifest_docs': len(SAWYER_DOCS),
+            'sawyer_total_docs': (n_convertible + len(known_nonconvertible)
+                                   + len(non_document_assets)),
             'sawyer_convertible_docs': n_convertible,
             'sawyer_known_nonconvertible': len(known_nonconvertible),
             'sawyer_non_document_assets': len(non_document_assets),
