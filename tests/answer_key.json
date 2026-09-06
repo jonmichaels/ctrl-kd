@@ -28,8 +28,8 @@
  },
  "engine_version": "4.5.0",
  "generator": {
-  "date": "2026-09-06T09:20:09-04:00",
-  "git_sha": "f328838880106de9e28e61a370cd59d7c11d8431",
+  "date": "2026-09-06T09:56:56-04:00",
+  "git_sha": "74acc604c319ada88a2288513022a270f6229d91",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -17791,8 +17791,8 @@
     "REF/WSFORMAT.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 145116,
-       "sha256": "60ce27a7d0680d74f66420fbc4ea42acd18385a2e9eaa1d9b30a84c8c98601c5"
+       "bytes": 144576,
+       "sha256": "8443eb9beacb56f7080952233692a1eb8e36108bbeb74c9fece8ca9b8e57e9ef"
       },
       "html.printed": {
        "bytes": 171241,

@@ -5747,6 +5747,65 @@ def test_centered_tag_also_classified_uniformly():
     assert s['centered'] and s['center_via'] == 'tag'
 
 
+def test_204_tab_run_in_a_centered_row_collapses_to_one_span_like_sr():
+    """Issue #204: WSFORMAT.WS's own Symmetric-Sequences table row ("4"
+    + a WordStar tabs-and-dot-leaders symmetrical sequence + "Endnote",
+    spaces-centered, no `.oc` tag) used to render as THREE separate
+    `<span>`s -- "4", an all-`&nbsp;` run (the tab-run's own Printed-only
+    `tabhmi`/`tableader` tags fenced it off from its neighbours, and its
+    now-standalone all-spaces text tripped `_html_span`'s "typescript
+    indent" heuristic), "Endnote" -- a real browser then renders that
+    `&nbsp;` run as a wide, uncollapsed gap. sr's own Modern HTML instead
+    merges the tab-run into the SAME span as the surrounding text with
+    LITERAL space characters, which a browser's default whitespace
+    collapsing renders as a single space, matching real WS7's own plain
+    gap (paper-scan-verified, planning #204's own review pack: sr's
+    tracked cell is byte-for-byte `<span ...>4              Endnote</span>`,
+    reproduced here via a synthetic symmetric-sequence tab block, not the
+    real corpus file)."""
+    from ctrlkd.layout import modern_flow
+    from ctrlkd.emit import emit_html
+
+    def tab_block(cols, abs_hmi=1000, tab_type=0x20):
+        size = cols * 180                  # core.TAB_HMI_PER_COL
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b'\r')
+
+    body = b'4' + tab_block(14) + b'Endnote'
+    pad = (65 - len('4' + ' ' * 14 + 'Endnote')) // 2
+    doc = core.parse(b' ' * pad + body + HARD)
+    s = modern_flow(doc)['items'][0]['structure']
+    assert s['centered'] and s['center_via'] == 'spaces'
+    assert s['center_text'] == '4              Endnote'
+    html = emit_html(doc, mode='modern')
+    assert '&nbsp;' not in html
+    assert ('<p style="text-align:center;line-height:1.15">'
+           '4              Endnote</p>') in html
+
+
+def test_204_fix_is_scoped_to_centered_rows_only():
+    """The SAME merge tried in `_html_line` generally (not scoped to
+    `_html_centered_row`) additionally collapsed WSFORMAT.WS's OWN
+    unrelated "00h ^@ <tab-run> Fix the print position..." row -- a
+    plain, un-centered, `text-indent`d paragraph sr does NOT collapse
+    (confirmed against `4-html-sr.html`'s own tracked bytes: that row
+    keeps its `&nbsp;`-run as its own separate span). A plain paragraph
+    with the identical tab-run shape, long enough to never classify as a
+    centered row, must keep the pre-#204 `&nbsp;`-run behaviour exactly."""
+    def tab_block(cols, abs_hmi=1000, tab_type=0x20):
+        size = cols * 180
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b'\r')
+
+    data = (b'00h ^@' + tab_block(9)
+            + b'Fix the print position at print time, a normal plain '
+              b'paragraph long enough to stay unclassified.' + HARD)
+    doc = core.parse(data)
+    from ctrlkd.emit import emit_html
+    html = emit_html(doc, mode='modern')
+    assert '<p>00h ^@&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fix the print' in html
+
+
 def test_near_centered_but_not_stays_plain():
     """Edge case: a genuinely off-centre indent -- not padded to sit near
     the measure's own midpoint -- must not be misread as a centered line,

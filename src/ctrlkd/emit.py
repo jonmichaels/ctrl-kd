@@ -1010,7 +1010,8 @@ def _html_img(r, pictures, image_links, idx):
 
 
 def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True,
-               pix_map=None, pictures='off', image_links=None, sentence_spacing=False):
+               pix_map=None, pictures='off', image_links=None, sentence_spacing=False,
+               merge_tab_position_tags=False):
     """Render one already-decided list of Spans (a logical line, or one
     Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
     identically-styled spans unconditionally: cheap, idempotent for a
@@ -1026,9 +1027,27 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=
     raw incoming spans -- before this is the SINGLE choke point every
     HTML render path (Printed physical lines, Modern paragraph units,
     _html_slice's structure-row slices alike) funnels through, so one
-    application here covers all of them."""
+    application here covers all of them.
+
+    `merge_tab_position_tags` (issue #204, centred structure rows only --
+    see `_html_centered_row`'s own docstring for why it is the ONE caller
+    that passes it): strips `tabhmi<N>`/`tableader<N>` tags (Printed-only
+    positioning data; no HTML `_TAG`/class exists for either) from a
+    COPY of each span's style set before coalescing, purely so an
+    adjacent same-styled run merges across a tab-run instead of being
+    fenced off by it. Defaults False -- every other caller (ordinary
+    Modern paragraphs, bullet/def-list slices) keeps the existing
+    behaviour, where a tab-run stays its own span."""
     if sentence_spacing:
         spans = sentence_spacing_spans(spans)
+    if merge_tab_position_tags:
+        spans = [Span(s.text, frozenset(t for t in s.styles
+                                        if not (t.startswith('tabhmi')
+                                                or t.startswith('tableader'))))
+                if any(t.startswith('tabhmi') or t.startswith('tableader')
+                       for t in s.styles)
+                else s
+                for s in spans]
     out = []
     for s in split_graphic_spans(coalesce_spans(spans)):
         pctl = next((t for t in s.styles if t.startswith('pctl')), None)
@@ -1457,7 +1476,7 @@ def _classify_modern_blocks(doc):
 
 def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
                 pix_map=None, pictures='off', image_links=None,
-                sentence_spacing=False):
+                sentence_spacing=False, merge_tab_position_tags=False):
     # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
     # spans LIST directly (the b23 overhaul's own signature -- it runs
     # `coalesce_spans`/`split_graphic_spans` over its argument), not a
@@ -1473,7 +1492,8 @@ def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
     return _html_line(_slice_spans(line.spans, start, end),
                       refs, keep, shown_map=shown_map, inline_styling=inline_styling,
                       pix_map=pix_map, pictures=pictures, image_links=image_links,
-                      sentence_spacing=sentence_spacing)
+                      sentence_spacing=sentence_spacing,
+                      merge_tab_position_tags=merge_tab_position_tags)
 
 
 def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
@@ -1482,12 +1502,36 @@ def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
     """The centred line's own text with its alignment padding sliced off
     (both mechanisms: a real align=center tag already had the M3 strip
     upstream, so lead/trail are 0 and this is a no-op; spaces-only
-    centering strips the padding here for the first time)."""
+    centering strips the padding here for the first time).
+
+    Issue #204: `merge_tab_position_tags=True` here, and ONLY here -- a
+    centred structure row is exactly the shape WSFORMAT.WS's own
+    Symmetric-Sequences table row is (a short "label <tab-run> value"
+    line the spaces-centering heuristic pulled out of the flow, see this
+    module's own `classify_rows` caller): a WordStar "tabs and dot-leader"
+    symmetrical sequence expands to literal leader characters already,
+    but the Printed-only `tabhmi`/`tableader` tags riding on that Span
+    fence it into its own `<span>` -- all-spaces text that then trips
+    `_html_span`'s "typescript indent" heuristic into a run of `&nbsp;`
+    entities, which a browser renders as a wide, uncollapsed gap. sr's
+    own Modern HTML instead merges the tab-run into ONE span with the
+    surrounding text, literal spaces intact (`<span
+    ...>4              Endnote</span>`) -- a browser's own default
+    whitespace collapsing then renders that as a single visible space,
+    matching real WS7's own plain-gap look (paper-scan-verified,
+    planning #204's own review pack). Scoped to centred rows only:
+    trying the SAME merge in `_html_line` generally (bullet/def-list
+    slices, ordinary paragraphs) additionally collapsed unrelated
+    label/long-prose rows sr does NOT collapse (e.g. WSFORMAT.WS's own
+    "00h ^@ <tab> Fix the print position...") -- reverted; this is not a
+    general "tab-runs never get their own span" rule, only a centred
+    structure row's own."""
     raw = ''.join(sp.text for sp in line.spans)
     lead = len(raw) - len(raw.lstrip(' '))
     trail = len(raw) - len(raw.rstrip(' '))
     return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling,
-                       pix_map, pictures, image_links, sentence_spacing)
+                       pix_map, pictures, image_links, sentence_spacing,
+                       merge_tab_position_tags=True)
 
 
 def _html_toc_index(doc):
