@@ -361,17 +361,25 @@ def _pgnum_ops(pdf_bytes):
     return re.findall(rb'([\d.]+) ([\d.]+) Td \((\d+)\) Tj ET', pdf_bytes)
 
 
-def test_page_numbers_auto_default_silent_document_shows_nothing():
-    """A document with NO `.pn`/`.pg`/`.op`/`.pc` ever gets no automatic
-    number under `auto` (the default) -- BARE_PROBE, dosbox-x: real WS7
-    prints nothing at any column either. `page_numbers` omitted entirely
-    and `page_numbers='auto'` given explicitly must render byte-identical
-    -- `auto` IS the silent default, not a new behaviour to opt into."""
+def test_page_numbers_auto_default_silent_document_shows_stock_number():
+    """A document with NO `.pn`/`.pg`/`.op`/`.pc` ever still gets the stock
+    automatic number under `auto` (the default) -- REVERSED 2026-09-07
+    (ws7-prints/v3, the PRISTINE.EXE recapture, finding #2: BOXES/DOCA/DOCB/
+    DOCD/DOCE/SAWYER/DOCF/VERSIONS/-README, none of which touch any of
+    these four commands, all print a bottom-of-page "1"/"2"/"3"... under a
+    genuinely stock WS7 install, confirmed at the raw PCL byte level). The
+    old BARE_PROBE/PC_PROBE evidence ("prints nothing at any column") was
+    real, but measured against Robert J. Sawyer's own WSCHANGE-customized
+    `WS.EXE` (same install-contamination family as `.po` column 7 vs 8,
+    mechanism S) -- stock WS7 numbers a silent document by default.
+    `page_numbers` omitted entirely and `page_numbers='auto'` given
+    explicitly must still render byte-identical -- `auto` IS the default,
+    not a new behaviour to opt into."""
     doc = core.parse_ws((''.join(f'BARELINE-{i:03d}\r\n' for i in range(1, 20))).encode())
     implicit = pdf.emit_pdf(doc, mode='printed')
     explicit = pdf.emit_pdf(doc, mode='printed', page_numbers='auto')
     assert implicit == explicit
-    assert _pgnum_ops(implicit) == []
+    assert _pgnum_ops(implicit) == [(b'291.6', b'60.0', b'1')]
 
 
 def test_page_numbers_auto_pn_present_activates_it():
@@ -391,11 +399,14 @@ def test_page_numbers_auto_pn_present_activates_it():
 
 def test_page_numbers_on_forces_it_on_a_silent_document():
     """`on` forces WordStar's stock default numbering even on a document
-    that never touched `.pn`/`.pg`/`.op`/`.pc` at all -- there is no real
-    WS7 capture of this exact mode (it does not correspond to a real
-    WordStar UI toggle by itself), but the POSITION/geometry it uses is
-    the same measured default `auto`-with-`.pn` uses above, just forced on
-    from page 1 with no dot-command trigger needed."""
+    that never touched `.pn`/`.pg`/`.op`/`.pc` at all -- since 2026-09-07
+    this is also what `auto` (the default) already does for such a
+    document (ws7-prints/v3 finding #2, see the `auto`-default test
+    above), so `on` here is redundant with `auto` for THIS shape; `on`'s
+    real job is forcing the number even where a document's own `.op`
+    would otherwise suppress it under `auto`, which `off` below is the
+    mirror of. POSITION/geometry: the same measured default
+    `auto`-with-`.pn` uses above."""
     doc = core.parse_ws((''.join(f'BARELINE-{i:03d}\r\n' for i in range(1, 20))).encode())
     off = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     on = pdf.emit_pdf(doc, mode='printed', page_numbers='on')
@@ -520,12 +531,16 @@ def test_pm_shifts_printed_pdf_first_line_start_x():
     # normalised to 9.0 offset columns, same as `.lm` (b26 fix; this
     # assertion previously read 10.0, the dormant pre-normalization bug).
     assert doc.blocks[0].para_margin == 9.0
-    out = pdf.emit_pdf(doc, mode='printed')
+    # page_numbers='off': neither fixture touches .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise be the FIRST `Td` match
+    # this regex finds -- unrelated to the `.pm` arithmetic this test checks.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
     baseline = core.parse_ws(
         ws7_block(0x00, bytes([0x70]) + bytes(15))
         + b'Some paragraph text without a typed indent at all.' + HARD)
-    out_base = pdf.emit_pdf(baseline, mode='printed')
+    out_base = pdf.emit_pdf(baseline, mode='printed', page_numbers='off')
     m_base = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out_base)
     assert round(float(m.group(1)) - float(m_base.group(1)), 6) == 64.8   # 9 cols * 7.2pt/col
 
@@ -541,7 +556,11 @@ def test_pm_column_normalization_matches_lm_flush_left():
         + b'.pm 1' + HARD + b'.lm 16' + HARD + b'.po 8' + HARD
         + b'A paragraph whose .pm column equals the left edge itself.' + HARD)
     assert doc.blocks[0].para_margin == 0.0    # `.pm 1` -> column 1 -> 0 offset
-    out = pdf.emit_pdf(doc, mode='printed')
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise be the FIRST `Td` match
+    # this regex finds -- unrelated to the `.pm`/`.po` arithmetic checked here.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
     assert float(m.group(1)) == 57.6           # `.po 8` flush left, 8*12*0.6pt
     # Pre-fix this landed at 64.8pt (57.6 + 1 unnormalized `.pm` column *
@@ -564,7 +583,11 @@ def test_psa_psb_add_printed_pdf_vertical_space():
         + b'Second paragraph after a blank line.' + HARD)
 
     def gap(d):
-        out = pdf.emit_pdf(d, mode='printed')
+        # page_numbers='off': neither fixture touches .pn/.pg/.op, so the
+        # stock automatic number (the real `auto` default since 2026-09-07,
+        # ws7-prints/v3 finding #2) would otherwise add its own `Td` op and
+        # corrupt `ys[0]`/`ys[1]` -- unrelated to the .psa/.psb gap measured.
+        out = pdf.emit_pdf(d, mode='printed', page_numbers='off')
         ys = [float(y) for _, y in re.findall(rb'([\d.]+) ([\d.]+) Td', out)]
         return ys[0] - ys[1]
 
@@ -707,7 +730,12 @@ def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
     assert doc.meta['line_numbering'] == 2
 
-    out = pdf.emit_pdf(doc, mode='printed')
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise render as its own bare
+    # `(N) Tj ET` op -- indistinguishable, by this regex, from a gutter
+    # line-number entry.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
     assert nums == [b'2', b'4', b'6']
 
@@ -719,7 +747,12 @@ def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
 def test_line_numbers_flag_off_suppresses_the_gutter():
     body = (b'.l# 1' + HARD + b'One line only.' + HARD)
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
-    out_off = pdf.emit_pdf(doc, mode='printed', line_numbers=False)
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise render its own bare
+    # `(1) Tj ET` op, indistinguishable from a gutter entry by this regex,
+    # and falsely fail this "the gutter is gone" assertion.
+    out_off = pdf.emit_pdf(doc, mode='printed', line_numbers=False, page_numbers='off')
     assert not re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \(\d+\) Tj ET', out_off)
     r_off = emit.emit_rtf(doc, mode='printed', line_numbers=False)
     assert r'\tab' not in r_off

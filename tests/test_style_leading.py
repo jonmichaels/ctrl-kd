@@ -137,7 +137,11 @@ def _line_ys(out):
 
 
 def _gaps(doc, mode='printed'):
-    out = pdf.emit_pdf(doc, mode=mode)
+    # page_numbers='off': this module measures LEADING, not page numbers --
+    # the stock automatic number (`auto`, the real default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise inject its own `Td (` draw
+    # op into `_line_ys`' sequence and corrupt the very first gap measured.
+    out = pdf.emit_pdf(doc, mode=mode, page_numbers='off')
     ys = _line_ys(out)
     return [round(ys[i - 1] - ys[i], 4) for i in range(1, len(ys))]
 

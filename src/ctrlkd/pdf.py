@@ -543,27 +543,47 @@ def _pgnum_checkpoints(doc):
     shape exactly (same `dot_positions` anchor, "last checkpoint at or
     before this block wins" contract, via `_pgnum_at` below).
 
-    Seeded OFF -- WordStar's own default state, MEASURED (dosbox-x, E3 item
-    2, register b31, 2026-08-25): a document that never touches
-    `.pn`/`.pg`/`.op`/`.pc` at all prints NO automatic number, at any
-    column (BARE_PROBE, PC_PROBE -- `.pc` alone does not turn it on
-    either). `.pn` (ANY occurrence -- WSFORMAT: "sets the starting page
-    number"; real WS7 measured this as "yes, number the pages": PN_ONLY_
-    PROBE, a bare `.pn 5` with no header/footer/`.pg` at all, printed a
+    Seeded ON -- WordStar 7's stock factory default state (WSCHANGE ships
+    the automatic page number ON, centered at the bottom margin, unless
+    `.op` turns it off). REVERSED 2026-09-07 (ws7-prints/v3, the
+    PRISTINE.EXE recapture, finding #2 -- v3/README.md): every one of
+    BOXES/DOCA/DOCB/DOCD/DOCE/SAWYER/DOCF/VERSIONS/-README, none of which
+    touch `.pn`/`.pg`/`.op`/`.pc`, prints a bottom-of-page "1"/"2"/"3"...
+    under a genuinely stock (PRISTINE.EXE) install, confirmed at the raw
+    PCL byte level -- and the engine's OWN existing `.po`/`.pc`-derived x
+    position (`_auto_pageno_x_pt`) already lands EXACTLY on that number's
+    measured position (291.6pt for `.po` 8, the stock default) once
+    `auto_page_number` is forced True, so only this toggle's default was
+    wrong, not its geometry.
+
+    Previously seeded OFF, MEASURED (dosbox-x, E3 item 2, register b31,
+    2026-08-25) against the harness tree's Sawyer-install `WS.EXE` --
+    Robert J. Sawyer's own WSCHANGE-customized install, per the SAME
+    contamination `.po` column 7 vs 8 (mechanism S, `aac4b38`/`350270b`)
+    already traced to that install and reverted for: Sawyer's WSCHANGE
+    profile turned the automatic number OFF by default, stock WS7 does
+    not. BARE_PROBE/PC_PROBE's "no number at all" result was real for
+    THAT install, just not for stock WordStar 7.
+
+    `.pn` (ANY occurrence -- WSFORMAT: "sets the starting page number";
+    real WS7 measured this as "yes, number the pages": PN_ONLY_PROBE, a
+    bare `.pn 5` with no header/footer/`.pg` at all, printed a
     bottom-of-page "5"/"6"/"7") and `.pg` (WSFORMAT's own documented
-    re-enable after `.op`) both turn it ON; `.op` turns it OFF. OPPG_PROBE
-    (`.op`, ~1 page, then a mid-document `.pg`, ~2 more pages, no `.pn`
-    anywhere) confirmed the toggle is genuinely stateful mid-document --
-    page 1 (under `.op`): no number; pages 2-3 (after `.pg`): "2"/"3", the
-    ordinary physical page count -- and that `.pg` alone, with no `.pn`
-    ever typed, still activates it.
+    re-enable after `.op`) both turn it ON (a no-op against this new
+    default, since it is already ON); `.op` turns it OFF -- unaffected by
+    this change, still the only way a document reaches "no number".
+    OPPG_PROBE (`.op`, ~1 page, then a mid-document `.pg`, ~2 more pages,
+    no `.pn` anywhere) confirmed the toggle is genuinely stateful
+    mid-document -- page 1 (under `.op`): no number; pages 2-3 (after
+    `.pg`): "2"/"3", the ordinary physical page count.
 
     This is the engine for `--page-numbers auto` (the default): the
     document's own dot commands decide, byte-identical to every existing
     capture/oracle for the overwhelming majority of documents that never
-    touch any of these four commands. `--page-numbers on`/`off` bypass
-    this entirely (see `_emit_pdf_inner`'s own call site)."""
-    checkpoints = [(0, False)]
+    touch any of these four commands (they now get the stock automatic
+    number instead of none). `--page-numbers on`/`off` bypass this
+    entirely (see `_emit_pdf_inner`'s own call site)."""
+    checkpoints = [(0, True)]
     for bi, _li, cmd in doc.meta.get('dot_positions', ()):
         if _PGNUM_ON_RE.match(cmd):
             value = True
@@ -5707,11 +5727,14 @@ def _emit_pdf_inner(doc, printed, options):
         page_numbers = _resolve_page_numbers(_pn_checkpoints(doc), pages)
         # E3 item 2 (register b31, 2026-08-25): `--page-numbers auto`
         # (default) lets the document's own `.pn`/`.pg`/`.op` decide (see
-        # `_pgnum_checkpoints`) -- byte-identical to every existing capture/
+        # `_pgnum_checkpoints`, seeded ON 2026-09-07 -- stock WS7's own
+        # factory default) -- byte-identical to every existing capture/
         # oracle for the overwhelming majority of documents that never
-        # touch any of those four commands. `on` forces WordStar's stock
-        # default numbering even on a document that never asked for it;
-        # `off` suppresses it unconditionally. Neither `on` nor `off`
+        # touch any of those four commands: they get the stock automatic
+        # number, same as `on` below. `on` forces WordStar's stock
+        # default numbering even on a document that explicitly turned it
+        # off with `.op`; `off` suppresses it unconditionally. Neither
+        # `on` nor `off`
         # touches an explicit `#` the author placed inside a real
         # `.he`/`.fo` -- that is running-title content, substituted by
         # `_running_ops`'s own `render()` regardless of this flag.

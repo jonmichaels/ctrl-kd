@@ -1675,7 +1675,11 @@ def test_pdf_output_bytes_carry_po_left_and_cw_size():
     import re
     from ctrlkd.pdf import emit_pdf
     data = (b'.PO 12' + HARD + b'.CW 10' + HARD + b'Line one.' + HARD)
-    pdf = emit_pdf(core.parse_ws(data), mode='printed')
+    # page_numbers='off': this document sets none of .pn/.pg/.op, so the
+    # stock automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise ALSO match this regex's
+    # first `Tf ... Td` occurrence -- unrelated to what this test measures.
+    pdf = emit_pdf(core.parse_ws(data), mode='printed', page_numbers='off')
     m = re.search(rb'/F1 (\d+) Tf \d+ Ts ([\d.]+) [\d.]+ Td', pdf)
     assert m and m.group(1) == b'10'               # elite type size
     assert m.group(2) == b'86.4'                   # 12 cols x 7.2pt/col, pitch-independent
@@ -4185,7 +4189,15 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     modern is untouched): _printed_top now folds `.hm` into a headerless
     document's top-of-text offset (WS7 ground truth, see _printed_top's own
     docstring), moving this fixture's body down 24pt. A real, evidenced,
-    deliberate change to Printed geometry, not incidental."""
+    deliberate change to Printed geometry, not incidental.
+
+    Re-pinned a THIRD time 2026-09-07 (PRINTED hashes only, again -- modern
+    still untouched: page numbering is a Printed-only feature): none of
+    these fixtures touch `.pn`/`.pg`/`.op`/`.pc`, so `_pgnum_checkpoints`'s
+    corrected default (ws7-prints/v3 finding #2, seeded ON to match stock
+    WS7 instead of Robert J. Sawyer's WSCHANGE-customized install) now adds
+    a stock automatic page number to each of them -- a real, evidenced,
+    deliberate content change, not incidental."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4197,13 +4209,13 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        'a98671821a5692e81d81567b48d1cd9d768ea237a8efefcd6ffdefc8019c46ff'
+        '39ab0c21247a8358977c26197a26bd9c007c46521168a3c41937a29961562bd3'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
     assert digest(core.parse_ws(styled), 'printed') == \
-        'e0e54d1399a799a5120fd075d30993c7ca43b90c5e4aa152114330990cedb488'
+        '2cce14f60df05549f5067dc17a01001f1908c74f9ad754390a82b783d1c88ab4'
     assert digest(core.parse_printstream(stream), 'printed') == \
-        '6d6555d63a003a276e67c8291ab31b653cc526e4ec47bf6f6cc5da50849d7e98'
+        '9dec7b10d0158a392bf684b63ff1e243f821a86194354b53f1095b23533c59f6'
 
 
 def test_pdf_printed_renders_the_documents_own_font_and_size():
@@ -4680,7 +4692,12 @@ def test_lh_is_stateful_each_line_keeps_the_lead_it_was_set_at():
     # VMI: the feed onto the line uses the value set before it), so the gap
     # from line 1 to line 2 is the TALL line's 24pt and the gap from 2 to 3 is
     # the 12pt the file went back to.
-    ys = [y for _f, _sz, _tz, _x, y, _t in _content_spans(emit_pdf(doc, 'printed'))]
+    # page_numbers='off': this test measures `.lh` leading, not page numbers
+    # -- the stock automatic number (the real `auto` default since
+    # 2026-09-07, ws7-prints/v3 finding #2) would otherwise add its own
+    # span to `ys` and shift these indices.
+    ys = [y for _f, _sz, _tz, _x, y, _t
+          in _content_spans(emit_pdf(doc, 'printed', page_numbers='off'))]
     assert ys[0] - ys[1] == 24.0
     assert ys[1] - ys[2] == 12.0
 

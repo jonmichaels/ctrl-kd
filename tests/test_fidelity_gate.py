@@ -77,8 +77,12 @@ def test_extract_pages_matches_pm_offset_from_test_printed_fidelity():
     by 64.8pt (9 offset columns * 7.2pt/col) versus a baseline with none."""
     doc = _plain_doc(b'.pm 10' + HARD + b'Some paragraph text without a typed indent at all.' + HARD)
     baseline = _plain_doc(b'Some paragraph text without a typed indent at all.' + HARD)
-    out = pdf.emit_pdf(doc, mode='printed')
-    out_base = pdf.emit_pdf(baseline, mode='printed')
+    # page_numbers='off': neither fixture touches .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise add its own text op ahead
+    # of `ops[0]` -- unrelated to the `.pm` arithmetic this test checks.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    out_base = pdf.emit_pdf(baseline, mode='printed', page_numbers='off')
     x = fg.extract_pages(out)[0]
     x_base = fg.extract_pages(out_base)[0]
     ops = fg.parse_text_ops(x['content'])
@@ -519,7 +523,13 @@ def test_run_gate_end_to_end_on_a_synthetic_ws7_capture(tmp_path):
     real docs are run, without touching the private/vault corpus."""
     import json
     text = 'A short synthetic paragraph for the fidelity gate itself.'
-    doc = _plain_doc(text.encode() + HARD)
+    # `.op`: this fixture's engine render AND run_gate()'s own internal
+    # re-render (fg.render_engine_pdf, below -- it takes no options) must
+    # agree on page count/content, so the stock automatic number (the real
+    # `auto` default since 2026-09-07, ws7-prints/v3 finding #2) needs
+    # suppressing at the DOCUMENT level, not via an emit_pdf() option one
+    # of the two call sites can't take.
+    doc = _plain_doc(b'.op' + HARD + text.encode() + HARD)
     out = pdf.emit_pdf(doc, mode='printed')
     page = fg.extract_pages(out)[0]
     ops = fg.parse_text_ops(page['content'])
@@ -542,7 +552,8 @@ def test_run_gate_end_to_end_on_a_synthetic_ws7_capture(tmp_path):
     measurements = {'pages': [{'page': 1, 'chunks': chunks, 'baseline_gaps_pt': []}]}
 
     ws_path = tmp_path / 'SYN.WS'
-    ws_path.write_bytes(ws7_block(0x00, bytes([0x70]) + bytes(15)) + text.encode() + HARD)
+    ws_path.write_bytes(ws7_block(0x00, bytes([0x70]) + bytes(15))
+                        + b'.op' + HARD + text.encode() + HARD)
     m_path = tmp_path / 'SYN.measurements.json'
     m_path.write_text(json.dumps(measurements))
 
@@ -565,7 +576,11 @@ def test_run_gate_accepts_pre_rendered_pdf_bytes_instead_of_ws_path(tmp_path):
     import json
     text = 'Another short synthetic paragraph for the pdf-bytes path.'
     doc = _plain_doc(text.encode() + HARD)
-    pdf_bytes = pdf.emit_pdf(doc, mode='printed')
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise show up as an extra,
+    # unmatched engine word against `measurements` below.
+    pdf_bytes = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     page = fg.extract_pages(pdf_bytes)[0]
     ops = fg.parse_text_ops(page['content'])
     mb_h = page['mediabox'][1]
