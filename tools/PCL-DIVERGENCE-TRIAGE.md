@@ -44,9 +44,10 @@ BOXES/VERSIONS/PREVIEW now PASS outright; the rest have real,
 substantial reductions with the remainder either traced to mechanism
 I's font-substitution wrap cascade (accepted by design) or diagnosed
 and documented as out-of-round (-README's own dynamic-right-tab header
-question, -SCREEN's Symbol/cp437 mixed-encoding edge case, SCRIPT's
-LQ-850-dot-matrix corpus mismatch). See the "Summary — all rounds"
-section at the end for the full before/after table.
+question, -SCREEN's Symbol/cp437 mixed-encoding edge case). SCRIPT's own
+remaining 14 divergences were traced and fixed in a follow-up round the
+same day (mechanism O, below) — see the "Summary — all rounds" section
+at the end for the full before/after table.
 
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
@@ -73,6 +74,7 @@ changes it describes are the only outputs.
 | L. `[image: NAME]` picture placeholder has no WS7 text counterpart (real WS7 printed the raster) | PREVIEW (`[image: WORDSTAR.PIX]`) | extra-word-in-engine | **STRUCTURAL** (text vs. raster, not a position or content bug) | **FIXED** (`tools/fidelity_gate.py` `engine_page_tokens`/`_IMAGE_PLACEHOLDER_RE`, residuals round) |
 | M. A fontless `.h#`/`.f#` header/footer line's own inline style-toggle byte (e.g. `^Y` italic) leaked into the Printed PDF as a literal control character instead of being interpreted | -README (`.h1`, wrapped in one `^Y`...`^Y` pair) | extra-word-in-engine, word-unmatched, exact-drift, line-start-shift (everything on the header line after the phantom glyph) | **BROAD SUPPORT** (any fontless header/footer with an inline toggle) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`, residuals round) |
 | N. A WS7 chunk that glues a box-drawing/table-border character directly onto a word with no space | SCRIPT ("│Figure") | word-unmatched, extra-word-in-engine | **TOOLING** (WS7's LaserJet Courier charset draws box-drawing as a font glyph; our engine draws it as a vector) | **FIXED** (`tools/pcl_tolerance.py` `_strip_leading_box_drawing_chunks`, residuals round) |
+| O. A page-local `.po` (page offset) override was carried to the body text (per-line) but never to that page's own running head/footer, which stayed at the document's global `.po` | SCRIPT (running head "PROFILES MONTH '88 SCRIPT.001..." on its two figure pages, whose `.po .5"` resets alongside their `.mt`/`.hm` changes) | exact-drift, line-start-shift (the whole header line, both figure pages) | **BROAD SUPPORT** (any document whose running head/footer sits on a page with its own `.po` override) | **FIXED** (`src/ctrlkd/pdf.py` `_po_checkpoints`/`_po_at`, `Page.po_cols`, per-page `left` fed to `_running_ops`; SCRIPT-correction round) |
 
 ---
 
@@ -302,9 +304,25 @@ for how switching plus mechanism C together collapsed a large apparent
 divergence that turned out to be almost entirely a harness alignment
 artifact, not font drift. The 4 still on v1 (SAWYER, SCRIPT, PREVIEW,
 VERSIONS) simply have no v2 capture yet as of this batch's current
-progress (SCRIPT specifically is one of the batch's known
-`driver-missing` stalls — its embedded printer driver, LQ-850, was never
-installed in the v2 harness tree).
+progress (188/467 as of this same-day follow-up).
+
+**Correction (2026-09-06, later the same day):** this paragraph
+originally went on to claim SCRIPT specifically was stalled because "its
+embedded printer driver, LQ-850, was never installed in the v2 harness
+tree" — that was WRONG, and conflated two different things. `SCRIPT.WS`
+(the SOURCE file)'s own header does carry the literal bytes `LQ-850`
+(offset 4, WordStar's own record of which printer was selected in the
+EDITOR when the document was last saved — an Epson dot-matrix driver) —
+but that is authoring metadata about the .WS file, not a property of the
+capture this triage actually compares against. `ws7-prints/v1/SCRIPT.pcl`
+is genuine LaserJet PCL: it opens with `ESC%-12345X@PJL ENTER
+LANGUAGE=PCL`, and its own running head is set with
+`ESC(sp12v10.00hsb4099T` — a PCL5 font-selection-by-characteristics
+command naming typeface 4099 (Courier), not any Epson ESC/P sequence.
+Verified by hand from the raw bytes. SCRIPT simply has no `v2` recapture
+yet, same as SAWYER/PREVIEW/VERSIONS — no driver mismatch, no corpus
+mismatch. Its own real divergences (mechanism O, below) were a genuine
+engine bug, now fixed.
 
 ---
 
@@ -735,12 +753,85 @@ half), `word-unmatched` 2→0 (the "│Figure" half).
 
 ---
 
-## Summary — all rounds (mechanism-G round + residuals round, 2026-09-06)
+## O. A page-local `.po` override never reached that page's own running head/footer — FIXED (engine)
+
+**SCRIPT-correction round, 2026-09-06 (same day, later).** Jon's
+correction: the claim two sections up — that SCRIPT's remaining 14
+divergences were a driver mismatch, real WS7 ground truth captured
+through an Epson LQ-850 dot-matrix driver never installed in the `v2`
+harness — was WRONG. Verified from the raw bytes: `ws7-prints/v1/
+SCRIPT.pcl` opens with `ESC%-12345X@PJL ENTER LANGUAGE=PCL` and sets its
+running head's font with `ESC(sp12v10.00hsb4099T` (PCL5 font-selection-
+by-characteristics, typeface 4099 = Courier) — genuine LaserJet PCL, no
+different from every other document in this corpus. The `LQ-850` string
+that led to that claim is real, but it is `SCRIPT.WS`'s own file-header
+bytes (offset 4) — WordStar's record of which printer was selected in
+the EDITOR when the author last saved the document, authoring metadata
+about the SOURCE file, unrelated to which printer driver produced the
+CAPTURE this triage actually measures against. See the corrected
+paragraph in mechanism E's own section, above, for the full trace.
+
+**Evidence, this time traced to a real mechanism.** All 14 divergences
+were ONE running-head line — "PROFILES  MONTH '88 SCRIPT.001 1st
+EDIT=RS DATE 05-12-88" (`.he`, defined once near the top of
+`SCRIPT.WS`) — printed on exactly the 2 pages (of 11) holding the
+document's own worked-example figures. Every word on that line, on both
+pages, was off by the SAME +21.6pt (3 columns at the document's 10cpi):
+`line-start-shift` on "PROFILES" (the line's own first word) and
+`exact-drift` on the other 6 words (dragged along once the line's first
+word desyncs). `SCRIPT.WS`'s own figure blocks reset `.po` (page offset)
+to `.5"` (`.po.5"`/`.po .5"`, blocks 64/75/84) at the SAME points they
+reset `.mt`/`.hm` for the figure's own tight margins (mechanism table's
+header-baseline analysis, above, already trusts these exact `.mt`/`.hm`
+values for the figure pages' Y position) — `.po .5"` is 5 columns, and 8
+(the document's own GLOBAL `.po`, WordStar's `.8"` factory default) − 5
+= 3 columns = 21.6pt at 10cpi: exactly the residual.
+
+**Root cause.** Body text already carries a mid-document `.po` change
+correctly — core.py stamps `Line.po_cols` on every physical line (state
+carried forward exactly like `.lh`), and `pdf.py`'s `_page_stream`
+overrides its own left edge per line whenever a line's `po_cols` differs
+from the document default. `_running_ops` (the header/footer row) had no
+such mechanism at all: it always rendered at the document's GLOBAL
+`left` (`_printed_left(doc, size)`, computed once for the whole
+document), with nothing analogous to the `Page.mt_lines`/`hm_lines`/
+`pl_lines`/`fm_lines` per-page overrides `_doc_to_pagelines` already
+threads through for the header/footer's own Y position and page
+capacity (register b31-dot-command-sweep). `.po` simply never got the
+same per-page treatment its siblings did.
+
+**Fix.** `src/ctrlkd/pdf.py`: `_po_checkpoints`/`_po_at` (mirroring
+`_pl_checkpoints`/`_pl_at` exactly — same `dot_positions` anchor, same
+"block 0 is the document's global first-occurrence value, seeded at
+WordStar's hardcoded default" contract), a new `Page.po_cols` slot
+(same None/"document global" shape as the other four), threaded through
+`_recompute_geom`/`_close_page` alongside `mt`/`mb`/`pl`/`hm`/`fm`. The
+per-page render loop in `_emit_pdf_inner` now resolves a page-local
+`running_left` (`_resolve_left_pt(page_po, size)` when the page carries
+its own `po_cols`, else the document default) and passes THAT — not the
+document-global `left` — into `_running_ops`. Body text's own `left` is
+untouched (its per-line mechanism already worked). Unit-tested: a
+synthetic document with a mid-document `.po` change and a running head
+active on the page it changes.
+
+**Before/after (SCRIPT):** `exact-drift` 12→0, `line-start-shift` 2→0 —
+SCRIPT now PASSES outright (0 divergences). No other document in the
+corpus's `.po`-affected set exists (SCRIPT is the only oracle with both
+a page-local `.po` override AND an active running head/footer on that
+page) — re-measured all 13 named documents plus DOCC after this fix;
+only SCRIPT's manifest entry changed (`tests/pcl_fidelity_manifest.json`
+diff is scoped to SCRIPT's own object, verified).
+
+---
+
+## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)
 
 **Fixed, in the engine (`src/ctrlkd`), each with a Tier-1 test:**
 - Mechanism A: `_printed_pm_fi_pt` (pdf.py) — commit 8956ad4.
 - Mechanism G: `_sized`/`_sup_sub_span_pitch` (pdf.py) — commit f328838.
 - Mechanism M: `_hf_line_ops` (pdf.py) — residuals round.
+- Mechanism O: `_po_checkpoints`/`_po_at`, `Page.po_cols`, per-page
+  `running_left` fed to `_running_ops` (pdf.py) — SCRIPT-correction round.
 
 **Fixed, in the test harness (`tools/fidelity_gate.py`/`tools/pcl_tolerance.py`), not the engine:**
 - Mechanism B: `_TEXT_OP_RE` operator order — commit 7285270.
@@ -797,31 +888,15 @@ confirmed 0 (was 25 before mechanism C landed).
   round (a real fix needs tracing exactly which code path a Symbol-font
   span's own cp437-native-byte characters take through
   `core.py`'s parser, separate from this triage's own scope).
-- SCRIPT's remaining 14 divergences (`exact-drift` 12,
-  `line-start-shift` 2, all one running-head/footer line, "PROFILES
-  MONTH '88 SCRIPT.001..."): a consistent 21.6pt (3-character) left
-  offset between our engine's rendered position and WS7's own capture.
-  SCRIPT.WS is one of the triage's own noted `driver-missing` stalls
-  (mechanism E's entry) — its embedded printer driver is LQ-850, an
-  EPSON DOT-MATRIX driver, never installed in the `ws7-prints/v2` batch
-  harness, so SCRIPT's own capture is still on `v1` while every other
-  document in this round switched to `v2`'s LaserJet-driver captures.
-  This document's own real-WS7 ground truth was produced by a
-  DIFFERENT printer driver family than the LaserJet conventions this
-  engine (and the rest of this corpus) targets — plausibly a genuine
-  driver-specific margin convention, not an engine bug to chase. Not
-  investigated further this round; would need either a LaserJet
-  recapture of SCRIPT (planning #196's own job) or explicit
-  LQ-850-aware modelling, out of this round's scope.
 
-**Result after both rounds** (`pytest -m pcl`, corpus armed): of the 13
-documents named in planning #202, BOXES, DOCC, OCAPTAIN, PREVIEW,
-SAWYER, TWAINLET and VERSIONS now PASS (7 of 13, up from 3 after the
-first follow-up round). LJ6DTP (parked, by instruction), LYING,
--README, -SCREEN, SCRIPT and WARPRAYR still FAIL BY NAME. Per-document
-divergence counts, before this round's fixes → after (LJ6DTP included
-for completeness only; excluded from the "fixed" claim by Jon's
-ruling):
+**Result after both rounds plus the SCRIPT-correction round**
+(`pytest -m pcl`, corpus armed): of the 13 documents named in planning
+#202, BOXES, DOCC, OCAPTAIN, PREVIEW, SAWYER, SCRIPT, TWAINLET and
+VERSIONS now PASS (8 of 13, up from 3 after the first follow-up round).
+LJ6DTP (parked, by instruction), LYING, -README, -SCREEN and WARPRAYR
+still FAIL BY NAME. Per-document divergence counts, before this round's
+fixes → after (LJ6DTP included for completeness only; excluded from the
+"fixed" claim by Jon's ruling):
 
 | Doc | Before (mechanism-G round's own starting point) | After |
 |---|---|---|
@@ -830,11 +905,17 @@ ruling):
 | PREVIEW | 3 | 0 (PASSES) |
 | BOXES | 1 | 0 (PASSES) |
 | LYING | 41 | 31 |
-| SCRIPT | 31 | 14 |
+| SCRIPT | 31 | 0 (PASSES) |
 | -README | 88 | 23 |
 | -SCREEN (after mechanism G) | 8 | 6 |
 | DOCC (mechanism G) | 83 | 0 (PASSES) |
 | LJ6DTP (parked) | 1260-ish, unchanged in kind | still large, not a target |
+
+SCRIPT's own column shows its FINAL count after both the residuals
+round (31 → 14, mechanism N) and the SCRIPT-correction round (14 → 0,
+mechanism O) — see mechanism O's own entry, above, for that second step
+and the correction to this document's earlier (wrong) driver-mismatch
+diagnosis.
 
 See `tools/pcl_tolerance.py`'s own commit history and `tests/
 pcl_fidelity_manifest.json` for the exact current counts by reason, per

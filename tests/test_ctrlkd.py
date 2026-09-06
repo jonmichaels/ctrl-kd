@@ -2744,6 +2744,65 @@ def test_single_geometry_document_never_touches_hm_fm_checkpoints():
               and getattr(pg, 'fm_lines', None) is None for pg in pages)
 
 
+# --------------------------------------------- register b31: per-page .po (mechanism O)
+
+def test_mid_document_po_repositions_the_running_head():
+    """`.po` (page offset) is stateful too, same mechanism as `.mt`/`.mb`/
+    `.pl`/`.hm`/`.fm` above (register b31-dot-command-sweep follow-up,
+    SCRIPT-correction round, `tools/PCL-DIVERGENCE-TRIAGE.md` mechanism
+    O). Real WS7 (SCRIPT.WS, sawyer archive): its own worked-example
+    figures reset `.po` to `.5"` (5 columns) alongside the `.mt`/`.hm`
+    changes `_mt_mb_checkpoints`/`_hm_fm_checkpoints` already track for
+    the SAME figures, and the figure pages' own running head ("PROFILES
+    MONTH '88 SCRIPT.001...") moves LEFT with it in WS7's real capture --
+    this engine used to leave it at the document's global `.po` (57.6pt,
+    the WS7-manual `.8"` factory default) regardless, a fixed 21.6pt
+    (3-column) residual on every word of the header line, both figure
+    pages.
+
+    Body text already carried a mid-document `.po` change correctly
+    (core.Line.po_cols, applied per line in `_page_stream`) -- this pins
+    the `_running_ops` (header/footer) side of the fix directly: a
+    document whose SECOND page moves `.po` to 5 columns must render that
+    page's own running head 21.6pt to the LEFT of the first page's,
+    matching WS7, not at the document's unchanged global offset."""
+    from ctrlkd.pdf import emit_pdf, _doc_to_pagelines, _po_checkpoints
+    data = ('.he TITLE\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
+            '.pa\r\n.po5\r\n' +
+            ''.join(f'Page2 line {i}.\r\n' for i in range(1, 21))).encode()
+    doc = core.parse_ws(data)
+    assert doc.meta['page']['po_cols'] == 8.0     # global: unaffected (pre-
+                                                   # text-last-wins), same as
+                                                   # .hm/.fm/.pl's own sibling tests
+    checkpoints = _po_checkpoints(doc)
+    assert checkpoints == [(0, 8.0), (2, 5.0)]    # the figure's own override
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 2
+    assert pages[0].po_cols is None               # untouched: "use the doc global"
+    assert pages[1].po_cols == 5.0
+    pdf_bytes = emit_pdf(doc, mode='printed')
+    xs = [float(m) for m in
+         re.findall(rb'([\d.]+) [\d.]+ Td \(TITLE\) Tj ET', pdf_bytes)]
+    assert xs == [57.6, 36.0]                     # 8 cols vs 5 cols * 7.2pt/col
+
+
+def test_single_geometry_document_never_touches_po_checkpoints():
+    """A document that declares `.po` once, up front (or never at all --
+    every document this project rendered before SCRIPT.WS's figures),
+    never gets a per-page render-time override -- byte-identical to
+    before this fix. Mirrors the `.hm`/`.fm` sibling test above."""
+    from ctrlkd.pdf import _po_checkpoints, _po_at, _doc_to_pagelines
+    data = ('.po5\r\n' +
+            ''.join(f'Body line {i}.\r\n' for i in range(1, 21))).encode()
+    doc = core.parse_ws(data)
+    checkpoints = _po_checkpoints(doc)
+    page = doc.meta['page']
+    assert _po_at(checkpoints, 0) == 5.0 == page['po_cols']
+    pages = _doc_to_pagelines(doc, True)
+    assert all(getattr(pg, 'po_cols', None) is None for pg in pages)
+
+
 # ---------------------------------------------------- register b31: per-page .pn
 
 def test_mid_document_pn_reanchors_numbering_from_the_page_it_lands_on():

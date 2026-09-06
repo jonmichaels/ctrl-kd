@@ -391,6 +391,62 @@ def _hm_fm_at(checkpoints, bi):
     return hm, fm
 
 
+def _po_checkpoints(doc):
+    """[(block_index, po_cols), ...] in ascending block order -- the `.po`
+    (page offset) IN FORCE from that block onward. Mirrors `_pl_checkpoints`
+    exactly (same `dot_positions` anchor, same "block 0 is the document's
+    own global first-occurrence value" contract, same reason for seeding at
+    WordStar's hardcoded default rather than `doc.meta['page']['po_cols']`
+    -- see `_pl_checkpoints`'s docstring).
+
+    Body text already carries a mid-document `.po` change correctly:
+    core.py stamps `Line.po_cols` on every physical line (state carried
+    forward exactly like `.lh`), and `_page_stream` overrides its own
+    `left` per line whenever a line's `po_cols` differs from the document
+    default (`_resolve_left_pt(line.po_cols, ...)`). `_running_ops`
+    (the header/footer row) had NO equivalent -- it always rendered at the
+    document's global `left`, regardless of which page it was on.
+
+    SCRIPT.WS (sawyer archive) is the oracle: its own worked-example
+    figures reset `.po` to `.5"` (5 columns, `.po.5"`/`.po .5"`) around
+    block 64 and again around block 75/84, alongside the `.mt`/`.hm`
+    changes `_mt_mb_checkpoints`/`_hm_fm_checkpoints` already track for
+    the SAME figures. WS7's own capture (`ws7-prints/v1/SCRIPT.pcl`)
+    prints the running head "PROFILES MONTH '88 SCRIPT.001..." on the
+    figure pages starting at x=36.0pt (column 5, the figure's own local
+    `.po .5"`) -- this engine, reading only the document's global `.po`
+    default (8 columns, 57.6pt), rendered it 21.6pt (3 columns) too far
+    right. Confirmed genuine LaserJet PCL (PJL `ENTER LANGUAGE=PCL`,
+    `ESC(s...T` font selection), not a different driver family's own
+    margin convention -- see `tools/PCL-DIVERGENCE-TRIAGE.md`."""
+    from .core import DEFAULT_PO_COLS, _resolve_cols_arg
+    checkpoints = [(0, DEFAULT_PO_COLS)]
+    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+        m = _PO_CMD_RE.match(cmd)
+        if not m:
+            continue
+        value, unit = float(m.group(1)), m.group(2)
+        resolved = _resolve_cols_arg(value, unit.encode() if unit else None)
+        if resolved != checkpoints[-1][1]:
+            checkpoints.append((bi, resolved))
+    return checkpoints
+
+
+_PO_CMD_RE = _re.compile(r'^\.PO\s*([0-9.]+)\s*("|[A-Za-z]{1,2})?',
+                         _re.IGNORECASE)
+
+
+def _po_at(checkpoints, bi):
+    """`po_cols` in force at block index `bi`, per `checkpoints` (ascending,
+    from `_po_checkpoints`) -- the LAST checkpoint at or before `bi`."""
+    po = checkpoints[0][1]
+    for cp_bi, cp_po in checkpoints:
+        if cp_bi > bi:
+            break
+        po = cp_po
+    return po
+
+
 def _pn_checkpoints(doc):
     """[(block_index, pn_value), ...] in ascending block order -- a `.pn`
     RE-ANCHORS the automatic page-number sequence starting on the page it
@@ -2803,7 +2859,7 @@ class Page(list):
     the same answer twice from doc.meta['dot_positions']."""
 
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
-                'hm_lines', 'fm_lines')
+                'hm_lines', 'fm_lines', 'po_cols')
 
     def __init__(self, seq=()):
         super().__init__(seq)
@@ -2821,6 +2877,13 @@ class Page(list):
         # command-sweep, `_hm_fm_checkpoints`).
         self.hm_lines = None
         self.fm_lines = None
+        # `.po` (page offset) in force when this page's own pagination
+        # started -- same None/"document global" contract again (register
+        # b31-dot-command-sweep follow-up, `_po_checkpoints`). Feeds
+        # `_running_ops`'s own header/footer left edge ONLY -- body text
+        # already carries a per-LINE `.po` override (core.Line.po_cols),
+        # this is the page-granularity twin that mechanism was missing.
+        self.po_cols = None
 
 
 def _is_blank_line(line):
@@ -3304,6 +3367,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # would not (see `_pl_checkpoints`'s docstring).
     global_pl = _pl_at(pl_checkpoints, 0) if pl_checkpoints else None
     cur_pl = global_pl
+    # register b31-dot-command-sweep follow-up: `.po` too -- see
+    # `_po_checkpoints`. Feeds `_running_ops`'s own header/footer LEFT
+    # edge only (body text's per-LINE `.po` already works, core.Line.
+    # po_cols) -- still ride the SAME per-page-start recompute so
+    # `Page.po_cols` is known by the time a page closes, exactly like
+    # pl_lines.
+    po_checkpoints = _po_checkpoints(doc) if printed else None
+    global_po = _po_at(po_checkpoints, 0) if po_checkpoints else None
+    cur_po = global_po
     # register b31-dot-command-sweep: `.hm`/`.fm` too -- see
     # `_hm_fm_checkpoints`. Neither feeds capacity/budget (only the
     # header/footer ROW and the notes-area bottom anchor read them), but
@@ -3325,11 +3397,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # override even when that resolved value equals the (correct)
     # checkpoint global, which is exactly the pages BEFORE such a
     # command's first real occurrence.
-    from .core import DEFAULT_PL_LINES, DEFAULT_HM_LINES, DEFAULT_FM_LINES
+    from .core import (DEFAULT_PL_LINES, DEFAULT_HM_LINES, DEFAULT_FM_LINES,
+                       DEFAULT_PO_COLS)
     _pg0 = doc.meta.get('page') or {}
     doc_pl = _pg0.get('pl_lines', DEFAULT_PL_LINES)
     doc_hm = _pg0.get('hm_lines', DEFAULT_HM_LINES)
     doc_fm = _pg0.get('fm_lines', DEFAULT_FM_LINES)
+    doc_po = _pg0.get('po_cols', DEFAULT_PO_COLS)
     cur_hm, cur_fm = global_hm, global_fm
     cap = _printed_cap(doc) if printed else LINES_MODERN
     # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
@@ -3394,9 +3468,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             pg.pl_lines = cur_pl
         if (cur_hm, cur_fm) != (doc_hm, doc_fm):
             pg.hm_lines, pg.fm_lines = cur_hm, cur_fm
+        if cur_po != doc_po:
+            pg.po_cols = cur_po
         pages.append(pg)
     def _recompute_geom(bi):
-        """(mt, mb, pl, hm, fm) in force at block `bi`, for the page about
+        """(mt, mb, pl, hm, fm, po) in force at block `bi`, for the page about
         to start there -- shared by BOTH places a fresh page begins:
 
         1. Right here (below), when the page break is EXPLICIT (`.pa`/
@@ -3420,7 +3496,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         mt, mb = _mt_mb_at(mt_mb_checkpoints, bi) if mt_mb_checkpoints else (global_mt, global_mb)
         pl = _pl_at(pl_checkpoints, bi) if pl_checkpoints else global_pl
         hm, fm = _hm_fm_at(hm_fm_checkpoints, bi) if hm_fm_checkpoints else (global_hm, global_fm)
-        return mt, mb, pl, hm, fm
+        po = _po_at(po_checkpoints, bi) if po_checkpoints else global_po
+        return mt, mb, pl, hm, fm, po
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt = l
@@ -3443,7 +3520,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # page whose geometry never changes never recomputes to a
         # different number (see `_printed_cap_for`'s docstring).
         if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm = _recompute_geom(l.bi)
+            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po = _recompute_geom(l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
             budget = (cap - 1) * default_lead
         overflow = (spent + _cost(l) > budget + 1e-6) if printed \
@@ -3479,7 +3556,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # never reaches the top-of-loop `not page` gate, since it
                 # is already mid-iteration by the time `page` empties.
                 if printed and full and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm = _recompute_geom(l.bi)
+                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po = _recompute_geom(l.bi)
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
                     budget = (cap - 1) * default_lead
             if l is None:
@@ -5594,6 +5671,20 @@ def _emit_pdf_inner(doc, printed, options):
             # after a mid-document `.hm`/`.fm` with `.mt` untouched).
             page_hm = getattr(pl, 'hm_lines', None)
             page_fm = getattr(pl, 'fm_lines', None)
+            # register b31-dot-command-sweep follow-up: `.po` -- read by
+            # `_running_ops` (the header/footer LEFT edge). Body text
+            # already carries a mid-document `.po` change correctly (each
+            # physical Line's own `po_cols`, applied per line in
+            # `_page_stream`); `_running_ops` had no such per-page
+            # equivalent and always rendered at the document's global
+            # `left`. SCRIPT.WS is the oracle (`_po_checkpoints`'s own
+            # docstring): its worked-example figures reset `.po` to
+            # `.5"` alongside their `.mt`/`.hm` changes, and WS7's real
+            # capture moves the running head's own left edge with it --
+            # 21.6pt (3 columns) this engine used to leave on the table.
+            page_po = getattr(pl, 'po_cols', None)
+            running_left = (_resolve_left_pt(page_po, size)
+                            if page_po is not None else left)
             saved_pg = None
             if (page_mt is not None or page_mb is not None or page_pl is not None
                     or page_hm is not None or page_fm is not None):
@@ -5639,7 +5730,7 @@ def _emit_pdf_inner(doc, printed, options):
                 auto_page_number = (_pgnum_at(pgnum_checkpoints, max(bis))
                                     if bis else False)
             running = _running_ops(doc, page_numbers[page_index], page_h, lead,
-                                   size, left, printed,
+                                   size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}),
                                    res=res, auto_page_number=auto_page_number)
