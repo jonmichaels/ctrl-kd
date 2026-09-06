@@ -97,6 +97,7 @@ changes it describes are the only outputs.
 | P. A WS7 chunk glues two adjacent, already-correct engine words with no space, where mechanism C's own x-gap epsilon genuinely (not a capture artifact) passes for two real separate words that just happen to sit close together | LYING (`lies--everyday;`, `failing--awholly`, `case--aspersonal`), WARPRAYR (`"Blessour`) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, post-match reconciliation against the engine's own already-correct split — mechanism C's own epsilon is untouched) | **FIXED** (`tools/pcl_tolerance.py` `_reconcile_glued_ws7_chunks`, second residuals round) |
 | Q. A `.h#`/`.f#` right-align tab's own padding is baked to the width the eventual `#` substitution was ASSUMED to have when the file was last saved (always 1 digit — WordStar's own screen shows the literal `#` token) instead of THIS page's own real page-number width | -README (running head "WordStar 7.0 Archive / #", pages 10-16, all seven 2-digit pages) | exact-drift, line-start-shift (the whole header line, every 2-digit page) | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab and crosses a page-number digit-count boundary) | **FIXED** (`src/ctrlkd/core.py` `Document.header_tabs`/`footer_tabs`, `_parse_head_foot`'s new `tab_mark`; `src/ctrlkd/pdf.py` `_hf_line_ops`'s new `tab_rec` branch; second residuals round) |
 | R. A footnote's own `1.`-style marker gets a literal space appended even when WS7's real capture glues it directly to the note text with no separator at all; separately, the footnote AREA's own bottom-anchor override was gated on exceeding one FULL default-lead gap, silently accepting any SMALLER (but still real) overshoot | LYING (its own single footnote, `1.Did not take the prize.`) | word-unmatched, extra-word-in-engine, baseline-shift (the whole footnote line, both effects) | **BROAD SUPPORT** (any document with a footnote, for the marker join; any document whose footnote area's own natural flow position overshoots the bottom anchor by LESS than one lead, for the anchor gate) | **FIXED** (`src/ctrlkd/pdf.py` `_note_marker`'s default join, `_paginate_printed_notes`'s `override > 0` gate; second residuals round) |
+| S. `core.DEFAULT_PO_COLS` (an UNSET `.po`'s resolved value) was 8.0, the WS7 manual's stated ".8 inch" default — but real WS7's own factory default measures column 7 (0.7in), one column LEFT, confirmed across all 18 `ws7-prints/v1` captures (17 that never set `.po` at all, all off by exactly 7.2pt; the 18th, LJ6DTP, sets `.po .7"` explicitly and matches exactly, proving the pt/column formula itself was always right) | Every document above whose body-margin question mechanism Q left open — -README, LYING (confirmed directly) — PLUS every other document in the corpus that never sets its own `.po`, silently correct-by-coincidence at the `pcl` tier's own normalized level but absolutely wrong until now | exact-drift, line-start-shift, and (for -README/LYING specifically) the residuals mechanism Q/R's own entries already named as "newly-surfaced, not attempted" | **BROAD SUPPORT** (every Printed-mode document, this repo's and the sr port's, that never declares its own page offset) | **FIXED** (`src/ctrlkd/core.py` `DEFAULT_PO_COLS`; third residuals round) |
 
 ---
 
@@ -1019,6 +1020,13 @@ visible body-margin residual almost entirely, not a header regression —
 the header words themselves (`'WordStar'`/`'7.0'`/`'Archive'`) now show
 ZERO raw positional difference from WS7 on every page.
 
+**UPDATE, same day, follow-up round: FIXED — see mechanism S, below.** The
+body-margin question this entry named and deliberately left open turned
+out to be a single wrong constant, `core.DEFAULT_PO_COLS`, not a `.lm`/`.po`
+interaction or an addressing-convention mismatch. Traced across all 18
+`ws7-prints/v1` captures (not just -README), fixed, and verified pixel-
+exact — mechanism S has the evidence table and the fix.
+
 ---
 
 ## R. A footnote marker's own trailing space, and a too-strict bottom-anchor override gate — FIXED (engine)
@@ -1097,6 +1105,155 @@ a regression from this fix and not attempted here for the same reason.
 
 ---
 
+## S. `core.DEFAULT_PO_COLS` was one column too far right — FIXED (engine)
+
+**Third residuals round, planning #202, 2026-09-06.** Mechanism Q's own
+follow-up left one question open: -README's real body text sits at
+column 7 (50.4pt), not the `.po 8` (57.6pt) `_resolve_left_pt`/
+`_printed_left` resolves an UNSET `.po` to — was this a `.lm`/`.po`
+interaction, a column-numbering convention mismatch between header and
+body addressing, or something else? Traced properly this round, across
+every one of the 18 `ws7-prints/v1` captures, not just -README.
+
+**Evidence.** For each captured document, the WS7 capture's own MODAL
+`x_decipoints` (the single most common left-edge x across every chunk in
+`measurements.json` — the document's own real, dominant flush-left
+position, robust against centred titles and indented quotes) compared
+against the engine's own modal x for the same document, both BEFORE any
+frame-offset normalization (the per-page median-dx subtraction
+`tools/pcl_tolerance.py`/`fidelity_gate.py` apply everywhere else in this
+triage — see mechanism Q's own "previously masked" note: that
+normalization treats a CONSISTENT per-page offset as the page's own
+acceptable calibration and hides exactly this class of bug):
+
+| Doc | `.po` in file | WS7 modal x | engine modal x (pre-fix) | delta |
+|---|---|---|---|---|
+| BOXES | none (default) | 50.4pt | 57.6pt | −7.2pt |
+| DOCA | none | 50.4pt | 57.6pt | −7.2pt |
+| DOCB | none | 158.4pt | 165.6pt | −7.2pt |
+| DOCC | none | 50.4pt | 57.6pt | −7.2pt |
+| DOCD | none | 50.4pt | 57.6pt | −7.2pt |
+| LJ6DTP | `.po .7"` (7 cols, explicit) | 50.4pt | 50.4pt | **0.0pt** |
+| LYING | none | 50.4pt | 57.6pt | −7.2pt |
+| OCAPTAIN | none | 50.4pt | 57.6pt | −7.2pt |
+| DOCE | none | 86.4pt | 93.6pt | −7.2pt |
+| PREVIEW | none | 223.2pt | 230.4pt | −7.2pt |
+| -README | none | 50.4pt | 57.6pt | −7.2pt |
+| SAWYER | none | 50.4pt | 57.6pt | −7.2pt |
+| -SCREEN | none | 50.4pt | 57.6pt | −7.2pt |
+| SCRIPT | none (default governs pre-mechanism-O text) | 50.4pt | 57.6pt | −7.2pt |
+| DOCF | none | 50.4pt | 57.6pt | −7.2pt |
+| TWAINLET | none | 50.4pt | 57.6pt | −7.2pt |
+| VERSIONS | none | 64.8pt | 72.0pt | −7.2pt |
+| WARPRAYR | none | 50.4pt | 57.6pt | −7.2pt |
+
+17 of 18 documents never set their own `.po` at all and land, in real
+WS7's own capture, EXACTLY one Courier column (7.2pt) LEFT of where this
+engine's `DEFAULT_PO_COLS = 8.0` (the WS7 manual's stated ".8 inch")
+resolved an unset `.po` to. The 18th, LJ6DTP, is the control: it sets
+`.po .7"` (7 columns) explicitly in the file, and its real WS7 body
+matches the engine's EXACT `.po`→pt formula (`cols * 7.2`) with zero
+residual — proving `_resolve_left_pt`'s conversion itself was always
+correct; only the DEFAULT value fed into it when a file never sets `.po`
+was wrong.
+
+A second, wholly independent measurement already agreed and was already
+in the tree, unconnected until now: `pdf.py`'s own `_auto_pageno_x_pt`
+docstring (dosbox-x live probes, register b31 E3 item 2, 2026-08-25) —
+"PN_PC10_PROBE (`.po` at this install's own factory-configured 7.0...)"
+— named the SAME number, from a completely different method (live
+WordStar 7 under dosbox-x, not a PCL capture diff), and had already
+flagged the contradiction with the manual's 8.0 ("flagged, not hidden")
+without anyone connecting it to `core.DEFAULT_PO_COLS` until this round.
+
+**Why 13 of 18 documents' own `pcl` verdicts never showed this.** Every
+document above with a `.po`-default body IS the 13-of-18-pass set this
+task started from, at the `pcl` tier's own PASS/FAIL granularity — that
+tier's per-page frame-offset normalization subtracts each page's own
+median dx as "calibration" before flagging anything, so a document whose
+WS7 capture is otherwise clean gets the SAME 7.2pt subtracted from every
+line, cancels to zero residual, and reports clean. -README and LYING
+alone had OTHER divergences on the SAME pages (mechanism Q's header
+fix, mechanism R's footnote line) whose per-word residuals were computed
+against a DIFFERENT reference point than the page's own bulk-body
+median, so they were the only two where the constant offset didn't fully
+cancel out — "previously masked by other bugs" was exactly right, but
+the bug it was masking was universal, not -README/LYING-specific.
+
+**The rule WS7 actually applies.** `.po`'s argument, when the file sets
+it explicitly, is print columns from the paper's left edge, converted at
+a fixed 7.2pt/column regardless of pitch — unchanged, confirmed again by
+LJ6DTP. When the file never sets `.po` at all, WS7's own real factory
+default is column 7 (0.7in), not the manual's documented column 8
+(0.8in) — the manual's prose is simply wrong about its own default,
+exactly the same class of error `_printed_left`'s pre-existing docstring
+already named for the pt/column conversion itself ("measured bytes beat
+manual prose"), now applied to the default value too.
+
+**Fix.** `src/ctrlkd/core.py`: `DEFAULT_PO_COLS` 8.0 → 7.0. This is the
+single source every consumer reads (`doc.meta['page']['po_cols']`,
+`Line.po_cols`'s own fallback, `_po_checkpoints`'s seed) — no double
+application anywhere, confirmed by the evidence table above showing every
+affected document move by exactly one column, never two. Two dead-code
+fallback literals kept in step for consistency, neither reachable in
+practice (both paths always receive an already-resolved `po_cols` from
+`doc.meta['page']`): `pdf.py`'s `_auto_pageno_x_pt`/`_printed_left`
+(now import `core.DEFAULT_PO_COLS` instead of hardcoding 8.0) and
+`emit.py`'s printed-mode RTF `margl` computation (7.0, matching, for the
+print-stream/no-page edge case its own `.get()` fallback exists for).
+
+**Tests.** `tests/test_ctrlkd.py`: `test_page_geometry_defaults_to_letter`,
+`test_pdf_printed_size_and_left_follow_cw_po`,
+`test_mid_document_po_repositions_the_running_head`, four `.pm`-indent
+tests, the fixed-pitch sup/sub cell test, and the byte-identical-output
+hash regression (re-pinned a third time, PRINTED digests only — modern
+and print-stream digests confirmed unchanged before pinning). `tests/
+test_printed_fidelity.py`: the mechanism-M header-toggle test and six
+automatic-page-number tests whose own formula includes `.po`'s default.
+Every value above was hand-recomputed from the formula, not copied from
+a failing assertion.
+
+**Before/after, `tools/pcl_tolerance.py --doc`, all 18 documents:**
+verdicts unchanged (BOXES/DOCA/DOCB/DOCC/DOCD/OCAPTAIN/DOCE/PREVIEW/
+SAWYER/SCRIPT/DOCF/TWAINLET/VERSIONS stay clean; LJ6DTP/LYING/-README/
+-SCREEN/WARPRAYR stay divergent) — expected, per the masking explanation
+above: the `pcl` tier's own per-page normalization is blind to a
+consistent absolute offset by design, so this fix is invisible to it
+except where it happens to interact with another page-local residual.
+LYING's own `line-start-shift` count drops 3→2 (one borderline residual,
+`'inferred'` on page 3, now falls the right side of tolerance once the
+page's own median shifts with everything else on it) — a real, if minor,
+improvement, not a regression anywhere. **What actually changed and is
+NOT visible in the `pcl` tier's counts:** every document's ABSOLUTE body
+x position, verified directly against `measurements.json` (the table
+above, re-run post-fix): all 18 documents now match WS7's own modal x to
+0.0pt, including the 17 that were already silently wrong by exactly one
+column. `pytest -m pcl` before/after (5 pre-existing FAILs — LJ6DTP
+parked, LYING/WARPRAYR font-substitution residuals, -README/-SCREEN
+named-not-fixed edge cases — all already documented above, none new; 13
+pre-existing PASSes, unchanged) and the full suite
+(`tools/run-full-suite.sh`, samples + sawyer + pcl + paper tiers
+together) both show IDENTICAL pass/fail counts before and after this
+fix (74 failed / 5904 passed, both runs) — zero regressions anywhere in
+the repository.
+
+**What this changes for a consumer.** Every PRINTED-mode PDF/RTF/layout
+output for a document that never sets its own `.po` now renders its body
+7.2pt (one Courier column) further LEFT than before — this repo's own
+`tests/answer_key.json` self-recorded oracle moved 1060 of its 4620
+cells as a direct, single-cause consequence (`rtf.printed`/`pdf.printed`/
+`layout.printed`/`layout.modern` for every affected document, plus
+`rtf.modern` for the printstream/columnar subset whose modern cell is
+already defined to equal its printed cell). This is real Printed-mode
+geometry, not a formatting nicety: the sr/Soft Return port shares this
+exact `.po`-default resolution path (`_printed_left`/`_resolve_left_pt`'s
+own doctrine already crosses into that engine per the "measured bytes
+beat manual prose" precedent) and should pick up the same one-column
+correction wherever it renders a WS7-era document that never declares
+its own page offset.
+
+---
+
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)
 
 **Fixed, in the engine (`src/ctrlkd`), each with a Tier-1 test:**
@@ -1148,6 +1305,14 @@ Tier-1 test:**
   round.
 - Mechanism R: `_note_marker`'s default join, `_paginate_printed_notes`'s
   `override > 0` gate (`src/ctrlkd/pdf.py`) — second residuals round.
+
+**Fixed this round (third residuals round, planning #202), with a
+Tier-1 test:**
+- Mechanism S: `core.DEFAULT_PO_COLS` 8.0 → 7.0 (`src/ctrlkd/core.py`),
+  plus two dead-code fallback literals kept in step
+  (`src/ctrlkd/pdf.py`/`emit.py`) — the body-margin question mechanism
+  Q's own entry named and left open, traced and closed across all 18
+  captures.
 
 **-SCREEN's own "extra Ω" claim: does not reproduce, verified directly.**
 An earlier round's own diagnosis (Jon's brief for the second residuals

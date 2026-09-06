@@ -1415,9 +1415,11 @@ def test_page_geometry_defaults_to_letter():
     assert page['size_source'] == 'default'
     assert page['mt_lines'] == 3.0 and page['mt_source'] == 'default'
     assert page['mb_lines'] == 8.0 and page['mb_source'] == 'default'
-    # 8, not 0: WS7 manual, "The default page offset is .8 inch" -- since 2.0.0
-    # renders the offset, the manual's stated default governs
-    assert page['po_cols'] == 8.0 and page['po_source'] == 'default'
+    # 7, not the manual's 8 ("The default page offset is .8 inch") and not
+    # the pre-2.0.0 0: PCL-DIVERGENCE-TRIAGE mechanism Q's follow-up
+    # (planning #202, 2026-09-06) measured column 7 as real WS7's actual
+    # unset-`.po` default across all 18 ws7-prints/v1 captures.
+    assert page['po_cols'] == 7.0 and page['po_source'] == 'default'
 
 def test_page_geometry_pl_unitless_is_lines_not_inches():
     # THE trap: WordTsar's own @todo admits it falls back to inches when
@@ -1665,7 +1667,7 @@ def test_pdf_printed_size_and_left_follow_cw_po():
     from ctrlkd.pdf import _printed_size, _printed_left
     d_default = core.parse_ws(b'x' + HARD)
     assert _printed_size(d_default) == 12
-    assert _printed_left(d_default, 12) == pytest.approx(8 * 7.2)   # 57.6
+    assert _printed_left(d_default, 12) == pytest.approx(7 * 7.2)   # 50.4
     d_elite = core.parse_ws(b'.CW 10' + HARD + b'.PO 12' + HARD + b'x' + HARD)
     assert _printed_size(d_elite) == 10
     assert _printed_left(d_elite, 10) == pytest.approx(12 * 7.2)    # 86.4: fixed pt/col (dx exp 2026-08-20)
@@ -2764,16 +2766,16 @@ def test_mid_document_po_repositions_the_running_head():
     changes `_mt_mb_checkpoints`/`_hm_fm_checkpoints` already track for
     the SAME figures, and the figure pages' own running head ("PROFILES
     MONTH '88 SCRIPT.001...") moves LEFT with it in WS7's real capture --
-    this engine used to leave it at the document's global `.po` (57.6pt,
-    the WS7-manual `.8"` factory default) regardless, a fixed 21.6pt
-    (3-column) residual on every word of the header line, both figure
-    pages.
+    this engine used to leave it at the document's global `.po` (50.4pt,
+    the measured column-7 factory default -- core.DEFAULT_PO_COLS)
+    regardless, a fixed 14.4pt (2-column) residual on every word of the
+    header line, both figure pages.
 
     Body text already carried a mid-document `.po` change correctly
     (core.Line.po_cols, applied per line in `_page_stream`) -- this pins
     the `_running_ops` (header/footer) side of the fix directly: a
     document whose SECOND page moves `.po` to 5 columns must render that
-    page's own running head 21.6pt to the LEFT of the first page's,
+    page's own running head 14.4pt to the LEFT of the first page's,
     matching WS7, not at the document's unchanged global offset."""
     from ctrlkd.pdf import emit_pdf, _doc_to_pagelines, _po_checkpoints
     data = ('.he TITLE\r\n' +
@@ -2781,11 +2783,11 @@ def test_mid_document_po_repositions_the_running_head():
             '.pa\r\n.po5\r\n' +
             ''.join(f'Page2 line {i}.\r\n' for i in range(1, 21))).encode()
     doc = core.parse_ws(data)
-    assert doc.meta['page']['po_cols'] == 8.0     # global: unaffected (pre-
+    assert doc.meta['page']['po_cols'] == 7.0     # global: unaffected (pre-
                                                    # text-last-wins), same as
                                                    # .hm/.fm/.pl's own sibling tests
     checkpoints = _po_checkpoints(doc)
-    assert checkpoints == [(0, 8.0), (2, 5.0)]    # the figure's own override
+    assert checkpoints == [(0, 7.0), (2, 5.0)]    # the figure's own override
     pages = _doc_to_pagelines(doc, True)
     assert len(pages) == 2
     assert pages[0].po_cols is None               # untouched: "use the doc global"
@@ -2793,7 +2795,7 @@ def test_mid_document_po_repositions_the_running_head():
     pdf_bytes = emit_pdf(doc, mode='printed')
     xs = [float(m) for m in
          re.findall(rb'([\d.]+) [\d.]+ Td \(TITLE\) Tj ET', pdf_bytes)]
-    assert xs == [57.6, 36.0]                     # 8 cols vs 5 cols * 7.2pt/col
+    assert xs == [50.4, 36.0]                     # 7 cols vs 5 cols * 7.2pt/col
 
 
 def test_single_geometry_document_never_touches_po_checkpoints():
@@ -4122,8 +4124,10 @@ def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
     entirely once a font block existed, drawing the sup glyph at the BODY's
     full 7.2pt cell -- landing everything after it +1.7pt (7.2 - 5.5) too far
     right, exactly -SCREEN's own recorded residual. 'note: ' (6 chars
-    including the trailing space) ends the body run at 72.0 + 6*7.2 = 115.2;
-    the sup '1' now occupies 5.5pt (115.2 -> 120.7), not 7.2pt (-> 122.4)."""
+    including the trailing space) ends the body run at 64.8 + 6*7.2 = 108.0
+    (64.8 = the document's own left margin, core.DEFAULT_PO_COLS's measured
+    column 7 -- 50.4 -- plus this font block's own 2-column indent, 14.4);
+    the sup '1' now occupies 5.5pt (108.0 -> 113.5), not 7.2pt (-> 115.2)."""
     from ctrlkd.pdf import emit_pdf
     from ctrlkd.typestyles import TYPESTYLE_NAMES
     cour = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('courier'))
@@ -4132,12 +4136,12 @@ def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
     doc = core.parse_ws(data)
     spans = _content_spans(emit_pdf(doc, 'printed'))
     by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
-    assert by_text[b'note: '][2] == 72.0
+    assert by_text[b'note: '][2] == 64.8
     sup_size, sup_tz, sup_x = by_text[b'1']
     assert sup_size == 9                        # round(12 * 9.25/12) -- mechanism G's own ratio
-    assert sup_x == 115.2                        # unchanged: body cell governs up to the toggle
+    assert sup_x == 108.0                        # unchanged: body cell governs up to the toggle
     tail_size, tail_tz, tail_x = by_text[b' /']
-    assert tail_x == 120.7                        # 115.2 + 5.5 (13.04cpi cell), NOT 115.2 + 7.2
+    assert tail_x == 113.5                        # 108.0 + 5.5 (13.04cpi cell), NOT 108.0 + 7.2
 
 
 def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
@@ -4185,7 +4189,17 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     modern is untouched): _printed_top now folds `.hm` into a headerless
     document's top-of-text offset (WS7 ground truth, see _printed_top's own
     docstring), moving this fixture's body down 24pt. A real, evidenced,
-    deliberate change to Printed geometry, not incidental."""
+    deliberate change to Printed geometry, not incidental.
+
+    Re-pinned a THIRD time 2026-09-06 (PCL-DIVERGENCE-TRIAGE mechanism Q's
+    follow-up, planning #202): core.DEFAULT_PO_COLS moved 8.0 -> 7.0 (the
+    manual's stated default was never real WS7's -- measured column 7 across
+    all 18 ws7-prints/v1 captures), shifting every PRINTED-mode document that
+    never sets its own `.po` 7.2pt (one Courier column) LEFT. `make_prose()`
+    and `styled` both fall in that bucket, so only their PRINTED digests move;
+    modern (fixed 1in margin, `.po` irrelevant) and the print-stream case
+    (fixed MARGIN constant, in-band offset, `.po` never consulted) are
+    untouched -- confirmed unchanged before pinning these two new values."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4197,11 +4211,11 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        'a98671821a5692e81d81567b48d1cd9d768ea237a8efefcd6ffdefc8019c46ff'
+        '689320cc3bb113a483cfb3803ee6bd059decac8ec4d723951ecb213c17c212f4'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
     assert digest(core.parse_ws(styled), 'printed') == \
-        'e0e54d1399a799a5120fd075d30993c7ca43b90c5e4aa152114330990cedb488'
+        '566f5ef8089271af18138361a5981621afcc4c81065811583efb7f0e8f011ac4'
     assert digest(core.parse_printstream(stream), 'printed') == \
         '6d6555d63a003a276e67c8291ab31b653cc526e4ec47bf6f6cc5da50849d7e98'
 
@@ -4502,8 +4516,8 @@ def test_pm_first_line_indent_not_doubled_when_source_already_types_it():
     assert doc.blocks[0].para_margin == 4.0    # `.pm 5` -> column 5 -> 4 offset cols
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: x for _, _, _, x, y, text in _content_spans(pdf)}
-    assert spans[b'Ten'] == 129.6              # left 57.6 + 10-space indent 72 (NOT +fi 28.8)
-    assert spans[b'Five'] == 93.6              # left 57.6 + 5-space indent 36, unaffected
+    assert spans[b'Ten'] == 122.4              # left 50.4 + 10-space indent 72 (NOT +fi 28.8)
+    assert spans[b'Five'] == 86.4              # left 50.4 + 5-space indent 36, unaffected
 
 
 def test_pm_first_line_indent_still_applies_with_no_typed_indent():
@@ -4522,7 +4536,7 @@ def test_pm_first_line_indent_still_applies_with_no_typed_indent():
     doc = core.parse_ws(data)
     pdf = emit_pdf(doc, mode='printed')
     xs = [x for _, _, _, x, y, text in _content_spans(pdf) if text == b'No']
-    assert xs == [86.4, 57.6]                   # first: left 57.6 + fi 28.8; continuation: left alone
+    assert xs == [79.2, 50.4]                   # first: left 50.4 + fi 28.8; continuation: left alone
 
 
 def test_pm_first_line_indent_not_doubled_with_no_font_block_either():
@@ -4564,14 +4578,14 @@ def test_pm_first_line_indent_not_doubled_with_no_font_block_either():
     doc = core.parse_ws(data)
     assert doc.blocks[0].para_margin == 5.0
     pdf = emit_pdf(doc, mode='printed')
-    # left 57.6 (this emitter's own plain-default `.po` frame -- see
+    # left 50.4 (this emitter's own plain-default `.po` frame -- see
     # test_pm_column_normalization_matches_lm_flush_left) -- `fi`
     # contributes NOTHING once the 10 typed columns already reach and
-    # pass `.pm`'s own 5, NOT the pre-fix doubled 57.6+36=93.6.
+    # pass `.pm`'s own 5, NOT the pre-fix doubled 50.4+36=86.4.
     m_first_x = float(re.search(rb'([\d.]+) [\d.]+ Td \(          Ten', pdf).group(1))
     m_cont_x = float(re.search(rb'([\d.]+) [\d.]+ Td \(     Five', pdf).group(1))
-    assert m_first_x == 57.6
-    assert m_cont_x == 57.6                    # continuation was never fi-eligible anyway
+    assert m_first_x == 50.4
+    assert m_cont_x == 50.4                    # continuation was never fi-eligible anyway
 
 
 def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
@@ -4599,11 +4613,11 @@ def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
     assert doc.blocks[0].para_margin == 5.0
     pdf = emit_pdf(doc, mode='printed')
     x = float(re.search(rb'([\d.]+) [\d.]+ Td \(  Two', pdf).group(1))
-    # left 57.6 + topped-up remainder (5-2=3 columns, 21.6) == the SAME
+    # left 50.4 + topped-up remainder (5-2=3 columns, 21.6) == the SAME
     # x a document with NO typed indent at all reaches (fi's own full
     # 36pt) MINUS the 2 columns (14.4) still embedded as literal spaces
-    # ahead of "Two" in the string -- 57.6 + 21.6 = 79.2.
-    assert x == 79.2
+    # ahead of "Two" in the string -- 50.4 + 21.6 = 72.0.
+    assert x == 72.0
 
 
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():

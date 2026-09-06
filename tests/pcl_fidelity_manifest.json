@@ -2721,7 +2721,7 @@
         "cgtimes-drift-exceeds-tolerance": 4,
         "exact-drift": 4,
         "extra-word-in-engine": 7,
-        "line-start-shift": 3,
+        "line-start-shift": 2,
         "word-unmatched": 2
       },
       "divergences": [
@@ -2738,7 +2738,7 @@
             78.9
           ],
           "pdf_pos": [
-            225.2,
+            218.0,
             79.2
           ],
           "font_class": "cgtimes",
@@ -2758,7 +2758,7 @@
             78.9
           ],
           "pdf_pos": [
-            285.3,
+            278.1,
             79.2
           ],
           "font_class": "cgtimes",
@@ -2778,7 +2778,7 @@
             78.9
           ],
           "pdf_pos": [
-            309.4,
+            302.2,
             79.2
           ],
           "font_class": "cgtimes",
@@ -2798,7 +2798,7 @@
             78.9
           ],
           "pdf_pos": [
-            352.5,
+            345.3,
             79.2
           ],
           "font_class": "cgtimes",
@@ -2818,7 +2818,7 @@
             708.0
           ],
           "pdf_pos": [
-            100.8,
+            93.6,
             708.0
           ],
           "font_class": "exact",
@@ -2838,7 +2838,7 @@
             708.0
           ],
           "pdf_pos": [
-            129.6,
+            122.4,
             708.0
           ],
           "font_class": "exact",
@@ -2858,7 +2858,7 @@
             708.0
           ],
           "pdf_pos": [
-            165.6,
+            158.4,
             708.0
           ],
           "font_class": "exact",
@@ -2878,7 +2878,7 @@
             708.0
           ],
           "pdf_pos": [
-            194.4,
+            187.2,
             708.0
           ],
           "font_class": "exact",
@@ -2894,7 +2894,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            281.9,
+            274.7,
             348.0
           ],
           "font_class": "serif",
@@ -2910,7 +2910,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            50.4,
             74.4
           ],
           "font_class": "serif",
@@ -2926,7 +2926,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            175.3,
+            168.1,
             261.6
           ],
           "font_class": "serif",
@@ -2942,7 +2942,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            122.6,
+            115.4,
             290.4
           ],
           "font_class": "serif",
@@ -2958,7 +2958,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            82.1,
+            74.9,
             333.6
           ],
           "font_class": "serif",
@@ -2974,7 +2974,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            203.3,
+            196.1,
             463.2
           ],
           "font_class": "serif",
@@ -2990,7 +2990,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.9,
+            129.7,
             74.4
           ],
           "font_class": "serif",
@@ -3010,7 +3010,7 @@
             78.9
           ],
           "pdf_pos": [
-            201.1,
+            193.9,
             79.2
           ],
           "font_class": "cgtimes",
@@ -3030,32 +3030,12 @@
             117.3
           ],
           "pdf_pos": [
-            73.3,
+            66.1,
             117.6
           ],
           "font_class": "no_substitute",
           "reason": "line-start-shift",
           "detail": "line-start residual -2.70pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 3,
-          "line_y_top_pt": 405.3,
-          "words": [
-            "inferred",
-            "inferred"
-          ],
-          "ws7_pos": [
-            78.7,
-            405.3
-          ],
-          "pdf_pos": [
-            85.5,
-            405.6
-          ],
-          "font_class": "no_substitute",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -2.50pt (tolerance 2.5pt)"
         },
         {
           "doc": "LYING",
@@ -3146,7 +3126,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3166,7 +3146,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3186,7 +3166,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3206,7 +3186,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3226,7 +3206,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3246,7 +3226,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3266,7 +3246,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3286,7 +3266,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3306,7 +3286,7 @@
             527.7
           ],
           "pdf_pos": [
-            158.4,
+            151.2,
             528.0
           ],
           "font_class": "exact",
@@ -3326,7 +3306,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3346,7 +3326,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3366,7 +3346,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3386,7 +3366,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3406,7 +3386,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3426,7 +3406,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3446,7 +3426,7 @@
             35.7
           ],
           "pdf_pos": [
-            410.4,
+            403.2,
             36.0
           ],
           "font_class": "exact",
@@ -3466,7 +3446,7 @@
             35.7
           ],
           "pdf_pos": [
-            439.2,
+            432.0,
             36.0
           ],
           "font_class": "exact",
@@ -3486,7 +3466,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3506,7 +3486,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3526,7 +3506,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3546,7 +3526,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3566,7 +3546,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3586,7 +3566,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3606,7 +3586,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3626,7 +3606,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3646,7 +3626,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3666,7 +3646,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3686,7 +3666,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3706,7 +3686,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3726,7 +3706,7 @@
             35.7
           ],
           "pdf_pos": [
-            403.2,
+            396.0,
             36.0
           ],
           "font_class": "exact",
@@ -3746,7 +3726,7 @@
             35.7
           ],
           "pdf_pos": [
-            432.0,
+            424.8,
             36.0
           ],
           "font_class": "exact",
@@ -3766,7 +3746,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3786,7 +3766,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3806,7 +3786,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3826,7 +3806,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3846,7 +3826,7 @@
             539.7
           ],
           "pdf_pos": [
-            64.8,
+            57.6,
             540.0
           ],
           "font_class": "exact",
@@ -3866,7 +3846,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3886,7 +3866,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3906,7 +3886,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3926,7 +3906,7 @@
             35.7
           ],
           "pdf_pos": [
-            345.6,
+            338.4,
             36.0
           ],
           "font_class": "exact",
@@ -3946,7 +3926,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -3966,7 +3946,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -3986,7 +3966,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -4006,7 +3986,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -4026,7 +4006,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -4046,7 +4026,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -4066,7 +4046,7 @@
             35.7
           ],
           "pdf_pos": [
-            338.4,
+            331.2,
             36.0
           ],
           "font_class": "exact",
@@ -4106,7 +4086,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            64.8,
             405.6
           ],
           "font_class": "symbol",
@@ -4122,7 +4102,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            100.8,
             405.6
           ],
           "font_class": "symbol",
@@ -4256,7 +4236,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            263.9,
+            256.7,
             79.2
           ],
           "font_class": "serif",
@@ -4272,7 +4252,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            93.6,
+            86.4,
             216.0
           ],
           "font_class": "serif",
@@ -4288,7 +4268,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            50.4,
             252.0
           ],
           "font_class": "serif",
@@ -4304,7 +4284,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            177.6,
+            170.4,
             614.4
           ],
           "font_class": "serif",
@@ -4324,7 +4304,7 @@
             215.7
           ],
           "pdf_pos": [
-            123.5,
+            116.3,
             216.0
           ],
           "font_class": "no_substitute",
@@ -4344,7 +4324,7 @@
             251.7
           ],
           "pdf_pos": [
-            82.4,
+            75.2,
             252.0
           ],
           "font_class": "no_substitute",
@@ -4364,7 +4344,7 @@
             71.7
           ],
           "pdf_pos": [
-            57.6,
+            50.4,
             72.0
           ],
           "font_class": "cgtimes",
@@ -4384,7 +4364,7 @@
             83.7
           ],
           "pdf_pos": [
-            70.1,
+            62.9,
             84.0
           ],
           "font_class": "cgtimes",

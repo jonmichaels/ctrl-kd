@@ -3011,7 +3011,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     if printed:
         margt = _twips_lines('mt_lines', 3.0)
         margb = _twips_lines('mb_lines', 8.0)
-        margl = int(round(float(page.get('po_cols', 8.0)) * 144))
+        # 7.0, not the manual's 8.0 -- matches core.DEFAULT_PO_COLS (measured
+        # WS7 default, PCL-DIVERGENCE-TRIAGE mechanism Q); dead in practice
+        # since doc.meta['page'] always carries a resolved po_cols once a
+        # document is parsed, but kept in step for the print-stream/no-page
+        # edge case this .get() fallback exists for.
+        margl = int(round(float(page.get('po_cols', 7.0)) * 144))
         paperh = int(round(float(page.get('height_in', 11.0)) * 1440))
     else:
         margt = (_twips_lines('mt_lines', 6.0)

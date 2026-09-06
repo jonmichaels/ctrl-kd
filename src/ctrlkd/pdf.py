@@ -614,8 +614,12 @@ def _pgnum_at(checkpoints, bi):
 # instead of a dynamically computed lm/rm midpoint. Fit from two
 # independent `.po` values (7.0 exactly, 20.0 exactly) with zero decipoint
 # residual either way -- not a guess, and not (yet) traced to a WSCHANGE
-# factory constant, so it may be THIS install's own customisation the same
-# way its `.po` 7.0 (vs the manual's 8.0) is; flagged, not hidden.
+# factory constant. Its own `.po` 7.0 (vs the manual's 8.0) was flagged here,
+# not hidden, until PCL-DIVERGENCE-TRIAGE mechanism Q's follow-up (planning
+# #202, 2026-09-06) confirmed the SAME number across all 18 ws7-prints/v1
+# captures' own body text and made it the engine's DEFAULT_PO_COLS -- this
+# was never an install-specific customisation, it is real WS7's actual
+# factory default.
 _AUTO_PAGENO_DEFAULT_COL = 33.5
 
 
@@ -625,8 +629,9 @@ def _auto_pageno_x_pt(doc):
     own measurement. `pc_col` 0 or unset (`page.get('pc_col')` is None or
     falsy either way -- both measured identical) uses the fixed default;
     an explicit non-zero `.pc N` overrides it."""
+    from .core import DEFAULT_PO_COLS
     page = doc.meta.get('page') or {}
-    po = page.get('po_cols', 8.0)
+    po = page.get('po_cols', DEFAULT_PO_COLS)
     pc = page.get('pc_col') or _AUTO_PAGENO_DEFAULT_COL
     return (po + pc - 1) * _PDF_PT_PER_COL
 
@@ -1261,22 +1266,27 @@ def _printed_left(doc, size):
     that clause: PCL captures keep .po at a FIXED 7.2pt/column at BOTH
     10cpi and 12cpi (dx experiment 2026-08-20: ESC&aH = 576dp for .po 8
     at either pitch), matching _PDF_PT_PER_COL exactly as .lm/.rm/.pm
-    already do. Measured bytes beat manual prose. The default .po 8 (the WS7
-    manual's ".8 inch" at 10 CPI) lands at 57.6pt -- NOT the old fixed 72pt
-    MARGIN, which was this emitter's guess, not WordStar's. Print streams
-    keep MARGIN: their offset spaces, where a driver emitted them, are
-    in-band. Clamped inside the page for garbage .po from misdetected
-    binaries.
+    already do. Measured bytes beat manual prose -- twice over: the SAME
+    doctrine also overturns the manual's stated DEFAULT. The manual's
+    ".8 inch" (column 8, 57.6pt) is NOT what an undeclared `.po` actually
+    prints at: every ws7-prints/v1 capture that never sets its own `.po`
+    (PCL-DIVERGENCE-TRIAGE mechanism Q, planning #202, 2026-09-06) lands
+    its body flush at column 7 (50.4pt) instead -- `core.DEFAULT_PO_COLS`
+    carries this measured figure, not the old fixed 72pt MARGIN, which was
+    this emitter's guess, not WordStar's. Print streams keep MARGIN: their
+    offset spaces, where a driver emitted them, are in-band. Clamped
+    inside the page for garbage .po from misdetected binaries.
 
     This is the DOCUMENT DEFAULT -- the first `.po` in the file, exactly
     like `_printed_lead`'s document default. A line whose own `.po` differs
     (core.Line.po_cols, register b31 -- LJ6DTP.WS moves .po to 2.5" for its
     page-4 checkerboard) overrides this at render time in `_page_stream`,
     the same `.lh`-stateful shape PageLine.lead already carries."""
+    from .core import DEFAULT_PO_COLS
     page = doc.meta.get('page')
     if page is None:
         return float(MARGIN)
-    return _resolve_left_pt(page.get('po_cols', 8.0), size)
+    return _resolve_left_pt(page.get('po_cols', DEFAULT_PO_COLS), size)
 
 FONTS = {(False, False): 'F1', (True, False): 'F2',
          (False, True): 'F3', (True, True): 'F4'}

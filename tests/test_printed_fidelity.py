@@ -323,7 +323,7 @@ def test_hf_line_toggle_bytes_never_reach_the_pdf_as_literal_control_chars():
     m = re.search(rb'/(F\d+) (\d+) Tf 0 Ts ([\d.]+) ([\d.]+) Td '
                   rb'\(WordStar 7\.0 Archive / 1\) Tj', out)
     assert m, out
-    assert float(m.group(3)) == 57.6     # this doc's own left margin -- no phantom glyph ahead of it
+    assert float(m.group(3)) == 50.4     # this doc's own left margin -- no phantom glyph ahead of it
     # italic (WS_TOGGLES[0x19] == 'i') resolves to Courier's own oblique
     # variant, not a hardcoded plain Courier -- the toggle really was read,
     # not merely stripped.
@@ -352,10 +352,12 @@ def test_hf_line_with_no_toggle_bytes_is_unaffected_by_mechanism_l():
 # pdf.py's own `_pgnum_checkpoints`/`_auto_pageno_x_pt` docstrings. Default
 # mode is `auto`: the document's own `.pn`/`.pg`/`.op` decide, exactly as
 # measured. `x`/`y` values below are this engine's own measured defaults
-# for a document that declares no page geometry of its own (po_cols 8.0,
-# pc_col unset -> 33.5, pl 66/mb 8/fm 2 -> foot_line 60, .lh default) --
-# pinned once here so a future geometry-formula change is caught, not
-# treated as this test's own hardcoded opinion.
+# for a document that declares no page geometry of its own (po_cols 7.0 --
+# core.DEFAULT_PO_COLS, PCL-DIVERGENCE-TRIAGE mechanism Q's measured WS7
+# factory default, not the manual's 8.0 -- pc_col unset -> 33.5, pl 66/mb
+# 8/fm 2 -> foot_line 60, .lh default) -- pinned once here so a future
+# geometry-formula change is caught, not treated as this test's own
+# hardcoded opinion.
 
 def _pgnum_ops(pdf_bytes):
     return re.findall(rb'([\d.]+) ([\d.]+) Td \((\d+)\) Tj ET', pdf_bytes)
@@ -377,16 +379,16 @@ def test_page_numbers_auto_default_silent_document_shows_nothing():
 def test_page_numbers_auto_pn_present_activates_it():
     """`.pn` alone (no header/footer/`.pg`) turns the automatic number ON --
     PN_ONLY_PROBE, dosbox-x: real WS7 printed a bottom-of-page "5"/"6" for
-    exactly this shape. Position: `.po` at this engine's own default (8.0)
-    and `.pc` never set (-> the measured 33.5 default) give x = (8.0 +
-    33.5 - 1) * 7.2 = 291.6pt; `y` = 60.0pt at this document's own default
+    exactly this shape. Position: `.po` at this engine's own default (7.0)
+    and `.pc` never set (-> the measured 33.5 default) give x = (7.0 +
+    33.5 - 1) * 7.2 = 284.4pt; `y` = 60.0pt at this document's own default
     geometry (foot_line 60 * lead 12pt - wait: page_h(792) - foot_line(60)
     * lead(12) - size(12) = 792 - 720 - 12 = 60.0)."""
     doc = core.parse_ws(('.pn 5\r\n' +
                          ''.join(f'PNLINE-{i:03d}\r\n' for i in range(1, 61))).encode())
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto')
     ops = _pgnum_ops(out)
-    assert ops == [(b'291.6', b'60.0', b'5'), (b'291.6', b'60.0', b'6')]
+    assert ops == [(b'284.4', b'60.0', b'5'), (b'284.4', b'60.0', b'6')]
 
 
 def test_page_numbers_on_forces_it_on_a_silent_document():
@@ -400,7 +402,7 @@ def test_page_numbers_on_forces_it_on_a_silent_document():
     off = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     on = pdf.emit_pdf(doc, mode='printed', page_numbers='on')
     assert _pgnum_ops(off) == []
-    assert _pgnum_ops(on) == [(b'291.6', b'60.0', b'1')]
+    assert _pgnum_ops(on) == [(b'284.4', b'60.0', b'1')]
 
 
 def test_page_numbers_off_suppresses_even_with_pn():
@@ -421,8 +423,8 @@ def test_page_numbers_pc_repositions_it():
                          ''.join(f'PCLINE-{i:03d}\r\n' for i in range(1, 21))).encode())
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto')
     ops = _pgnum_ops(out)
-    # po_cols default 8.0, pc 10 -> (8 + 10 - 1) * 7.2 = 122.4
-    assert ops == [(b'122.4', b'60.0', b'5')]
+    # po_cols default 7.0, pc 10 -> (7 + 10 - 1) * 7.2 = 115.2
+    assert ops == [(b'115.2', b'60.0', b'5')]
 
 
 def test_page_numbers_pc_is_left_anchored_not_right_anchored():
@@ -436,7 +438,7 @@ def test_page_numbers_pc_is_left_anchored_not_right_anchored():
                                  ''.join(f'L{i:03d}\r\n' for i in range(1, 21))).encode())
     x1 = _pgnum_ops(pdf.emit_pdf(one_digit, mode='printed', page_numbers='auto'))[0][0]
     x2 = _pgnum_ops(pdf.emit_pdf(three_digit, mode='printed', page_numbers='auto'))[0][0]
-    assert x1 == x2 == b'122.4'
+    assert x1 == x2 == b'115.2'
 
 
 def test_page_numbers_declared_footer_suppresses_it():
@@ -460,7 +462,7 @@ def test_page_numbers_header_without_hash_does_not_suppress_it():
     doc = core.parse_ws(('.pn 5\r\n.he PLAIN-HEADER-NO-HASH\r\n' +
                          ''.join(f'L{i:03d}\r\n' for i in range(1, 21))).encode())
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto')
-    assert _pgnum_ops(out) == [(b'291.6', b'60.0', b'5')]
+    assert _pgnum_ops(out) == [(b'284.4', b'60.0', b'5')]
     assert b'PLAIN-HEADER-NO-HASH' in out
 
 
