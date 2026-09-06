@@ -2167,11 +2167,29 @@ def _note_marker(note, label, pad_cols=None):
     trailing '.', never re-derive the tag-vs-number choice itself.
 
     `pad_cols` (Finding 4, round 26 visual pass): see
-    `_notes_marker_pad_cols`. None (the overwhelming common case -- any
-    document whose notes all share one marker width, LYING.WS included)
-    keeps the original plain single-space join, byte-identical."""
-    base = f'{label}' if note.kind == 'annotation' else f'{label}.'
-    return base.ljust(pad_cols) if pad_cols is not None else f'{base} '
+    `_notes_marker_pad_cols`. None for a FOOTNOTE (the overwhelming common
+    case -- any document whose notes all share one marker width) means
+    WS7's own capture carries NO padding and NO separating space at all
+    between the marker and the note text -- measured directly (planning
+    #202 residuals round, LYING.pcl's own single footnote: `'1.Did'`, ONE
+    literal chunk, zero characters between the period and the capital D).
+    A prior round's own docstring here read that exact same measurement
+    as "ONE space" and left the join unchanged rather than acting on it;
+    it was misread -- the PCL evidence has never had a space in it. Every
+    OTHER footnote-bearing document measured so far also uses markers of
+    ONE width throughout, so this is the path they all take too; none of
+    them has its own WS7 capture to confirm or contradict the join, so
+    the single confirmed reading (no separator) is what now governs all
+    of them, not a guess independent of it. ANNOTATIONS keep the
+    original space: their marker is a free-text tag with no trailing
+    punctuation of its own (unlike a footnote's period), and no corpus
+    capture has ever measured one -- widening the fix to a kind with no
+    evidence either way is exactly the guess this fix itself replaces."""
+    is_annotation = note.kind == 'annotation'
+    base = f'{label}' if is_annotation else f'{label}.'
+    if pad_cols is not None:
+        return base.ljust(pad_cols)
+    return f'{base} ' if is_annotation else base
 
 def _endnote_marker(label, pad_cols=None):
     """Endnote reference-in-the-note, WSCHANGE factory default: lead '(',
@@ -2640,18 +2658,32 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             # baseline (top-down points): `_line_cost` makes `own_lead /
             # default_lead` exact, so `body_len * default_lead` is the
             # TRUE point advance the body already spent, not an
-            # approximation. Only APPLIED when it pushes the area DOWN
-            # (`override > default_lead`, more than the ordinary single-
-            # blank-line gap the flow path would use) -- a full page
-            # (LYING.WS) already lands within a line of the target on
-            # its own, so this is a no-op there (byte-identical), and a
-            # page that somehow overflows the anchor never moves
-            # backward into the body.
+            # approximation. APPLIED whenever it pushes the area DOWN AT
+            # ALL (`override > 0`) -- NOT gated on exceeding one whole
+            # default-lead gap (planning #202 residuals round: that
+            # gate's own rationale -- "a full page (LYING.WS) already
+            # lands within a line of the target on its own, so this is a
+            # no-op there, byte-identical" -- assumed the flow path's own
+            # ordinary single-blank-line gap could only ever UNDERSHOOT
+            # the target when `override` came out under one lead. LYING
+            # is a full page and its own real WS7 capture (LYING.pcl)
+            # measures its footnote line at y=708pt, but the flow path's
+            # plain `default_lead` gap OVERSHOOTS the anchor by 4.8pt
+            # (natural 676.8pt vs the anchor's own 672.0pt target,
+            # `override` a genuine 7.2pt -- less than one 12pt lead, so
+            # the old `> default_lead` gate skipped it and left the
+            # 4.8pt overshoot standing) -- the assumption held for every
+            # oracle it was checked against, but was never actually
+            # correct for a SMALL positive override, only ever
+            # coincidentally close enough not to be caught. A negative
+            # or zero override (the body's own flow already reached or
+            # passed the target) is still left alone -- "never move
+            # backward into the body" is unchanged.
             body_y = _notes_top + body_len * default_lead
             target_first = (_notes_page_h - _notes_reserve
                             - (len(area) - 1) * default_lead)
             override = target_first - body_y
-            if override > default_lead:
+            if override > 0:
                 area = [PageLine(area[0], lead=override)] + area[1:]
         pages.append(body + area)
         last_page_cost = body_len + _area_size(entries)

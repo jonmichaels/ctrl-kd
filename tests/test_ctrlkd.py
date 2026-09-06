@@ -1186,7 +1186,10 @@ def test_note_number_field_marker_and_area_agree_when_nonzero():
     assert 'Footnote body.' in r
     pp = emit_pdf(doc, mode='printed')
     ptexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pp))
-    assert b'2. Footnote body.' in ptexts
+    # Printed's own marker join carries no separating space at all
+    # (planning #202 residuals round, LYING.pcl's own "1.Did" -- see
+    # _note_marker's docstring); Modern keeps its own "%s. %s" join below.
+    assert b'2.Footnote body.' in ptexts
     pm = emit_pdf(doc, mode='modern')
     mtexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pm))
     assert b'2. Footnote body.' in mtexts       # no brackets (ruling 2026-08-23/24 item 2)
@@ -1789,7 +1792,9 @@ def test_pdf_printed_footnote_area_basic_shape():
     ref_lines = [l for l in flat if 'Line three has a note' in l]
     assert ref_lines and ref_lines[0].rstrip().endswith('here.')
     assert any(l == FOOTNOTE_SEPARATOR for l in flat)
-    assert any(l.startswith('1. Short note text.') for l in flat)
+    # no separating space (planning #202 residuals round, LYING.pcl's own
+    # "1.Did" -- see _note_marker's docstring)
+    assert any(l.startswith('1.Short note text.') for l in flat)
     # VMI-240 rhythm: one blank line immediately above and below the separator
     sep_i = flat.index(FOOTNOTE_SEPARATOR)
     assert flat[sep_i - 1] == '' and flat[sep_i + 1] == ''
@@ -1826,7 +1831,9 @@ def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
     # continuation marker shows up, and nothing after page 0 repeats the "1." marker
     later_lines = [l for pg in texts[1:] for l in pg]
     assert any(l == CONTINUATION_TEXT for l in later_lines)
-    assert not any(l.startswith('1. word000') for l in later_lines)
+    # no separating space (planning #202 residuals round, LYING.pcl's own
+    # "1.Did" -- see _note_marker's docstring)
+    assert not any(l.startswith('1.word000') for l in later_lines)
 
     # completeness: every word appears, in order, exactly once, across all pages
     collected = []
@@ -1834,7 +1841,7 @@ def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
         if l == CONTINUATION_TEXT or l == '' or l.startswith('-'):
             continue
         if 'word' in l:
-            collected.append(l[3:] if l.startswith('1. ') else l)
+            collected.append(l[2:] if l.startswith('1.') else l)
     reconstructed = ' '.join(collected).split()
     assert reconstructed == words
 
@@ -1875,7 +1882,9 @@ def test_pdf_printed_last_page_overflow_prints_at_top_no_floor():
         if l == CONTINUATION_TEXT or l == '' or l.startswith('-'):
             continue
         if 'word' in l:
-            collected.append(l[3:] if l.startswith('1. ') else l)
+            # no separating space (planning #202 residuals round,
+            # LYING.pcl's own "1.Did" -- see _note_marker's docstring)
+            collected.append(l[2:] if l.startswith('1.') else l)
     assert ' '.join(collected).split() == words
 
 def test_pdf_printed_endnotes_collect_at_end_with_no_heading():
@@ -2009,7 +2018,7 @@ def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
     # target for a 4-line area (108), confirming the override did NOT
     # fire and pull the rule down to the anchor position.
     assert spans[b'--------------------'] == 96.0
-    assert spans[b'1. Note.'] == 72.0
+    assert spans[b'1.Note.'] == 72.0
 
 
 def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
@@ -2030,7 +2039,7 @@ def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
     doc = core.parse_ws(data)
     pages = _doc_to_pagelines(doc, False)
     flat = [l for pg in _page_texts(pages) for l in pg]
-    assert any(l.strip() == '1. Foot text.' for l in flat)
+    assert any(l.strip() == '1.Foot text.' for l in flat)
     assert any(l.strip() == '(1) End text.' for l in flat)
     assert not any(l.strip() in ('[1] Foot text.', '[2] End text.') for l in flat)
 
