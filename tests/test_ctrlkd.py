@@ -1941,8 +1941,14 @@ def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
             b' both on one line.' + HARD)
     doc = core.parse_ws(data)
     stream = emit_pdf(doc, mode='printed')
+    # Mechanism G (2026-09-06): a fontless fnref marker's cell now narrows to
+    # the sup/sub pitch instead of the body's (its own `Tz` operator, since
+    # Courier's natural glyph width no longer equals that narrower cell) --
+    # the Tz is optional here (written only on a scale CHANGE) for the same
+    # reason `_content_text`'s own module-level `_SHOW_RE` allows it.
     rises = [int(m.group(1)) for m in
-             re.finditer(rb'(-?\d+) Ts [\d.]+ [\d.]+ Td \(1\) Tj', stream)]
+             re.finditer(rb'(-?\d+) Ts (?:[\d.]+ Tz )?[\d.]+ [\d.]+ Td \(1\) Tj',
+                         stream)]
     assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
     assert rises[0] == rises[1] != 0
 
@@ -4024,6 +4030,74 @@ def _basefonts(pdf):
                            rb' /WinAnsiEncoding)? >>', pdf))
     return {n.decode(): objs[num]
             for n, num in re.findall(rb'/(F\d+) (\d+) 0 R', pdf)}
+
+
+# ------------------------------------------- mechanism G: sup/sub in fixed pitch
+#
+# Research: 2026-09-06_ws7-blank-lines-and-superscript-advance.md, section G.
+# Real WS7's own PCL font-selection command for a superscript/subscript span
+# in a fixed-pitch document is not merely a smaller glyph at the ambient
+# pitch -- it is a DEDICATED, narrower pitch, an independent field of the
+# same font-select command, restored to the body's own values immediately on
+# exit. Two independent real WS7 captures (-SCREEN.pcl, DOCC.pcl -- both
+# Courier, typeface id 4099) carry the byte-identical font-select pair
+# `ESC(sp12v10.00hsb4099T` (body: 12pt, 10.00cpi = 7.2pt/char cell) /
+# `ESC(sp9.25v13.04hsb4099T` (sup/sub: 9.25pt, 13.04cpi = 5.5pt/char cell).
+# These two synthetic fixtures reproduce that measured shape exactly
+# (invented words, same arithmetic) in the TWO real code shapes the corpus
+# exercises: a WS7 span with its own font block (`entry` carries
+# `width_1800`) and a WS4/print-stream span with none (`entry` is `None`).
+
+def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
+    """WS7 shape (-SCREEN.WS's own oracle): a span with a real font block.
+    Before mechanism G, `_span_pitch` ignored the (already size-reduced) `pt`
+    entirely once a font block existed, drawing the sup glyph at the BODY's
+    full 7.2pt cell -- landing everything after it +1.7pt (7.2 - 5.5) too far
+    right, exactly -SCREEN's own recorded residual. 'note: ' (6 chars
+    including the trailing space) ends the body run at 72.0 + 6*7.2 = 115.2;
+    the sup '1' now occupies 5.5pt (115.2 -> 120.7), not 7.2pt (-> 122.4)."""
+    from ctrlkd.pdf import emit_pdf
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    cour = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('courier'))
+    data = (ws7_block(0x00) + _font_block(cour, 12.0, width=180) +
+            b'note: ' + b'\x14' + b'1' + b'\x14' + b' /' + HARD)
+    doc = core.parse_ws(data)
+    spans = _content_spans(emit_pdf(doc, 'printed'))
+    by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
+    assert by_text[b'note: '][2] == 72.0
+    sup_size, sup_tz, sup_x = by_text[b'1']
+    assert sup_size == 9                        # round(12 * 9.25/12) -- mechanism G's own ratio
+    assert sup_x == 115.2                        # unchanged: body cell governs up to the toggle
+    tail_size, tail_tz, tail_x = by_text[b' /']
+    assert tail_x == 120.7                        # 115.2 + 5.5 (13.04cpi cell), NOT 115.2 + 7.2
+
+
+def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
+    """WS4 shape (DOCC.WS4's own oracle): a span with NO font block at all
+    (`entry` is `None`). Before mechanism G, `_span_pitch(None, pt)` fell
+    back to `pt * 0.6` where `pt` was already `_sized`'s REDUCED size (8, the
+    old flat 2/3 ratio) -- narrowing the cell TWICE (once for the smaller
+    drawn glyph, again via the reduced `pt`) to 4.8pt, 0.7pt narrower than
+    WS7's real 5.5pt, landing everything after it 0.7pt too far LEFT --
+    exactly DOCC's own recorded residual sign and magnitude. `size_here`
+    (the span's UNREDUCED declared size) now drives the body-cell lookup
+    instead, so a fontless span's own body cell (12pt document default * 0.6
+    = 7.2pt) narrows ONCE, to the same 5.5pt the WS7-font-block shape gets.
+    'cd.' (3 chars, no font block, no space before the toggle -- matching
+    DOCC's own 'Indians.^T1^T' shape exactly) ends its body run at
+    left + 3*7.2; the sup '1' then occupies 5.5pt, not 4.8pt."""
+    from ctrlkd.pdf import emit_pdf
+    data = b'cd.' + bytes([0x14]) + b'1' + bytes([0x14 | 0x80]) + b'  ef' + HARD
+    doc = core.parse_ws(data)
+    assert core.detect(data)['variant'] == 'ws4'
+    spans = _content_spans(emit_pdf(doc, 'printed'))
+    by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
+    body_x = by_text[b'cd.'][2]
+    sup_size, sup_tz, sup_x = by_text[b'1']
+    assert sup_size == 9
+    assert sup_x == body_x + 3 * 7.2               # immediately after 'cd.', no gap
+    tail_x = by_text[b'  ef'][2]
+    assert tail_x == sup_x + 5.5                    # NOT sup_x + 4.8 (the old double-narrow)
 
 
 def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():

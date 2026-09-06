@@ -3872,10 +3872,33 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     return ops
 
 
-def _sized(styles, size, roll_pt=None):
-    """(point size, baseline rise) for a span set at `size`. Superscript is
-    raised and reduced to 2/3 -- 8pt at the default 12, the ratio this emitter
-    has always used.
+# Mechanism G (research: 2026-09-06_ws7-blank-lines-and-superscript-advance.
+# md, "G -- superscript/subscript advance in fixed-pitch text"). Real WS7's
+# *Reference* manual (ch. 10 "Style," Sub/Superscript, p. 10-8/9) states the
+# reduced size is "the x-height... of the original height" and gives ONE
+# worked example -- 12pt Times Roman -> 8.1pt (ratio 0.675) -- but that ratio
+# is Times Roman's own, not a universal constant: raw PCL from two
+# independent real WS7 captures (DOCC.pcl, -SCREEN.pcl -- byte-identical
+# `ESC(sp9.25v13.04hsb4099T` font-select command in both, typeface 4099 =
+# Courier) measures Courier's own ratio at 9.25pt from a 12pt body = 0.7708,
+# a DIFFERENT number. Confirms the manual's own wording: this is a real,
+# font-specific x-height fraction, not a flat scale -- so it is a lookup
+# keyed by family, not one constant. Only Courier has a captured data point
+# in this corpus (both fixed-pitch documents use it); every other face keeps
+# this emitter's long-standing flat 2/3 default, unverified against any real
+# WS7 sup/sub-in-that-face capture.
+_SUP_SUB_XHEIGHT_RATIO = {'Courier': 9.25 / 12.0}
+_SUP_SUB_DEFAULT_RATIO = 2.0 / 3.0
+
+
+def _sized(styles, size, roll_pt=None, family=None):
+    """(point size, baseline rise) for a span set at `size`. Superscript/
+    subscript are raised/lowered and reduced by `family`'s own x-height
+    ratio (`_SUP_SUB_XHEIGHT_RATIO`, mechanism G) -- 2/3 (8pt at the default
+    12, the ratio this emitter used before mechanism G) for any family with
+    no measured WS7 ratio of its own. `family=None` (every call site that
+    predates mechanism G) keeps the flat 2/3 default unconditionally, so
+    nothing outside Printed's fixed-pitch line renderer changes behaviour.
 
     `roll_pt` (round 17, RULINGS-LEDGER row 3, register C22): the declared
     `.sr` roll, ALREADY converted to points -- Printed's own domain only.
@@ -3888,10 +3911,11 @@ def _sized(styles, size, roll_pt=None):
     +3 happened to already look plausible) and the sub rise (the old -2
     was never spec-derived at all -- confirmed empirically byte-identical
     across `.sr 0`/`.sr 40`/absent, i.e. never actually read)."""
+    ratio = _SUP_SUB_XHEIGHT_RATIO.get(family, _SUP_SUB_DEFAULT_RATIO)
     if 'sup' in styles:
-        return max(1, round(size * 2 / 3)), (roll_pt if roll_pt is not None else 3)
+        return max(1, round(size * ratio)), (roll_pt if roll_pt is not None else 3)
     if 'sub' in styles:
-        return max(1, round(size * 2 / 3)), (-roll_pt if roll_pt is not None else -2)
+        return max(1, round(size * ratio)), (-roll_pt if roll_pt is not None else -2)
     return size, 0
 
 
@@ -3966,6 +3990,51 @@ def _span_pitch(entry, pt):
     if w:
         return w / HMI_PER_POINT
     return pt * 0.6
+
+
+# Mechanism G, the pitch half (research: 2026-09-06_ws7-blank-lines-and-
+# superscript-advance.md). The manual is silent on this; the raw PCL is not:
+# WS7 does not merely draw a smaller glyph at the document's ambient
+# fixed-pitch cell -- it RESELECTS a narrower pitch for the sup/sub span, an
+# independent field of the same PCL font-selection command, restored to the
+# body's own H/V values immediately on exit. Measured directly (-SCREEN's
+# own unjustified demo line, clean of any justification confound): a 7.2pt
+# (10.00cpi) Courier body cell narrows to a 5.5pt (13.04cpi) cell for the
+# span -- confirmed to the decipoint against -SCREEN.pcl's raw x-positions.
+# `_SUP_SUB_CELL_RATIO` is that measured 5.5/7.2 fraction, applied
+# proportionally to whatever the span's own body cell actually is (Courier
+# only -- no other face has a captured sup/sub-in-fixed-pitch example in
+# this corpus); a body cell other than 7.2pt is unverified extrapolation.
+#
+# Two real shapes hit this, both confirmed against the corpus directly:
+#   - a WS7 span with its own font block (`entry` carries `width_1800`) --
+#     `_span_pitch` normally IGNORES `pt` entirely once a font block exists,
+#     which is exactly why the engine used to draw the full, un-narrowed
+#     body cell for a sup/sub run and land everything after it +1.7pt (one
+#     character's worth of the 7.2/5.5 shortfall) too far right (-SCREEN).
+#   - a WS4/print-stream span (no font block at all, `entry` is `None`) --
+#     `_span_pitch` falls back to `pt * 0.6`, where `pt` was already the
+#     REDUCED sup/sub size (`_sized`'s own return) -- narrowing the cell
+#     TWICE (once for the smaller drawn glyph, a second time implicitly via
+#     `pt`) to 4.8pt, 0.7pt narrower than WS7's real 5.5pt, landing
+#     everything after it that same 0.7pt too far LEFT (DOCC). Passing
+#     `body_pt` (the span's own UNREDUCED declared size, `size_here` at the
+#     call site) rather than the already-reduced `pt` fixes both shapes with
+#     the one call: `_span_pitch(entry, body_pt)` always answers "the span's
+#     own BODY cell," which this then scales down by the measured ratio.
+_SUP_SUB_CELL_RATIO = 5.5 / 7.2
+
+
+def _sup_sub_span_pitch(entry, styles, family, body_pt):
+    """The per-character advance for a sup/sub run inside a fixed-pitch
+    span (mechanism G), or `None` when the override does not apply -- the
+    caller falls back to the ordinary `_span_pitch(entry, pt)` unchanged."""
+    if family not in _SUP_SUB_XHEIGHT_RATIO or not ({'sup', 'sub'} & styles):
+        return None
+    body_cell = _span_pitch(entry, body_pt)
+    if not body_cell:
+        return None
+    return body_cell * _SUP_SUB_CELL_RATIO
 
 
 def _tz_scale(text, basefont, pt, target_w):
@@ -4381,7 +4450,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                          page_h, restore_gray)
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
-        pt, rise = _sized(styles, size_here, roll_pt)
+        pt, rise = _sized(styles, size_here, roll_pt, family)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         # Driver-aware colour: a span tagged colourN under a driver whose
@@ -4620,7 +4689,15 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # block's own HMI grid with Tz -- for Courier the ratio is 100 by
             # construction and no operator is ever written, which is what
             # keeps every fontless PDF byte-identical.
-            target = len(text) * _span_pitch(entry, pt)
+            #
+            # A sup/sub run gets mechanism G's own narrower cell instead of
+            # the body's (see `_sup_sub_span_pitch`) -- `size_here` (the
+            # span's UNREDUCED declared size), not `pt` (already reduced by
+            # `_sized`), so a fontless (WS4/print-stream) sup/sub span's
+            # cell is not narrowed twice.
+            pitch = (_sup_sub_span_pitch(entry, styles, family, size_here)
+                     or _span_pitch(entry, pt))
+            target = len(text) * pitch
             scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
         symbol_bold = family == 'Symbol' and 'b' in styles

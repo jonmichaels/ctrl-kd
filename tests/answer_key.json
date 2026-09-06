@@ -28,8 +28,8 @@
  },
  "engine_version": "4.5.0",
  "generator": {
-  "date": "2026-09-06T08:33:08-04:00",
-  "git_sha": "e66ef6a95bd0fb2b66cb46ee22710304871af007",
+  "date": "2026-09-06T09:01:44-04:00",
+  "git_sha": "8e3b965158fb6dc42b8fc2e58ed0bc7d2e10c37a",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -518,7 +518,7 @@
       "pdf.printed": {
        "bytes": 5896,
        "pages": 1,
-       "sha256": "1c5469889a665ea09d3135b6239a89e5e4df81c482ffbfe548f7f98bdfcbdbe6"
+       "sha256": "0aed8ff8de4904ed0d0edc10e9a3fb2224f07d9ae2dfded71cfc7650baf97d6d"
       },
       "rtf.modern": {
        "bytes": 2412,
@@ -1580,9 +1580,9 @@
        "sha256": "bd0c4d63b746edb4358a98959b7cfb024ec32b5eb0ccccd3519562e06a8e3c54"
       },
       "pdf.printed": {
-       "bytes": 2703,
+       "bytes": 2743,
        "pages": 1,
-       "sha256": "eb47e8dbe4b873793711bb8f1d1f963fc86d9aa1f13974ef4a77a010d8b1b22a"
+       "sha256": "2b0d2d047b649e1e87e15ac6c067e5d7c8321708ae2208eac4127d5ad7bfc849"
       },
       "rtf.modern": {
        "bytes": 1023,
@@ -3542,7 +3542,7 @@
       "pdf.printed": {
        "bytes": 34363,
        "pages": 7,
-       "sha256": "684b67b2643c87c34671c8aaa2e2f85a617bcdc21ce0cc938d0f91087b980f6a"
+       "sha256": "8c02a8b95e278356e44bb4f9d7616c278dd7371d006765402a673d470f72de8f"
       },
       "rtf.modern": {
        "bytes": 15661,
@@ -3988,9 +3988,9 @@
        "sha256": "e2fe50577d671c789cee1f63d8da95338f19d214d1772378cc32669dfacea193"
       },
       "pdf.printed": {
-       "bytes": 14297,
+       "bytes": 14437,
        "pages": 1,
-       "sha256": "7de34eec91ca926074d13daa8b6f844c461ce5fb7e48dcb3051fc0557b85ebb6"
+       "sha256": "51611dec84a10061f012615348b279e35e49b0a46359f497758077b06d32823b"
       },
       "rtf.modern": {
        "bytes": 3855,
@@ -5278,7 +5278,7 @@
       "pdf.printed": {
        "bytes": 245329,
        "pages": 8,
-       "sha256": "803b9f58d69756a6dec2119a802483932039e6f1498a3118776f52ce3d1808f8"
+       "sha256": "d6ecdb8cc2f3eb3b1418322727473696ba5c7accaee80887a229fdee4b5c7625"
       },
       "rtf.modern": {
        "bytes": 51692,
@@ -6228,9 +6228,9 @@
        "sha256": "a38fdd49a922215e7be2f390cf345f61b8e34f42a087cfed02cc56d1de5cbd82"
       },
       "pdf.printed": {
-       "bytes": 1495996,
+       "bytes": 1496036,
        "pages": 302,
-       "sha256": "28119283106a11817e7b4160a8e3db48bf35dbb743517965db2ee99a78bdfb01"
+       "sha256": "bd1fe832aa17c82ff48721950428cd6d0e07f16a72c3c095af0366b9aa8d1a46"
       },
       "rtf.modern": {
        "bytes": 615223,
@@ -6340,9 +6340,9 @@
        "sha256": "aaf862627b2b271a72b191489b4822b2432cd966f8208cf18f7880c69d0b4b94"
       },
       "pdf.printed": {
-       "bytes": 163097,
+       "bytes": 163177,
        "pages": 28,
-       "sha256": "811766eebc4fd42198c583ff278abfa05e7370578c57323b3f51031bdd539fcc"
+       "sha256": "8c5e1baa9de8809c89e65d85b7d7f8e8e6d1117cfbdc11336e6432d873951b0a"
       },
       "rtf.modern": {
        "bytes": 57972,
@@ -6788,9 +6788,9 @@
        "sha256": "ba2e5e8dfb017b36efe1dc00d9dcd06501dd6a697fc16f065c4c0da5b1530bef"
       },
       "pdf.printed": {
-       "bytes": 46949,
+       "bytes": 46989,
        "pages": 10,
-       "sha256": "ba6da7c0bf54a367ff938fd19788e53173ddd54cf68fddba22822c17a9654e51"
+       "sha256": "3090f6d5fc97e2fb2f7e18c09c0b7509113a4ab5d20d31c35423bec79daecca7"
       },
       "rtf.modern": {
        "bytes": 18992,
@@ -9422,7 +9422,7 @@
       "pdf.printed": {
        "bytes": 34363,
        "pages": 7,
-       "sha256": "684b67b2643c87c34671c8aaa2e2f85a617bcdc21ce0cc938d0f91087b980f6a"
+       "sha256": "8c02a8b95e278356e44bb4f9d7616c278dd7371d006765402a673d470f72de8f"
       },
       "rtf.modern": {
        "bytes": 15661,
@@ -10260,9 +10260,9 @@
        "sha256": "1713946d2d76717bca7611ec3e9f7d49cd6d41234c6bfaf531fd60ed91b080b5"
       },
       "pdf.printed": {
-       "bytes": 1585,
+       "bytes": 1625,
        "pages": 1,
-       "sha256": "f9a5bd08de6ff25d2d9eedf37bfee84df8bb3f4b58644e34394186b449a289cf"
+       "sha256": "5df9f334288d0b5504bad184d71c6f3282ecd1a94ce612d88b269a90094413d2"
       },
       "rtf.modern": {
        "bytes": 378,
@@ -11438,7 +11438,7 @@
       "pdf.printed": {
        "bytes": 2508,
        "pages": 4,
-       "sha256": "15eb3c20d60b69acf88915fff9ef9e2e26e444ecaa573dd929817861681670c4"
+       "sha256": "88c45e75011e3db22bfd5d332cdb0eb8966246b06f05f175f65ab2ea989fc4ba"
       },
       "rtf.modern": {
        "bytes": 598,
@@ -12780,9 +12780,9 @@
        "sha256": "5be848aa71c0fc733eeb4fc5dc41fe85255d290118be79a5473384d8025cac32"
       },
       "pdf.printed": {
-       "bytes": 4537,
+       "bytes": 4698,
        "pages": 1,
-       "sha256": "a287a3a51fbef7ce9f15548c7019aefd14a17fbd514ed6d0f9973433957e3914"
+       "sha256": "9b10ba307c1551233a4d7ac35670b1fb4e9de53b4188f60b287a0524bdce91a2"
       },
       "rtf.modern": {
        "bytes": 2185,
@@ -13116,9 +13116,9 @@
        "sha256": "7f0495c972f04e84e0d7d074b56e2f3ffa63bf881d35c2c9963f11d87720a8ae"
       },
       "pdf.printed": {
-       "bytes": 2798,
+       "bytes": 2918,
        "pages": 1,
-       "sha256": "15a17b64f855fbb08d30a665f6792879d7c5555c62c1ca8adfdc332d54c49a58"
+       "sha256": "3b14056d6153f2cf865f08b7446a865220a2505d3e2cfc8af0a11cba350663c3"
       },
       "rtf.modern": {
        "bytes": 1154,
@@ -16420,9 +16420,9 @@
        "sha256": "fee46a7bb7179c3d146c7a83517c4174a58b656d22680cf20d12dce811636026"
       },
       "pdf.printed": {
-       "bytes": 13199,
+       "bytes": 13640,
        "pages": 4,
-       "sha256": "f0bac2ab753ffc17eb54afaee8eff1504e966f8e094328ed1b709ace4499f55a"
+       "sha256": "a8eb1b0e26120d354ccd85afda855e9df04fc7eb98e6fc522db8128019df6e27"
       },
       "rtf.modern": {
        "bytes": 5474,
@@ -17822,7 +17822,7 @@
       "pdf.printed": {
        "bytes": 116552,
        "pages": 31,
-       "sha256": "dace241074930e3ec3fc3abe4caa118bf85b720c5ce04428b94ba44df69d753b"
+       "sha256": "ab053ac3173122cecc0daffce2490cdd7c00af58c4f63e56e65acb424fbbf63e"
       },
       "rtf.modern": {
        "bytes": 70718,
@@ -18156,9 +18156,9 @@
        "sha256": "bd0c4d63b746edb4358a98959b7cfb024ec32b5eb0ccccd3519562e06a8e3c54"
       },
       "pdf.printed": {
-       "bytes": 2703,
+       "bytes": 2743,
        "pages": 1,
-       "sha256": "eb47e8dbe4b873793711bb8f1d1f963fc86d9aa1f13974ef4a77a010d8b1b22a"
+       "sha256": "2b0d2d047b649e1e87e15ac6c067e5d7c8321708ae2208eac4127d5ad7bfc849"
       },
       "rtf.modern": {
        "bytes": 1023,
@@ -18270,7 +18270,7 @@
       "pdf.printed": {
        "bytes": 4012,
        "pages": 1,
-       "sha256": "f823d67945096af83c93283910d9bbf85a4c0262dba9b9684d1881ade2d9a0f5"
+       "sha256": "095e2c5fbd4cdbdd6f954d52bceb7809eff2e16cf6792a60857dc87905698947"
       },
       "rtf.modern": {
        "bytes": 1719,
@@ -18716,9 +18716,9 @@
        "sha256": "44cfa499563573ff7f03b4a23874df60424c50117f00e8ce4e419048c6d226f6"
       },
       "pdf.printed": {
-       "bytes": 9562,
+       "bytes": 9622,
        "pages": 7,
-       "sha256": "0b3b8af7d3bd0b018b1dc5028c2cbb7e28868764a5db87c989373c1bd0e6dffb"
+       "sha256": "7ab93dfe7a389e5e3b7f068f442bbc7e157bc85d7e0dd8c07511c498bfea50bd"
       },
       "rtf.modern": {
        "bytes": 4318,
@@ -19668,9 +19668,9 @@
        "sha256": "b9b2b6f31d7c1fc3c65a5df7204a7cf6cacf6855b8a17ca67239eb0f673616ed"
       },
       "pdf.printed": {
-       "bytes": 7894,
+       "bytes": 8294,
        "pages": 2,
-       "sha256": "683a4ac50a6649468c2e30f4d5d3170d1fb8d99841ae6b9ffeeabb9b105df616"
+       "sha256": "951344bb2b36aaa539c6e39ccbff8c15399b7a790c7ec7e5b89b454343441c98"
       },
       "rtf.modern": {
        "bytes": 3618,
@@ -21628,9 +21628,9 @@
        "sha256": "9646732b4f99227ed3bb78a581e4f6deaa152a78b6111c15c68fe5fb9c065e18"
       },
       "pdf.printed": {
-       "bytes": 10833,
+       "bytes": 10873,
        "pages": 1,
-       "sha256": "c0989b8ff224d14c2c83b1af61d7769c28ef5b428b47e78704e27db8017ddd23"
+       "sha256": "43ed604e8a2c1bf35da2f25e48852090e477d75e0e6e21ff0133f9518c883779"
       },
       "rtf.modern": {
        "bytes": 2892,
