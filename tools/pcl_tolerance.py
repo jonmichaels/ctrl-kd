@@ -327,18 +327,42 @@ def _is_unreliable_to_align(text: str) -> bool:
 
 
 # ------------------------------------------------- WS7 chunk-splitting fixes
-# WS7's own PCL driver splits certain words across separate print chunks
-# that fg.match_doc's whole-document text-equality aligner can only ever
-# match word-for-word -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanism C.
-# The function below operates on ONE WS7 print line's own (pc, tc) pairs
-# (pc = measurements.json's committed chunk dict, tc = this module's own
-# fresh pcl_render reparse of that same chunk -- load_ws7_tokens keeps the
-# two in lockstep by zipping them in emission order), already sorted by x,
-# BEFORE _is_box_drawing_text/_is_unreliable_to_align ever run on the
+# WS7's own PCL driver splits a handful of things across separate print
+# chunks that fg.match_doc's whole-document text-equality aligner can only
+# ever match word-for-word -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanisms
+# C and D. Both functions below operate on ONE WS7 print line's own (pc, tc)
+# pairs (pc = measurements.json's committed chunk dict, tc = this module's
+# own fresh pcl_render reparse of that same chunk -- load_ws7_tokens keeps
+# the two in lockstep by zipping them in emission order), already sorted by
+# x, BEFORE _is_box_drawing_text/_is_unreliable_to_align ever run on the
 # result -- so a reconstructed word is judged (and, when genuinely short,
 # filtered) as the ONE token it visually is, never as separate fragments
 # too short to align reliably.
 KERNING_MERGE_EPS_PT = 1.5  # generous vs decipoint quantization + AFM rounding
+
+
+def _dedupe_double_strike_chunks(items):
+    """Mechanism D: WS7's HP-resident-font double-strike fake-bold technique
+    prints the identical chunk TWICE at the identical position (confirmed
+    duplicate (text, x, font) chunks in BOXES/SAWYER/VERSIONS's own
+    measurements.json -- bolded filenames/command names). Our engine
+    renders bold as one real bold-font glyph run, never a doubled strike
+    (the correct choice under Jon's base-14-only ruling), so the SECOND
+    copy has no engine counterpart to align to at all -- drop it (keep the
+    first) before matching, so it stops reporting as `word-unmatched`. A
+    pair counts as a duplicate only when text, x position, size, WS7's own
+    post-substitution font name AND the pre-substitution PCL typeface id
+    all match exactly -- position AND identity, never text alone (two
+    different words can share an x by coincidence)."""
+    out = []
+    seen = set()
+    for pc, tc in items:
+        key = (pc['text'], pc['x_decipoints'], pc['size_pt'], pc.get('font'), tc.get('_T'))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((pc, tc))
+    return out
 
 
 def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
@@ -416,6 +440,7 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             by_y[pc['y_decipoints']].append((pc, tc))
         for _y, items in by_y.items():
             items.sort(key=lambda pt: pt[0]['x_decipoints'])
+            items = _dedupe_double_strike_chunks(items)   # mechanism D, before C
             items = _merge_kerning_split_chunks(items)    # mechanism C
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0

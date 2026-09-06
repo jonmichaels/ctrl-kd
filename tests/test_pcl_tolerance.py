@@ -150,6 +150,32 @@ def test_merge_kerning_split_chunks_single_item_is_a_no_op():
     assert merged[0][0]['text'] == 'Hello'
 
 
+def test_dedupe_double_strike_chunks_collapses_an_exact_duplicate():
+    items = [(_pc('SAWYER.EXE', 2000), _tc()), (_pc('SAWYER.EXE', 2000), _tc())]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 1
+    assert deduped[0][0]['text'] == 'SAWYER.EXE'
+
+
+def test_dedupe_double_strike_chunks_keeps_a_coincidental_same_x_different_text():
+    items = [(_pc('Foo', 2000), _tc()), (_pc('Bar', 2000), _tc())]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 2
+
+
+def test_dedupe_double_strike_chunks_keeps_the_same_text_at_a_different_x():
+    items = [(_pc('the', 2000), _tc()), (_pc('the', 3000), _tc())]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 2
+
+
+def test_dedupe_double_strike_chunks_requires_matching_font_and_typeface_id():
+    items = [(_pc('the', 2000, font='Courier'), _tc(4099)),
+             (_pc('the', 2000, font='Times-Bold'), _tc(4101))]
+    deduped = pt._dedupe_double_strike_chunks(items)
+    assert len(deduped) == 2
+
+
 # ------------------------------------------------------- token exclusions
 def test_box_drawing_text_detects_pure_border_and_block_runs():
     assert pt._is_box_drawing_text('│')            # vertical bar
