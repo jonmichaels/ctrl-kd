@@ -44,6 +44,41 @@ ARCHIVE_ZIP_SHA256 = _MANIFEST['zip_sha256']
 VERSION_MARKER = _MANIFEST['version_marker']       # {'path': ..., 'sha256': ...}
 SAWYER_DOCS = _MANIFEST['docs']                    # name -> {'path', 'sha256', 'size'}
 
+# Single source of truth for the two "can't fully test this one" carve-outs
+# out of the 252 manifest entries (see tests/test_sawyer_corpus.py's module
+# docstring for the full reasoning). Used by both tools/answer_key.py (which
+# entries get the full format x mode grid vs. a recorded failure reason) and
+# tests/test_sawyer_corpus.py (which entries get which test). Previously
+# duplicated by hand across tools/gen_sawyer_oracle.py and this test file --
+# consolidated here 2026-09 (Task 3, one shared answer key) so there is one
+# place to update, not two to keep in sync.
+NON_DOCUMENT_ASSETS = {'WORDSTAR.PIX'}
+KNOWN_NONCONVERTIBLE = {
+    'CVWP/WP_WP_US.QRS': "not a convertible file (detected: binary -- 82% text but no structure)",
+    'CVWP/WP{WPC}.QKL': "not a convertible file (detected: binary -- 59% text but no structure)",
+    'DEFAULT/APP/03670464.CRT/05200120.CRT': "not a convertible file (detected: binary -- 46% text but no structure)",
+    'DEFAULT/APP/03670464.CRT/08120072.CRT': "not a convertible file (detected: binary -- 45% text but no structure)",
+    'DEFAULT/APP/03670464.CRT/14240124.CRT': "not a convertible file (detected: binary -- 42% text but no structure)",
+    'DEFAULT/APP/03670464.CRT/15240104.CRT': "not a convertible file (detected: binary -- 44% text but no structure)",
+    'HIJAAK/ISI0.TMP': "not a convertible file (detected: binary -- 77% text but no structure)",
+    'HIJAAK/ISI2.TMP': "not a convertible file (detected: binary -- 78% text but no structure)",
+    'MANUALS/WordStar Manuals Index/index1.idx': "not a convertible file (detected: binary -- 40% text but no structure)",
+    'WFW/UNC0819.DAT': "not a convertible file (detected: binary -- 69% text but no structure)",
+}
+
+
+def sawyer_classify():
+    """(convertible_names, known_nonconvertible_names, non_document_asset_names),
+    each sorted, partitioning ALL_NAMES = sorted(SAWYER_DOCS) into the three
+    disjoint groups tools/answer_key.py and test_sawyer_corpus.py both need."""
+    all_names = sorted(SAWYER_DOCS)
+    non_document = sorted(n for n in all_names if n in NON_DOCUMENT_ASSETS)
+    nonconvertible = sorted(n for n in all_names if SAWYER_DOCS[n]['path'] in KNOWN_NONCONVERTIBLE)
+    convertible = sorted(n for n in all_names
+                          if n not in NON_DOCUMENT_ASSETS
+                          and SAWYER_DOCS[n]['path'] not in KNOWN_NONCONVERTIBLE)
+    return convertible, nonconvertible, non_document
+
 
 def sawyer_archive():
     """The archive root directory, or None if the tier is not armed."""
