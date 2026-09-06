@@ -72,7 +72,17 @@ def formats():
 def load_plugins():
     """Discover third-party emitters via the 'ctrlkd.emitters' entry-point group."""
     from importlib.metadata import entry_points
-    for ep in entry_points(group='ctrlkd.emitters'):
+    eps = entry_points()
+    # Python 3.10+: entry_points() returns a SelectableGroups object with a
+    # .select(group=...) method (and accepts group= directly). Python 3.9:
+    # it returns a plain dict keyed by group name, with no select/group=
+    # support at all -- pyproject's requires-python is >=3.9, so both paths
+    # must work (planning #203; CI run 34011057595 failed 19 tests on 3.9).
+    if hasattr(eps, 'select'):
+        group = eps.select(group='ctrlkd.emitters')
+    else:
+        group = eps.get('ctrlkd.emitters', [])
+    for ep in group:
         if ep.name not in _REGISTRY:
             fn = ep.load()
             _REGISTRY[ep.name] = {'fn': fn, 'ext': getattr(fn, 'ext', '.' + ep.name)}
