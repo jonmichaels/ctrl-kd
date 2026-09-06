@@ -2471,15 +2471,34 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     _li += n_blank
                     stream.append((PageLine([], soft=line.soft, lead=reserved,
                                             overprint=line.overprint,
-                                            image=sub, left=own_left), refs))
+                                            image=sub, bi=bi, left=own_left), refs))
                     continue
             # A PageLine, not a bare list, so the line's own `.lh` survives the
             # footnote paginator too -- body lines keep their lead whether or
             # not the document has notes.
+            #
+            # `bi=bi` (2026-09-07): this constructor call was the ONE PageLine
+            # site in this module that never threaded the block index through
+            # (`_doc_to_pagelines`'s own two PageLine calls, the plain-path
+            # equivalent, both pass `bi=bi`) -- every line a document with
+            # placeable footnotes/endnotes/annotations produces came out
+            # `bi=None`. Invisible while `_pgnum_checkpoints`' default was
+            # seeded OFF (a page with no `bi` at all falls back to `auto_page_
+            # number=False`, the SAME value the old default always resolved
+            # to anyway -- see `_emit_pdf_inner`'s `bis = [...]; ... if bis
+            # else False`), but seeding it ON (ws7-prints/v3 finding #2)
+            # exposed it: ANY notes-bearing document silently lost its stock
+            # automatic page number under `auto`, regardless of what its own
+            # `.pn`/`.pg`/`.op` said, purely because this one call site
+            # dropped `bi`. Found via sr/ctrl-kd cross-engine parity
+            # (AnswerKeyParityPrivateTests, fixtures-ws5/NOTES.TST -- sr's
+            # Swift port threads its own block index through the equivalent
+            # call correctly, so only ctrl-kd's own Printed PDF was missing
+            # the number and the two engines' answer-key cells diverged).
             stream.append((PageLine(spans, soft=line.soft,
                                     lead=own_lead,
                                     overprint=line.overprint,
-                                    left=own_left), refs))
+                                    bi=bi, left=own_left), refs))
     return stream
 
 def _area_size(entries):

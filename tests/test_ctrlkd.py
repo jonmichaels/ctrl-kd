@@ -275,7 +275,11 @@ def test_footnote_marker_stays_inline_before_a_blank_paragraph_line():
     ), 'the marker must never be the SOLE content of its own line'
 
     from ctrlkd.pdf import emit_pdf
-    pdf = emit_pdf(doc, mode='printed')
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise ALSO render a bare "1" --
+    # indistinguishable, by this lookup, from the footnote marker itself.
+    pdf = emit_pdf(doc, mode='printed', page_numbers='off')
     spans = _content_spans(pdf)
     anchor = next(s for s in spans if s[5] == b'Anchor text ends here.')
     marker = next(s for s in spans if s[5] == b'1')
@@ -1953,7 +1957,11 @@ def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
             b' and an endnote' + ws7_note(0x04, b'Endnote text.', number=0) +
             b' both on one line.' + HARD)
     doc = core.parse_ws(data)
-    stream = emit_pdf(doc, mode='printed')
+    # page_numbers='off': this fixture touches no .pn/.pg/.op, so the stock
+    # automatic number (the real `auto` default since 2026-09-07,
+    # ws7-prints/v3 finding #2) would otherwise ALSO render a bare "1",
+    # indistinguishable from a footnote/endnote marker by this regex.
+    stream = emit_pdf(doc, mode='printed', page_numbers='off')
     # Mechanism G (2026-09-06): a fontless fnref marker's cell now narrows to
     # the sup/sub pitch instead of the body's (its own `Tz` operator, since
     # Courier's natural glyph width no longer equals that narrower cell) --
