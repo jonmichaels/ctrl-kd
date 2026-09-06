@@ -290,3 +290,74 @@ def test_run_gate_end_to_end_on_a_synthetic_ws7_capture(tmp_path):
     assert off['median_dx'] == -6.0
     assert off['median_dy'] == 12.0
     assert report['doc_font_class_agreement'] == 1.0
+
+
+# --------------------------------------------------- --pdf / pdf_bytes mode
+def test_run_gate_accepts_pre_rendered_pdf_bytes_instead_of_ws_path(tmp_path):
+    """The `pdf_bytes` path (backing --pdf on the CLI) must produce the
+    IDENTICAL report as rendering ws_path ourselves, given the same bytes
+    -- this is what lets a different engine's own Printed PDF (e.g. sr's)
+    reuse this gate without ws_path or even a .WS source at all."""
+    import json
+    text = 'Another short synthetic paragraph for the pdf-bytes path.'
+    doc = _plain_doc(text.encode() + HARD)
+    pdf_bytes = pdf.emit_pdf(doc, mode='printed')
+    page = fg.extract_pages(pdf_bytes)[0]
+    ops = fg.parse_text_ops(page['content'])
+    mb_h = page['mediabox'][1]
+
+    words = text.split(' ')
+    x = ops[0]['x']
+    y_top = mb_h - ops[0]['y']
+    chunks = []
+    for w in words:
+        chunks.append({'x_decipoints': round(x * 10), 'y_decipoints': round(y_top * 10),
+                       'size_pt': 12.0, 'font': 'Courier', 'text': w})
+        x += (len(w) + 1) * 7.2
+    measurements = {'pages': [{'page': 1, 'chunks': chunks, 'baseline_gaps_pt': []}]}
+    m_path = tmp_path / 'PDFMODE.measurements.json'
+    m_path.write_text(json.dumps(measurements))
+
+    via_bytes = fg.run_gate('PDFMODE', None, str(m_path), pdf_bytes=pdf_bytes)
+    assert via_bytes['n_engine_pages'] == 1
+    assert via_bytes['doc_matched'] == len(words)
+    assert via_bytes['doc_unmatched_ws7'] == 0 and via_bytes['doc_unmatched_engine'] == 0
+    assert via_bytes['doc_frame_offset']['median_dx'] == 0.0
+    assert via_bytes['doc_frame_offset']['median_dy'] == 0.0
+
+
+def test_cli_pdf_flag_with_explicit_measurements_needs_no_corpus_env(tmp_path, monkeypatch, capsys):
+    """`--pdf PATH --measurements PATH` is fully standalone -- no
+    CTRLKD_PRIVATE_CORPUS, no CTRLKD_SAWYER_ARCHIVE, no --doc at all."""
+    import json
+    monkeypatch.delenv(fg.PRIVATE_CORPUS_ENV, raising=False)
+    monkeypatch.delenv(fg.ARCHIVE_ENV, raising=False)
+
+    text = 'Standalone pdf flag test text right here.'
+    doc = _plain_doc(text.encode() + HARD)
+    pdf_bytes = pdf.emit_pdf(doc, mode='printed')
+    page = fg.extract_pages(pdf_bytes)[0]
+    ops = fg.parse_text_ops(page['content'])
+    mb_h = page['mediabox'][1]
+    words = text.split(' ')
+    x = ops[0]['x']
+    y_top = mb_h - ops[0]['y']
+    chunks = []
+    for w in words:
+        chunks.append({'x_decipoints': round(x * 10), 'y_decipoints': round(y_top * 10),
+                       'size_pt': 12.0, 'font': 'Courier', 'text': w})
+        x += (len(w) + 1) * 7.2
+    measurements = {'pages': [{'page': 1, 'chunks': chunks, 'baseline_gaps_pt': []}]}
+
+    pdf_path = tmp_path / 'STANDALONE.pdf'
+    pdf_path.write_bytes(pdf_bytes)
+    m_path = tmp_path / 'STANDALONE.measurements.json'
+    m_path.write_text(json.dumps(measurements))
+    out_json = tmp_path / 'out.json'
+
+    rc = fg.main(['--pdf', str(pdf_path), '--measurements', str(m_path),
+                 '--out-json', str(out_json)])
+    assert rc == 0
+    report = json.loads(out_json.read_text())
+    assert report['doc_matched'] == len(words)
+    assert report['doc_unmatched_ws7'] == 0

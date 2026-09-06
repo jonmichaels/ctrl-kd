@@ -72,6 +72,22 @@ USAGE
     CTRLKD_PRIVATE_CORPUS=/path/to/corpus python3 tools/fidelity_gate.py \
         --doc LYING --out-json /tmp/lying.json
 
+    # --pdf: compare a DIFFERENT engine's own PDF (this tool reads any
+    # PDF -- the comparison logic below never depends on how it was
+    # produced) against the same WS7 ground truth, e.g. from the Swift/sr
+    # side, without re-implementing this whole gate a second time:
+    CTRLKD_PRIVATE_CORPUS=/path/to/corpus python3 tools/fidelity_gate.py \
+        --doc LYING --pdf /path/to/sr-LYING-printed.pdf --out-json /tmp/lying-sr.json
+    # or fully standalone, no corpus env vars at all:
+    python3 tools/fidelity_gate.py --pdf OUT.pdf \
+        --measurements NAME.measurements.json [--pcl NAME.pcl] --out-json /tmp/out.json
+
+For the automated, tolerance-aware version of this gate (per-font-class
+drift bounds, a checked-in named-divergence manifest, drift detection) see
+tools/pcl_tolerance.py and the `pcl` pytest tier (tests/test_pcl_fidelity.py)
+-- this file stays the raw, tolerance-agnostic coordinate comparison both
+of those are built on.
+
 `--doc NAME` resolves NAME.WS from $CTRLKD_PRIVATE_CORPUS's own
 pd-samples/authored/ subdirectory (or, for SAWYER/VERSIONS/etc -- the
 PRIVATE_DOCS table below -- from $CTRLKD_SAWYER_ARCHIVE/NAME.WS, same
@@ -479,9 +495,17 @@ def _agreement(deltas, key):
 
 # --------------------------------------------------------------- doc-level
 def run_gate(doc_name: str, ws_path: str, measurements_path: str,
-             pcl_path: str = None) -> dict:
+             pcl_path: str = None, pdf_bytes: bytes = None) -> dict:
+    """`ws_path` renders the CURRENT engine's own Printed PDF via
+    render_engine_pdf(), same as ever. Pass `pdf_bytes` instead (any
+    already-rendered PDF -- `ws_path` may then be None, kept only for the
+    report's own 'ws_path' field) to compare a DIFFERENT engine's output
+    against the same WS7 ground truth -- this is how the Swift/sr side
+    reuses this tool without a second implementation of the whole gate
+    (see main()'s `--pdf` flag)."""
     ws7 = json.load(open(measurements_path))
-    pdf_bytes = render_engine_pdf(ws_path)
+    if pdf_bytes is None:
+        pdf_bytes = render_engine_pdf(ws_path)
     engine_pages = extract_pages(pdf_bytes)
 
     n_ws7_pages = len(ws7['pages'])
@@ -676,6 +700,12 @@ def main(argv=None):
     ap.add_argument('--ws')
     ap.add_argument('--measurements')
     ap.add_argument('--pcl')
+    ap.add_argument('--pdf', help='compare THIS already-rendered PDF instead of rendering '
+                    'ws_path with this repo\'s own engine -- e.g. the Swift/sr engine\'s own '
+                    'Printed PDF for the same named document. Pair with --doc NAME to resolve '
+                    'the WS7 measurements/.pcl from the corpus as usual, or with an explicit '
+                    '--measurements PATH [--pcl PATH] for a fully standalone comparison that '
+                    'needs neither CTRLKD_PRIVATE_CORPUS nor CTRLKD_SAWYER_ARCHIVE.')
     ap.add_argument('--out-json')
     ap.add_argument('--batch', nargs='+', help='Doc names to run in one pass '
                     '(each via --doc-style resolution); writes one JSON per '
@@ -701,6 +731,20 @@ def main(argv=None):
                 os.makedirs(a.out_dir, exist_ok=True)
                 json.dump(r, open(os.path.join(a.out_dir, f'{name}.json'), 'w'),
                           indent=2)
+    elif a.pdf:
+        name = a.doc_opt or a.doc or os.path.splitext(os.path.basename(a.pdf))[0]
+        pdf_bytes = open(a.pdf, 'rb').read()
+        if a.measurements:
+            ws_path, mpath, pcl_path = a.ws, a.measurements, a.pcl
+        else:
+            if not (a.doc_opt or a.doc):
+                ap.error('--pdf needs either --doc NAME (corpus resolution) or an explicit '
+                         '--measurements PATH')
+            ws_path, mpath, pcl_path = resolve_doc_paths(name)
+        r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
+        reports.append(r)
+        if a.out_json:
+            json.dump(r, open(a.out_json, 'w'), indent=2)
     else:
         name = a.doc_opt or a.doc
         if not name:

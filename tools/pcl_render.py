@@ -113,11 +113,30 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from ctrlkd import afm  # noqa: E402
 
-try:
-    from PIL import Image, ImageDraw, ImageFont
-except ImportError:
-    print("Pillow is required: pip install --user Pillow", file=sys.stderr)
-    raise
+# Pillow is required ONLY for the PNG-rendering path (render_page_png and
+# the get_ttf/render_*_op helpers it calls) -- parse_pcl_extended and every
+# other measurement/parsing function below are pure stdlib. Deferred
+# (2026-09-05, pcl-fidelity-tier work): tools/pcl_tolerance.py imports this
+# module for parse_pcl_extended alone, from tests/test_pcl_fidelity.py,
+# which pytest COLLECTS even when the `pcl` marker deselects the actual
+# tests -- an eager top-level Pillow import would abort collection of the
+# whole suite (ctrl-kd's zero-runtime-dependency rule, CLAUDE.md) on any
+# machine that never installed Pillow, which every OTHER test file here
+# is entitled to assume. Image/ImageDraw/ImageFont become real (not None)
+# only once _ensure_pil() has run, i.e. only on the actual PNG path.
+Image = ImageDraw = ImageFont = None
+
+
+def _ensure_pil():
+    global Image, ImageDraw, ImageFont
+    if Image is not None:
+        return
+    try:
+        from PIL import Image as _Image, ImageDraw as _ImageDraw, ImageFont as _ImageFont
+    except ImportError:
+        print("Pillow is required: pip install --user Pillow", file=sys.stderr)
+        raise
+    Image, ImageDraw, ImageFont = _Image, _ImageDraw, _ImageFont
 
 DPI_DEFAULT = 150
 PAGE_W_IN = 8.5
@@ -131,6 +150,17 @@ DECIPT_PER_PT = 10
 # ---------------------------------------------------------------------
 TYPEFACE_FAMILY = {
     4101: "Times",      # CG Times -- HP PCL 5 Comparison Guide Table A-1 (p.A-8): "CG Times (s4101T"
+    4148: "Helvetica",  # Univers -- Table A-1 (p.A-8): "Univers (s4148T"; Table 3-3/3-4: Med/It/
+                        # Bld/Bld It (and Univers Condensed) all share this ONE family value (see
+                        # docstring "TYPEFACE-ID MAPPING" -- 4149-4151 are NOT Univers variants).
+                        # BUG FIX 2026-09-05 (pcl-fidelity-tier work): the docstring above already
+                        # narrated this entry as "kept, corrected, mapped to Helvetica" but the
+                        # literal dict line was never written -- an unmapped 4148 silently fell
+                        # through to the proportional-spacing default ("Times"), which is how
+                        # LJ6DTP.measurements.json (generated before this fix) records every
+                        # Univers chunk as Times-Roman/-Bold. That committed JSON is now stale
+                        # relative to this table; not regenerated here (read-only corpus, out of
+                        # this repo) -- flagged for the corpus-regeneration pass (planning #196).
     4099: "Courier",    # Courier (scalable) -- Table A-1 (p.A-8): "Courier (s4099T"
     3: "Courier",       # Courier (bitmap) -- Table A-1 (p.A-8): "Courier (s3T" (same table, second entry)
     4: "Helvetica",     # Helvetica -- Table C-3 (p.C-5) base value 4, standalone/unprefixed;
@@ -876,6 +906,7 @@ def render_text_op(draw, ch, dpi):
 
 
 def render_page_png(chunks, dpi, out_path):
+    _ensure_pil()
     w = round(PAGE_W_IN * dpi)
     h = round(PAGE_H_IN * dpi)
     img = Image.new("RGB", (w, h), "white")

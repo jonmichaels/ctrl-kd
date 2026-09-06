@@ -25,6 +25,22 @@
 #                          committed manifest documents are checked BY NAME,
 #                          never a directory sweep.
 #
+#   CTRLKD_PRIVATE_CORPUS  `pcl` tier (2026-09-05, planning #197): the
+#                          coordinate-level fidelity gate against real WS7
+#                          LaserJet PCL captures (tests/test_pcl_fidelity.py,
+#                          tools/pcl_tolerance.py). Unlike the rest of the
+#                          CTRLKD_PRIVATE_CORPUS-gated tests, this tier is
+#                          DESELECTED (not silently skipped) when unarmed --
+#                          same convention as `sawyer` -- and, once armed,
+#                          FAILS BY NAME on any recorded divergence that
+#                          isn't accepted font-substitution drift. That is
+#                          not a bug in the script: a document with a real,
+#                          unfixed placement bug is SUPPOSED to show red
+#                          here until the bug is fixed or the manifest's
+#                          classification of it is corrected with evidence
+#                          (see tests/pcl_fidelity_manifest.json and
+#                          `python3 tools/pcl_tolerance.py --record`).
+#
 # USAGE.
 #
 #   CTRLKD_SAWYER_ARCHIVE=/path/to/sawyer/WS  tools/run-full-suite.sh
@@ -55,11 +71,14 @@ sawyer_status="not armed"
 private_status="not armed"
 [ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && private_status="armed"
 
-# Clear addopts' default tier filter (-m "not sawyer") so tier 2 runs
-# alongside tier 1 when armed, in one invocation, in one report. An unarmed
-# tier's own fixtures still fail loud with a clear message rather than
-# silently vanishing, if something manages to select one of its tests
-# anyway.
+pcl_status="not armed"
+[ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && pcl_status="armed"
+
+# Clear addopts' default tier filter (-m "not sawyer and not pcl") so tier 2
+# and the pcl tier run alongside tier 1 when armed, in one invocation, in
+# one report. An unarmed tier's own fixtures still fail loud (sawyer) or
+# skip by name (pcl) with a clear message rather than silently vanishing,
+# if something manages to select one of its tests anyway.
 #
 # set +e around the run: pytest's own exit code must reach the arming
 # status line and this script's own exit, not kill the script here under
@@ -76,6 +95,11 @@ public_count=$(echo "$public_line" | grep -oE '^[0-9]+')
 # Full-denominator discipline (per Jon's rule): this line names every tier's
 # state every run, not just the ones that happen to be armed today.
 echo
-echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private (CTRLKD_PRIVATE_CORPUS): ${private_status}, richer suite tested separately"
+echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private (CTRLKD_PRIVATE_CORPUS): ${private_status}, richer suite tested separately / pcl fidelity tier: ${pcl_status}"
+if [ "$pcl_status" = "armed" ]; then
+    echo "  (pcl per-document verdicts are in the -rs output above; regenerate the answer key with"
+    echo "   \`python3 tools/pcl_tolerance.py --record\` -- a FAILED pcl case names a real, unfixed"
+    echo "   coordinate divergence, not a broken test)"
+fi
 
 exit "$status"

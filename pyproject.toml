@@ -48,8 +48,9 @@ ctrlkd = ["samples/*.WS"]
 # DESELECTED here, not skipped: it never even collects into the report, so
 # a bare run's summary line is an honest denominator.
 #
-# Arming (see tests/sawyer_fixture.py, conftest.py):
+# Arming (see tests/sawyer_fixture.py, conftest.py, tools/pcl_tolerance.py):
 #   sawyer   CTRLKD_SAWYER_ARCHIVE=/path
+#   pcl      CTRLKD_PRIVATE_CORPUS=/path (2026-09-05, planning #197)
 #
 # tools/run-full-suite.sh overrides this filter (`-o addopts=""`) for an
 # armed run, where an unarmed gate FAILS instead of silently not running --
@@ -57,5 +58,6 @@ ctrlkd = ["samples/*.WS"]
 testpaths = ["tests"]
 markers = [
     "sawyer: opt-in tier 2 -- an explicit, committed list of documents from Robert J. Sawyer's public WordStar 7 archive (arm with CTRLKD_SAWYER_ARCHIVE)",
+    "pcl: opt-in -- coordinate-level fidelity gate against real WordStar 7 LaserJet PCL captures (arm with CTRLKD_PRIVATE_CORPUS); see tools/pcl_tolerance.py and tests/test_pcl_fidelity.py",
 ]
-addopts = "-m \"not sawyer\""
+addopts = "-m \"not sawyer and not pcl\""
