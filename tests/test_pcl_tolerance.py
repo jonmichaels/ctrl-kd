@@ -69,16 +69,6 @@ def test_unreliable_to_align_flags_short_and_punctuation_only_tokens():
         assert not pt._is_unreliable_to_align(tok), tok
 
 
-# ------------------------------------------------------------- doc report
-def test_doc_report_skips_known_missing_source_docs_without_touching_env(monkeypatch):
-    monkeypatch.delenv('CTRLKD_PRIVATE_CORPUS', raising=False)
-    for name in pt.KNOWN_MISSING_SOURCE_DOCS:
-        r = pt.doc_report(name)
-        assert r['verdict'] == 'source-missing'
-        assert r['source_ws'] is None
-        assert r['counts_by_reason'] == {}
-
-
 def test_relative_source_never_returns_an_absolute_path(monkeypatch, tmp_path):
     corpus_root = tmp_path / 'corpus'
     (corpus_root / 'pd-samples' / 'authored').mkdir(parents=True)
@@ -99,8 +89,54 @@ def test_relative_source_falls_back_to_basename_outside_any_known_root(monkeypat
     assert not os.path.isabs(rel)
 
 
-def test_captured_docs_and_known_missing_source_docs_are_consistent():
-    # Every name this module claims to know about either has a resolvable
-    # source or is explicitly tracked as missing -- never silently absent
-    # from both lists.
-    assert pt.KNOWN_MISSING_SOURCE_DOCS <= set(pt.CAPTURED_DOCS)
+def test_relative_source_handles_a_sources_index_resolved_path(monkeypatch, tmp_path):
+    # A path resolved through ws7-prints/v1/sources.json (any private
+    # group -- a made-up one here) must still come back corpus-relative,
+    # never absolute, same as the older group-search paths. (This is
+    # _relative_source's own raw behavior -- doc_report never calls it
+    # directly for a non-public group; see _source_ws_for_report below.)
+    corpus_root = tmp_path / 'corpus'
+    (corpus_root / 'some-other-group' / 'MISC').mkdir(parents=True)
+    ws_path = corpus_root / 'some-other-group' / 'MISC' / 'SOMEDOC.WS4'
+    ws_path.write_bytes(b'')
+    monkeypatch.setattr(pt.fg, '_PRIVATE_CORPUS_ROOT', str(corpus_root))
+    monkeypatch.delenv(pt.fg.ARCHIVE_ENV, raising=False)
+    rel = pt._relative_source(str(ws_path))
+    assert not os.path.isabs(rel)
+    assert rel == os.path.join('some-other-group', 'MISC', 'SOMEDOC.WS4')
+
+
+# -------------------------------------------- published source-path redaction
+def _index_fixture(tmp_path, doc_name, source, group):
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1, 'captures': {doc_name: {'source': source, 'group': group}},
+    }))
+    return prints_dir
+
+
+def test_source_ws_for_report_publishes_the_real_path_for_a_public_group(tmp_path, monkeypatch):
+    corpus_root = tmp_path / 'corpus'
+    _index_fixture(corpus_root, 'LYING', 'pd-samples/authored/LYING.WS', 'pd-samples')
+    monkeypatch.setattr(pt.fg, '_PRIVATE_CORPUS_ROOT', str(corpus_root))
+    ws_path = os.path.join(str(corpus_root), 'pd-samples', 'authored', 'LYING.WS')
+    assert pt._source_ws_for_report('LYING', ws_path) == os.path.join(
+        'pd-samples', 'authored', 'LYING.WS')
+
+
+def test_source_ws_for_report_withholds_the_path_for_a_non_public_group(tmp_path, monkeypatch):
+    """This is the actual privacy guard: a corpus group this repo does not
+    allowlist (PUBLIC_SOURCE_GROUPS) must never have its real relative
+    path -- personal folder layout included -- written into a checked-in,
+    PUBLIC manifest. Only the (already-public, per CAPTURED_DOCS) doc name
+    may appear."""
+    corpus_root = tmp_path / 'corpus'
+    _index_fixture(corpus_root, 'WIDGET', 'some-other-group/MISC/WIDGET.WS4', 'some-other-group')
+    monkeypatch.setattr(pt.fg, '_PRIVATE_CORPUS_ROOT', str(corpus_root))
+    ws_path = os.path.join(str(corpus_root), 'some-other-group', 'MISC', 'WIDGET.WS4')
+    published = pt._source_ws_for_report('WIDGET', ws_path)
+    assert 'some-other-group' not in published
+    assert 'MISC' not in published
+    assert 'WIDGET' in published

@@ -65,8 +65,9 @@ regeneration pass (planning #196). This module's tier lookup uses the raw
 typeface ID directly, so it is unaffected by that JSON's stale 'font'
 strings either way.
 
-TOLERANCE EVIDENCE (2026-09-05, all 18 v1 captures, 12 with a resolvable
-.WS source -- see CAPTURED_DOCS / KNOWN_MISSING_SOURCE_DOCS below)
+TOLERANCE EVIDENCE (2026-09-05, all 18 v1 captures, every one with a
+source resolvable through ws7-prints/v1/sources.json -- see CAPTURED_DOCS
+below)
 -------------------------------------------------------------------
 Numbers below are from matched same-page word pairs, residual after each
 PAGE's own median frame offset (engine vs WS7) is removed -- the same
@@ -139,19 +140,6 @@ CAPTURED_DOCS = [
     'DOCE', 'PREVIEW', '-README', 'SAWYER', '-SCREEN', 'SCRIPT', 'DOCF',
     'TWAINLET', 'VERSIONS', 'WARPRAYR',
 ]
-
-# These six captures are real WS7 LaserJet prints of documents whose WS4
-# originals live in a separate, personal source archive the vault
-# Corpus-Registry documents apart from the three groups this tool
-# resolves sources from (sawyer/, pd-samples/authored/, ws7-private/) --
-# and whose document names are themselves private per that registry
-# (never public, never used as a fixture name). Their ground-truth
-# measurements.json/.pcl exist in the private corpus, but this repo has
-# nowhere it is allowed to resolve a .WS source from -- so they are named
-# here, permanently, as a documented gap rather than silently absent from
-# CAPTURED_DOCS. `doc_report()` returns verdict 'source-missing' for
-# these; the test skips them BY NAME.
-KNOWN_MISSING_SOURCE_DOCS = {'DOCA', 'DOCB', 'DOCC', 'DOCD', 'DOCE', 'DOCF'}
 
 MANIFEST_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -360,6 +348,43 @@ def _relative_source(path):
     return os.path.basename(path)
 
 
+# Corpus groups (ws7-prints/v1/sources.json's own "group" field on each
+# capture) whose exact relative source path is safe to publish verbatim in
+# THIS PUBLIC repo's checked-in manifest: Robert J. Sawyer's own public WS7
+# archive, and this repo's own public-domain/authored sample corpus -- both
+# already named throughout this codebase (PRIVATE_DOCS, DEFAULT_AUTHORED_ROOT)
+# because there is nothing private about either one. The corpus's index can
+# name other groups too (its own internal source-provenance bookkeeping,
+# living entirely in the PRIVATE corpus) -- this repo has no business
+# repeating one of THOSE group names or folder layouts anywhere in its own
+# tracked files (CLAUDE.md: "never name private groups/paths in code -- the
+# index carries them"), so only these two are allowlisted; anything else
+# falls through to _source_ws_for_report's redaction below, by omission,
+# never by matching a private name.
+PUBLIC_SOURCE_GROUPS = {'sawyer', 'pd-samples'}
+
+
+def _source_ws_for_report(doc_name: str, ws_path):
+    """The 'source_ws' value safe to put in a report/manifest for
+    `doc_name`, resolved via ws_path. When the corpus's sources.json index
+    says this capture's source lives in a PUBLIC_SOURCE_GROUPS group (or no
+    index exists at all -- the pre-index legacy resolution only ever
+    reaches those same two groups), this is the real corpus-relative path,
+    same as always. For any other group, the exact path is WITHHELD --
+    this repo names only the (already-public, per CAPTURED_DOCS) doc name,
+    never a private corpus group's internal folder layout."""
+    if ws_path is None:
+        return None
+    if fg._PRIVATE_CORPUS_ROOT:
+        prints_dir = os.path.join(fg._PRIVATE_CORPUS_ROOT, 'ws7-prints', fg.PRINTS_SUBDIR)
+        index = fg._load_sources_index(prints_dir)
+        if index is not None:
+            entry = index.get('captures', {}).get(doc_name)
+            if entry is not None and entry.get('group') not in PUBLIC_SOURCE_GROUPS:
+                return f'{doc_name}: source path withheld (non-public corpus group)'
+    return _relative_source(ws_path)
+
+
 def _divergence(doc, page, line_y, words, ws7_pos, pdf_pos, font_class, reason, detail):
     return {
         'doc': doc, 'page': page, 'line_y_top_pt': line_y, 'words': words,
@@ -373,7 +398,10 @@ def doc_report(doc_name: str) -> dict:
     {doc, verdict, source_ws, counts_by_reason, divergences, ...}.
 
     verdict is one of:
-      'source-missing'  -- see KNOWN_MISSING_SOURCE_DOCS
+      'source-missing'  -- ws7-prints/v1/sources.json has no resolvable
+                           source for this capture yet (see
+                           fg.resolve_doc_paths), or the path it names
+                           isn't actually there
       'clean'           -- zero divergences with a non-font-substitution reason
       'divergent'       -- at least one real (non-font-substitution) divergence
 
@@ -386,23 +414,17 @@ def doc_report(doc_name: str) -> dict:
     (see module docstring), so they never appear here except via the
     line-start/baseline/word-count checks every tier gets.
     """
-    if doc_name in KNOWN_MISSING_SOURCE_DOCS:
-        return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
-                'counts_by_reason': {}, 'divergences': [],
-                'reason': ('WS4 original from a personal source archive outside sawyer/, '
-                           'pd-samples/authored/, and ws7-private/ -- see '
-                           'KNOWN_MISSING_SOURCE_DOCS')}
-
     ws_path, measurements_path, pcl_path = fg.resolve_doc_paths(doc_name)
     if ws_path is None:
         return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
                 'counts_by_reason': {}, 'divergences': [],
                 'reason': f'${fg.ARCHIVE_ENV} unset (Sawyer-archive-only document)'}
     if not os.path.exists(ws_path):
+        published_source = _source_ws_for_report(doc_name, ws_path)
         return {'doc': doc_name, 'verdict': 'source-missing',
-                'source_ws': _relative_source(ws_path),
+                'source_ws': published_source,
                 'counts_by_reason': {}, 'divergences': [],
-                'reason': f'source not found at {_relative_source(ws_path)}'}
+                'reason': f'source not found at {published_source}'}
 
     ws7_tokens, mismatched_pages = load_ws7_tokens(pcl_path, measurements_path)
     ws7_meta = json.load(open(measurements_path))
@@ -521,7 +543,8 @@ def doc_report(doc_name: str) -> dict:
     verdict = 'divergent' if any(counts[r] for r in real_reasons) else 'clean'
 
     return {
-        'doc': doc_name, 'verdict': verdict, 'source_ws': _relative_source(ws_path),
+        'doc': doc_name, 'verdict': verdict,
+        'source_ws': _source_ws_for_report(doc_name, ws_path),
         'n_ws7_pages': n_ws7_pages, 'n_engine_pages': n_engine_pages,
         'no_substitute_word_count': no_substitute_word_count,
         'counts_by_reason': dict(sorted(counts.items())),

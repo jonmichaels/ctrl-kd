@@ -88,17 +88,28 @@ tools/pcl_tolerance.py and the `pcl` pytest tier (tests/test_pcl_fidelity.py)
 -- this file stays the raw, tolerance-agnostic coordinate comparison both
 of those are built on.
 
-`--doc NAME` resolves NAME.WS from $CTRLKD_PRIVATE_CORPUS's own
-pd-samples/authored/ subdirectory (or, for SAWYER/VERSIONS/etc -- the
-PRIVATE_DOCS table below -- from $CTRLKD_SAWYER_ARCHIVE/NAME.WS, same
-shape as every other Sawyer-archive consumer in this repo; the doc is
-SKIPPED, not errored, when the relevant env var is unset) and
-NAME.measurements.json/.pcl from $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/ --
-the ground-truth PCL capture data lives inside the private corpus
-itself, same layout as the vault copy it was captured into. There is no
-separate flag for it: an unset CTRLKD_PRIVATE_CORPUS, or a missing
-measurements.json, FAILS the gate loudly (never a silent skip, never a
-silent pass) naming the exact path it looked for.
+`--doc NAME` resolves NAME.WS through the corpus's own capture index,
+$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/sources.json (`{"format":1,
+"captures":{NAME:{"source":<corpus-relative path>, ...}}}`) -- one entry
+per capture, written by whoever adds a capture to the corpus, so this
+tool never has to know which of the corpus's private groups a given NAME
+lives under -- only sawyer/ and pd-samples/authored/ are ever named in
+this repo's own code, since those two are public; any other group the
+index carries is the private corpus's own business, not this repo's (see
+tools/pcl_tolerance.py's PUBLIC_SOURCE_GROUPS). The resolved path is
+always `$CTRLKD_PRIVATE_CORPUS/<source>`. If the index
+file itself is absent (an older corpus clone), this falls back to the
+older group search: pd-samples/authored/NAME.WS, or for SAWYER/
+VERSIONS/etc -- the PRIVATE_DOCS table below -- $CTRLKD_SAWYER_ARCHIVE/
+NAME.WS, same shape as every other Sawyer-archive consumer in this repo;
+the doc is SKIPPED, not errored, when the relevant env var is unset in
+that fallback path. NAME.measurements.json/.pcl come from
+$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/ -- the ground-truth PCL capture
+data lives inside the private corpus itself, same layout as the vault
+copy it was captured into. There is no separate flag for it: an unset
+CTRLKD_PRIVATE_CORPUS, or a missing measurements.json, FAILS the gate
+loudly (never a silent skip, never a silent pass) naming the exact path
+it looked for.
 
 CAVEAT (dx experiment 2026-08-20): core.parse() auto-detect classifies
 minimal plain-ASCII dot-command replica docs as 'printstream', which
@@ -143,8 +154,16 @@ DEFAULT_AUTHORED_ROOT = (
 # was removed 2026-09-05 once the data moved into the corpus (Jon: "I
 # don't love that we have it").
 PRINTS_SUBDIR = 'v1'
+# The capture index (see module docstring): one entry per NAME, giving a
+# corpus-relative source path -- resolved BEFORE the group-search fallback
+# below, so a new capture only needs an index entry, never a code change
+# here. SOURCES_INDEX_FILENAME lives alongside the .measurements.json/.pcl
+# pairs it names, at $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/.
+SOURCES_INDEX_FILENAME = 'sources.json'
 ARCHIVE_ENV = 'CTRLKD_SAWYER_ARCHIVE'
 # Values in PRIVATE_DOCS below are paths RELATIVE to the archive root.
+# Legacy fallback ONLY -- used when the corpus has no sources.json (see
+# resolve_doc_paths).
 PRIVATE_DOCS = {
     'SAWYER': 'SAWYER.WS',
     'VERSIONS': 'VERSIONS.WS',
@@ -623,11 +642,23 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
 
 
 # ------------------------------------------------------------- doc lookup
+def _load_sources_index(prints_dir: str):
+    """The parsed sources.json from `prints_dir`, or None if it doesn't
+    exist there (an older corpus clone, or --pdf/--ws standalone use that
+    never calls this at all) -- absence is not an error, it just means
+    resolve_doc_paths falls back to the older group search."""
+    index_path = os.path.join(prints_dir, SOURCES_INDEX_FILENAME)
+    if not os.path.exists(index_path):
+        return None
+    with open(index_path) as f:
+        return json.load(f)
+
+
 def resolve_doc_paths(doc_name: str):
     """(ws_path, measurements_path, pcl_path) for a known corpus doc name,
     or (None, ...) if $CTRLKD_SAWYER_ARCHIVE is unset for an archive-only
-    doc -- SKIP, not error (the archive is a legitimately optional public
-    corpus; see the module docstring).
+    doc under the legacy fallback -- SKIP, not error (the archive is a
+    legitimately optional public corpus; see the module docstring).
 
     The ground-truth PCL capture data (NAME.measurements.json/.pcl) is
     NOT optional in the same way: it lives at
@@ -635,7 +666,14 @@ def resolve_doc_paths(doc_name: str):
     to fall back to. An unset CTRLKD_PRIVATE_CORPUS, or a measurements.json
     that isn't there, FAILS LOUD naming the exact path -- never a silent
     skip, never a silent pass -- because a fidelity number computed
-    against nothing would be worse than no number."""
+    against nothing would be worse than no number.
+
+    The .WS source itself is resolved through ws7-prints/v1/sources.json
+    when that index exists (see module docstring): every capture the
+    index names resolves to $CTRLKD_PRIVATE_CORPUS/<its 'source' path>,
+    regardless of which private group it lives under. Only when the
+    index file itself is absent does this fall back to the older
+    PRIVATE_DOCS/DEFAULT_AUTHORED_ROOT group search."""
     if not _PRIVATE_CORPUS_ROOT:
         raise RuntimeError(
             f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures '
@@ -649,6 +687,14 @@ def resolve_doc_paths(doc_name: str):
     if not os.path.exists(measurements_path):
         raise RuntimeError(
             f'ground-truth measurements not found: {measurements_path}')
+
+    index = _load_sources_index(prints_dir)
+    if index is not None:
+        entry = index.get('captures', {}).get(doc_name)
+        if entry is not None:
+            ws_path = os.path.join(_PRIVATE_CORPUS_ROOT, entry['source'])
+            return ws_path, measurements_path, pcl_path
+
     if doc_name in PRIVATE_DOCS:
         root = os.environ.get(ARCHIVE_ENV)
         if not root:

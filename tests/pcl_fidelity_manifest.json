@@ -54,35 +54,846 @@
     },
     "DOCA": {
       "doc": "DOCA",
-      "verdict": "source-missing",
-      "source_ws": null,
+      "verdict": "clean",
+      "source_ws": "DOCA: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 6,
+      "n_engine_pages": 6,
+      "no_substitute_word_count": 0,
       "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "divergences": []
     },
     "DOCB": {
       "doc": "DOCB",
-      "verdict": "source-missing",
-      "source_ws": null,
+      "verdict": "clean",
+      "source_ws": "DOCB: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 1,
+      "n_engine_pages": 1,
+      "no_substitute_word_count": 0,
       "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "divergences": []
     },
     "DOCC": {
       "doc": "DOCC",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "verdict": "divergent",
+      "source_ws": "DOCC: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 9,
+      "n_engine_pages": 9,
+      "no_substitute_word_count": 0,
+      "counts_by_reason": {
+        "exact-drift": 83
+      },
+      "divergences": [
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 155.7,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            228.7,
+            155.7
+          ],
+          "pdf_pos": [
+            235.2,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 155.7,
+          "words": [
+            "government",
+            "government"
+          ],
+          "ws7_pos": [
+            257.5,
+            155.7
+          ],
+          "pdf_pos": [
+            264.0,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 155.7,
+          "words": [
+            "officially",
+            "officially"
+          ],
+          "ws7_pos": [
+            336.7,
+            155.7
+          ],
+          "pdf_pos": [
+            343.2,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 155.7,
+          "words": [
+            "declared",
+            "declared"
+          ],
+          "ws7_pos": [
+            415.9,
+            155.7
+          ],
+          "pdf_pos": [
+            422.4,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 155.7,
+          "words": [
+            "that",
+            "that"
+          ],
+          "ws7_pos": [
+            480.7,
+            155.7
+          ],
+          "pdf_pos": [
+            487.2,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 563.7,
+          "words": [
+            "This",
+            "This"
+          ],
+          "ws7_pos": [
+            394.3,
+            563.7
+          ],
+          "pdf_pos": [
+            400.8,
+            564.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 563.7,
+          "words": [
+            "tradition",
+            "tradition"
+          ],
+          "ws7_pos": [
+            430.3,
+            563.7
+          ],
+          "pdf_pos": [
+            436.8,
+            564.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 659.7,
+          "words": [
+            "These",
+            "These"
+          ],
+          "ws7_pos": [
+            329.5,
+            659.7
+          ],
+          "pdf_pos": [
+            336.0,
+            660.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 1,
+          "line_y_top_pt": 659.7,
+          "words": [
+            "obvious",
+            "obvious"
+          ],
+          "ws7_pos": [
+            372.7,
+            659.7
+          ],
+          "pdf_pos": [
+            379.2,
+            660.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "Being",
+            "Being"
+          ],
+          "ws7_pos": [
+            221.5,
+            239.7
+          ],
+          "pdf_pos": [
+            228.0,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "unable",
+            "unable"
+          ],
+          "ws7_pos": [
+            264.7,
+            239.7
+          ],
+          "pdf_pos": [
+            271.2,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            315.1,
+            239.7
+          ],
+          "pdf_pos": [
+            321.6,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "control",
+            "control"
+          ],
+          "ws7_pos": [
+            343.9,
+            239.7
+          ],
+          "pdf_pos": [
+            350.4,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            401.5,
+            239.7
+          ],
+          "pdf_pos": [
+            408.0,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 2,
+          "line_y_top_pt": 239.7,
+          "words": [
+            "actions",
+            "actions"
+          ],
+          "ws7_pos": [
+            430.3,
+            239.7
+          ],
+          "pdf_pos": [
+            436.8,
+            240.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 527.7,
+          "words": [
+            "Angered",
+            "Angered"
+          ],
+          "ws7_pos": [
+            421.4,
+            527.7
+          ],
+          "pdf_pos": [
+            427.2,
+            528.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "One",
+            "One"
+          ],
+          "ws7_pos": [
+            205.4,
+            719.7
+          ],
+          "pdf_pos": [
+            211.2,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            255.8,
+            719.7
+          ],
+          "pdf_pos": [
+            261.6,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "advantages",
+            "advantages"
+          ],
+          "ws7_pos": [
+            284.6,
+            719.7
+          ],
+          "pdf_pos": [
+            290.4,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            385.4,
+            719.7
+          ],
+          "pdf_pos": [
+            391.2,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "Dawes",
+            "Dawes"
+          ],
+          "ws7_pos": [
+            414.2,
+            719.7
+          ],
+          "pdf_pos": [
+            420.0,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "Act",
+            "Act"
+          ],
+          "ws7_pos": [
+            457.4,
+            719.7
+          ],
+          "pdf_pos": [
+            463.2,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 3,
+          "line_y_top_pt": 719.7,
+          "words": [
+            "was",
+            "was"
+          ],
+          "ws7_pos": [
+            486.2,
+            719.7
+          ],
+          "pdf_pos": [
+            492.0,
+            720.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 4,
+          "line_y_top_pt": 407.7,
+          "words": [
+            "Many",
+            "Many"
+          ],
+          "ws7_pos": [
+            371.0,
+            407.7
+          ],
+          "pdf_pos": [
+            376.8,
+            408.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 4,
+          "line_y_top_pt": 407.7,
+          "words": [
+            "other",
+            "other"
+          ],
+          "ws7_pos": [
+            407.0,
+            407.7
+          ],
+          "pdf_pos": [
+            412.8,
+            408.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 95.7,
+          "words": [
+            "Others",
+            "Others"
+          ],
+          "ws7_pos": [
+            284.6,
+            95.7
+          ],
+          "pdf_pos": [
+            290.4,
+            96.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 95.7,
+          "words": [
+            "like",
+            "like"
+          ],
+          "ws7_pos": [
+            335.0,
+            95.7
+          ],
+          "pdf_pos": [
+            340.8,
+            96.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 95.7,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            371.0,
+            95.7
+          ],
+          "pdf_pos": [
+            376.8,
+            96.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 95.7,
+          "words": [
+            "Iroquois",
+            "Iroquois"
+          ],
+          "ws7_pos": [
+            399.8,
+            95.7
+          ],
+          "pdf_pos": [
+            405.6,
+            96.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 95.7,
+          "words": [
+            "had",
+            "had"
+          ],
+          "ws7_pos": [
+            464.6,
+            95.7
+          ],
+          "pdf_pos": [
+            470.4,
+            96.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "They",
+            "They"
+          ],
+          "ws7_pos": [
+            176.6,
+            167.7
+          ],
+          "pdf_pos": [
+            182.4,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "felt",
+            "felt"
+          ],
+          "ws7_pos": [
+            212.6,
+            167.7
+          ],
+          "pdf_pos": [
+            218.4,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "was",
+            "was"
+          ],
+          "ws7_pos": [
+            270.2,
+            167.7
+          ],
+          "pdf_pos": [
+            276.0,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "bad",
+            "bad"
+          ],
+          "ws7_pos": [
+            313.4,
+            167.7
+          ],
+          "pdf_pos": [
+            319.2,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "reward.",
+            "reward."
+          ],
+          "ws7_pos": [
+            342.2,
+            167.7
+          ],
+          "pdf_pos": [
+            348.0,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "They",
+            "They"
+          ],
+          "ws7_pos": [
+            407.0,
+            167.7
+          ],
+          "pdf_pos": [
+            412.8,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 167.7,
+          "words": [
+            "had,",
+            "had,"
+          ],
+          "ws7_pos": [
+            443.0,
+            167.7
+          ],
+          "pdf_pos": [
+            448.8,
+            168.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 335.7,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            162.2,
+            335.7
+          ],
+          "pdf_pos": [
+            168.0,
+            336.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 335.7,
+          "words": [
+            "process",
+            "process"
+          ],
+          "ws7_pos": [
+            191.0,
+            335.7
+          ],
+          "pdf_pos": [
+            196.8,
+            336.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "DOCC",
+          "page": 5,
+          "line_y_top_pt": 335.7,
+          "words": [
+            "failed",
+            "failed"
+          ],
+          "ws7_pos": [
+            248.6,
+            335.7
+          ],
+          "pdf_pos": [
+            254.4,
+            336.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        }
+      ]
     },
     "DOCD": {
       "doc": "DOCD",
-      "verdict": "source-missing",
-      "source_ws": null,
+      "verdict": "clean",
+      "source_ws": "DOCD: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 9,
+      "n_engine_pages": 9,
+      "no_substitute_word_count": 0,
       "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "divergences": []
     },
     "LJ6DTP": {
       "doc": "LJ6DTP",
@@ -4514,11 +5325,13 @@
     },
     "DOCE": {
       "doc": "DOCE",
-      "verdict": "source-missing",
-      "source_ws": null,
+      "verdict": "clean",
+      "source_ws": "DOCE: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 9,
+      "n_engine_pages": 9,
+      "no_substitute_word_count": 0,
       "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "divergences": []
     },
     "PREVIEW": {
       "doc": "PREVIEW",
@@ -8276,11 +9089,13 @@
     },
     "DOCF": {
       "doc": "DOCF",
-      "verdict": "source-missing",
-      "source_ws": null,
+      "verdict": "clean",
+      "source_ws": "DOCF: source path withheld (non-public corpus group)",
+      "n_ws7_pages": 4,
+      "n_engine_pages": 4,
+      "no_substitute_word_count": 0,
       "counts_by_reason": {},
-      "divergences": [],
-      "reason": "WS4 original from a personal source archive outside sawyer/, pd-samples/authored/, and ws7-private/ -- see KNOWN_MISSING_SOURCE_DOCS"
+      "divergences": []
     },
     "TWAINLET": {
       "doc": "TWAINLET",

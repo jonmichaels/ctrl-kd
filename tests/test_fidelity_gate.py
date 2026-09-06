@@ -247,6 +247,64 @@ def test_resolve_doc_paths_skips_archive_doc_when_sawyer_archive_unset(tmp_path,
     assert mpath == str(prints_dir / 'SAWYER.measurements.json')
 
 
+def test_resolve_doc_paths_uses_sources_index_for_any_private_group(tmp_path, monkeypatch):
+    """ws7-prints/v1/sources.json resolves a capture to a corpus-relative
+    source path regardless of which private group it lives under -- a
+    made-up group/folder name here (this repo never names a real private
+    corpus group in its own tracked code), never previously reachable via
+    PRIVATE_DOCS or DEFAULT_AUTHORED_ROOT at all."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'WIDGET.measurements.json').write_text('{}')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'WIDGET': {'source': 'some-other-group/MISC/WIDGET.WS4',
+                                'group': 'some-other-group'}},
+    }))
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('WIDGET')
+    assert ws_path == str(tmp_path / 'some-other-group' / 'MISC' / 'WIDGET.WS4')
+    assert mpath == str(prints_dir / 'WIDGET.measurements.json')
+
+
+def test_resolve_doc_paths_index_overrides_private_docs_archive_search(tmp_path, monkeypatch):
+    """A capture that IS in the legacy PRIVATE_DOCS table (e.g. SAWYER)
+    still resolves through sources.json when the index is present --
+    $CTRLKD_SAWYER_ARCHIVE is not even consulted."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'SAWYER': {'source': 'sawyer/SAWYER.WS', 'group': 'sawyer'}},
+    }))
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.delenv(fg.ARCHIVE_ENV, raising=False)
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('SAWYER')
+    assert ws_path == str(tmp_path / 'sawyer' / 'SAWYER.WS')
+
+
+def test_resolve_doc_paths_falls_back_to_group_search_when_index_absent(tmp_path, monkeypatch):
+    """No sources.json in the corpus at all (an older clone) -- resolution
+    must still work the old way, unchanged."""
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    assert not (prints_dir / 'sources.json').exists()
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.setenv(fg.ARCHIVE_ENV, str(tmp_path / 'sawyer-archive'))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('SAWYER')
+    assert ws_path == str(tmp_path / 'sawyer-archive' / 'SAWYER.WS')
+
+
 # -------------------------------------------------------------- end to end
 def test_run_gate_end_to_end_on_a_synthetic_ws7_capture(tmp_path):
     """A full run_gate() pass against a hand-built measurements.json that
