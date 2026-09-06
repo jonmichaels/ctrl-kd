@@ -1126,10 +1126,35 @@ def _printed_pm_fi_pt(block):
     ledger row 8, a SEPARATE item this one doesn't reach), so the baseline
     this indent sits against is the document's own left edge -- the same
     li=0 an unstyled/WS4 Printed RTF paragraph already gets from the SAME
-    round 6 code. None when the block never set `.pm`."""
+    round 6 code. None when the block never set `.pm`.
+
+    TYPED-INDENT OFFSET (PCL tier, WARPRAYR.WS): `.pm`'s column is where a
+    paragraph's first line auto-indents to when WordStar STARTS it under
+    that margin -- it is not an amount added on top of whatever the
+    author already typed there by hand. WARPRAYR's two Quote-styled
+    blocks (`para_margin` 5, from the style record, not a literal `.pm`)
+    open each stanza with 10 literal leading spaces the author typed --
+    real WS7 (ws7-prints/v1/WARPRAYR.pcl/.measurements.json, page 1 y=448.5
+    and page 2 y=326.1/369.6/513.3/556.5) prints those lines at exactly
+    left-edge + 10 typed columns (e.g. 50.4 + 72.0 = 122.4pt) -- the
+    style's own 5-column indent contributes NOTHING once the typed text
+    already reaches column 10. Modelled as `max(0, pm_cols -
+    already_typed_cols)`: a typed indent SHORTER than `.pm`'s column
+    still gets topped up to it (the pre-existing, already-tested case --
+    test_pm_shifts_printed_pdf_first_line_start_x types no indent at all
+    and gets the full column); one that already reaches or passes it
+    adds nothing further (the newly-measured WARPRAYR case). Blank
+    leading lines are skipped -- this reads the block's first REAL
+    (non-blank) line, the same line `_doc_to_pagelines`'s own
+    `first_line_of_block` gate ultimately applies `fi` to."""
     if block.para_margin is None:
         return None
-    return block.para_margin * _PDF_PT_PER_COL
+    typed_cols = 0
+    first_real = next((ln for ln in block.lines if any(s.text.strip() for s in ln.spans)), None)
+    if first_real is not None:
+        text = ''.join(s.text for s in first_real.spans)
+        typed_cols = len(text) - len(text.lstrip(' '))
+    return max(0.0, (block.para_margin - typed_cols) * _PDF_PT_PER_COL)
 
 
 def _printed_doc_spacing_pt(doc):

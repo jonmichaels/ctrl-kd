@@ -4383,6 +4383,87 @@ def test_pm_first_line_indent_still_applies_with_no_typed_indent():
     assert xs == [86.4, 57.6]                   # first: left 57.6 + fi 28.8; continuation: left alone
 
 
+def test_pm_first_line_indent_not_doubled_with_no_font_block_either():
+    """Fix A (above) only fires through `_split_indent`'s own indent flag,
+    which -- by that function's OWN docstring -- is "never flagged" for a
+    span with NO WS5+ font block at all. WARPRAYR.WS's REAL Quote style
+    (`para_margin` from its style record, not a literal `.pm`) carries no
+    font block of its own either, so Fix A's guard never actually engaged
+    for the real corpus document it is named after -- verified against a
+    stand-in fixture (`_helv_font_block()`), never against WARPRAYR
+    itself (confirmed 2026-09-06: the real WS7 capture, ws7-prints/v1/
+    WARPRAYR.pcl/.measurements.json page 1 y=448.5 '"God the
+    all-terrible!...' and page 2 y=326.1 '"O Lord our Father...', both
+    land at exactly left-edge + their own typed column count, `.pm`'s
+    5-column contribution fully absorbed -- STILL rendered doubled by
+    the engine before this fix, `_split_indent`'s flag never having
+    fired for it). This is the gap: `_printed_pm_fi_pt` (pdf.py) now
+    reduces `fi` by however many columns the first physical line's OWN
+    typed leading spaces already cover -- `max(0, pm_cols - typed_cols)`
+    -- independent of `_split_indent`'s flag, so the fontless/style-only
+    case is covered too, not just the WS5+-font-block one Fix A already
+    had.
+
+    A FONTLESS document (this fixture, and WARPRAYR's own real Quote
+    style before font resolution) never reaches `_split_indent`'s own
+    peel-the-indent-into-a-mark step (no font block to gate it), so the
+    typed leading spaces stay literal characters INSIDE the one Tj this
+    whole physical line renders as -- there is no separate word-level x
+    to assert on a bare `Ten`/`Five`. What IS directly observable, and
+    is exactly where the pre-fix bug lived, is the LINE's own starting
+    `Td` x: it must equal the plain left margin (`fi` contributes
+    nothing once the typed indent already reaches `.pm`'s column) --
+    not `fi`'s own 36pt added on top."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 6' + HARD                      # column 6 -> 5 offset cols, WARPRAYR's own
+            + b'          Ten typed leading spaces, no font block at all.' + HARD
+            + b'     Five typed leading spaces on this continuation.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 5.0
+    pdf = emit_pdf(doc, mode='printed')
+    # left 57.6 (this emitter's own plain-default `.po` frame -- see
+    # test_pm_column_normalization_matches_lm_flush_left) -- `fi`
+    # contributes NOTHING once the 10 typed columns already reach and
+    # pass `.pm`'s own 5, NOT the pre-fix doubled 57.6+36=93.6.
+    m_first_x = float(re.search(rb'([\d.]+) [\d.]+ Td \(          Ten', pdf).group(1))
+    m_cont_x = float(re.search(rb'([\d.]+) [\d.]+ Td \(     Five', pdf).group(1))
+    assert m_first_x == 57.6
+    assert m_cont_x == 57.6                    # continuation was never fi-eligible anyway
+
+
+def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
+    """The partial case `test_pm_first_line_indent_not_doubled_with_no_
+    font_block_either` doesn't reach: a typed indent SHORTER than `.pm`'s
+    own column still gets topped up to it (not simply discarded) --
+    `max(0, pm_cols - typed_cols)` is a reduction, not an on/off gate.
+    Unconfirmed against a real WS7 capture (no corpus document types a
+    partial indent under a `.pm`-bearing style), but symmetric with the
+    two measured cases on either side of it: zero typed indent keeps the
+    full `fi` (test_pm_first_line_indent_still_applies_with_no_typed_
+    indent, and this file's own test_pm_shifts_printed_pdf_first_line_
+    start_x), a typed indent AT OR PAST `.pm`'s column adds nothing more
+    (this file's own new test above) -- a typed indent PART way there is
+    the one point on that line the pre-fix code never got right either
+    (it always double-counted), so this pins the formula, not a specific
+    oracle reading. Same fontless shape as the sibling test above: the
+    line's own `Td` x is what carries `fi`, the typed spaces stay
+    literal characters inside the Tj string on top of it."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 6' + HARD                      # column 6 -> 5 offset cols
+            + b'  Two typed leading spaces only, short of the pm column.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 5.0
+    pdf = emit_pdf(doc, mode='printed')
+    x = float(re.search(rb'([\d.]+) [\d.]+ Td \(  Two', pdf).group(1))
+    # left 57.6 + topped-up remainder (5-2=3 columns, 21.6) == the SAME
+    # x a document with NO typed indent at all reaches (fi's own full
+    # 36pt) MINUS the 2 columns (14.4) still embedded as literal spaces
+    # ahead of "Two" in the string -- 57.6 + 21.6 = 79.2.
+    assert x == 79.2
+
+
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
     """The trap this ordering exists for: the spec's own font block for
     Courier declares generic_style 'serif' -- honest typography (it is a slab
