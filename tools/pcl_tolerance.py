@@ -326,6 +326,62 @@ def _is_unreliable_to_align(text: str) -> bool:
     return not any(ch.isalnum() for ch in stripped)
 
 
+# ------------------------------------------------- WS7 chunk-splitting fixes
+# WS7's own PCL driver splits certain words across separate print chunks
+# that fg.match_doc's whole-document text-equality aligner can only ever
+# match word-for-word -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanism C.
+# The function below operates on ONE WS7 print line's own (pc, tc) pairs
+# (pc = measurements.json's committed chunk dict, tc = this module's own
+# fresh pcl_render reparse of that same chunk -- load_ws7_tokens keeps the
+# two in lockstep by zipping them in emission order), already sorted by x,
+# BEFORE _is_box_drawing_text/_is_unreliable_to_align ever run on the
+# result -- so a reconstructed word is judged (and, when genuinely short,
+# filtered) as the ONE token it visually is, never as separate fragments
+# too short to align reliably.
+KERNING_MERGE_EPS_PT = 1.5  # generous vs decipoint quantization + AFM rounding
+
+
+def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
+    """Mechanism C: WS7's own driver splits certain words at a kerning pair
+    ('War' -> 'W' + 'ar', 'You' -> 'Y' + 'ou', 'Twain' -> 'T' + 'wain') into
+    two touching print chunks with no space between them -- confirmed on
+    WARPRAYR's title (measurements.json: 'W' at x=259.6, 'ar' at x=273.6,
+    abutting exactly at 'W's own natural glyph width). `items` is one WS7
+    print line's (pc, tc) pairs, already sorted by x. Two consecutive
+    chunks merge into one when they share the same size and font (both the
+    post-substitution name and the pre-substitution PCL typeface id) and
+    the next chunk's own x lands within `eps_pt` of where the running
+    merged text's own AFM natural width (fg.afm.string_width_pt -- the SAME
+    metric this repo's other engine/WS7 comparisons already use) says it
+    should end -- i.e. WS7 printed them as one continuous run with no
+    visible gap, just split into separate PCL text chunks. The merged
+    chunk keeps the FIRST chunk's own position/font/size and gets the
+    concatenated text; nothing downstream of this function ever reads a
+    merged chunk's 'width', only its 'text'/'x'/'y'."""
+    merged = []
+    i = 0
+    n = len(items)
+    while i < n:
+        pc, tc = items[i]
+        text = pc['text']
+        start_x = pc['x_decipoints']
+        j = i + 1
+        while j < n:
+            npc, ntc = items[j]
+            if (npc['size_pt'] != pc['size_pt'] or npc.get('font') != pc.get('font')
+                    or ntc.get('_T') != tc.get('_T')):
+                break
+            expected_end_dp = start_x + (
+                fg.afm.string_width_pt(text, pc.get('font'), pc['size_pt']) * fg.DECIPT_PER_PT)
+            if abs(npc['x_decipoints'] - expected_end_dp) > eps_pt * fg.DECIPT_PER_PT:
+                break
+            text += npc['text']
+            j += 1
+        merged.append((dict(pc, text=text), tc))
+        i = j
+    return merged
+
+
 def load_ws7_tokens(pcl_path: str, measurements_path: str):
     """[{text, x, y_top, size, basefont, font_class, page, tid, tier,
     dist_into_line_pt, is_line_start}, ...] -- fg.ws7_page_tokens()'s own
@@ -360,6 +416,7 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             by_y[pc['y_decipoints']].append((pc, tc))
         for _y, items in by_y.items():
             items.sort(key=lambda pt: pt[0]['x_decipoints'])
+            items = _merge_kerning_split_chunks(items)    # mechanism C
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0
             for pc, tc in items:

@@ -88,6 +88,68 @@ def test_univers_tolerance_shares_the_cgtimes_curve():
         assert pt.univers_tolerance_pt(dist) == pt.cgtimes_tolerance_pt(dist)
 
 
+# --------------------------------------------- WS7 chunk-splitting fixes
+def _pc(text, x_dp, size=24, font='Courier'):
+    """A synthetic measurements.json chunk dict -- just the fields
+    _merge_kerning_split_chunks (and, later, _dedupe_double_strike_chunks)
+    read."""
+    return {'text': text, 'x_decipoints': x_dp, 'y_decipoints': 1000,
+            'size_pt': size, 'font': font}
+
+
+def _tc(tid=4099):
+    """A synthetic pcl_render reparse chunk dict -- just '_T', the
+    pre-substitution PCL typeface id."""
+    return {'_T': tid}
+
+
+def test_merge_kerning_split_chunks_joins_a_contiguous_two_way_split():
+    # 'W' then 'ar' at 24pt Courier: natural width of 'W' at 24pt Courier
+    # (fixed-pitch, 0.6em/char) is exactly 14.4pt = 144 decipoints -- the
+    # real WARPRAYR shape (measurements.json: 'W'/'ar' abutting exactly at
+    # 'W's own natural glyph width).
+    items = [(_pc('W', 1000), _tc()), (_pc('ar', 1000 + 144), _tc())]
+    merged = pt._merge_kerning_split_chunks(items)
+    assert len(merged) == 1
+    pc, tc = merged[0]
+    assert pc['text'] == 'War'
+    assert pc['x_decipoints'] == 1000  # keeps the FIRST chunk's own position
+
+
+def test_merge_kerning_split_chunks_joins_a_three_way_split():
+    items = [(_pc('T', 1000), _tc()), (_pc('wa', 1000 + 144), _tc()),
+             (_pc('in', 1000 + 144 + 288), _tc())]
+    merged = pt._merge_kerning_split_chunks(items)
+    assert len(merged) == 1
+    assert merged[0][0]['text'] == 'Twain'
+
+
+def test_merge_kerning_split_chunks_leaves_a_real_gap_unmerged():
+    # A genuine space (or any gap well beyond eps_pt) between two chunks is
+    # NOT a kerning split -- two separate words, left alone.
+    items = [(_pc('The', 1000), _tc()), (_pc('War', 1000 + 500), _tc())]
+    merged = pt._merge_kerning_split_chunks(items)
+    assert len(merged) == 2
+    assert [m[0]['text'] for m in merged] == ['The', 'War']
+
+
+def test_merge_kerning_split_chunks_does_not_merge_across_a_font_change():
+    # Same contiguous position as the joining test, but a different font on
+    # the second chunk -- real WS7 never kerning-splits across a font
+    # change, so this must NOT merge even though the x lines up.
+    items = [(_pc('W', 1000, font='Courier'), _tc(4099)),
+             (_pc('ar', 1000 + 144, font='Times-Bold'), _tc(4101))]
+    merged = pt._merge_kerning_split_chunks(items)
+    assert len(merged) == 2
+
+
+def test_merge_kerning_split_chunks_single_item_is_a_no_op():
+    items = [(_pc('Hello', 1000), _tc())]
+    merged = pt._merge_kerning_split_chunks(items)
+    assert len(merged) == 1
+    assert merged[0][0]['text'] == 'Hello'
+
+
 # ------------------------------------------------------- token exclusions
 def test_box_drawing_text_detects_pure_border_and_block_runs():
     assert pt._is_box_drawing_text('│')            # vertical bar
