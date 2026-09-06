@@ -203,6 +203,15 @@ REASON_EXACT_DRIFT = 'exact-drift'
 REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE = 'cgtimes-drift-exceeds-tolerance'
 REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE = 'univers-drift-exceeds-tolerance'
 REASON_UNCLASSIFIED_FONT_TIER = 'unclassified-font-tier'
+# A pristine-install (PRISTINE.EXE, no WSCHANGE customization) capture's
+# own absolute, line-start, same-page frame offset should be 0.0pt against
+# this engine's stock-default rendering -- unlike a sawyer-wschange
+# capture, where a nonzero offset is EXPECTED and reported-only (see
+# document_frame_offset_pt's own docstring/mechanism S). This reason is
+# real (never a FONT_SUBSTITUTION_REASONS member): a nonzero offset here
+# means either this doc's own `.po`/margin handling regressed, or the
+# capture wasn't actually made against a stock install after all.
+REASON_PRISTINE_FRAME_OFFSET = 'pristine-frame-offset-exceeds-tolerance'
 
 ALL_REASONS = frozenset({
     REASON_PAGE_COUNT_MISMATCH, REASON_PCL_REPARSE_MISMATCH,
@@ -210,6 +219,7 @@ ALL_REASONS = frozenset({
     REASON_BASELINE_SHIFT, REASON_LINE_START_SHIFT, REASON_EXACT_DRIFT,
     REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE,
     REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, REASON_UNCLASSIFIED_FONT_TIER,
+    REASON_PRISTINE_FRAME_OFFSET,
 })
 
 # Mechanism I (tools/PCL-DIVERGENCE-TRIAGE.md): real CG-Times/Univers
@@ -256,6 +266,22 @@ def cgtimes_tolerance_pt(dist_into_line_pt: float) -> float:
 
 def univers_tolerance_pt(dist_into_line_pt: float) -> float:
     return UNIVERS_DRIFT_BASE_PT + UNIVERS_DRIFT_RATE_PT_PER_PT * dist_into_line_pt
+
+
+def pristine_offset_exceeds_tolerance(install: str, median_dx) -> bool:
+    """True when a PRISTINE-install document's absolute (line-start,
+    same-page) frame-offset median exceeds the ordinary line-start
+    tolerance -- the engine models WordStar 7's own stock defaults, so a
+    pristine capture's expected offset is 0.0pt (unlike a sawyer-wschange
+    capture, where mechanism S's own +7.2pt is real, expected, and
+    report-only). Reuses LINE_START_EPS_PT rather than a new constant:
+    this IS a line-start-shaped measurement (fg.frame_offset restricted to
+    is_line_start pairs, see doc_report's own document_frame_offset_pt),
+    just measured absolutely across the whole doc instead of per-page.
+    `median_dx` is None when there were no line-start same-page pairs to
+    measure at all (frame_offset's own empty-input shape) -- never a
+    divergence in that case, nothing was measured either way."""
+    return install == 'pristine' and median_dx is not None and abs(median_dx) > LINE_START_EPS_PT
 
 
 # Divergence entries are capped per (doc, reason) in the checked-in
@@ -801,15 +827,25 @@ def _divergence(doc, page, line_y, words, ws7_pos, pdf_pos, font_class, reason, 
 
 def doc_report(doc_name: str) -> dict:
     """The full named-divergence report for one captured document:
-    {doc, verdict, source_ws, counts_by_reason, divergences, ...}.
+    {doc, verdict, source_ws, capture_set, install, counts_by_reason,
+    divergences, ...}.
 
     verdict is one of:
       'source-missing'  -- ws7-prints/v1/sources.json has no resolvable
                            source for this capture yet (see
-                           fg.resolve_doc_paths), or the path it names
+                           fg.resolve_doc_capture), or the path it names
                            isn't actually there
       'clean'           -- zero divergences with a non-font-substitution reason
       'divergent'       -- at least one real (non-font-substitution) divergence
+
+    `capture_set` ('v3'/'v2'/'v1') and `install` ('pristine'/
+    'sawyer-wschange'/...) name which capture round actually supplied
+    this report's measurements/.pcl and that round's own provenance --
+    see fg.resolve_doc_capture. This is per-document (not a single
+    manifest-header note) because the corpus is captured incrementally: a
+    future v3 recapture of some documents and not others must be
+    reflected document by document, never averaged into one header claim
+    covering the whole manifest.
 
     `divergences` is capped at MAX_LISTED_PER_REASON entries per reason
     (documents, page, words, both positions, font class, reason -- never a
@@ -820,16 +856,21 @@ def doc_report(doc_name: str) -> dict:
     (see module docstring), so they never appear here except via the
     line-start/baseline/word-count checks every tier gets.
     """
-    ws_path, measurements_path, pcl_path = fg.resolve_doc_paths(doc_name)
+    capture = fg.resolve_doc_capture(doc_name)
+    ws_path = capture['ws_path']
+    measurements_path, pcl_path = capture['measurements_path'], capture['pcl_path']
+    capture_set, install = capture['capture_set'], capture['install']
     if ws_path is None:
         return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
                 'counts_by_reason': {}, 'divergences': [],
+                'capture_set': capture_set, 'install': install,
                 'reason': f'${fg.ARCHIVE_ENV} unset (Sawyer-archive-only document)'}
     if not os.path.exists(ws_path):
         published_source = _source_ws_for_report(doc_name, ws_path)
         return {'doc': doc_name, 'verdict': 'source-missing',
                 'source_ws': published_source,
                 'counts_by_reason': {}, 'divergences': [],
+                'capture_set': capture_set, 'install': install,
                 'reason': f'source not found at {published_source}'}
 
     ws7_tokens, mismatched_pages = load_ws7_tokens(pcl_path, measurements_path)
@@ -900,20 +941,31 @@ def doc_report(doc_name: str) -> dict:
     # document -- restricted to line-start words, since those are pure
     # left-margin measurements (the page's own resolved `.po`) and aren't
     # diluted by mid-line font-substitution width drift the way an
-    # arbitrary word's dx would be. This is reported only, never used to
-    # fail anything -- it exists so a real, corpus-wide, systematic shift
+    # arbitrary word's dx would be. For a sawyer-wschange capture this is
+    # report-only -- it exists so a real, corpus-wide, systematic shift
     # (mechanism S's own reversal, tools/PCL-DIVERGENCE-TRIAGE.md: every
-    # ws7-prints/v1 capture was made on Robert J. Sawyer's own
+    # ws7-prints/v1/v2 capture was made on Robert J. Sawyer's own
     # WSCHANGE-customized WordStar 7 install, whose `.po` factory default
     # is one column, 7.2pt, off stock WS7's) stays VISIBLE here instead of
     # being silently absorbed the way the per-page median-dx calibration
-    # below absorbs it before anything downstream ever sees it.
+    # below absorbs it before anything downstream ever sees it. For a
+    # PRISTINE-install (v3) capture, though, this same number is expected
+    # to be 0.0pt -- the engine models stock WordStar 7 -- so it graduates
+    # from report-only to a real FAIL below (pristine_offset_exceeds_
+    # tolerance / REASON_PRISTINE_FRAME_OFFSET).
     line_start_same_page_deltas = [d for (w, e), d in zip(m['pairs'], deltas)
                                    if w['is_line_start'] and d['same_page']]
     _doc_offset = fg.frame_offset(line_start_same_page_deltas)
     document_frame_offset_pt = {'n': _doc_offset['n_dx'],
                                 'median_dx': _doc_offset['median_dx'],
                                 'iqr_dx': _doc_offset['iqr_dx']}
+
+    if pristine_offset_exceeds_tolerance(install, document_frame_offset_pt['median_dx']):
+        add(REASON_PRISTINE_FRAME_OFFSET, None, None, None, None, None, None,
+            detail=f"pristine-install absolute frame offset "
+                   f"{document_frame_offset_pt['median_dx']:+.2f}pt exceeds the line-start "
+                   f"tolerance ({LINE_START_EPS_PT}pt) -- a stock/pristine capture is expected "
+                   f"to match this engine's stock-default rendering at 0.0pt")
 
     no_substitute_word_count = 0
     for page, items in sorted(by_page.items()):
@@ -980,6 +1032,7 @@ def doc_report(doc_name: str) -> dict:
     return {
         'doc': doc_name, 'verdict': verdict,
         'source_ws': _source_ws_for_report(doc_name, ws_path),
+        'capture_set': capture_set, 'install': install,
         'n_ws7_pages': n_ws7_pages, 'n_engine_pages': n_engine_pages,
         'no_substitute_word_count': no_substitute_word_count,
         'counts_by_reason': dict(sorted(counts.items())),
@@ -1000,23 +1053,22 @@ def regenerate_manifest(doc_names=None) -> dict:
         'note': ('Checked-in answer key for tests/test_pcl_fidelity.py (the `pcl` pytest '
                  'tier). Regenerate with the command above whenever a real engine or '
                  'tolerance change is expected to move these numbers -- review the diff, '
-                 'never regenerate inside the test run itself.'),
-        'captures_install': ('sawyer-wschange (measured `.po` factory default: column 7, '
-                             '0.7in) -- every ws7-prints/v1 capture was produced through '
-                             "Robert J. Sawyer's own WSCHANGE-customized WordStar 7 install, "
-                             'NOT a stock one. Stock WordStar 7 (confirmed against '
-                             'PRISTINE.EXE, Jon\'s ruling 2026-09-06) defaults `.po` to column '
-                             "8 (0.8in), matching the manual and this engine's own "
-                             'core.DEFAULT_PO_COLS. Every document below that never sets its '
-                             'own `.po` therefore carries a real, expected, install-specific '
-                             '+7.2pt (one Courier column) frame offset against this engine\'s '
-                             'stock-default rendering -- see each document\'s own '
-                             "`document_frame_offset_pt` (absolute, NOT the per-page-"
-                             'normalized residuals `counts_by_reason` reports on) and '
-                             'tools/PCL-DIVERGENCE-TRIAGE.md mechanism S\'s reversal for the '
-                             'full trace. This field exists so a future systematic shift like '
-                             'this one is never again silently calibrated away by the per-page '
-                             'median-dx normalization before anyone sees it.'),
+                 'never regenerate inside the test run itself. Install provenance used to '
+                 'be one blanket header note (every ws7-prints/v1 capture was produced '
+                 "through Robert J. Sawyer's own WSCHANGE-customized WordStar 7 install, "
+                 'confirmed NOT stock via a direct PRISTINE.EXE probe, Jon\'s ruling '
+                 '2026-09-06) -- it is now PER-DOCUMENT (each entry below carries its own '
+                 "`capture_set`/`install`), since the corpus is captured incrementally and a "
+                 'future v3 (PRISTINE.EXE) recapture of some documents and not others would '
+                 'make one blanket claim wrong the moment it happened. A sawyer-wschange '
+                 "document's real, expected, install-specific +7.2pt (one Courier column) "
+                 "frame offset against this engine's stock-default rendering is still visible "
+                 "per document at `document_frame_offset_pt` (absolute, NOT the per-page-"
+                 'normalized residuals `counts_by_reason` reports on) -- see '
+                 'tools/PCL-DIVERGENCE-TRIAGE.md mechanism S\'s reversal for the full trace. '
+                 'A pristine-install document with the same kind of nonzero offset is a real '
+                 "FAIL (`pristine-frame-offset-exceeds-tolerance`), not a report-only note --"
+                 ' see pcl_tolerance.pristine_offset_exceeds_tolerance.'),
         'documents': documents,
     }
     return manifest
@@ -1048,7 +1100,8 @@ def main(argv=None):
         print(f'wrote {MANIFEST_PATH}', file=sys.stderr)
         for name, entry in manifest['documents'].items():
             offset = entry.get('document_frame_offset_pt') or {}
-            print(f"  {name}: {entry['verdict']}  {entry.get('counts_by_reason', {})}  "
+            print(f"  {name}: [{entry.get('capture_set')}/{entry.get('install')}] "
+                 f"{entry['verdict']}  {entry.get('counts_by_reason', {})}  "
                  f"abs_offset_dx={offset.get('median_dx')}pt (n={offset.get('n')})")
         return 0
 

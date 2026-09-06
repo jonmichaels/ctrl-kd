@@ -169,12 +169,39 @@ PRINTS_SUBDIR = 'v1'
 # any other Sawyer-archive document is picked up with no code change
 # here), falling back to v1 when no v2 capture exists for that source yet.
 PRINTS_SUBDIR_V2 = 'v2'
+# A third capture round, ws7-prints/v3/ -- Jon's ruling 2026-09-06: every
+# future real-WS7 capture is made with the FACTORY binary (PRISTINE.EXE,
+# no WSCHANGE customization), because mechanism S (PCL-DIVERGENCE-TRIAGE.md)
+# found that v1/v2 were both captured on Robert J. Sawyer's own
+# WSCHANGE-customized install, whose `.po` factory default (column 7) is
+# NOT WordStar 7's own stock default (column 8, confirmed via a direct
+# PRISTINE.EXE probe). v3 uses v1's OWN flat NAME.measurements.json/
+# NAME.pcl naming (not v2's source-relative-path naming) plus its own
+# sources.json carrying a top-level 'install' field -- see
+# _install_for_subdir/DEFAULT_INSTALL_BY_SUBDIR below for what happens
+# when that field isn't there yet (the corpus is being captured
+# incrementally; a doc with no v3 file at all just isn't preferred).
+# Preferred over v2, which is preferred over v1 -- see resolve_doc_capture.
+PRINTS_SUBDIR_V3 = 'v3'
 # The capture index (see module docstring): one entry per NAME, giving a
 # corpus-relative source path -- resolved BEFORE the group-search fallback
 # below, so a new capture only needs an index entry, never a code change
 # here. SOURCES_INDEX_FILENAME lives alongside the .measurements.json/.pcl
-# pairs it names, at $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/.
+# pairs it names, at $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/ (and, when it
+# exists, ws7-prints/v3/ -- v2 has no sources.json of its own, see
+# _install_for_subdir).
 SOURCES_INDEX_FILENAME = 'sources.json'
+# Provenance label for a capture set, when that set's OWN sources.json
+# doesn't declare an explicit top-level 'install' field itself (see
+# _install_for_subdir) -- v1/v2 predate that field entirely (both are
+# uniformly Robert J. Sawyer's WSCHANGE-customized install, mechanism S);
+# v3 is expected to declare 'install': 'pristine' in its own sources.json
+# once the capture job finishes, this is only the fallback.
+DEFAULT_INSTALL_BY_SUBDIR = {
+    PRINTS_SUBDIR: 'sawyer-wschange',
+    PRINTS_SUBDIR_V2: 'sawyer-wschange',
+    PRINTS_SUBDIR_V3: 'pristine',
+}
 ARCHIVE_ENV = 'CTRLKD_SAWYER_ARCHIVE'
 # Values in PRIVATE_DOCS below are paths RELATIVE to the archive root.
 # Legacy fallback ONLY -- used when the corpus has no sources.json (see
@@ -701,19 +728,38 @@ def _load_sources_index(prints_dir: str):
         return json.load(f)
 
 
-def resolve_doc_paths(doc_name: str):
-    """(ws_path, measurements_path, pcl_path) for a known corpus doc name,
-    or (None, ...) if $CTRLKD_SAWYER_ARCHIVE is unset for an archive-only
-    doc under the legacy fallback -- SKIP, not error (the archive is a
-    legitimately optional public corpus; see the module docstring).
+def _install_for_subdir(prints_dir: str, subdir_name: str) -> str:
+    """The 'install' provenance label for one capture set: that set's own
+    sources.json top-level 'install' field when it declares one, else the
+    documented default for that subdir (DEFAULT_INSTALL_BY_SUBDIR) -- v1's
+    and v2's sources.json (v2 has none of its own at all) predate this
+    field, v3's is expected to carry it directly once the capture job
+    finishes."""
+    index = _load_sources_index(prints_dir)
+    if index is not None and index.get('install'):
+        return index['install']
+    return DEFAULT_INSTALL_BY_SUBDIR.get(subdir_name, 'unknown')
+
+
+def resolve_doc_capture(doc_name: str) -> dict:
+    """{'ws_path', 'measurements_path', 'pcl_path', 'capture_set',
+    'install'} for a known corpus doc name -- the same resolution
+    resolve_doc_paths (below) exposes as a 3-tuple, PLUS which capture
+    round actually supplied measurements_path/pcl_path ('v3'/'v2'/'v1',
+    see PRINTS_SUBDIR*) and that round's own install provenance
+    ('pristine'/'sawyer-wschange'/...). 'ws_path' may be None (see
+    resolve_doc_paths' own docstring for when/why) -- 'capture_set'/
+    'install' are always populated regardless, since provenance is a
+    property of the measurements data, not of whether a local .WS source
+    also resolved.
 
     The ground-truth PCL capture data (NAME.measurements.json/.pcl) is
-    NOT optional in the same way: it lives at
-    $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/, and there is no flag or default
-    to fall back to. An unset CTRLKD_PRIVATE_CORPUS, or a measurements.json
-    that isn't there, FAILS LOUD naming the exact path -- never a silent
-    skip, never a silent pass -- because a fidelity number computed
-    against nothing would be worse than no number.
+    NOT optional: it lives at $CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/, and
+    there is no flag or default to fall back to. An unset
+    CTRLKD_PRIVATE_CORPUS, or a measurements.json that isn't there, FAILS
+    LOUD naming the exact path -- never a silent skip, never a silent
+    pass -- because a fidelity number computed against nothing would be
+    worse than no number.
 
     The .WS source itself is resolved through ws7-prints/v1/sources.json
     when that index exists (see module docstring): every capture the
@@ -722,13 +768,17 @@ def resolve_doc_paths(doc_name: str):
     index file itself is absent does this fall back to the older
     PRIVATE_DOCS/DEFAULT_AUTHORED_ROOT group search.
 
-    When the index resolves a 'source' path, a v2 capture of that SAME
-    source (see PRINTS_SUBDIR_V2 above) is preferred over v1 whenever one
-    exists on disk -- v1 stays the default and the only capture directory
-    ever required to exist at all (the RuntimeError below still checks v1
-    first, so an entirely uncaptured doc still fails loud naming its v1
-    path); a v2 capture only ever REPLACES which measurements_path/pcl_path
-    this function returns, never which doc names are known."""
+    Capture-set preference is v3 > v2 > v1 (Jon's ruling 2026-09-06: a
+    pristine PRISTINE.EXE capture outranks either Sawyer-install round).
+    v1 stays the default and the only capture directory ever required to
+    exist at all (the RuntimeError below still checks v1 first, so an
+    entirely uncaptured doc still fails loud naming its v1 path). v2 is
+    checked via the index's own 'source' path (its own directory layout,
+    see PRINTS_SUBDIR_V2); v3 uses v1's flat NAME.measurements.json
+    naming instead (see PRINTS_SUBDIR_V3), so it's checked directly by
+    doc_name, independent of whether the index resolves anything at all.
+    Either one only ever REPLACES which measurements_path/pcl_path/
+    capture_set this function returns, never which doc names are known."""
     if not _PRIVATE_CORPUS_ROOT:
         raise RuntimeError(
             f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures '
@@ -742,7 +792,14 @@ def resolve_doc_paths(doc_name: str):
     if not os.path.exists(measurements_path):
         raise RuntimeError(
             f'ground-truth measurements not found: {measurements_path}')
+    capture_set = PRINTS_SUBDIR
 
+    v3_dir = os.path.join(_PRIVATE_CORPUS_ROOT, 'ws7-prints', PRINTS_SUBDIR_V3)
+    v3_measurements = os.path.join(v3_dir, f'{doc_name}.measurements.json')
+    v3_pcl = os.path.join(v3_dir, f'{doc_name}.pcl')
+    has_v3 = os.path.exists(v3_measurements)
+
+    ws_path = None
     index = _load_sources_index(prints_dir)
     if index is not None:
         entry = index.get('captures', {}).get(doc_name)
@@ -752,17 +809,41 @@ def resolve_doc_paths(doc_name: str):
             v2_measurements = os.path.join(v2_dir, f"{entry['source']}.measurements.json")
             v2_pcl = os.path.join(v2_dir, f"{entry['source']}.pcl")
             if os.path.exists(v2_measurements):
-                measurements_path, pcl_path = v2_measurements, v2_pcl
-            return ws_path, measurements_path, pcl_path
+                measurements_path, pcl_path, capture_set = v2_measurements, v2_pcl, PRINTS_SUBDIR_V2
+            if has_v3:
+                measurements_path, pcl_path, capture_set = v3_measurements, v3_pcl, PRINTS_SUBDIR_V3
+            install = _install_for_subdir(
+                v3_dir if capture_set == PRINTS_SUBDIR_V3 else prints_dir, capture_set)
+            return {'ws_path': ws_path, 'measurements_path': measurements_path,
+                    'pcl_path': pcl_path, 'capture_set': capture_set, 'install': install}
+
+    if has_v3:
+        measurements_path, pcl_path, capture_set = v3_measurements, v3_pcl, PRINTS_SUBDIR_V3
 
     if doc_name in PRIVATE_DOCS:
         root = os.environ.get(ARCHIVE_ENV)
-        if not root:
-            return None, measurements_path, pcl_path
-        ws_path = os.path.join(root, PRIVATE_DOCS[doc_name])
+        if root:
+            ws_path = os.path.join(root, PRIVATE_DOCS[doc_name])
     else:
         ws_path = os.path.join(DEFAULT_AUTHORED_ROOT, f'{doc_name}.WS')
-    return ws_path, measurements_path, pcl_path
+
+    install = _install_for_subdir(
+        v3_dir if capture_set == PRINTS_SUBDIR_V3 else prints_dir, capture_set)
+    return {'ws_path': ws_path, 'measurements_path': measurements_path,
+            'pcl_path': pcl_path, 'capture_set': capture_set, 'install': install}
+
+
+def resolve_doc_paths(doc_name: str):
+    """(ws_path, measurements_path, pcl_path) for a known corpus doc name,
+    or (None, ...) if $CTRLKD_SAWYER_ARCHIVE is unset for an archive-only
+    doc under the legacy fallback -- SKIP, not error (the archive is a
+    legitimately optional public corpus; see the module docstring). Thin
+    wrapper over resolve_doc_capture (above), which is what actually knows
+    the resolution order and also reports capture-set/install provenance;
+    kept as its own function since most callers (and most existing tests)
+    only ever needed the three paths."""
+    info = resolve_doc_capture(doc_name)
+    return info['ws_path'], info['measurements_path'], info['pcl_path']
 
 
 # ------------------------------------------------------------------- table

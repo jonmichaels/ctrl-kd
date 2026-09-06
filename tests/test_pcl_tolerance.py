@@ -88,6 +88,33 @@ def test_univers_tolerance_shares_the_cgtimes_curve():
         assert pt.univers_tolerance_pt(dist) == pt.cgtimes_tolerance_pt(dist)
 
 
+# -------------------------------------------- pristine frame-offset rule
+def test_pristine_offset_exceeds_tolerance_fails_only_for_pristine_installs():
+    # A sawyer-wschange capture's mechanism-S +7.2pt offset is real and
+    # expected -- never a divergence, regardless of magnitude.
+    assert not pt.pristine_offset_exceeds_tolerance('sawyer-wschange', 7.2)
+    assert not pt.pristine_offset_exceeds_tolerance('sawyer-wschange', 500.0)
+    # A pristine capture's own offset is checked against LINE_START_EPS_PT.
+    assert not pt.pristine_offset_exceeds_tolerance('pristine', 0.0)
+    assert not pt.pristine_offset_exceeds_tolerance('pristine', pt.LINE_START_EPS_PT)
+    assert pt.pristine_offset_exceeds_tolerance('pristine', pt.LINE_START_EPS_PT + 0.01)
+    assert pt.pristine_offset_exceeds_tolerance('pristine', -7.2)
+
+
+def test_pristine_offset_exceeds_tolerance_none_median_never_fails():
+    # frame_offset's own empty-input shape (no line-start same-page pairs
+    # at all to measure) -- nothing measured, so nothing to fail on.
+    assert not pt.pristine_offset_exceeds_tolerance('pristine', None)
+
+
+def test_pristine_frame_offset_reason_is_not_a_font_substitution_reason():
+    # A pristine-install frame-offset FAIL is a real bug, never accepted
+    # by design the way CG-Times/Univers drift is.
+    assert pt.REASON_PRISTINE_FRAME_OFFSET in pt.ALL_REASONS
+    assert pt.REASON_PRISTINE_FRAME_OFFSET not in pt.FONT_SUBSTITUTION_REASONS
+    assert not pt.is_font_substitution_reason(pt.REASON_PRISTINE_FRAME_OFFSET)
+
+
 # --------------------------------------------- WS7 chunk-splitting fixes
 def _pc(text, x_dp, size=24, font='Courier'):
     """A synthetic measurements.json chunk dict -- just the fields

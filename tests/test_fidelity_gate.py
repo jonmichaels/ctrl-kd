@@ -381,6 +381,136 @@ def test_resolve_doc_paths_falls_back_to_group_search_when_index_absent(tmp_path
     assert ws_path == str(tmp_path / 'sawyer-archive' / 'SAWYER.WS')
 
 
+# ------------------------------------------------- v3 (pristine) resolution
+def test_resolve_doc_capture_prefers_v3_over_v2_and_v1(tmp_path, monkeypatch):
+    """v3 uses v1's OWN flat NAME.measurements.json naming (not v2's
+    source-relative-path naming) -- checked directly by doc_name, and
+    preferred over BOTH v2 and v1 when present."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / '-README.measurements.json').write_text('{"v": 1}')
+    (prints_dir / '-README.pcl').write_bytes(b'v1')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'-README': {'source': 'sawyer/-README.WS', 'group': 'sawyer'}},
+    }))
+    v2_dir = tmp_path / 'ws7-prints' / 'v2' / 'sawyer'
+    v2_dir.mkdir(parents=True)
+    (v2_dir / '-README.WS.measurements.json').write_text('{"v": 2}')
+    (v2_dir / '-README.WS.pcl').write_bytes(b'v2')
+    v3_dir = tmp_path / 'ws7-prints' / 'v3'
+    v3_dir.mkdir(parents=True)
+    (v3_dir / '-README.measurements.json').write_text('{"v": 3}')
+    (v3_dir / '-README.pcl').write_bytes(b'v3')
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    ws_path, mpath, pcl_path = fg.resolve_doc_paths('-README')
+    assert ws_path == str(tmp_path / 'sawyer' / '-README.WS')
+    assert mpath == str(v3_dir / '-README.measurements.json')
+    assert pcl_path == str(v3_dir / '-README.pcl')
+
+    info = fg.resolve_doc_capture('-README')
+    assert info['capture_set'] == 'v3'
+    assert info['install'] == 'pristine'
+
+
+def test_resolve_doc_capture_v3_without_sources_index_entry(tmp_path, monkeypatch):
+    """v3 resolution doesn't need the sources.json index to resolve at all
+    -- it's checked directly by doc_name (same shape as v1's own default),
+    independent of whichever branch (index-hit / PRIVATE_DOCS / authored
+    fallback) supplies ws_path."""
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    (prints_dir / 'SAWYER.pcl').write_bytes(b'')
+    assert not (prints_dir / 'sources.json').exists()
+    v3_dir = tmp_path / 'ws7-prints' / 'v3'
+    v3_dir.mkdir(parents=True)
+    (v3_dir / 'SAWYER.measurements.json').write_text('{"v": 3}')
+    (v3_dir / 'SAWYER.pcl').write_bytes(b'v3')
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.setenv(fg.ARCHIVE_ENV, str(tmp_path / 'sawyer-archive'))
+
+    info = fg.resolve_doc_capture('SAWYER')
+    assert info['capture_set'] == 'v3'
+    assert info['measurements_path'] == str(v3_dir / 'SAWYER.measurements.json')
+    assert info['ws_path'] == str(tmp_path / 'sawyer-archive' / 'SAWYER.WS')
+    assert info['install'] == 'pristine'
+
+
+def test_resolve_doc_capture_falls_back_to_v2_then_v1_when_no_v3_file(tmp_path, monkeypatch):
+    """Until a given doc's own v3 capture exists, resolution (and its
+    install label) is exactly the pre-v3 v2-then-v1 rule."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    (prints_dir / 'SAWYER.pcl').write_bytes(b'')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'SAWYER': {'source': 'sawyer/SAWYER.WS', 'group': 'sawyer'}},
+    }))
+    assert not (tmp_path / 'ws7-prints' / 'v3').exists()
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    info = fg.resolve_doc_capture('SAWYER')
+    assert info['capture_set'] == 'v1'
+    assert info['install'] == 'sawyer-wschange'
+    assert info['measurements_path'] == str(prints_dir / 'SAWYER.measurements.json')
+
+
+def test_resolve_doc_capture_reads_install_from_v3_sources_json_when_present(tmp_path, monkeypatch):
+    """A v3 sources.json declaring its own top-level 'install' field wins
+    over the DEFAULT_INSTALL_BY_SUBDIR fallback -- forward-compatible with
+    whatever the real capture job's own sources.json ends up saying."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / 'SAWYER.measurements.json').write_text('{}')
+    v3_dir = tmp_path / 'ws7-prints' / 'v3'
+    v3_dir.mkdir(parents=True)
+    (v3_dir / 'SAWYER.measurements.json').write_text('{}')
+    (v3_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1, 'install': 'pristine-custom-label', 'captures': {},
+    }))
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+    monkeypatch.setattr(fg, 'DEFAULT_AUTHORED_ROOT',
+                        os.path.join(str(tmp_path), 'pd-samples', 'authored'))
+
+    info = fg.resolve_doc_capture('SAWYER')
+    assert info['capture_set'] == 'v3'
+    assert info['install'] == 'pristine-custom-label'
+
+
+def test_resolve_doc_capture_v2_capture_set_is_sawyer_wschange(tmp_path, monkeypatch):
+    """v2 has no sources.json of its own -- its install label comes from
+    DEFAULT_INSTALL_BY_SUBDIR, same provenance as v1 (same install, a
+    different capture round/tooling -- see PRINTS_SUBDIR_V2's docstring)."""
+    import json as _json
+    prints_dir = tmp_path / 'ws7-prints' / 'v1'
+    prints_dir.mkdir(parents=True)
+    (prints_dir / '-README.measurements.json').write_text('{"v": 1}')
+    (prints_dir / 'sources.json').write_text(_json.dumps({
+        'format': 1,
+        'captures': {'-README': {'source': 'sawyer/-README.WS', 'group': 'sawyer'}},
+    }))
+    v2_dir = tmp_path / 'ws7-prints' / 'v2' / 'sawyer'
+    v2_dir.mkdir(parents=True)
+    (v2_dir / '-README.WS.measurements.json').write_text('{"v": 2}')
+    assert not (v2_dir.parent / 'sources.json').exists()
+
+    monkeypatch.setattr(fg, '_PRIVATE_CORPUS_ROOT', str(tmp_path))
+
+    info = fg.resolve_doc_capture('-README')
+    assert info['capture_set'] == 'v2'
+    assert info['install'] == 'sawyer-wschange'
+
+
 # -------------------------------------------------------------- end to end
 def test_run_gate_end_to_end_on_a_synthetic_ws7_capture(tmp_path):
     """A full run_gate() pass against a hand-built measurements.json that
