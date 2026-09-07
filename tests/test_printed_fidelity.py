@@ -717,11 +717,13 @@ def test_sb_suppresses_leading_blank_lines_at_page_top():
         m = re.search(rb'([\d.]+) ([\d.]+) Td \(Actual', out)
         return float(m.group(2))
 
-    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): top offset is
-    # now (.mt+.hm)*12 = 60pt for a headerless doc (was 36pt .mt-only) --
-    # see _printed_top's docstring.
-    assert content_y(doc_default) == 696.0    # top 60 + two 12pt blanks + 12pt lead
-    assert content_y(doc_sb) == 720.0          # suppressed -- starts right at top+lead
+    # UPDATED 2026-09-07 (mechanism U, PCL-DIVERGENCE-TRIAGE.md,
+    # ws7-prints/v3 PRISTINE.EXE round): top offset is `.mt` ALONE = 36pt
+    # for a headerless doc -- the (.mt+.hm)=60pt pairing this test used to
+    # assume was measured only against Sawyer's own WSCHANGE-customized
+    # install; see _printed_top's docstring.
+    assert content_y(doc_default) == 720.0    # top 36 + two 12pt blanks + 12pt lead
+    assert content_y(doc_sb) == 744.0          # suppressed -- starts right at top+lead
 
 
 def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():

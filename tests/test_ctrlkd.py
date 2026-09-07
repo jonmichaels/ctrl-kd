@@ -1561,16 +1561,19 @@ def test_page_geometry_absurd_margins_clamp_not_crash():
     assert doc.meta['page']['text_lines'] == 1
 
 def test_pdf_printed_top_offset_follows_mt():
-    # UPDATED 2026-08-20 (round 26 wave 3, WS7 ground truth): a document
-    # that never sets `.mt` gets (.mt + .hm) lines -- the default .mt 3 +
-    # .hm 2 = 5 lines = 60pt (was 36, .mt alone) -- the print driver's own
-    # factory PAIR. UPDATED AGAIN same day (PREVIEW.WS ground truth,
-    # fidelity_gate.py Finding B/top-margin refinement): `.hm` only rides
-    # along with the FACTORY `.mt`, not an author-declared one -- a
-    # document that sets its OWN `.mt` (mt_source == 'file') gets that
-    # value ALONE, no `.hm` added. See _printed_top's docstring.
+    # UPDATED 2026-09-07 (mechanism U, PCL-DIVERGENCE-TRIAGE.md,
+    # ws7-prints/v3 PRISTINE.EXE round): `.hm` is NEVER added on top of
+    # `.mt`, whether `.mt` is left at its document default or set
+    # explicitly -- `.mt` ALONE (36pt at the default, matching the WS7
+    # manual's own ".MT ... header is printed within this margin"
+    # wording). The prior (.mt + .hm) = 60pt default-only pairing was
+    # measured only against Robert J. Sawyer's own WSCHANGE-customized
+    # WS.EXE (ws7-prints/v1/v2) -- a PRISTINE.EXE (factory, no WSCHANGE)
+    # recapture of 5 default-.mt documents (OCAPTAIN/BOXES/SAWYER/LYING/
+    # WARPRAYR) all measure `.mt` alone, zero residual. See
+    # _printed_top's docstring.
     from ctrlkd.pdf import _printed_top
-    assert _printed_top(core.parse_ws(b'x' + HARD)) == 60
+    assert _printed_top(core.parse_ws(b'x' + HARD)) == 36
     assert _printed_top(core.parse_ws(b'.MT 6' + HARD + b'x' + HARD)) == 72
 
 def test_pdf_printed_lead_follows_lh():
@@ -1803,9 +1806,14 @@ def test_pdf_printed_footnote_area_basic_shape():
     # no separating space (planning #202 residuals round, LYING.pcl's own
     # "1.Did" -- see _note_marker's docstring)
     assert any(l.startswith('1.Short note text.') for l in flat)
-    # VMI-240 rhythm: one blank line immediately above and below the separator
+    # UPDATED 2026-09-07 (mechanism U, PCL-DIVERGENCE-TRIAGE.md,
+    # ws7-prints/v3 PRISTINE.EXE round): the separator directly follows
+    # the body's own last line with NO leading blank (real WS7, both
+    # installs -- confirmed on ws7-prints/v1/-SCREEN.pcl and
+    # ws7-prints/v3/LYING.pcl, see _area_size's own docstring); ONE blank
+    # line still follows it before the note text (VMI-240 rhythm).
     sep_i = flat.index(FOOTNOTE_SEPARATOR)
-    assert flat[sep_i - 1] == '' and flat[sep_i + 1] == ''
+    assert flat[sep_i - 1] == 'Line four text.' and flat[sep_i + 1] == ''
 
 def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
     from ctrlkd.pdf import _doc_to_pagelines, CONTINUATION_TEXT
@@ -1883,7 +1891,10 @@ def test_pdf_printed_last_page_overflow_prints_at_top_no_floor():
     # no body text anywhere on the trailing (note-only) pages
     for pg in texts[1:]:
         assert not any('Only line' in l for l in pg)
-        assert pg[0] == '' and any(l == FOOTNOTE_SEPARATOR for l in pg)   # block starts at the top
+        # UPDATED 2026-09-07 (mechanism U): the area's own rendered block
+        # (rule first, no leading blank -- see _area_size's docstring) now
+        # starts the page directly, not after a blank line.
+        assert pg[0] == FOOTNOTE_SEPARATOR   # block starts at the top
     # completeness again, even across a multi-page spill
     collected = []
     for l in (ln for pg in texts for ln in pg):
@@ -1977,15 +1988,16 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     """Finding 2 (b26-print-fidelity-2): a short page's footnote/endnote
     area used to flow-append right after the body -- wherever the body's
     own y happened to end -- landing mid-page. Real WS7 anchors it at the
-    page bottom instead (measured: -SCREEN.pcl's "1. Footnote"/"(1)
-    Endnote"/dash-rule at PDF y=84/60/108, i.e. top-down 708/732/684;
-    LYING.pcl's own single-footnote area lands on the SAME y=84/108 --
-    its page is full, so flow-append and bottom-anchor coincide there,
-    which is exactly why the gate never caught this). This doc's body is
-    two short lines -- nowhere near a full (default) 55-line page -- so a
-    flow-appended area would land far above y=108; anchored, it lands
-    exactly where WS7 does, at every page-geometry DEFAULT (.mb 8 lines
-    -> 84pt reserve, see _printed_notes_reserve_pt)."""
+    page bottom instead. Numbers UPDATED 2026-09-07 (mechanism U,
+    PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3 PRISTINE.EXE round): both
+    `_printed_top` (36pt stock `.mt`, not the Sawyer-install (.mt+.hm)=60pt
+    this test used to assume) and `_printed_notes_reserve_pt` (120pt
+    stock reserve, not 84pt) moved -- see each function's own docstring
+    for the real-capture evidence (LYING.pcl/`ws7-prints/v3`,
+    -SCREEN.pcl/`ws7-prints/v1`). This doc's body is two short lines --
+    nowhere near a full (default) 55-line page -- so a flow-appended area
+    would land far above the anchor; anchored, it lands at the stock
+    reserve instead."""
     from ctrlkd.pdf import emit_pdf
     data = (ws7_block(0x00) +
             b'Short body line has a note' + ws7_note(0x03, b'Footnote text.', number=0) +
@@ -1994,28 +2006,31 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     doc = core.parse_ws(data)
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
-    assert spans[b'--------------------'] == 108.0
+    assert spans[b'--------------------'] == 144.0
     # Finding 4 (round 26 visual pass): "1." and "(1)" differ in width,
     # so this mixed footnote/endnote list hangs to a shared column --
     # three/two spaces, not the plain single space (_notes_marker_pad_cols).
-    assert spans[b'1.   Footnote text.'] == 84.0
-    assert spans[b'\\(1\\)  Endnote text.'] == 60.0
+    assert spans[b'1.   Footnote text.'] == 120.0
+    assert spans[b'\\(1\\)  Endnote text.'] == 96.0
 
 
 def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
     """The bottom-anchor override only fires when it would push the area
     DOWN past where sequential flow already puts it -- a page whose body
     already reaches (within one default lead of) the anchor target is
-    untouched, which is what keeps LYING.WS's printed PDF byte-identical
-    (sha256 unchanged across this branch: see the fidelity_gate.py
-    report). Pinned here with a synthetic page sized so the body runs
-    right up to the anchor at every page-geometry DEFAULT (cap 55 =
-    .pl 66 - .mt 3 - .mb 8): 51 body lines (one carrying the footnote
-    ref) leave the 4-line footnote area exactly filling the rest of the
-    55-line cap -- the SAME "flow already gets there" case LYING.WS's
-    own full pages are in (measured: override computes to exactly 0.0
-    here, so the area renders at its natural flow position, 12pt above
-    where the bottom-anchor formula alone would put it)."""
+    untouched, which is what keeps LYING.WS's printed PDF matching
+    `ws7-prints/v3` (PRISTINE.EXE) with zero baseline residual (see
+    `tools/PCL-DIVERGENCE-TRIAGE.md` mechanism U). Pinned here with a
+    synthetic page sized so the body runs right up to the anchor at every
+    page-geometry DEFAULT (cap 55 = .pl 66 - .mt 3 - .mb 8): 51 body
+    lines (one carrying the footnote ref) leave the 4-line
+    (`_area_size`'s own page-CAPACITY cost, still 4 even though only 3 of
+    those lines are actually drawn -- see that function's own docstring)
+    footnote area exactly filling the rest of the 55-line cap -- the SAME
+    "flow already gets there" case LYING.WS's own full pages are in.
+    Numbers UPDATED 2026-09-07 (mechanism U, `ws7-prints/v3` PRISTINE.EXE
+    round): `_printed_top` is now 36pt (stock `.mt` alone, not the
+    Sawyer-install (.mt+.hm)=60pt this test used to assume)."""
     from ctrlkd.pdf import emit_pdf, _printed_cap
     data = (ws7_block(0x00) +
             b'Body line 1 has a note' + ws7_note(0x03, b'Note.', number=0) +
@@ -2025,12 +2040,11 @@ def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():
     assert _printed_cap(doc) == 55
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
-    # natural flow (top 60 + 51 body lines * 12 + this line's own 12 =
-    # 96, PDF bottom-origin) -- ONE line short of the 84pt anchor's own
-    # target for a 4-line area (108), confirming the override did NOT
-    # fire and pull the rule down to the anchor position.
-    assert spans[b'--------------------'] == 96.0
-    assert spans[b'1.Note.'] == 72.0
+    # natural flow (top 36 + 51 body lines * 12 + this line's own 12 =
+    # 60, PDF bottom-origin), one lead below the rule, confirming the
+    # override did NOT fire and pull the rule down to the anchor position.
+    assert spans[b'--------------------'] == 132.0
+    assert spans[b'1.Note.'] == 108.0
 
 
 def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
@@ -2393,31 +2407,34 @@ def test_head_foot_text_reaches_the_ir():
 def test_head_foot_land_where_wordstar_puts_them():
     """Header placement MEASURED on WordStar 4 (2026-08-03): header on page
     line 0, footer on line 60 (.pl - .mb + .fm) -- `_running_ops` positions
-    both independently of `_printed_top`. Body start was ALSO measured at
-    line 3 (.mt alone) on WS4 at the time, but that reading is now
-    SUPERSEDED by real WS7 evidence (round 26, fidelity_gate.py Finding A):
-    -README (ws7-prints/v1), a genuine WS7 capture with a `.h1` header,
-    prints its body at line 5 (.mt 3 + .hm 2) on every headered page, the
-    same offset headerless WS7 documents already measure -- `_printed_top`
-    reserves `.hm` unconditionally now. 55 body lines per page is capacity
-    (`_printed_cap`), unaffected by where line 0 sits. Asserted in lines,
-    not points, so it stays readable.
+    both independently of `_printed_top`. Body start line UPDATED
+    2026-09-07 (mechanism U, PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3
+    PRISTINE.EXE round): line 3 (`.mt` alone), matching the ORIGINAL WS4
+    reading -- the intervening "`.mt`+`.hm` = line 5" reading (round 26,
+    fidelity_gate.py Finding A, -README/ws7-prints/v1) turned out to be
+    measuring Robert J. Sawyer's own WSCHANGE-customized WS.EXE, not stock
+    WS7; a `PRISTINE.EXE` (factory) recapture of 5 default-`.mt` documents
+    (OCAPTAIN/BOXES/SAWYER/LYING/WARPRAYR) all measure `.mt` alone, zero
+    residual -- see `_printed_top`'s own docstring. 55 body lines per page
+    is capacity (`_printed_cap`), unaffected by where line 0 sits.
+    Asserted in lines, not points, so it stays readable.
 
-    HEADER line ALSO superseded (b26-header-baseline), by the SAME -README
-    capture: `.hm` at this fixture's DEFAULT value (2, `_hf_doc` never
-    states `.hm`) does not participate in the header's own placement --
-    WS7's real header baseline for an all-default document (-README: .mt 3
-    default, .hm 2 default) is line 2 (mt - top_head, 35.7pt measured, NOT
-    line 0), not line 0. See `_running_ops`'s own docstring for the full
-    four-point derivation (-README plus three SCRIPT.WS pages, `.hm`
-    explicit there and mid-document `.mt` changes on two of them) that
-    settles `.hm`'s default-vs-explicit participation with no exception.
-    FOOTER line is UNCHANGED and still real WS4 evidence -- checked for
-    the same asymmetry and explicitly NOT extended to `.fm` (see
-    `_running_ops`): this test is the reason why, and stays the anchor for
-    it. `.fm` here is ALSO at its default value (2), so this is exactly
-    the discriminating case: header ignores a default `.hm`, footer does
-    not ignore a default `.fm`."""
+    HEADER line (b26-header-baseline) UNCHANGED by mechanism U -- it is
+    computed by `_running_ops`, independent of `_printed_top`: `.hm` at
+    this fixture's DEFAULT value (2, `_hf_doc` never states `.hm`) does
+    not participate in the header's own placement -- WS7's real header
+    baseline for an all-default document (-README: .mt 3 default, .hm 2
+    default) is line 2 (mt - top_head, 35.7pt measured, NOT line 0), not
+    line 0. See `_running_ops`'s own docstring for the full four-point
+    derivation (-README plus three SCRIPT.WS pages, `.hm` explicit there
+    and mid-document `.mt` changes on two of them) that settles `.hm`'s
+    default-vs-explicit participation with no exception. FOOTER line is
+    UNCHANGED and still real WS4 evidence -- checked for the same
+    asymmetry and explicitly NOT extended to `.fm` (see `_running_ops`):
+    this test is the reason why, and stays the anchor for it. `.fm` here
+    is ALSO at its default value (2), so this is exactly the
+    discriminating case: header ignores a default `.hm`, footer does not
+    ignore a default `.fm`."""
     import re
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
@@ -2429,7 +2446,7 @@ def test_head_foot_land_where_wordstar_puts_them():
     txt = [line_of(y) for y, t in rows if t.strip().startswith('LINE')]
     ftr = [line_of(y) for y, t in rows if 'FOOTER-TEXT' in t]
     assert hdr == [2], f'header should sit at mt(3)-top_head(1) = line 2 (.hm 2 is default, ignored), got {hdr}'
-    assert txt[0] == 5, f'body should start at .mt+.hm = 5, got {txt[0]}'
+    assert txt[0] == 3, f'body should start at .mt alone = 3, got {txt[0]}'
     assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
     assert ftr == [60], f'footer at .pl-.mb+.fm = 60 (.fm UNCHANGED, still applies at its default), got {ftr}'
 
@@ -4205,7 +4222,15 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     corrected default (ws7-prints/v3 finding #2, seeded ON to match stock
     WS7 instead of Robert J. Sawyer's WSCHANGE-customized install) now adds
     a stock automatic page number to each of them -- a real, evidenced,
-    deliberate content change, not incidental."""
+    deliberate content change, not incidental.
+
+    Re-pinned a FOURTH time 2026-09-07, same day (mechanism U,
+    PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3 PRISTINE.EXE round): `.mt`
+    ALONE (36pt), not `.mt`+`.hm` (60pt), for a document that never sets
+    its own `.mt` -- see `_printed_top`'s own docstring. Moves the two
+    default-`.mt` PRINTED fixtures (`make_prose`, `styled`) up 24pt; the
+    print-stream fixture is UNCHANGED (`page is None` -> the fixed
+    `TOP_PRINTED` constant, never `.mt`-derived either way)."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4217,11 +4242,11 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        '39ab0c21247a8358977c26197a26bd9c007c46521168a3c41937a29961562bd3'
+        '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
     assert digest(core.parse_ws(styled), 'printed') == \
-        '2cce14f60df05549f5067dc17a01001f1908c74f9ad754390a82b783d1c88ab4'
+        'a2d067710cee2ebd9f4b86274f2e787d3bf1d304a582dd9d02103956334fe183'
     assert digest(core.parse_printstream(stream), 'printed') == \
         '9dec7b10d0158a392bf684b63ff1e243f821a86194354b53f1095b23533c59f6'
 

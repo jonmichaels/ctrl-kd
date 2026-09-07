@@ -653,12 +653,57 @@ def _auto_pageno_x_pt(doc):
 
 def _printed_top(doc):
     """Top-of-text offset in points for printed mode: the bottom edge of
-    WS7's reserved TOP-MARGIN-PLUS-HEADER-MARGIN zone (lines at 6 LPI ->
-    12pt each; the defaults .mt 3 + .hm 2 = 5 lines = 60pt). Print streams
-    keep the fixed 36pt -- their own top-margin blanks are in the data
-    (minus the machine-margin strip in _doc_to_pagelines). Clamped inside
-    the page so garbage .mt/.hm from a misdetected binary degrades to an
-    ugly page, never an absurd coordinate space.
+    WS7's reserved TOP-MARGIN zone (`.mt`, lines at 6 LPI -> 12pt each;
+    the default `.mt 3` = 36pt). Print streams keep the fixed 36pt --
+    their own top-margin blanks are in the data (minus the machine-margin
+    strip in _doc_to_pagelines). Clamped inside the page so garbage `.mt`
+    from a misdetected binary degrades to an ugly page, never an absurd
+    coordinate space.
+
+    Mechanism U (PCL-DIVERGENCE-TRIAGE.md, `ws7-prints/v3` PRISTINE.EXE
+    round): `.hm` is NEVER added on top of `.mt`, matching the WS7
+    manual's own dot-command reference, already quoted in this module for
+    the symmetric `.mb`/`.fm` case (`core._text_lines_per_page`'s
+    docstring: "the header is printed WITHIN this margin"). This function
+    used to add `.hm` (2 lines, 24pt) whenever `.mt` was left at its
+    document default -- see the "INCLUDES `.hm`" history below, all of it
+    measured ONLY against `ws7-prints/v1`/`v2`, both captured through
+    Robert J. Sawyer's own WSCHANGE-customized `WS.EXE` (the SAME install
+    mechanisms S and T already found responsible for the `.po` and
+    auto-leading contaminations). A `PRISTINE.EXE` (factory, no WSCHANGE)
+    recapture of 4 default-`.mt` documents settles it: every one measures
+    its first real content line at EXACTLY `.mt` alone (36pt) + that
+    line's own entering lead, a clean, zero-residual fit --
+
+    | Doc | First line | `ws7-prints/v1` (Sawyer) | `ws7-prints/v3` (pristine) | v1-v3 delta |
+    |---|---|---:|---:|---:|
+    | OCAPTAIN | "O CAPTAIN! MY CAPTAIN!" (12pt) | 71.7pt | 48.0pt | 23.7pt |
+    | BOXES | box-drawing top rule (12pt) | 71.7pt | 48.0pt | 23.7pt |
+    | SAWYER | "===...===" rule (12pt) | -- | 48.0pt | -- |
+    | LYING | "On the Decay..." title (16pt, `.pm` style, `mt_source` default) | 78.9pt | 52.0pt | 26.9pt |
+    | WARPRAYR | "The War Prayer" title (16pt, style, `mt_source` default) | -- | 52.0pt | -- |
+
+    36 (`.mt` alone) + 12 (OCAPTAIN/BOXES/SAWYER's own 12pt entering lead)
+    = 48.0pt, exactly; 36 + 16 (LYING/WARPRAYR's 16pt Title style, at
+    `AUTO_LEAD_FACTOR` 1.0 -- mechanism T) = 52.0pt, exactly -- zero
+    residual across every family this corpus has (fixed-pitch default
+    lead, and a styled title), on both a `mt_source == 'default'` document
+    (all 5 above) and PREVIEW's own explicit-`.mt` case (unaffected by
+    this change either way, see below). `ws7-prints/v1`'s uniform ~24-27pt
+    EXTRA gap on the SAME 5 documents (measured directly against the SAME
+    real files, not a different corpus) is Sawyer's own `.hm`-adds-to-`.mt`
+    customization, not stock WS7's -- the pattern is invisible in this
+    module's own `pcl` tier verdicts because it is a UNIFORM per-page
+    offset (identical for every line on the page, title included), which
+    the tier's own per-page median-dy calibration silently absorbs as
+    "the page's own consistent calibration" -- the exact masking mechanism
+    S's own docstring already named for `.po`, now confirmed on the
+    vertical axis too. See `document_frame_offset_pt`'s own docstring in
+    `tools/pcl_tolerance.py` for the analogous absolute (unmasked) check
+    on the horizontal axis; no vertical equivalent exists yet as of this
+    fix (recorded, not built, out of this round's scope).
+
+    ---- history below, superseded by the above ----
 
     INCLUDES `.hm` (round 26 wave 3, fidelity_gate.py Unit B). Measured
     2026-08-20 against real WS7 PCL captures (ws7-prints/v1): every
@@ -670,59 +715,36 @@ def _printed_top(doc):
     +12pt for the first line's own baseline-within-line (see _page_stream)
     = 72pt, a 0.3pt residual against the measured 71.7pt -- decipoint
     (1/720in) rounding in the WS7 driver's own arithmetic, not a modelling
-    gap. WSCHANGE's factory-defaults table (Installing and Customizing,
-    WS7 manual, p.2-46/2-45) independently confirms both defaults used
-    here: "Top margin ... 0.50"" and "Header margin ... 0.33"" (0.33in =
-    23.76pt = 1.98 ~ 2 lines, matching DEFAULT_HM_LINES already coded).
+    gap. This entire measurement, per mechanism U above, was of Sawyer's
+    own install, not stock.
 
     NO LONGER SPECIAL-CASED FOR HEADERED DOCUMENTS (round 26, fidelity_gate.py
     Finding A -- reversing the headerless scoping above). The prior version of
     this function returned `.mt` ALONE (36pt) whenever `doc.headers` or
     `doc.footers` was non-empty, reasoning from a WS4 measurement
     (`_running_ops`'s docstring, `test_head_foot_land_where_wordstar_puts_them`)
-    that a header's `.hm` gap sits INSIDE `.mt`, not additional to it. -README
-    (ws7-prints/v1) is now WS7 ground truth WITH a real `.h1` header, and it
-    contradicts that WS4 finding: -README's OWN header prints starting page 2
-    (page 1 has none -- WordStar suppresses a running head on the document's
-    first page) at PCL baseline y=35.7pt (`.mt` alone, matching `_running_ops`'s
-    OWN placement, unaffected by this function), but the BODY text on those
-    SAME headered pages starts at y=71.7pt -- byte-for-byte the SAME offset
-    the headerless corpus measures ((.mt 3 + .hm 2)*12 + 12pt baseline = 72pt,
-    0.3pt residual). `.hm` is reserved before the body whether or not a header
-    actually prints on that page -- the header's OWN row (`_running_ops`,
-    computed independently from `.mt`/`.hm`/the header's own line count) and
-    the body's start offset (this function) are two separate quantities that
-    the previous version conflated. Also fixes the PIX image top-margin miss
-    (-README p1's WORDSTAR.PIX raster at WS7 y=62.7pt vs the engine's old
-    36pt -- the image anchor already shared this function via `_page_stream`'s
-    `first_lead`, it just inherited the wrong value for a headered doc).
+    that a header's `.hm` gap sits INSIDE `.mt`, not additional to it. Mechanism
+    U now confirms that WS4 finding was right about STOCK WS7 all along --
+    `.hm` is always within `.mt`, headered document or not -- and -README's
+    own body-vs-header split (used at the time to argue the opposite) was
+    itself measuring the Sawyer-install `.hm` contamination on the BODY side
+    while its header (`_running_ops`, a separate computation) happened to
+    stay correct.
 
-    `.hm` ONLY ADDS WHEN `.mt` IS THE DOCUMENT DEFAULT (`mt_source ==
-    'default'`, core.py's own file-vs-default provenance tag -- the SAME
-    field `_style_lead_pt`'s `.lh` guard already reads for a parallel
-    reason). PREVIEW.WS (ws7-prints/v1) is the negative oracle: it
-    declares its OWN `.mt` explicitly (`mt_source == 'file'`, 4.98 lines
-    -- a WSFORMAT-style non-integer .mt, likely typed as a decimal inch
-    value), and its WS7 capture's first body baseline (88.5pt) matches
-    `.mt` ALONE (round(4.98*12)=60, +14.4+14.4 for this headerless
-    document's own two leading blank lines = 88.8pt, 0.3pt residual) --
-    NOT `.mt`+`.hm` (83.76 -> 84, which would land at 112.8, over 24pt
-    off). Every oracle behind the unconditional `.mt`+`.hm` finding above
-    (the whole headerless corpus, plus -README's own headered pages) has
-    `mt_source == 'default'` -- an author who never touched `.mt` gets
-    the print driver's own factory PAIR (`.mt 3` shipped together with
-    `.hm 2`, WSCHANGE's factory-defaults table), but one who explicitly
-    set their own top margin does not also inherit that pairing's second
-    half."""
+    PREVIEW.WS is unaffected by this change either way: it declares its
+    OWN `.mt` explicitly (`mt_source == 'file'`, 4.98 lines -- a
+    WSFORMAT-style non-integer .mt, likely typed as a decimal inch value),
+    and both its `ws7-prints/v1` and `v3` captures already match `.mt`
+    ALONE (round(4.98*12)=60, +12+12 for this headerless document's own
+    two leading blank lines at `AUTO_LEAD_FACTOR` 1.0 = 84pt vs the `v3`
+    measured 83.7pt, 0.3pt residual -- the same decipoint-rounding gap
+    every other oracle here shows)."""
     page = doc.meta.get('page')
     if page is None:
         return TOP_PRINTED
     page_h = _resolved_page_height(doc, True)
     mt = page.get('mt_lines', 3.0)
-    reserve = mt
-    if page.get('mt_source', 'default') == 'default':
-        reserve += page.get('hm_lines', 2.0)
-    return max(0, min(round(reserve * 12), page_h - LEAD))
+    return max(0, min(round(mt * 12), page_h - LEAD))
 
 
 def _printed_notes_reserve_pt(doc):
@@ -738,33 +760,80 @@ def _printed_notes_reserve_pt(doc):
     area mid-page, colliding with the WORDSTAR.PIX image; real WS7 prints
     it at the physical bottom.
 
-    Measured against TWO independent WS7 captures (ws7-prints/v1), both
-    at every page-geometry default (.mb 8 lines): -SCREEN.pcl's footnote
-    line "1. Footnote" at y=708pt (dash rule at 684pt) and LYING.pcl's
-    "1.Did not take the prize." also at y=708pt (dash rule also 684pt --
-    LYING's page is full, so its flow-appended position and this anchor
-    coincide, per `_paginate_printed_notes`'s own docstring). Both land
-    on the exact same reserve -- 792 - 708 = 84pt -- with ZERO decipoint
-    residual. 84pt is (.mb - 1) * 12 = 7 lines, ONE LINE inside the raw
-    .mb reserve (8 lines = 96pt would put the footnote line 12pt too
-    high, at 696pt) -- the same "one line's own lead" adjustment
-    `_printed_top` applies at the OTHER end of the page (a baseline sits
-    one line's lead INSIDE its margin reserve, not flush with its outer
-    edge), mirrored here for the last line instead of the first.
+    Originally measured against TWO WS7 captures (ws7-prints/v1), both at
+    every page-geometry default (.mb 8 lines): -SCREEN.pcl's footnote line
+    "1. Footnote" at y=708pt (dash rule at 684pt) and LYING.pcl's "1.Did
+    not take the prize." also at y=708pt (dash rule also 684pt -- LYING's
+    page is full, so its flow-appended position and this anchor coincide,
+    per `_paginate_printed_notes`'s own docstring). Both landed on
+    84pt = (.mb - 1) * 12 = 7 lines, alongside a (since-fixed) 3-line
+    header model (`_area_size`/`_render_area`) that inserted an extra
+    leading blank neither real capture ever printed.
 
-    JUDGMENT CALL, recorded rather than hidden: ws7-prints/v1 has no
-    document with an EXPLICIT non-default `.mb` to confirm the `- 1`
-    line scales correctly rather than being a fixed offset; both measured
-    documents share the same default. Scaling with `.mb` (rather than a
-    flat 84pt constant) is the more defensible read of a page-layout
-    engine's intent, but is not independently confirmed -- if a future
-    capture contradicts it, that is where to look first."""
+    Mechanism U (PCL-DIVERGENCE-TRIAGE.md, `ws7-prints/v3` PRISTINE.EXE
+    round, same install already found responsible for the `.po`/leading/
+    top-margin contaminations -- mechanisms S, T, and this function's own
+    sibling `_printed_top`). With the header-count fix landed (2 lines:
+    rule then blank, not 3), re-deriving BOTH real captures from scratch:
+
+    -SCREEN (`ws7-prints/v1`, Sawyer): rule at V=6840 (684.0pt), footnote
+    text at V=7080 (708.0pt) -- a genuinely SHORT page (last real body
+    content at V=4341, nowhere near either), so this anchor's own reserve
+    governs directly. Solving with the 2-line header: reserve = 96.0pt =
+    `.mb * 12` EXACTLY (8 lines, no adjustment at all) -- zero residual.
+    The old `-1` was compensating for the wrong (3-line) header model, not
+    a real per-install customization; Sawyer's own real anchor, once the
+    header count is corrected, needs no fudge whatsoever.
+
+    LYING (`ws7-prints/v3`, pristine): rule at V=6600 (660.0pt), footnote
+    text at V=6840 (684.0pt) -- a FULL page, so this document's own
+    natural (un-anchored) flow is what actually places it: once
+    `_printed_top`'s own fix lands, the body's last real content line
+    lands at y=648.0pt (matching pristine exactly on its own), and the
+    2-line header's own 24pt (2 x 12pt lead) reaches the footnote text at
+    exactly 648 + 24 = 672... plus the text's OWN entering lead (12pt) =
+    684.0pt, matching pristine's real measurement with ZERO residual,
+    via PURE SEQUENTIAL FLOW -- the anchor does not need to engage AT ALL
+    for this document, so LYING's own oracle only bounds this reserve
+    from BELOW (any reserve is equally a no-op here once it is large
+    enough, since the override only ever pushes the area DOWN, never up
+    past its own natural position). The anchor is a no-op exactly when
+    `target_first <= natural_y`, i.e. `792 - reserve - (area_len-1)*12 <=
+    648` -- giving `reserve >= 120` for this document's own 3-line area
+    (rule, blank, text -- area_len=3).
+
+    So: `-SCREEN` (Sawyer) needs EXACTLY 96pt (`.mb * 12`, no adjustment);
+    `LYING` (pristine) needs AT LEAST 120pt (`(.mb + 2) * 12`) to avoid
+    wrongly overriding its own already-correct natural position. These
+    are DIFFERENT installs and NOT required to share a reserve value --
+    the 24pt/2-line gap between them is the SAME magnitude as the
+    `.hm`-shaped contamination `_printed_top` already found at the OTHER
+    end of this exact same page (mechanism U, that function's own
+    docstring), which is corroborating (not conclusive) evidence that
+    stock's real anchor reserve is `(.mb + hm) * 12` -- the footnote area
+    carrying its own header-margin-shaped cushion above the physical
+    bottom margin, the mirror image of `_printed_top`'s (wrong, since-
+    fixed) header-margin-INSIDE-the-top-margin model. Fixed at 120pt =
+    `(.mb + DEFAULT_HM_LINES) * 12` on that reading.
+
+    JUDGMENT CALL, recorded rather than hidden (n=1 for stock -- `-SCREEN`
+    corroborates the MAGNITUDE of the Sawyer-vs-stock delta, not the
+    stock value itself, since its own footnote/endnote block is entirely
+    ABSENT under `ws7-prints/v3`, `ws7-prints/v3/README.md` finding #3;
+    OPEN, see the triage doc): LYING's own oracle only proves this
+    reserve is >= 120pt, not that it is EXACTLY 120pt -- a genuinely
+    SHORT stock page with a footnote (the case this anchor exists for)
+    is the only way to pin it tighter. `120` is chosen as the smallest
+    value consistent with the evidence and the one motivated by symmetry
+    with the already-confirmed `.hm` contamination, not asserted with
+    more confidence than that."""
     page = doc.meta.get('page')
     if page is None:
-        return 84.0                    # print streams: no .mb to read;
+        return 120.0                   # print streams: no .mb to read;
                                         # the measured default constant
+    from .core import DEFAULT_HM_LINES
     mb = page.get('mb_lines', 8.0)
-    return max(0.0, (mb - 1) * 12.0)
+    return max(0.0, (mb + DEFAULT_HM_LINES) * 12.0)
 
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so
@@ -2587,10 +2656,29 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
     return stream
 
 def _area_size(entries):
-    """Total lines the footnote area occupies: the fixed 3-line header
-    (blank / 20-dash separator / blank -- VMI 240 = one blank line at 6 LPI)
-    plus each entry's own lines plus one blank line between entries (VMI 240
-    "between notes"). 0 when there's nothing to show at all."""
+    """Total lines the footnote area occupies FOR PAGE-CAPACITY PURPOSES
+    (how many body lines this paginator admits onto a page before the
+    footnote area needs room, and this area's own share of
+    `_footnote_ceiling`'s budget): the fixed 3-line header (blank / 20-dash
+    separator / blank -- VMI 240 = one blank line at 6 LPI) plus each
+    entry's own lines plus one blank line between entries (VMI 240
+    "between notes"). 0 when there's nothing to show at all.
+
+    DELIBERATELY NOT the same count `_render_area` visually draws
+    (mechanism U, PCL-DIVERGENCE-TRIAGE.md, `ws7-prints/v3` PRISTINE.EXE
+    round) -- see that function's own docstring for why the RENDERED area
+    is 2 lines, not 3. Tried making the two agree (reducing this function
+    to 2 as well) and it broke LYING's own page break: `ws7-prints/v3`'s
+    real page 1 ends at "...was that commonest" (the SAME line this
+    engine's page 1 already ended on, at every count from 3 up),
+    continuing "and mildest form of lying..." on page 2 -- reducing this
+    function to 2 let one MORE body line fit on page 1 before the cap,
+    which real WS7 (both installs) does not do. So the capacity/pagination
+    budget for this header is 3 lines even though only 2 of them are
+    literally drawn; empirically necessary, not fully explained (a real
+    stock document whose page break falls EXACTLY at this boundary, or
+    doesn't, would be the way to pin this down further -- not attempted
+    here, out of this round's scope)."""
     if not entries:
         return 0
     return 3 + sum(len(e) for e in entries) + (len(entries) - 1)
@@ -2598,7 +2686,7 @@ def _area_size(entries):
 def _render_area(entries):
     if not entries:
         return []
-    out = [[], [(FOOTNOTE_SEPARATOR, frozenset())], []]
+    out = [[(FOOTNOTE_SEPARATOR, frozenset())], []]
     for k, e in enumerate(entries):
         if k:
             out.append([])
