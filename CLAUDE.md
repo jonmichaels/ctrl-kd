@@ -69,10 +69,14 @@ never exercised by anything — exactly what happened before this note
 existed.
 
 **The `pcl` gate can judge a PDF it cannot parse.** `tools/fidelity_gate.py`'s
-own `_TEXT_OP_RE` matches only this repo's own PDF text-drawing op shape
-(`BT /Fn SIZE Tf ... Td (TEXT) Tj ET`) — a PDF a different emitter wrote
-(macOS Quartz's `Tm`/`TJ` over subset fonts, e.g.) extracts as zero words,
-not "everything unmatched." `--engine-words FILE` (both `fidelity_gate.py`
+own `parse_text_ops` is a small content-stream state machine (`Tf`/`Tz`/
+`Ts`/`Tr`/`w`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`TJ`/`'`/`"`, any operand order —
+replaced a regex keyed to one fixed order, mechanism Z,
+`tools/PCL-DIVERGENCE-TRIAGE.md`) — but it is still not a general PDF
+interpreter: a PDF a different emitter wrote (macOS Quartz's hex-string
+text over CID/Type0 subset fonts, e.g., whose string bytes are glyph
+indices, not characters) extracts as zero words, not "everything
+unmatched." `--engine-words FILE` (both `fidelity_gate.py`
 and `pcl_tolerance.py`'s own `--doc`) takes a PRE-EXTRACTED words JSON
 instead of a PDF — see the "engine-words (JSON)" schema comment above
 `dump_engine_words()` in `tools/fidelity_gate.py` for the exact shape (a

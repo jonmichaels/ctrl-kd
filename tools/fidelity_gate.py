@@ -20,11 +20,21 @@ WHAT IT DOES
    objects are plain PDF 1.4, content streams are NOT Flate-compressed in
    this emitter -- confirmed by reading pdf.py's own `_emit_pdf_inner` --
    but FlateDecode is still honoured if a stream declares it, so the
-   parser survives a future emitter change). Every text-drawing operation
-   pdf.py writes has one shape: `BT /Fn SIZE Tf [SCALE Tz ]RISE Ts X Y Td
-   (TEXT) Tj ET` -- one regex covers the whole emitter (headers/footers,
-   footnotes, line numbers, and the main body all share it; verified
-   against every `ops.append(b'BT ...` call site in pdf.py).
+   parser survives a future emitter change) with a small CONTENT-STREAM
+   STATE MACHINE (`_tokenize_content` + `parse_text_ops`), not a fixed-shape
+   regex. pdf.py writes text ops in at least three shapes depending on
+   which call site fired -- plain (`Tf <rise> Ts [<tz> Tz] x y Td`),
+   Tz-scaled proportional (same, with `Tz` present), and Symbol-face
+   bold/italic (`_symbol_style_op`: `Tf [<tz> Tz] [2 Tr <w> w | 0 Tr]
+   <rise> Ts (x y Td | a b c d x y Tm)`) -- and a REGEX keyed to one
+   operand order silently drops every op in a shape it wasn't written for
+   (see "READER BUG" below `_tokenize_content`). The state machine instead
+   tokenizes the stream into name/number/string/array/operator tokens and
+   tracks Tf/Tz/Ts/Tr/w/Td/TD/Tm/T* as PDF text state actually works
+   (Tz/Ts/Tr persist across BT/ET; Td/Tm/T* only move the CURRENT text
+   line's position) -- so it reads every `Tj`/`TJ`/`'`/`"` regardless of
+   what order the surrounding state ops were written in, and regardless of
+   which of Td/Tm placed the text.
 3. Splits each engine text run into WORD-granular positions using the
    project's OWN AFM metrics (`ctrlkd.afm.string_width_pt`) and the run's
    OWN Tz scale (carried across ops within a page's content stream,
@@ -83,8 +93,12 @@ USAGE
         --measurements NAME.measurements.json [--pcl NAME.pcl] --out-json /tmp/out.json
 
     # --engine-words: same as --pdf, but for an emitter this file's own PDF
-    # parser (_TEXT_OP_RE) cannot read at all -- e.g. macOS Quartz's `Tm`/
-    # `TJ` output over subset fonts. Takes a PRE-EXTRACTED words JSON (see
+    # parser still cannot read (this file's `parse_text_ops` is a small
+    # state machine over `Tf`/`Tz`/`Ts`/`Tr`/`Td`/`TD`/`Tm`/`Tj`/`TJ`/`'`/`"`
+    # in any operand order, but it is NOT a general PDF interpreter -- e.g.
+    # macOS Quartz's hex-string (`<...>`) text over CID/Type0 subset fonts,
+    # where the string bytes are glyph indices, not characters, isn't
+    # recoverable this way at all). Takes a PRE-EXTRACTED words JSON (see
     # the "engine-words (JSON)" schema comment above dump_engine_words(),
     # below) instead of a PDF; everything downstream (matching, tolerance,
     # reason vocabulary, manifest comparison) runs exactly as it does for
@@ -244,29 +258,44 @@ _FONT_DICT_RE = re.compile(rb'/Font\s*<<(.*?)>>', re.DOTALL)
 _FONT_ENTRY_RE = re.compile(rb'/(\S+)\s+(\d+)\s+0\s+R')
 _BASEFONT_RE = re.compile(rb'/BaseFont\s*/([^\s/>]+)')
 
-# One shape covers every `ops.append(b'BT ...')` call site in pdf.py.
-#
-# ORDER BUG (PCL tier, WARPRAYR.WS): every `ops.append(b'BT ...')` call
-# site in pdf.py (all 12 of them, checked 2026-09-06) writes `Tf <rise> Ts`
-# FIRST and the optional `<tz> Tz` SECOND, immediately before `Td` -- this
-# regex previously expected the reverse order (`Tz` before `Ts`), so it
-# NEVER matched a single Tz-scaled op (every CG-Times/Univers-substituted
-# proportional word -- the whole reason a Tz scale exists at all, see
-# pdf.py's Tz docstring). `parse_text_ops` silently dropped every such
-# word, `engine_page_tokens` never saw it, and this gate reported it as a
-# WS7-side `word-unmatched` (or shifted its neighbour's own alignment) on
-# EVERY document with a CG-Times/Univers-tier line -- confirmed by hand:
-# WARPRAYR's own '"God the all-terrible...' Quote line (a Tz-scaled run,
-# `104.15 Tz`/`101.12 Tz` are real values from its own PDF) had `"God`
-# literally present in the raw content stream (`("God) Tj`) but absent
-# from `engine_page_tokens`'s output before this fix.
-_TEXT_OP_RE = re.compile(
-    rb'BT /(?P<font>\S+) (?P<size>-?\d+) Tf '
-    rb'(?P<rise>-?\d+) Ts '
-    rb'(?:(?P<tz>-?[\d.]+) Tz )?'
-    rb'(?P<x>-?[\d.]+) (?P<y>-?[\d.]+) Td '
-    rb'\((?P<text>(?:[^()\\]|\\.)*)\) Tj ET')
+# READER BUG (PCL tier, mechanism Z, 2026-09-07): a single regex keyed to
+# ONE fixed operand order can never cover this emitter, because pdf.py
+# itself has (at least) three call-site shapes and they don't share an
+# order:
+#   plain:        BT /Fn SIZE Tf <rise> Ts [<tz> Tz] x y Td (TEXT) Tj ET
+#   faux-bold:     BT /Fn SIZE Tf [<tz> Tz] 2 Tr <w> w <rise> Ts x y Td (T) Tj ET
+#   faux-oblique:  BT /Fn SIZE Tf [<tz> Tz] 0 Tr <rise> Ts a b c d x y Tm (T) Tj ET
+# (`_symbol_style_op`, the sole writer of the last two shapes, is used ONLY
+# for a Symbol-substituted run carrying 'b'/'i' styling -- see its own
+# docstring in pdf.py.) A prior fix (2026-09-06, "ORDER BUG") flipped
+# `_TEXT_OP_RE`'s Ts/Tz order to match the PLAIN shape and claimed
+# verification against "every ops.append(b'BT ...' call site" -- but
+# `_symbol_style_op` builds its op with `b' '.join(parts)`, not a literal
+# `ops.append(b'BT ...')` grep hit, so that claim was never actually
+# checked against it. The regex still matched only the plain shape: every
+# bold/italic/bold-italic run on a substituted face (WARPRAYR's Univers
+# body is Tz-only and WAS fixed by the 2026-09-06 change; a Symbol-face
+# styled run, e.g. -SCREEN's Greek quote, was not) extracted as zero
+# words, not "unmatched" -- silently invisible to the gate, not reported
+# as a divergence. `_tokenize_content`/`parse_text_ops` below replace the
+# regex with a small state machine that accepts any operand order at all,
+# fixing this for the current three shapes and for any future one.
 _UNESC_RE = re.compile(rb'\\(.)')
+
+# Content-stream tokenizer: a literal string `(...)` (escapes handled by
+# _unescape_pdf_text at the point of use), a name `/Name` (leading slash
+# stripped), a TJ-style array `[...]` (its own contents re-tokenized by
+# the same function when TJ is handled), a number, or an operator keyword
+# (letters/digits/`*`, or the single-character `'`/`"` show-text
+# operators). Good enough for THIS repo's own content streams (plain PDF
+# 1.4, no inline images, no nested arrays, no comments) -- not a general
+# PDF content-stream parser.
+_CS_TOKEN_RE = re.compile(
+    rb'\((?P<str>(?:[^()\\]|\\.)*)\)'
+    rb'|/(?P<name>[^\s()<>\[\]{}/%]+)'
+    rb'|\[(?P<arr>(?:[^\[\]\\]|\\.)*)\]'
+    rb'|(?P<num>[-+]?(?:\d+\.\d*|\.\d+|\d+))'
+    rb'''|(?P<op>[A-Za-z][A-Za-z0-9*]*|'|")''')
 
 TZ_DEFAULT = 100.0   # pdf.py's own PDF-default text-scaling state
 
@@ -354,26 +383,126 @@ def _unescape_pdf_text(raw: bytes) -> str:
     return _UNESC_RE.sub(rep, raw).decode('cp1252', 'replace')
 
 
+def _tokenize_content(content: bytes):
+    """Yield (kind, value) for every literal/name/array/number/operator
+    token in a content stream, in byte order. `kind` is 'str' (raw,
+    still-escaped bytes -- pass to `_unescape_pdf_text`), 'name' (bytes,
+    leading `/` stripped), 'arr' (raw bytes INSIDE a `[...]` TJ array, not
+    yet tokenized -- callers that care re-run this function over it),
+    'num' (bytes, a decimal literal), or 'op' (bytes, the operator
+    keyword, e.g. `Tf`/`Td`/`Tm`/`Tj`/`'`/`"`). See `_CS_TOKEN_RE`."""
+    for m in _CS_TOKEN_RE.finditer(content):
+        kind = m.lastgroup
+        yield kind, m.group(kind)
+
+
 def parse_text_ops(content: bytes) -> list:
     """[{font, basefont-name(unresolved), size, tz, rise, x, y, text}, ...]
-    in emission order. `tz` is the SCALE IN EFFECT for this op -- carried
-    forward across ops exactly as pdf.py's own per-page `tz_state` does
-    (Tz is text state and survives ET; pdf.py only ever WRITES the
-    operator when the value changes)."""
+    in emission order -- one entry per `Tj`/`TJ`/`'`/`"` text-showing
+    operator found inside a `BT..ET` block, ACCEPTING ANY OPERAND ORDER
+    the surrounding state operators (`Tf`/`Tz`/`Ts`/`Tr`/`w`) were written
+    in, and either `Td`/`TD` (relative move) or `Tm` (absolute matrix --
+    only its `e`/`f` translation matters here, since a shear's `a b c d`
+    leaves the text ORIGIN unmoved, exactly the property pdf.py's own
+    faux-oblique shear relies on) for position. Replaces a former regex
+    keyed to one fixed operand order -- see the "READER BUG" comment above
+    `_CS_TOKEN_RE`.
+
+    State-tracking rules (this is a small, purpose-built state machine,
+    not a general PDF interpreter -- see `_tokenize_content`'s own
+    docstring):
+      - `tz` (Tz) and `tr` (Tr) are PDF TEXT STATE: they persist across
+        `ET`/`BT` (and are only WRITTEN when they change -- pdf.py's own
+        per-page `tz_state` discipline), so this carries them forward
+        exactly like the old regex carried `tz` forward.
+      - `font`/`size`/`rise` are re-set by every `BT..ET` block this
+        emitter writes (`Tf` and `Ts` both appear in every call site,
+        confirmed against pdf.py), so no cross-block carrying is needed
+        for them, but nothing here would break if a future call site
+        omitted one -- they simply keep their last value, same as tz/tr.
+      - the text position (`x`, `y`) resets to (0, 0) at each `BT` (a
+        fresh text line matrix, per the PDF spec) and is then set by
+        `Td`/`TD` (added to the current position) or `Tm` (replaces it
+        outright with the matrix's own `e`, `f`).
+      - `w` (line width, used only alongside faux-bold's `Tr 2`) and `T*`
+        (next-line, unused by this emitter -- no `Tl` leading is ever
+        set) are consumed so they don't corrupt the operand stack, but
+        carry no information this gate needs.
+    A `TJ` array is flattened to one op: its adjustment numbers (kerning,
+    not word gaps) are ignored and its strings concatenated, matching how
+    a single `Tj` string already gets word-split on space runs downstream
+    (`split_engine_op`) -- not exercised by pdf.py today (it never writes
+    `TJ`), kept for forward-compatibility with a different emitter's PDF
+    (see `--pdf`/`--engine-words` in this file's own module docstring)."""
     ops = []
     tz = TZ_DEFAULT
-    for m in _TEXT_OP_RE.finditer(content):
-        if m.group('tz'):
-            tz = float(m.group('tz'))
-        ops.append({
-            'font': m.group('font').decode(),
-            'size': int(m.group('size')),
-            'tz': tz,
-            'rise': int(m.group('rise')),
-            'x': float(m.group('x')),
-            'y': float(m.group('y')),
-            'text': _unescape_pdf_text(m.group('text')),
-        })
+    tr = 0
+    font = size = rise = None
+    in_bt = False
+    x = y = 0.0
+    pending = []          # [(kind, value_bytes), ...] since the last operator
+
+    def nums():
+        return [float(v) for k, v in pending if k == 'num']
+
+    def names():
+        return [v for k, v in pending if k == 'name']
+
+    def strs():
+        return [v for k, v in pending if k == 'str']
+
+    def arrs():
+        return [v for k, v in pending if k == 'arr']
+
+    for kind, val in _tokenize_content(content):
+        if kind != 'op':
+            pending.append((kind, val))
+            continue
+        if val == b'BT':
+            in_bt = True
+            x = y = 0.0
+        elif val == b'ET':
+            in_bt = False
+        elif val == b'Tf':
+            nm, sz = names(), nums()
+            if nm and sz:
+                font, size = nm[-1].decode(), int(sz[-1])
+        elif val == b'Tz':
+            n = nums()
+            if n:
+                tz = n[-1]
+        elif val == b'Ts':
+            n = nums()
+            if n:
+                rise = int(n[-1])
+        elif val == b'Tr':
+            n = nums()
+            if n:
+                tr = int(n[-1])
+        elif val in (b'Td', b'TD'):
+            n = nums()
+            if len(n) >= 2:
+                x += n[-2]
+                y += n[-1]
+        elif val == b'Tm':
+            n = nums()
+            if len(n) >= 6:
+                x, y = n[-2], n[-1]
+        elif val in (b'Tj', b"'", b'"') and in_bt:
+            s = strs()
+            if s and font is not None:
+                ops.append({'font': font, 'size': size, 'tz': tz, 'rise': rise,
+                           'x': x, 'y': y, 'text': _unescape_pdf_text(s[-1])})
+        elif val == b'TJ' and in_bt:
+            a = arrs()
+            if a and font is not None:
+                text = ''.join(_unescape_pdf_text(v) for k, v in
+                               _tokenize_content(a[-1]) if k == 'str')
+                ops.append({'font': font, 'size': size, 'tz': tz, 'rise': rise,
+                           'x': x, 'y': y, 'text': text})
+        # every other operator (Do, cm, q, Q, w, T*, ...) needs no state of
+        # its own here -- just falls through to the operand-stack clear.
+        pending = []
     return ops
 
 
@@ -446,7 +575,25 @@ def engine_page_tokens(page: dict, page_no: int) -> list:
     `y_top`/`x` are PAGE-LOCAL (relative to this page's own top-left) --
     pagination differences between the engine and WS7 are a SEPARATE
     finding (see run_gate's page-alignment tracking), not folded into this
-    per-token position."""
+    per-token position.
+
+    NOT merged across a zero-gap mid-word font switch (e.g. -SCREEN's own
+    cp437 Greek/math line, which this engine draws as several Symbol/
+    Courier-alternating ops with no gap between them at all, while WS7's
+    own capture recorded it as one chunk) -- a same-baseline/zero-gap rule
+    tried here 2026-09-07 and reverted the same day: it also fuses a word
+    with IMMEDIATELY FOLLOWING PUNCTUATION at zero gap (`WSMSGS.OVR` +
+    `.]` -> `WSMSGS.OVR.]`), which WS7's own capture keeps as separate
+    chunks despite the identical zero gap -- confirmed against the real
+    corpus, where that "fix" turned six previously-clean documents
+    (DOCC/OCAPTAIN/PREVIEW/-README/SAWYER/SCRIPT/VERSIONS) divergent and
+    made -SCREEN itself WORSE (extra-word-in-engine 2 -> 4), not better.
+    Geometry alone (zero gap) cannot distinguish "one WS7 word split by a
+    font substitution artifact" from "a word directly followed by
+    punctuation" -- that needs the emitter's own span/token boundaries,
+    not something this after-the-fact PDF reader can reconstruct. Left
+    as a named, understood residual divergence -- see
+    tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z."""
     mb_h = page['mediabox'][1]
     out = []
     for op in parse_text_ops(page['content']):
@@ -501,10 +648,10 @@ def engine_page_rasters(page: dict, page_no: int) -> list:
 ENGINE_WORDS_SCHEMA_VERSION = 1
 
 # A pre-extracted substitute for a Printed PDF -- so a PDF written by ANY
-# emitter (not just this repo's own pdf.py -- e.g. macOS Quartz's `Tm`/`TJ`
-# operators over subset fonts, which _TEXT_OP_RE cannot parse at all: it
-# matches only pdf.py's own literal `BT /Fn SIZE Tf ... Td (TEXT) Tj ET`
-# op shape) can be judged by the exact same matching/tolerance machinery
+# emitter (not just this repo's own pdf.py -- e.g. macOS Quartz's hex-string
+# text over CID/Type0 subset fonts, whose glyph-index string bytes
+# `parse_text_ops`'s state machine cannot turn back into characters at all)
+# can be judged by the exact same matching/tolerance machinery
 # this whole file (and pcl_tolerance.py, one layer up) already runs on
 # ctrl-kd's own PDF output. Produced by dump_engine_words() from this
 # repo's own PDF (see that function's own docstring for the round-trip
@@ -869,10 +1016,10 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
     (see main()'s `--pdf` flag). Pass `engine_words` instead of either
     (a dict already matching the schema load_engine_words() documents,
     e.g. json.load()ed from a file) to skip PDF PARSING entirely -- for
-    an emitter this repo's own `_TEXT_OP_RE` cannot read at all (macOS
-    Quartz's `Tm`/`TJ` operators over subset fonts; see main()'s
-    `--engine-words` flag and fidelity_gate.py's own module docstring for
-    the engine-words schema). At most one of `pdf_bytes`/`engine_words`
+    an emitter this repo's own `parse_text_ops` state machine still cannot
+    read (macOS Quartz's hex-string text over CID/Type0 subset fonts; see
+    main()'s `--engine-words` flag and fidelity_gate.py's own module
+    docstring for the engine-words schema). At most one of `pdf_bytes`/`engine_words`
     should be passed; `engine_words` wins if both are (checked first,
     below)."""
     ws7 = json.load(open(measurements_path))
@@ -1220,8 +1367,9 @@ def main(argv=None):
                     'needs neither CTRLKD_PRIVATE_CORPUS nor CTRLKD_SAWYER_ARCHIVE.')
     ap.add_argument('--engine-words', help='compare a PRE-EXTRACTED engine-words JSON file '
                     'instead of a PDF -- for an emitter this repo cannot parse as a PDF at all '
-                    '(e.g. macOS Quartz Tm/TJ output over subset fonts, which this file\'s own '
-                    '_TEXT_OP_RE cannot match). See this file\'s own module-level "engine-words '
+                    '(e.g. macOS Quartz hex-string text over CID/Type0 subset fonts, whose glyph '
+                    'indices this file\'s own parse_text_ops cannot turn back into characters). '
+                    'See this file\'s own module-level "engine-words '
                     '(JSON)" comment block, just above dump_engine_words(), for the schema -- '
                     'produced by --dump-engine-words, below, or by any other emitter\'s own '
                     'dumper. Same --doc/--measurements resolution as --pdf; mutually exclusive '

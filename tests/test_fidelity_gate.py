@@ -92,6 +92,227 @@ def test_extract_pages_matches_pm_offset_from_test_printed_fidelity():
     assert round(ops[0]['x'] - ops_base[0]['x'], 6) == 64.8
 
 
+# ------------------------------------------- READER operand-order coverage
+# Mechanism Z (2026-09-07): the regex `parse_text_ops` used to be keyed to
+# ONE fixed operand order and silently dropped every op pdf.py wrote in a
+# different order -- a Symbol-face bold/italic/bold-italic run, entirely
+# (see the "READER BUG" comment above `_CS_TOKEN_RE` in fidelity_gate.py).
+# These are the three shapes named in that comment, encoded byte-for-byte
+# as pdf.py itself would write them (`_symbol_style_op`'s own docstring),
+# so a regression here can never be explained by anything except the
+# reader itself losing an operand-order case again.
+def test_parse_text_ops_reads_the_plain_shape():
+    content = b'BT /F5 12 Tf 0 Ts 95.09 Tz 57.6 468.0 Td (a) Tj ET'
+    ops = fg.parse_text_ops(content)
+    assert len(ops) == 1
+    op = ops[0]
+    assert (op['font'], op['size'], op['tz'], op['rise'], op['x'], op['y'], op['text']) == (
+        'F5', 12, 95.09, 0, 57.6, 468.0, 'a')
+
+
+def test_parse_text_ops_reads_the_faux_bold_shape():
+    # Tf -> [Tz] -> `2 Tr <w> w` -> Ts -> Td (_symbol_style_op's own order --
+    # Tz and Tr/w BOTH precede Ts here, the opposite of the plain shape).
+    content = b'BT /F5 12 Tf 95.09 Tz 2 Tr 0.48 w 0 Ts 180.0 468.0 Td (a) Tj ET'
+    ops = fg.parse_text_ops(content)
+    assert len(ops) == 1
+    op = ops[0]
+    assert (op['font'], op['size'], op['tz'], op['rise'], op['x'], op['y'], op['text']) == (
+        'F5', 12, 95.09, 0, 180.0, 468.0, 'a')
+
+
+def test_parse_text_ops_reads_the_faux_oblique_shape():
+    # Tf -> [Tz] -> `0 Tr` -> Ts -> a b c d x y Tm (the shear matrix, NOT
+    # Td) -- position must come from Tm's own e/f, not from a Td that was
+    # never written at all.
+    content = b'BT /F5 12 Tf 95.09 Tz 0 Tr 0 Ts 1 0 0.2126 1 302.4 468.0 Tm (a) Tj ET'
+    ops = fg.parse_text_ops(content)
+    assert len(ops) == 1
+    op = ops[0]
+    assert (op['font'], op['size'], op['tz'], op['rise'], op['x'], op['y'], op['text']) == (
+        'F5', 12, 95.09, 0, 302.4, 468.0, 'a')
+
+
+def test_parse_text_ops_reads_the_faux_bold_oblique_shape():
+    # Both faux effects together: Tr/w AND Tm in the same op.
+    content = (b'BT /F5 12 Tf 95.09 Tz 2 Tr 0.48 w 0 Ts '
+              b'1 0 0.2126 1 424.8 468.0 Tm (a) Tj ET')
+    ops = fg.parse_text_ops(content)
+    assert len(ops) == 1
+    op = ops[0]
+    assert (op['x'], op['y'], op['text']) == (424.8, 468.0, 'a')
+
+
+def test_parse_text_ops_reads_a_superscript_rise():
+    # Ts carries a nonzero rise -- always present per this emitter's own
+    # discipline (every call site writes it explicitly), unrelated to the
+    # Tz/Tr/Td-vs-Tm operand-order question the other tests here check.
+    content = b'BT /F1 9 Tf 3 Ts 200.0 700.0 Td (2) Tj ET'
+    ops = fg.parse_text_ops(content)
+    assert ops[0]['rise'] == 3 and ops[0]['size'] == 9
+
+
+_PDF_PY_SRC = open(os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'src', 'ctrlkd', 'pdf.py')).read()
+
+
+def test_bt_writing_call_site_count_is_the_one_this_reader_was_checked_against():
+    """A grep-driven trip-wire, not a parser: pdf.py has exactly two
+    mechanisms that write a `BT..ET` text-showing op --
+      (a) 14 literal `b'BT ...'` byte-string sites (13 `ops.append`/`return`
+          call sites building either the FIXED-RISE-ONLY shape ('0 Ts', no
+          Tz ever -- 5 sites) or the VARIABLE-RISE-WITH-OPTIONAL-Tz PAIR
+          shape (4 with/without-Tz site pairs), plus `_symbol_style_op`'s
+          own internal `parts = [b'BT ...']` builder line) -- all covered
+          by test_parse_text_ops_reads_the_plain_shape (and the existing
+          test_parse_text_ops_reads_plain_and_tz_scaled_runs's Tz case)
+          above.
+      (b) 3 call sites of `_symbol_style_op` (the sole writer of the faux-
+          bold/faux-oblique/faux-bold-oblique shapes) -- covered by the
+          three faux-* tests above.
+    Every one of these reduces to one of the FOUR shapes this file's tests
+    exercise (plain, faux-bold, faux-oblique, faux-bold-oblique), because
+    `parse_text_ops` is a state machine over individual operators, not a
+    per-call-site pattern -- so covering the four shapes covers every
+    site. If this count ever changes, a new call site was added: check
+    whether it writes one of the four known shapes (if so, just update
+    the counts here) or a genuinely new one (if so, this reader needs a
+    new test -- and, before that, a check that parse_text_ops still
+    handles it, since a fifth shape is exactly how the regex this state
+    machine replaced went blind to three of them at once)."""
+    n_literal = len(re.findall(r"b'BT ", _PDF_PY_SRC))
+    n_symbol_style_op = len(re.findall(r'_symbol_style_op\(', _PDF_PY_SRC)) - 1  # minus `def`
+    assert n_literal == 14, (
+        f'pdf.py now has {n_literal} literal BT-writing sites (was 14) -- see this '
+        'test\'s own docstring')
+    assert n_symbol_style_op == 3, (
+        f'pdf.py now has {n_symbol_style_op} _symbol_style_op call sites (was 3) -- '
+        'see this test\'s own docstring')
+
+
+# ---- real-emitter regression: every Tj-family op actually gets read, on a
+# real (not hand-crafted) content stream, for both mechanisms above.
+def _symbol_styled_greek_doc():
+    """Reuses test_ctrlkd.py's own construction
+    (test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic):
+    one cp437 Greek/math run, printed plain/bold/italic/bold-italic, one
+    per line -- the ONLY path in pdf.py that writes the faux-bold/faux-
+    oblique shapes at all."""
+    line = 'αΓπ'.encode('cp437')
+    data = (ws7_block(0x00)
+           + b'Plain prose padding so the detector reads this as a document.'
+           + HARD + line + HARD
+           + b'\x02' + line + b'\x02' + HARD             # bold
+           + b'\x19' + line + b'\x19' + HARD             # italic
+           + b'\x02\x19' + line + b'\x02\x19' + HARD     # bold-italic
+           + b'And a closing line of ordinary prose keeps the ratio honest.'
+           + HARD)
+    return core.parse_ws(data)
+
+
+def test_parse_text_ops_consumes_every_op_on_a_real_symbol_styled_page():
+    """The op-count-consumed invariant, checked against REAL pdf.py output
+    (not a hand-crafted fixture): every `BT` this emitter writes is one
+    self-contained text-showing op (pdf.py's own convention, confirmed by
+    grep -- see the call-site test above), so simply counting `BT ` tokens
+    in the raw content stream is a reader-independent ground truth for how
+    many ops parse_text_ops should return. Before mechanism Z this failed
+    for this exact fixture: bold/italic/bold-italic silently vanished."""
+    doc = _symbol_styled_greek_doc()
+    out = pdf.emit_pdf(doc, mode='printed')
+    for page in fg.extract_pages(out):
+        n_bt = page['content'].count(b'BT ')
+        ops = fg.parse_text_ops(page['content'])
+        assert len(ops) == n_bt, (n_bt, len(ops), page['content'])
+
+
+def test_parse_text_ops_reads_bold_italic_and_bold_italic_symbol_runs():
+    """The actual historical bug, reproduced against real pdf.py output:
+    before mechanism Z, only the PLAIN run of these four survived
+    `parse_text_ops` -- bold/italic/bold-italic were silently dropped, not
+    reported unmatched. All four must come back now, at the SAME x (each
+    starts its own line at the same left margin) and DIFFERENT y (stacked
+    lines), with 'aGp' as the transliterated cp437 Greek run's own text."""
+    doc = _symbol_styled_greek_doc()
+    out = pdf.emit_pdf(doc, mode='printed')
+    ops = []
+    for page in fg.extract_pages(out):
+        ops.extend(fg.parse_text_ops(page['content']))
+    styled = [o for o in ops if o['text'] == 'aGp']
+    assert len(styled) == 4, styled
+    xs = {o['x'] for o in styled}
+    ys = {o['y'] for o in styled}
+    assert len(xs) == 1, styled                  # same left margin, every line
+    assert len(ys) == 4, styled                   # four distinct stacked lines
+
+
+@pytest.mark.parametrize('name', ['LYING', 'WARPRAYR'])
+def test_parse_text_ops_consumes_every_op_in_a_bundled_tz_scaled_sample(name):
+    """Same op-count-consumed invariant as above, on the bundled PUBLIC
+    samples that carry real Tz-scaled (CG-Times/Univers-substituted
+    proportional) runs -- the shape the 2026-09-06 fix addressed. Locks
+    that fix in as a real-output regression test, not just the synthetic
+    fixture test_parse_text_ops_reads_plain_and_tz_scaled_runs already
+    checks."""
+    ws_path = os.path.join(SAMPLES_DIR, f'{name}.WS')
+    pdf_bytes = fg.render_engine_pdf(ws_path)
+    pages = fg.extract_pages(pdf_bytes)
+    assert any(b' Tz ' in p['content'] for p in pages), (
+        f'{name} no longer has a Tz-scaled run -- this test needs a different sample')
+    for page in pages:
+        n_bt = page['content'].count(b'BT ')
+        ops = fg.parse_text_ops(page['content'])
+        assert len(ops) == n_bt, (name, n_bt, len(ops))
+
+
+# ------------------------------- mid-word font-switch (NOT merged -- named)
+def test_engine_page_tokens_does_not_merge_zero_gap_ops_a_known_residual():
+    """A zero-gap same-baseline merge was tried here 2026-09-07 and
+    reverted the same day: it fixes -SCREEN's own cp437 Greek/math line
+    (which this engine draws as several Symbol/Courier-alternating ops
+    with zero gap, one WS7 chunk) but ALSO fuses an ordinary word with
+    immediately-following punctuation at zero gap (confirmed against the
+    real corpus: SAWYER's own 'WSMSGS.OVR' + '.]' -> 'WSMSGS.OVR.]',
+    which WS7's own capture keeps as separate chunks) -- turning six
+    previously-clean documents divergent. See engine_page_tokens' own
+    docstring and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z. This test
+    pins the CURRENT (reverted) behaviour so a future re-attempt at this
+    merge trips a test here first, not a silent corpus-wide regression:
+    the cp437 Greek/math line still comes back as separate per-font-run
+    tokens, not one merged word."""
+    line = 'αßΓπΣσµτΦΘΩδφε'.encode('cp437')
+    data = (ws7_block(0x00)
+           + b'Plain prose padding so the detector reads this as a document.'
+           + HARD + line + HARD
+           + b'And a closing line of ordinary prose keeps the ratio honest.'
+           + HARD)
+    doc = core.parse_ws(data)
+    out = pdf.emit_pdf(doc, mode='printed')
+    page = fg.extract_pages(out)[0]
+    n_chars = len(line.decode('cp437'))
+    tokens = fg.engine_page_tokens(page, 1)
+    whole_word_matches = [t for t in tokens if len(t['text']) == n_chars]
+    assert whole_word_matches == [], (
+        'the cp437 Greek/math line now comes back as ONE token -- if a new merge '
+        'was reintroduced, re-run the full private pcl corpus '
+        '(pytest -m pcl, CTRLKD_PRIVATE_CORPUS set) before keeping it: the last '
+        'attempt regressed DOCC/OCAPTAIN/PREVIEW/-README/SAWYER/SCRIPT/VERSIONS')
+    # A STYLED word directly followed by plain punctuation, SAME zero gap,
+    # must stay correctly split -- this is the real SAWYER.WS pattern the
+    # merge attempt got wrong ("the file WSMSGS.OVR.] rather than..." --
+    # the bold-styled filename ends exactly where the plain '.]' begins,
+    # a real font-boundary op split, not a font-substitution artifact).
+    punct_doc = core.parse_ws(
+        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
+        + HARD + b'See \x02WSMSGS.OVR\x02.] for details.' + HARD)
+    punct_out = pdf.emit_pdf(punct_doc, mode='printed')
+    punct_page = fg.extract_pages(punct_out)[0]
+    punct_tokens = [t['text'] for t in fg.engine_page_tokens(punct_page, 1)]
+    assert 'WSMSGS.OVR' in punct_tokens          # the styled word, alone
+    assert not any(t.startswith('WSMSGS.OVR.') for t in punct_tokens)
+
+
 # ---------------------------------------------------------- classification
 def test_classify_font():
     assert fg.classify_font('Times-Bold') == 'serif'

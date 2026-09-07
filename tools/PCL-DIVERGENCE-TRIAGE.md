@@ -190,6 +190,7 @@ changes it describes are the only outputs.
 | W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 | -README (`.h1`, every content page, 45 of the 47 divergences this document had left) | baseline-shift | **BROAD SUPPORT** (a FOURTH Sawyer-WSCHANGE-vs-stock contamination, same class as S/T/U: every prior fit for `_running_ops`'s own `hm`-participation gate — b26-header-round2's mt_source-only rule, register b31's OR-of-both-sources widening — was built entirely against Sawyer's WSCHANGE'd `WS.EXE`; `-README` is the corpus's only header-bearing document with `mt_source`/`hm_source` both `'default'`, and its `ws7-prints/v3` PRISTINE.EXE recapture is the first time this exact combination was ever checked against stock) | **FIXED** (`src/ctrlkd/pdf.py` `_running_ops`'s `hm` now participates in `head_base` UNCONDITIONALLY, no gate on either source at all; mechanism-W round, planning task, 2026-09-07) |
 | X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
 | Y. An embedded picture's own vertical position sat ~2.7-3.0pt too high (engine) vs. real WS7's own raster origin | PREVIEW, -SCREEN, -README (every currently-raster-captured picture-bearing document in the corpus — all three reference `INSET/PIX/WORDSTAR.PIX`) | raster-position-shift (x/width/height all matched closely, only the vertical position was off) | **BROAD SUPPORT** (same sign/magnitude on 3 independent documents; one shared cause in the image's own "reserved band" vertical placement, `src/ctrlkd/pdf.py`'s `img_y`) | **FIXED** (`src/ctrlkd/pdf.py`'s `_page_stream` — `img_y` now subtracts `0.25 * size`, the SAME baseline-to-cell-bottom/descent fraction `_graphic_ops` already uses for a box-drawing glyph's own cell, applied to the PRECEDING line's cell instead of the image's own; follow-up round, 2026-09-06) |
+| Z. The gate's own reader (`_TEXT_OP_RE`) was keyed to ONE operand order and never matched `_symbol_style_op`'s two OTHER shapes (faux-bold: `Tr`/`w` before `Ts`; faux-oblique: `Tm` not `Td`) — every Symbol-styled bold/italic/bold-italic op silently dropped, not reported unmatched; corrects mechanism B's own "verified against every call site" claim (false for `_symbol_style_op`'s 3 sites) and the earlier "-SCREEN extra Ω... code was already right" entry (true of the engine's PDF bytes, not of the gate's own automated extraction) | -SCREEN (only document in this corpus with a Symbol-styled bold/italic run) | word-unmatched, extra-word-in-engine (both already present, but under-reporting how fragmented the extraction was — see below) | **TOOLING** (harness bug, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `_TEXT_OP_RE` replaced by a content-stream state machine, `_tokenize_content`/`parse_text_ops`, accepts any operand order; 2026-09-07) — a SEPARATE, pre-existing mid-word Symbol/Courier fragmentation on the same line stays **named, not fixed** (a same-baseline zero-gap merge was tried and reverted the same day — see mechanism Z's own entry for why) |
 
 ---
 
@@ -239,6 +240,18 @@ below — see mechanisms B/C).
 ---
 
 ## B. Harness `Tz`/`Ts` operator order — FIXED (tooling)
+
+**CORRECTED 2026-09-07 (mechanism Z, below).** This entry's own claim,
+"checked by hand across all 12," was true only of the 12 (13, including
+one `return [b'BT ...` site) call sites matching a literal
+`ops.append(b'BT ...')`/`return [b'BT ...` grep — it did NOT cover
+`_symbol_style_op`'s 3 call sites (which build their op with
+`b' '.join(parts)`, a different shape entirely), and those write TWO
+further operand orders `_TEXT_OP_RE` (fixed below) still could not
+match. See mechanism Z's own entry, below mechanism Y, for the full
+trace, the fix (a content-stream state machine replacing the regex
+entirely), and why the doc affected by this gap (-SCREEN) still isn't
+clean after it.
 
 **Evidence.** Every one of pdf.py's 12 `ops.append(b'BT ...')` call
 sites writes `Tf <rise> Ts` first and the optional `<tz> Tz` second,
@@ -2125,6 +2138,168 @@ way PREVIEW does — no allowlist was ever needed.
 
 ---
 
+## Z. The gate's own PDF reader was keyed to ONE operand order and silently dropped every Symbol-styled (bold/italic/bold-italic) op — FIXED (tooling); a SEPARATE, pre-existing mid-word font-switch fragmentation stays named, not fixed
+
+**This corrects the record on two earlier entries.** Mechanism B (above)
+fixed `_TEXT_OP_RE`'s Tz/Ts order and its own commit message claimed
+verification "against every `ops.append(b'BT ...')` call site in
+pdf.py" — that check was real for the 13 sites matching that literal
+grep, but `_symbol_style_op` (the SOLE writer of a Symbol-face bold/
+italic/bold-italic run — three more call sites) builds its op with
+`b' '.join(parts)`, not a literal `ops.append(b'BT ...')`, so it was
+never actually checked, and it writes a THIRD and FOURTH operand order
+mechanism B's fixed regex still could not match: `Tf [Tz] 2 Tr <w> w
+Ts x y Td` (faux-bold) and `Tf [Tz] 0 Tr Ts a b c d x y Tm` (faux-
+oblique, position from `Tm`'s own `e`/`f`, not `Td` at all — the regex
+had no `Tm` branch whatsoever). Separately, the "-SCREEN's own 'extra
+Ω' claim: does not reproduce" entry above (2026-09-06) concluded "No
+engine change made for this item — the code was already right," based
+on a one-off manual PNG render plus hand-tracing `_symbol_style_op`'s
+source — a real check of the *engine's PDF output*, but not of
+`tools/fidelity_gate.py`'s own automated extraction, which is what the
+`pcl` tier actually runs. It was not: `_TEXT_OP_RE` matched zero of the
+bold/italic/bold-italic ops on that exact page, silently, the same
+class of bug mechanism B fixed for the Tz-only case one operand-order
+sooner.
+
+**Evidence.** `python3 tools/pcl_tolerance.py --record` against the pre-
+fix tree (`tools/fidelity_gate.py` at commit `3292630`) reproduces
+`-SCREEN`'s recorded manifest exactly (`extra-word-in-engine: 2,
+word-unmatched: 4`) — confirming those ARE the checked-in numbers, not
+already stale. Direct extraction against `-SCREEN`'s own rendered PDF
+(`fg.parse_text_ops`) shows the bold/italic/bold-italic copies of the
+Greek/math demo line (`"aGp"`, three of its four styled repetitions)
+present in the raw content stream but ABSENT from `_TEXT_OP_RE`'s own
+matches before this fix — reproduced as a standalone regression test,
+`tests/test_fidelity_gate.py::test_parse_text_ops_reads_bold_italic_and_
+bold_italic_symbol_runs`, against a Tier-1 synthetic fixture (no private
+corpus) built the same way `test_ctrlkd.py`'s own
+`test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic`
+is.
+
+**Fix.** `tools/fidelity_gate.py`'s `_TEXT_OP_RE` regex replaced with a
+small content-stream STATE MACHINE (`_tokenize_content` + rewritten
+`parse_text_ops`): tokenizes `BT..ET` content into name/number/string/
+array/operator tokens and tracks `Tf`/`Tz`/`Ts`/`Tr`/`w`/`Td`/`TD`/`Tm`/
+`T*` as PDF text state actually works (`Tz`/`Ts`/`Tr` persist across
+`ET`/`BT`, matching pdf.py's own per-page `tz_state` carry-forward;
+`Td`/`TD`/`Tm`/`T*` only move the CURRENT text line's position) —
+so it reads a `Tj`/`TJ`/`'`/`"` regardless of what order the surrounding
+state ops were written in, and regardless of whether `Td` or `Tm` placed
+the text. Behaviour on the plain (non-styled) shape is unchanged, and
+`--dump-engine-words`/the in-process path share this one reader (there
+was never a second one). Six new regression tests in
+`tests/test_fidelity_gate.py` pin the three named shapes byte-for-byte
+(`test_parse_text_ops_reads_the_plain_shape` /
+`_faux_bold_shape` / `_faux_oblique_shape` / `_faux_bold_oblique_shape`),
+a grep-driven trip-wire on pdf.py's own call-site count
+(`test_bt_writing_call_site_count_is_the_one_this_reader_was_checked_
+against`, so a future new call site fails this test until it's checked
+against the reader, not silently trusted the way mechanism B's own
+"checked against every call site" claim was), an op-count-consumed
+invariant against real (not hand-crafted) `pdf.emit_pdf` output for both
+the Symbol-styled fixture and the bundled `LYING`/`WARPRAYR` Tz-scaled
+samples, and the actual historical-bug regression
+(`test_parse_text_ops_reads_bold_italic_and_bold_italic_symbol_runs`).
+
+**Before/after, full 18-document corpus** (`CTRLKD_PRIVATE_CORPUS`
+armed, `python3 tools/pcl_tolerance.py --record`):
+
+| Doc | Before | After | Changed? |
+|---|---|---|---|
+| BOXES | `{}` | `{}` | no |
+| DOCA | `{}` | `{}` | no |
+| DOCB | `{}` | `{}` | no |
+| DOCC | `{}` | `{}` | no |
+| DOCD | `{}` | `{}` | no |
+| LJ6DTP | `baseline-shift:21, cgtimes-drift-exceeds-tolerance:4, exact-drift:34, extra-word-in-engine:292, line-start-shift:9, word-unmatched:150` | identical | **no** — no `Tr`/`Tm` op anywhere in its own rendered PDF (checked directly); the task's own suspicion that LJ6DTP's "heavy faux styling" would be affected does not hold — it has none |
+| LYING | `cgtimes-drift-exceeds-tolerance:4, exact-drift:4, extra-word-in-engine:7, line-start-shift:1, word-unmatched:2` | identical | no — no Symbol-styled run |
+| OCAPTAIN | `{}` | `{}` | no |
+| DOCE | `{}` | `{}` | no |
+| PREVIEW | `{}` | `{}` | no |
+| -README | `{}` | `{}` | no |
+| SAWYER | `{}` | `{}` | no |
+| **-SCREEN** | `extra-word-in-engine:2, word-unmatched:4` | `extra-word-in-engine:8, word-unmatched:4` | **yes** — see below |
+| SCRIPT | `{}` | `{}` | no |
+| DOCF | `{}` | `{}` | no |
+| TWAINLET | `{}` | `{}` | no |
+| VERSIONS | `{}` | `{}` | no |
+| WARPRAYR | `extra-word-in-engine:4, line-start-shift:2` | identical | no — its own Univers-substituted run is Tz-scaled only, no bold/italic |
+
+Only `-SCREEN` moves. `LJ6DTP`/`LYING`/`WARPRAYR` do NOT change (the
+task's own text flagged all three as expected to move; traced directly
+and confirmed none of them exercises `_symbol_style_op` at all — LYING
+and WARPRAYR's own font substitution is Tz-scaled CG-Times/Univers,
+already fixed by mechanism B, never Symbol; LJ6DTP has zero `Tr`/`Tm`
+ops in its rendered PDF, checked directly against the corpus tree).
+
+**-SCREEN's new divergence set, named.** All 12 divergences are ONE
+mechanism, the same one the "extra Ω" entry above already partially
+named and mis-diagnosed as fixed: real WS7's LaserJet Courier carries
+the demo line's Greek/math positions directly and prints all 14
+characters (`αßΓπΣσµτΦΘΩδφε`) as ONE chunk; this engine's own
+"zero embedded fonts, base-14 only" design constraint has to alternate
+Courier (for the 2 characters cp1252 can represent, `ß`/`µ`) and Symbol
+(for the other 12, transliterated to their PostScript Symbol glyph-index
+Latin lookalikes — `a`/`GpSs`/`tFQWdfe`, NOT the real Greek Unicode WS7's
+own capture recorded) across FIVE separate `Tj` ops per occurrence, at
+zero gap. Before this fix, only the PLAIN copy of the line extracted at
+all (bold/italic/bold-italic silently dropped), so the divergence count
+under-reported how fragmented the extraction really was. After the fix
+all four styled copies extract correctly (an op-count-consumed
+regression test locks this in), which reveals the SAME fragmentation on
+all four instead of hiding three of them — `word-unmatched` stays 4
+(WS7's four whole-line chunks, still unmatched: even a correctly-read
+engine word is text `a`/`GpSs`/`tFQWdfe`/`ß`/`µ`, never WS7's own Greek
+Unicode `αßΓπΣσµτΦΘΩδφε`, so text alignment can never pair them either
+way), `extra-word-in-engine` rises 2 → 8 (two `GpSs`/`tFQWdfe` fragments
+now visible per styled line, ×4 lines = 8, where before only the
+1 plain line's own fragments were visible and 2 of those apparently
+happened to align by coincidence elsewhere in the document's own
+text — see mechanism C's own note on `difflib` whole-document alignment
+risk).
+
+**Tried and reverted the same day: merging zero-gap same-baseline ops.**
+A same-baseline/zero-gap merge in `engine_page_tokens` (join adjacent
+ops with no gap between them into one word before word-splitting) fixes
+`-SCREEN`'s own line exactly (`extra-word-in-engine` 8 → 0 for this
+line) but is UNSOUND in general: it also fuses an ordinary word with
+IMMEDIATELY FOLLOWING PUNCTUATION or a following styled span at zero
+gap, which WS7's own capture keeps as separate chunks despite the
+identical zero gap (confirmed directly against the real corpus: SAWYER's
+own bold-styled `WSMSGS.OVR` followed by plain `.]`, "the file
+**WSMSGS.OVR**.]" — the merge fuses them into `WSMSGS.OVR.]`, which WS7
+never printed as one chunk). Run against the full 18-document corpus,
+that merge turned SIX previously-clean documents divergent (DOCC,
+OCAPTAIN, PREVIEW, `-README`, SAWYER, SCRIPT, VERSIONS) and made
+`-SCREEN` ITSELF worse (`extra-word-in-engine` 2 → 4 even before the
+operand-order fix's own additional visibility). Geometry alone (zero
+gap) cannot distinguish "one WS7 word split by a font-substitution
+artifact" from "a word directly followed by punctuation or a new styled
+span" — that needs the EMITTER's own span/token boundaries (pdf.py's
+own knowledge of where one WordStar word ends and the next begins),
+which this after-the-fact PDF reader does not have and cannot safely
+reconstruct from position alone. Reverted; `engine_page_tokens`'s own
+docstring in `tools/fidelity_gate.py` records this so it isn't
+re-attempted the same way twice, and
+`tests/test_fidelity_gate.py::test_engine_page_tokens_does_not_merge_
+zero_gap_ops_a_known_residual` pins the current (unmerged) behaviour so
+a future re-attempt trips a test here before a corpus-wide regression.
+
+**`-SCREEN`'s remaining 12 divergences (`extra-word-in-engine` 8,
+`word-unmatched` 4) stay a NAMED, understood, harness-side residual —
+not fixed this round.** A real fix needs the matcher (`load_ws7_tokens`/
+`match_doc`, or a purpose-built reconciliation pass alongside mechanism
+P's own glued-chunk reconciliation) to recognize "N adjacent engine
+fragments at zero gap, alternating Symbol/Courier, whose COMBINED
+advance equals one WS7 chunk's own width" as one unit for MATCHING
+purposes without merging them at the token level generally — out of
+scope for this round (one contrived reference/demo line, same
+proportion-of-effort judgment the original "extra Ω" entry already made
+about this exact line).
+
+---
+
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)
 
 **This summary predates mechanisms Q through V** (the second residuals
@@ -2223,6 +2398,21 @@ survives-BT/ET fix that this same round appears to have already landed
 on this tree) and read their absence as missing glyphs; a corrected
 extraction shows them present and correct. **No engine change made for
 this item** — the code was already right.
+
+**CORRECTED 2026-09-07 (mechanism Z, below).** The claim above is true
+of the ENGINE's own PDF bytes (confirmed again, independently, by
+mechanism Z's own trace) but was never true of `tools/fidelity_gate.py`'s
+own automated extraction — the "corrected extraction" that showed the
+italic/bold-italic runs "present and correct" here was a one-off manual
+re-trace of `_symbol_style_op`'s source plus a rendered PNG, not a run of
+this file's own `_TEXT_OP_RE`, which is what the `pcl` tier actually
+uses. `_TEXT_OP_RE` matched ZERO of the bold/italic/bold-italic copies
+of this exact line at the time this entry was written (verified by
+re-running `tools/pcl_tolerance.py --record` against the pre-Z tree) —
+so "the code was already right" was correct for pdf.py, and incidentally
+wrong about the gate having actually checked it. See mechanism Z's own
+entry for the fix and the (separate, still-open) fragmentation residual
+this line's own text also carries.
 
 The document's own remaining 6 divergences (`extra-word-in-engine` 2,
 `word-unmatched` 4, unchanged by this round) are a HARNESS/matcher

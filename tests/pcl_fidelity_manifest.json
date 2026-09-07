@@ -3195,7 +3195,7 @@
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "extra-word-in-engine": 2,
+        "extra-word-in-engine": 8,
         "word-unmatched": 4
       },
       "divergences": [
@@ -3225,6 +3225,102 @@
           "ws7_pos": null,
           "pdf_pos": [
             108.0,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "GpSs"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            194.4,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "tFQWdfe"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            230.4,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "GpSs"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            316.8,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "tFQWdfe"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            352.8,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "GpSs"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            439.2,
+            324.0
+          ],
+          "font_class": "symbol",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "-SCREEN",
+          "page": 1,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "tFQWdfe"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            475.2,
             324.0
           ],
           "font_class": "symbol",
