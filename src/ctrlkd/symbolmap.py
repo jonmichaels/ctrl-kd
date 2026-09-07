@@ -36,6 +36,14 @@ SYMBOL = {
     '¥': '∞', 'Î': '∈', 'Ï': '∉', 'å': '∑', 'Õ': '∏', 'Ö': '√',
     '×': '⋅', '°': '°', '±': '±', '¶': '∂', 'Ñ': '∇', 'ò': '∫',
     '«': '↔', '¬': '←', '­': '↑', '®': '→', '¯': '↓',
+    # Adobe Symbol encoding position 0267 octal (0xB7/183) is "periodcentered"
+    # -- visually identical to Unicode's own MIDDLE DOT, so self-mapped like
+    # the other same-glyph positions above ('°', '±'). Round 2026-09-07 (the
+    # pdf.py GRAPHIC_CHARS-in-a-Symbol-run fix): without this a middle dot
+    # reaching untransliterate() on a Symbol/math-mapped span (font
+    # symbol_map='math') had no code point in SYMBOL_REVERSE and fell to
+    # untransliterate's own '?' degradation same as an unmapped glyph would.
+    '·': '·',
 }
 
 # ZapfDingbats low half: Unicode's U+2700 block was DEFINED in Zapf order,

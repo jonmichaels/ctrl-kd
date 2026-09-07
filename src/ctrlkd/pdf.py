@@ -2154,11 +2154,32 @@ def _span_render(text, styles, fonts, size):
     (symbolmap.py) so that every text format renders without a font. Here we
     have the font, so the transliteration is undone: the original byte codes go
     back on the page with the real face selected, and a viewer draws the actual
-    glyph -- alpha, not the letter 'a', with nothing embedded."""
+    glyph -- alpha, not the letter 'a', with nothing embedded.
+
+    cp437 block/shade/box-drawing glyphs (GRAPHIC_CHARS) are the one
+    exception: those draw as VECTOR GEOMETRY (_split_graphics/_graphic_ops)
+    regardless of which font the span carries -- even a span whose typestyle
+    resolves to Symbol/ZapfDingbats here (sawyer/-LASERJE.FNT line 9: Brush
+    Script's own font block declares symbol_map='math', so its twelve-glyph
+    cp437 sample -- '░▒▓│┤╡╢╖╕╣║╗' -- used to hit this branch same as any
+    other Symbol run). untransliterate()'s own documented contract degrades
+    anything it cannot round-trip to '?' (symbolmap.py) -- exactly right for
+    a real Symbol run, but it ran BEFORE _split_graphics ever got a look, so
+    twelve real box/shade glyphs became twelve literal '?' text characters
+    at the Symbol font's advance instead of the fills every other family
+    already draws them as. GRAPHIC_CHARS members keep their true Unicode
+    code points here so _split_graphics finds them downstream unchanged;
+    everything else in the run still makes the real Symbol/Dingbats byte
+    round trip, untouched."""
     entry = _span_font(styles, fonts)
     family = _pdf_family(entry)
     if family in ('Symbol', 'ZapfDingbats'):
-        text = untransliterate(text, font_translit_kind(entry))
+        kind = font_translit_kind(entry)
+        if set(text) & GRAPHIC_CHARS:
+            text = ''.join(ch if ch in GRAPHIC_CHARS else untransliterate(ch, kind)
+                           for ch in text)
+        else:
+            text = untransliterate(text, kind)
     pts = (entry or {}).get('points')
     # Tf has always been written as an integer here; the span's own size comes
     # from the font block's height word, falling back to the document's size.
