@@ -178,7 +178,7 @@ changes it describes are the only outputs.
 | K. WS7 emits a word's trailing punctuation as its own separate chunk, just outside mechanism C's own kerning-pair bound | WARPRAYR ("country"+","), LYING (comma/period splits), -README, LJ6DTP (partial) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, wider sibling of mechanism C) | **FIXED** (`tools/pcl_tolerance.py` `_merge_trailing_punctuation_chunks`, own wider epsilon — widening C's OWN bound instead was tried and reverted, see below) |
 | L. `[image: NAME]` picture placeholder has no WS7 text counterpart (real WS7 printed the raster) | PREVIEW (`[image: WORDSTAR.PIX]`) | extra-word-in-engine | **STRUCTURAL** (text vs. raster, not a position or content bug) | **FIXED** (`tools/fidelity_gate.py` `engine_page_tokens`/`_IMAGE_PLACEHOLDER_RE`, residuals round) |
 | M. A fontless `.h#`/`.f#` header/footer line's own inline style-toggle byte (e.g. `^Y` italic) leaked into the Printed PDF as a literal control character instead of being interpreted | -README (`.h1`, wrapped in one `^Y`...`^Y` pair) | extra-word-in-engine, word-unmatched, exact-drift, line-start-shift (everything on the header line after the phantom glyph) | **BROAD SUPPORT** (any fontless header/footer with an inline toggle) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`, residuals round) |
-| N. A WS7 chunk that glues a box-drawing/table-border character directly onto a word with no space | SCRIPT ("│Figure") | word-unmatched, extra-word-in-engine | **TOOLING** (WS7's LaserJet Courier charset draws box-drawing as a font glyph; our engine draws it as a vector) | **FIXED** (`tools/pcl_tolerance.py` `_strip_leading_box_drawing_chunks`, residuals round) |
+| N. A WS7 chunk that glues a box-drawing/table-border character directly onto a word with no space | SCRIPT ("│Figure") | word-unmatched, extra-word-in-engine | **TOOLING** (WS7's LaserJet Courier charset draws box-drawing as a font glyph; our engine draws it as a vector) | **FIXED** (`tools/pcl_tolerance.py` `_strip_box_drawing_chunk_edges`, residuals round) |
 | O. A page-local `.po` (page offset) override was carried to the body text (per-line) but never to that page's own running head/footer, which stayed at the document's global `.po` | SCRIPT (running head "PROFILES MONTH '88 SCRIPT.001..." on its two figure pages, whose `.po .5"` resets alongside their `.mt`/`.hm` changes) | exact-drift, line-start-shift (the whole header line, both figure pages) | **BROAD SUPPORT** (any document whose running head/footer sits on a page with its own `.po` override) | **FIXED** (`src/ctrlkd/pdf.py` `_po_checkpoints`/`_po_at`, `Page.po_cols`, per-page `left` fed to `_running_ops`; SCRIPT-correction round) |
 | P. A WS7 chunk glues two adjacent, already-correct engine words with no space, where mechanism C's own x-gap epsilon genuinely (not a capture artifact) passes for two real separate words that just happen to sit close together | LYING (`lies--everyday;`, `failing--awholly`, `case--aspersonal`), WARPRAYR (`"Blessour`) | word-unmatched, extra-word-in-engine | **TOOLING** (harness word-matching, post-match reconciliation against the engine's own already-correct split — mechanism C's own epsilon is untouched) | **FIXED** (`tools/pcl_tolerance.py` `_reconcile_glued_ws7_chunks`, second residuals round) |
 | Q. A `.h#`/`.f#` right-align tab's own padding is baked to the width the eventual `#` substitution was ASSUMED to have when the file was last saved (always 1 digit — WordStar's own screen shows the literal `#` token) instead of THIS page's own real page-number width | -README (running head "WordStar 7.0 Archive / #", pages 10-16, all seven 2-digit pages) | exact-drift, line-start-shift (the whole header line, every 2-digit page) | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab and crosses a page-number digit-count boundary) | **FIXED** (`src/ctrlkd/core.py` `Document.header_tabs`/`footer_tabs`, `_parse_head_foot`'s new `tab_mark`; `src/ctrlkd/pdf.py` `_hf_line_ops`'s new `tab_rec` branch; second residuals round) |
@@ -191,6 +191,7 @@ changes it describes are the only outputs.
 | X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
 | Y. An embedded picture's own vertical position sat ~2.7-3.0pt too high (engine) vs. real WS7's own raster origin | PREVIEW, -SCREEN, -README (every currently-raster-captured picture-bearing document in the corpus — all three reference `INSET/PIX/WORDSTAR.PIX`) | raster-position-shift (x/width/height all matched closely, only the vertical position was off) | **BROAD SUPPORT** (same sign/magnitude on 3 independent documents; one shared cause in the image's own "reserved band" vertical placement, `src/ctrlkd/pdf.py`'s `img_y`) | **FIXED** (`src/ctrlkd/pdf.py`'s `_page_stream` — `img_y` now subtracts `0.25 * size`, the SAME baseline-to-cell-bottom/descent fraction `_graphic_ops` already uses for a box-drawing glyph's own cell, applied to the PRECEDING line's cell instead of the image's own; follow-up round, 2026-09-06) |
 | Z. The gate's own reader (`_TEXT_OP_RE`) was keyed to ONE operand order and never matched `_symbol_style_op`'s two OTHER shapes (faux-bold: `Tr`/`w` before `Ts`; faux-oblique: `Tm` not `Td`) — every Symbol-styled bold/italic/bold-italic op silently dropped, not reported unmatched; corrects mechanism B's own "verified against every call site" claim (false for `_symbol_style_op`'s 3 sites) and the earlier "-SCREEN extra Ω... code was already right" entry (true of the engine's PDF bytes, not of the gate's own automated extraction) | -SCREEN (only document in this corpus with a Symbol-styled bold/italic run) | word-unmatched, extra-word-in-engine (both already present, but under-reporting how fragmented the extraction was — see below) | **TOOLING** (harness bug, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `_TEXT_OP_RE` replaced by a content-stream state machine, `_tokenize_content`/`parse_text_ops`, accepts any operand order; 2026-09-07) — the SEPARATE, pre-existing mid-word Symbol/Courier fragmentation on the same line, once "named, not fixed" after a reverted same-baseline zero-gap merge, is now **RESOLVED** too: same-side (character-level) segmentation on BOTH sides (`segment_words_from_chars`/`char_space_width_pt`, `tools/fidelity_gate.py`; `_merge_zero_gap_cross_font_chunks`/`_find_offbaseline_occupant`, `tools/pcl_tolerance.py`), ruled by Jon from the real-LaserJet paper scan of `-SCREEN` (corpus `verdicts.json` doc87 p6) — see mechanism Z's own entry, RESOLVED update, 2026-09-07 |
+| Z addendum. A `--engine-chars` reader that bakes a super/subscript's rise into each glyph's own physical baseline (unlike ctrl-kd's own PDF, `Ts`-only) reports it as its own unmatched minority baseline; separately, a `--engine-chars` reader that draws box-drawing as real text (unlike ctrl-kd's own PDF, vectors-only) fuses a border glyph onto adjoining real words | DOCC, -SCREEN (rise snapping — app-side extraction only, not visible to this repo's own engine-only `pcl` tier); SCRIPT ("│Figure", box-drawing — same visibility caveat); LJ6DTP (box-drawing generalization to trailing edges, the one change VISIBLE to this tier — see its own entry) | word-unmatched/extra-word-in-engine (app-side, both fixes); exact-drift, word-unmatched, extra-word-in-engine (LJ6DTP, box-drawing trailing-edge generalization only) | **TOOLING** (harness/gate character-level segmentation, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `snap_raised_baselines`/`_is_box_drawing_char` + `_op_chars`/`engine_page_tokens`/`_external_chars_to_tokens`; `tools/pcl_tolerance.py` `_strip_box_drawing_chunk_edges` generalized to both edges; 2026-09-07) |
 
 ---
 
@@ -865,7 +866,7 @@ entirely separate from the adjoining text span (`_split_graphics`) — so
 our own "Figure" token never carries a box character, and never will,
 no matter how correct its position.
 
-**Fix.** `tools/pcl_tolerance.py`'s `_strip_leading_box_drawing_chunks`
+**Fix.** `tools/pcl_tolerance.py`'s `_strip_box_drawing_chunk_edges`
 strips a WS7 chunk's own LEADING box-drawing/block/geometric run
 (reusing `_BOX_DRAWING_RANGES`, the same ranges `_is_box_drawing_text`
 already uses for a chunk that is NOTHING BUT box-drawing characters)
@@ -2492,6 +2493,154 @@ CLI (`--engine-chars`/`--dump-engine-chars`); `tools/pcl_tolerance.py`'s
 (three-way: pdf/words/chars) applied to the bundled samples, all four
 Tier-1 fixtures, and the picture fixture.
 
+### Z addendum (2026-09-07): rise snapping + box-drawing excluded from word text — both FIXED (tooling), "one rule in one place for every input"
+
+The app coder's own `--engine-chars` extraction (a real `CGPDFScanner`
+reader against the macOS app's Native facsimile PDF) surfaced two gaps
+`--engine-chars`'s schema didn't yet cover, both on documents the `pcl`
+tier's own engine-only comparison had no way to see (ctrl-kd's PDF never
+has either shape as text at all — see each fix below): DOCC 72/72 →
+regressed once superscript/subscript footnote markers were extracted as
+their own physically-offset baseline, `-SCREEN` 8/11 for the same reason
+(its own subscript 'H2O' demo), and SCRIPT's own 44 box-drawing
+characters on p10 reading as extra/mismatched words once the app's
+Native facsimile (which draws box-drawing as real text glyphs, unlike
+Printed's PDF vectors) was the one handing over characters.
+
+**"Rise snapping" (FIX 1).** ctrl-kd's own PDF raises/lowers a
+super/subscript with a `Ts` TEXT-STATE rise (mechanism G) while keeping
+ONE `Td` text-line position for the whole line — `parse_text_ops` never
+applies `Ts` to the tracked baseline `y` at all, so a raised character in
+ctrl-kd's own PDF already reports the surrounding line's own baseline,
+and ordinary same-baseline segmentation already merges it correctly
+(`test_engine_page_tokens_merges_a_superscript_inside_a_word`, pre-dates
+this addendum). Real WS7 is symmetric but the OPPOSITE way — its driver
+genuinely moves the print head (confirmed 4.5pt, both directions,
+`_find_offbaseline_occupant`'s own docstring), so the WS7 side already
+has its own stitching (`_merge_zero_gap_cross_font_chunks`/`_find_
+offbaseline_occupant`). Neither property holds for a THIRD kind of
+engine-side input: an external PDF reader (macOS Quartz) that bakes a
+`Ts`-equivalent rise directly into each glyph's own text-matrix
+translation reports a raised/lowered character's TRUE, physically
+offset baseline — its own one/two-character "line" with no dominant-
+baseline counterpart to align against, silently invisible or
+"extra-word"/"unmatched" depending on which side blinked.
+
+`tools/fidelity_gate.py`'s new `snap_raised_baselines(chars, y_key='y')`
+mutates a WHOLE PAGE's own character list, before grouping/segmentation:
+a baseline carrying fewer than `RISE_SNAP_MIN_DOMINANT_CHARS` (3)
+characters is a MINORITY baseline; each of its characters is reassigned
+onto the nearest DOMINANT baseline (>= 3 characters) when that dominant
+baseline is within `RISE_SNAP_WINDOW_PT` (8.0pt — the SAME magnitude and
+reasoning as `tools/pcl_tolerance.py`'s own `SUPSUB_MAX_DY_DP`: generous
+vs. the confirmed real 4.5pt WS7 sup/sub offset and the exact Ts value
+`pdf.py`'s own default `.sr` roll writes (`_printed_roll_pt`'s 3/48in →
+4.5pt, `_sized`), comfortably short of a genuinely different printed
+LINE) AND the character's own x-run continues that baseline's text (the
+character immediately preceding it, walking the whole cluster in x-order
+and chaining through any already-snapped minority character, ends with
+NO real gap before it — `segment_words_from_chars`' own boundary rule,
+reused rather than reimplemented). Called from `engine_page_tokens`
+(the PDF-ops path — a no-op for every real engine PDF, verified: the
+full round-trip suite and the private corpus's 18 documents are
+byte-identical with the function present vs. monkey-patched to a no-op)
+and from `_external_chars_to_tokens` (the `--engine-chars` path, where
+it does the actual work). `dump_engine_words`/`dump_engine_chars` are
+UNCHANGED (a raised character's `y_top_pt` in this repo's own dump is
+still the un-risen line position by design, per `load_engine_chars`'s
+own docstring) — the fix lives entirely on the READING side, so the
+round-trip claim (`gate(pdf) == gate(words-dump) == gate(chars-dump)`)
+stays intact automatically.
+
+**"Box-drawing excluded from word text" (FIX 2).** WordStar's own IBM
+CP437 box-drawing/table-border/block-fill repertoire has NO text-run
+counterpart on ctrl-kd's OWN engine side AT ALL: `pdf.py` draws every one
+of these characters as a PDF VECTOR fill (`_graphic_ops`, Jon's ruling:
+box/rule fidelity is a real drawn line, not a font glyph standing in for
+one), never as a text-showing op — confirmed against BOXES's own
+rendered content stream (100% `re f`, zero text ops). This is WHY
+SCRIPT.WS already reports CLEAN for ctrl-kd's own PDF today: there is
+structurally nothing on the engine side for a box character to appear
+as. WS7's own driver, by contrast, prints these as ordinary printer-font
+TEXT glyphs (confirmed against the raw `.pcl`) — already handled on the
+WS7 side by mechanism N (`_strip_leading_box_drawing_chunks`, now
+generalized, see below) and the whole-token `_is_box_drawing_text`
+filter `doc_report`/`load_ws7_tokens` already apply. The macOS app's own
+Native facsimile draws box-drawing as text glyphs too (a real,
+deliberate rendering choice, unlike Printed's vector rule) — so
+`--engine-chars` from it hands this gate box-drawing CHARACTERS fused
+directly onto real words with no gap (SCRIPT's own '│Figure', one glyph
+ending 0.0012pt before 'F'), which had NO drop mechanism on the engine
+side at all before this fix.
+
+The rule, now defined ONCE (`tools/fidelity_gate.py`'s own
+`_BOX_DRAWING_RANGES`/`_is_box_drawing_char`/`_is_box_drawing_text` —
+`tools/pcl_tolerance.py` binds its own same-named references to these
+rather than keeping a second copy) and applied identically wherever
+either module builds a character list before `segment_words_from_chars`
+runs: a box-drawing/block/geometric character (Unicode Box Drawing
+U+2500-257F, Block Elements U+2580-259F, Geometric Shapes U+25A0-25FF —
+the same cp437 repertoire `pdf.py`'s own vector table draws) is DROPPED
+from word TEXT entirely; its own advance still moves the cursor/position
+forward so a later real character is unaffected, but the character never
+becomes part of any word. Fixed at CHARACTER granularity in
+`fg._op_chars` (a no-op for ctrl-kd's own PDF, since it never emits one
+of these as text — kept for symmetry, "apply identically to every input
+shape") and `fg._external_chars_to_tokens` (the load-bearing case). On
+the WS7 side, `tools/pcl_tolerance.py`'s mechanism-N function is renamed
+`_strip_box_drawing_chunk_edges` and GENERALIZED from leading-only to
+BOTH edges (a leading strip corrects the chunk's own x forward by the
+stripped run's AFM width, same as before; a trailing strip needs no x
+correction at all) — full symmetry with the engine side's "drop wherever
+it sits" rule, without touching the embedded-mid-string case (unobserved
+in this corpus, and structurally exotic: WS7 never interleaves real prose
+with box-drawing characters mid-run).
+
+**Tests.** `tests/test_fidelity_gate.py`: `test_engine_chars_merges_a_
+physically_offset_superscript_via_rise_snapping`,
+`test_engine_chars_does_not_snap_a_raised_marker_across_a_real_gap`,
+`test_engine_chars_does_not_snap_a_baseline_too_far_from_any_dominant_
+one` (FIX 1); `test_op_chars_drops_a_box_drawing_character_fused_to_a_
+word`, `test_engine_chars_box_drawing_only_line_produces_no_words`,
+`test_engine_chars_figure_caption_row_strips_box_drawing_from_both_ends`
+(FIX 2, the last one the literal `│Figure 1│` row proving the PDF path
+— structurally silent — and a chars file — character-dropped — agree).
+`tests/test_pcl_tolerance.py`: two new
+`_strip_box_drawing_chunk_edges` cases (a trailing-only border, both
+edges at once), on top of the three pre-existing (now-renamed) ones.
+
+**Before/after, full 18-document corpus** (`CTRLKD_PRIVATE_CORPUS`
+armed, `python3 tools/pcl_tolerance.py --record`): 15/18 clean,
+unchanged (BOXES, DOCA, DOCB, DOCC, DOCD, OCAPTAIN, DOCE, PREVIEW,
+`-README`, SAWYER, `-SCREEN`, SCRIPT, DOCF, TWAINLET, VERSIONS).
+LYING/WARPRAYR: byte-identical before and after (neither fix touches
+either document's own content — no box-drawing, no sup/sub, and FIX 1 is
+confirmed a no-op for every document in this corpus, monkey-patch-
+verified). LJ6DTP (already the third named-divergent document, parked
+per mechanism H, not newly broken by this round): counts shift —
+`extra-word-in-engine` 338→298, `word-unmatched` 173→133, `exact-drift`
+9→49 — because LJ6DTP is a heavily table/box-laden DTP sample (445 WS7
+chunks contain a box-drawing character; 72 of them are TRAILING-only,
+the exact case the leading-only mechanism N never reached). The
+generalized strip correctly separates real words (e.g. 'Ital', 'Bold',
+'1509' in a bordered specs table) that a box-drawing character was
+gluing to the alignment's own no-counterpart bucket — most now MATCH
+(fewer extra/unmatched) and reveal small (0.28-0.6pt), real, pre-existing
+positional drift on that table's own fixed-pitch text (more
+`exact-drift`, still the SAME reason vocabulary, on the SAME
+already-divergent document) — a net improvement in what this tier can
+actually check, not a new bug. Manifest updated and reviewed
+(`tests/pcl_fidelity_manifest.json`); the diff touches ONLY LJ6DTP's own
+entries.
+
+Fixed: `tools/fidelity_gate.py`'s `_BOX_DRAWING_RANGES`/
+`_is_box_drawing_char`/`_is_box_drawing_text` (new home),
+`snap_raised_baselines`/`RISE_SNAP_WINDOW_PT`/
+`RISE_SNAP_MIN_DOMINANT_CHARS` (new), `_op_chars`/`engine_page_tokens`/
+`_external_chars_to_tokens` (call the above); `tools/pcl_tolerance.py`'s
+`_strip_box_drawing_chunk_edges` (renamed + generalized), `_BOX_DRAWING_
+RANGES`/`_is_box_drawing_text` (now bound to `fg`'s own definitions).
+
 ---
 
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)
@@ -2533,7 +2682,7 @@ finding with no engine or code change at all.
   see mechanism K's own entry).
 - Mechanism L: `_IMAGE_PLACEHOLDER_RE` exclusion in
   `fidelity_gate.engine_page_tokens` — residuals round.
-- Mechanism N: `_strip_leading_box_drawing_chunks` — residuals round.
+- Mechanism N: `_strip_box_drawing_chunk_edges` — residuals round.
 - The `pcl` tier's own reason-filter defect (`tests/test_pcl_fidelity.py`
   used to filter on a reason string `doc_report()` never emitted) — same-
   day follow-up, `FONT_SUBSTITUTION_REASONS`/`is_font_substitution_reason`.

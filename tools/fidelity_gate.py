@@ -60,6 +60,26 @@ WHAT IT DOES
    the identical segmentation from WS7's own measurements.json chunks, so
    a word is the same set of characters on both sides regardless of which
    side happened to draw it as more than one op/chunk.
+
+   Mechanism Z addendum (2026-09-07), two refinements applied to this
+   same per-baseline character sequence, BEFORE segmentation, on every
+   input shape (pdf/words/chars) identically:
+     - RISE SNAPPING (`snap_raised_baselines`): a character on a raised/
+       lowered MINORITY baseline (this repo's own PDF never produces one
+       -- Ts never touches the tracked Td/Tm position -- but an external
+       `--engine-chars` reader that bakes the rise into each glyph's own
+       y_top_pt does) is reassigned onto the nearby DOMINANT line
+       baseline it visually continues, so e.g. a footnote-reference
+       superscript reads as part of its word instead of its own
+       unmatched one-character "line".
+     - BOX-DRAWING EXCLUSION (`_is_box_drawing_char`): a box-drawing/
+       block/geometric character is dropped from word TEXT entirely
+       (its own advance still moves the cursor) -- this repo's own PDF
+       draws every one of these as a vector fill, never as text, so this
+       is a no-op for ctrl-kd's own output; a reader that draws
+       box-drawing as real text glyphs (the macOS app's Native
+       facsimile) needs it so a border character fused onto a real word
+       (e.g. '│Figure') compares as the real word alone.
 4. Matches engine words to WS7 chunks per page, in reading/emission
    order, via difflib's sequence alignment on the TEXT ONLY -- this is
    honest about disagreement: a word that doesn't literally match on
@@ -735,6 +755,192 @@ def segment_words_from_chars(chars: list) -> list:
     return words
 
 
+# --------------------------------------------------- box-drawing exclusion
+# FIX 2 (mechanism Z addendum, 2026-09-07). WordStar's own IBM CP437
+# box-drawing/table-border/block-fill repertoire (real WS7 prints these as
+# ordinary printer-font TEXT glyphs -- tools/pcl_tolerance.py's own module
+# docstring, confirmed against the raw .pcl) has NO text-run counterpart on
+# ctrl-kd's OWN engine side AT ALL: pdf.py draws every one of these
+# characters as a PDF VECTOR fill (`_graphic_ops`, Jon's ruling: box/rule
+# fidelity is a real drawn line, not a font glyph standing in for one --
+# see pdf.py's own "cp437 graphics as vectors" section), never as a
+# text-showing op -- confirmed directly against BOXES's own rendered
+# content stream (100% `re f` operators, zero corresponding text ops).
+# THIS is why SCRIPT.WS (44 box-drawing characters on its own p10) already
+# reports CLEAN for ctrl-kd's own PDF today: there is nothing on the engine
+# side of this text-position gate for a box character to appear as, so it
+# never becomes a mismatched-text divergence in the first place -- a
+# structural absence, not a filter catching anything.
+#
+# A DIFFERENT engine-side reader breaks that silence: the macOS app's own
+# Native facsimile draws box-drawing as real TEXT glyphs (a genuine,
+# on-screen rendering choice, unlike Printed's vector rule), so an external
+# extractor built against it (`--engine-chars`, schema v2) hands this gate
+# box-drawing CHARACTERS fused directly onto real words with no gap --
+# e.g. SCRIPT's own captioned figure row, one glyph '│' ending 0.0012pt
+# before 'F', reads as the fused word '│Figure' with no WS7 counterpart to
+# match (WS7's own capture of the identical row is already corrected by
+# tools/pcl_tolerance.py's own `_strip_box_drawing_chunk_edges`, mechanism
+# N, to read as plain 'Figure').
+#
+# The rule, applied identically wherever this repo builds a character list
+# before segment_words_from_chars ever runs (`_op_chars` and
+# `_external_chars_to_tokens`, below -- a no-op for both on ctrl-kd's own
+# PDF, since no box-drawing character is ever a TEXT character there in
+# the first place -- and tools/pcl_tolerance.py's own WS7-side character
+# builders, which import `_BOX_DRAWING_RANGES`/`_is_box_drawing_char`/
+# `_is_box_drawing_text` from HERE rather than keeping a second
+# definition): a box-drawing/block/geometric character is DROPPED from
+# word TEXT entirely -- its own advance still moves the cursor forward
+# (the character occupied real horizontal space and printed on paper;
+# that space must not silently vanish and pull a later real character's
+# own position leftward), but the character itself never becomes part of
+# any word text segment_words_from_chars produces. A run made ENTIRELY of
+# such characters therefore contributes NO word at all on that side -- the
+# exact behaviour ctrl-kd's own vector-drawn Printed PDF already has by
+# construction -- while a character fused onto real text (leading,
+# trailing, or, in principle, embedded) is stripped away and the real
+# text alone remains, at the position its own first REAL character was
+# always drawn at.
+_BOX_DRAWING_RANGES = (
+    (0x2500, 0x2580),  # Box Drawing
+    (0x2580, 0x25A0),  # Block Elements
+    (0x25A0, 0x2600),  # Geometric Shapes
+)
+
+
+def _is_box_drawing_char(ch: str) -> bool:
+    return any(lo <= ord(ch) < hi for lo, hi in _BOX_DRAWING_RANGES)
+
+
+def _is_box_drawing_text(text: str) -> bool:
+    """True only when `text` is non-empty (after stripping whitespace) and
+    EVERY remaining character is box-drawing -- a whole-TOKEN exclusion,
+    for a caller (tools/pcl_tolerance.py's own doc_report/load_ws7_tokens)
+    that filters already-segmented tokens rather than raw characters, kept
+    as a belt-and-suspenders check even though `_is_box_drawing_char`'s own
+    per-character drop (above) means a box-drawing-only run should never
+    reach word granularity as such a token any more."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return all(_is_box_drawing_char(ch) for ch in stripped)
+
+
+# ------------------------------------------- mechanism Z: rise snapping
+# FIX 1 (mechanism Z addendum, 2026-09-07). ctrl-kd's own PDF raises/lowers
+# a super/subscript with a `Ts` TEXT-STATE rise (mechanism G, src/ctrlkd/
+# pdf.py's own `_sized`) while keeping ONE Td text-line position for the
+# whole line -- this gate's own `parse_text_ops` never applies Ts to the
+# tracked baseline `y` at all (by design: Ts is a RENDER-time offset, not a
+# position), so a raised/lowered character in ctrl-kd's own PDF already
+# reports the surrounding LINE's own baseline, and ordinary same-baseline
+# segmentation (segment_words_from_chars) already merges it into its word
+# correctly with no further help
+# (test_engine_page_tokens_merges_a_superscript_inside_a_word). Real WS7 is
+# symmetric but the OPPOSITE way: its own driver genuinely moves the print
+# head (tools/pcl_tolerance.py's own `_find_offbaseline_occupant`
+# docstring: confirmed 4.5pt, both directions), so the WS7 side already has
+# its OWN stitching mechanism for this (`_merge_zero_gap_cross_font_
+# chunks`/`_find_offbaseline_occupant`).
+#
+# A THIRD kind of engine-side input has neither property: an external PDF
+# reader (macOS Quartz, via `--engine-chars`) that bakes a `Ts`-equivalent
+# rise directly into each glyph's own text-matrix translation reports a
+# raised/lowered character's TRUE, physically offset baseline -- which
+# would otherwise become its own one/two-character "line" with no
+# dominant-baseline counterpart to align against at all (DOCC's footnote
+# digits, -SCREEN's H2O subscript, a TrekTM-style superscript -- see
+# PCL-DIVERGENCE-TRIAGE.md's mechanism Z addendum). `snap_raised_baselines`
+# is this gate's OWN "the pen never actually moved" correction for exactly
+# that input, applied from the SAME place (before segmentation) on every
+# input shape (pdf/words/chars) so it behaves identically -- a no-op for
+# ctrl-kd's own PDF and for a words/chars dump ROUND-TRIPPED from it
+# (nothing to snap: every character on a line already shares one `y`), and
+# the actual fix for a real Quartz-extracted `--engine-chars` file.
+RISE_SNAP_WINDOW_PT = 8.0  # same magnitude, same reasoning as tools/
+                           # pcl_tolerance.py's own SUPSUB_MAX_DY_DP (8pt):
+                           # generous vs. the CONFIRMED real WS7 sup/sub
+                           # offset (4.5pt, both directions -- DOCC's own
+                           # footnote-reference superscript and -SCREEN's
+                           # own subscript, per that module's own
+                           # docstring) and the exact Ts value pdf.py's own
+                           # default `.sr` roll writes (`_printed_roll_pt`'s
+                           # 3/48in -> 4.5pt, `_sized`), while comfortably
+                           # short of a genuinely different printed LINE
+                           # (always at least one whole leading away in
+                           # this corpus, never under 8pt).
+
+RISE_SNAP_MIN_DOMINANT_CHARS = 3  # a baseline carrying at least this many
+                           # characters is a real page LINE, never a
+                           # superscript/subscript run -- every confirmed
+                           # real one in this corpus is 1-2 characters
+                           # (DOCC's '1'/'2', -SCREEN's '2', a 'TM'-style
+                           # marker), comfortably under this floor, while a
+                           # real printed line (even a short one) all but
+                           # always clears it.
+
+
+def snap_raised_baselines(chars: list, y_key: str = 'y') -> list:
+    """MUTATES `chars` (a list of char dicts sharing this file's own
+    'x_start'/'x_end'/'space_width_pt'/'size' shape, spanning a WHOLE PAGE,
+    not yet split into per-baseline groups) in place: any character on a
+    MINORITY baseline (fewer than RISE_SNAP_MIN_DOMINANT_CHARS characters
+    at that `y_key` value) has its own `y_key` reassigned to a nearby
+    DOMINANT baseline (>= that many characters) when BOTH:
+      (a) that dominant baseline's own `y_key` lies within
+          RISE_SNAP_WINDOW_PT of this character's own (the nearest one,
+          when more than one dominant baseline happens to be in range --
+          never ambiguous in this corpus, since real line spacing is
+          always several times the window); and
+      (b) its own x-run continues that baseline's text: walking every
+          character assigned to that dominant baseline IN X-ORDER
+          (chaining through any minority character already snapped
+          earlier in this same walk, so a multi-character raised run like
+          'TM' snaps as a whole, not just its first character), the
+          character immediately preceding this one ends with NO real gap
+          before it -- segment_words_from_chars' own boundary rule
+          (char_space_width_pt), reused rather than reimplemented, so
+          "continues the line" means exactly what "would not itself split
+          into two words" means everywhere else in this file.
+    A minority character with no dominant baseline in window, or whose
+    immediately preceding neighbour is a real word-gap away (a genuinely
+    isolated raised marker with nothing to attach to), is left exactly
+    where it was -- unmatched, same as before this function existed, never
+    force-merged. Returns `chars` (same list object) for a caller's
+    convenience; every mutation is in place on each character's own dict."""
+    counts = defaultdict(int)
+    for c in chars:
+        counts[round(c[y_key], 3)] += 1
+    dominant_ys = sorted(y for y, n in counts.items() if n >= RISE_SNAP_MIN_DOMINANT_CHARS)
+    if not dominant_ys:
+        return chars
+
+    clusters = defaultdict(list)   # dominant y -> [char, ...] (dominant + in-window minority)
+    minority_ids = set()
+    for c in chars:
+        cy = round(c[y_key], 3)
+        if cy in dominant_ys:
+            clusters[cy].append(c)
+            continue
+        nearest = min(dominant_ys, key=lambda dy: abs(dy - cy))
+        if abs(nearest - cy) <= RISE_SNAP_WINDOW_PT:
+            clusters[nearest].append(c)
+            minority_ids.add(id(c))
+
+    for dy, members in clusters.items():
+        members.sort(key=lambda c: c['x_start'])
+        prev = None
+        for c in members:
+            if prev is not None and id(c) in minority_ids:
+                gap = c['x_start'] - prev['x_end']
+                threshold = min(prev['space_width_pt'], c['space_width_pt'])
+                if gap < threshold - WORD_GAP_SLACK_PT:
+                    c[y_key] = dy
+            prev = c
+    return chars
+
+
 def _op_chars(op: dict, basefont, font_class: str) -> list:
     """One engine text op (parse_text_ops' own shape) -> [char dict, ...]
     in emission order: every character's own x_start/x_end (the SAME
@@ -754,7 +960,17 @@ def _op_chars(op: dict, basefont, font_class: str) -> list:
     the same AFM table pdf.py's own layout used -- never the display
     text, which exists purely for word-text comparison. Consumed by
     segment_words_from_chars, directly (engine_page_tokens) or via
-    split_engine_op (kept for its own single-op callers/tests)."""
+    split_engine_op (kept for its own single-op callers/tests).
+
+    FIX 2 (box-drawing exclusion, see the block above this function): a
+    box-drawing/block/geometric character is dropped from the returned
+    list entirely -- its own advance still moves `cursor` forward (so a
+    later real character's own x_start is unaffected), but the character
+    itself never becomes a char dict here. A no-op for ctrl-kd's own PDF
+    (pdf.py never draws one of these as a text-showing op at all -- see
+    that block's own docstring), but load-bearing for `--engine-chars`
+    input from an external reader that draws box-drawing as real text
+    glyphs (the macOS app's Native facsimile)."""
     kind = None
     if basefont:
         low = basefont.lower()
@@ -771,12 +987,14 @@ def _op_chars(op: dict, basefont, font_class: str) -> list:
         w_actual = w_nat * (op['tz'] / 100.0)
         x_start, x_end = cursor, cursor + w_actual
         display = symbolmap.transliterate(raw_ch, kind) if kind else raw_ch
+        cursor = x_end
+        if _is_box_drawing_char(display):
+            continue  # FIX 2: geometry, not text
         chars.append({
             'text': display, 'x_start': x_start, 'x_end': x_end,
             'is_space': raw_ch == ' ', 'space_width_pt': space_w,
             'size': op['size'], 'basefont': basefont, 'font_class': font_class,
         })
-        cursor = x_end
     return chars
 
 # Mechanism L (triage 2026-09-06 residuals round). A `[image: NAME]` picture
@@ -849,15 +1067,34 @@ def engine_page_tokens(page: dict, page_no: int) -> list:
     that side) -- see tools/pcl_tolerance.py's
     `_merge_zero_gap_cross_font_chunks` for the matching WS7-side half of
     this fix, and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z for the full
-    trace."""
+    trace.
+
+    FIX 1 (rise snapping, see `snap_raised_baselines`'s own docstring
+    above): before grouping, every character on the page is first passed
+    through that function, which reassigns a raised/lowered MINORITY
+    baseline's own characters onto the dominant line baseline they
+    visually continue. A no-op for every op this repo's own `pdf.py`
+    writes (Ts never touches the tracked `op['y']`, so a real page never
+    has more than one baseline per printed line to begin with), but
+    identical machinery to what `--engine-chars` input from an external
+    reader needs (see that function's own docstring) -- applied here too
+    so the SAME rule governs every input shape, not just the one that
+    happens to need it."""
     mb_h = page['mediabox'][1]
-    by_baseline = defaultdict(list)
+    all_chars = []
     for op in parse_text_ops(page['content']):
         if _IMAGE_PLACEHOLDER_RE.match(op['text']):
             continue
         basefont = page['fonts'].get(op['font'])
         font_class = classify_font(basefont)
-        by_baseline[round(op['y'], 3)].extend(_op_chars(op, basefont, font_class))
+        y = round(op['y'], 3)
+        for c in _op_chars(op, basefont, font_class):
+            c['y'] = y
+            all_chars.append(c)
+    snap_raised_baselines(all_chars)
+    by_baseline = defaultdict(list)
+    for c in all_chars:
+        by_baseline[c['y']].append(c)
     out = []
     for y in sorted(by_baseline, reverse=True):  # reading order: top of page first
         chars = sorted(by_baseline[y], key=lambda c: c['x_start'])
@@ -1221,19 +1458,39 @@ def _external_chars_to_tokens(chars: list) -> list:
     segmenter, reused rather than reimplemented. See the TOLERANCE note on
     load_engine_chars(), below, for the one place this path measurably
     differs from the ops-based path: char_space_width_pt's own `tz`
-    argument."""
-    by_page_baseline = defaultdict(lambda: defaultdict(list))
+    argument.
+
+    FIX 2 (box-drawing exclusion): a box-drawing/block/geometric character
+    (`_is_box_drawing_char`) is dropped before it ever enters a page's own
+    character list -- this producer hands over each character's own
+    ALREADY-COMPUTED x_pt/x_end_pt (no `cursor` to re-derive here, unlike
+    `_op_chars`), so dropping one costs nothing but its own text; every
+    other character keeps the exact position it was given. FIX 1 (rise
+    snapping): each page's own full character list is passed through
+    `snap_raised_baselines` BEFORE grouping by baseline -- this is the
+    load-bearing case that function exists for (see its own docstring):
+    an external reader that bakes a Ts-equivalent rise into each glyph's
+    own y_top_pt, unlike this repo's own PDF ops (where the rise never
+    touches `op['y']` at all, so `engine_page_tokens`'s own call to the
+    same function is a no-op)."""
+    by_page = defaultdict(list)
     for c in chars:
+        if _is_box_drawing_char(c['text']):
+            continue  # FIX 2: geometry, not text
         space_w = char_space_width_pt(c.get('font'), c['size_pt'])
-        by_page_baseline[c['page']][round(c['y_top_pt'], 3)].append({
+        by_page[c['page']].append({
             'text': c['text'], 'x_start': c['x_pt'], 'x_end': c['x_end_pt'],
             'is_space': c['text'] == ' ', 'space_width_pt': space_w,
             'size': c['size_pt'], 'basefont': c.get('font'),
-            'font_class': c['font_class'],
+            'font_class': c['font_class'], 'y': round(c['y_top_pt'], 3),
         })
     out = []
-    for page in sorted(by_page_baseline):
-        by_y = by_page_baseline[page]
+    for page in sorted(by_page):
+        page_chars = by_page[page]
+        snap_raised_baselines(page_chars)  # FIX 1
+        by_y = defaultdict(list)
+        for c in page_chars:
+            by_y[c['y']].append(c)
         # reading order: top of page first -- y_top_pt is the TOP-DOWN
         # convention (y increases DOWNWARD, this file's module docstring's
         # own "COORDINATE CONVENTION"), the OPPOSITE of the raw PDF y

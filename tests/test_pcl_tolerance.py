@@ -282,31 +282,55 @@ def test_is_pure_punctuation_excludes_real_single_letter_words():
     assert not pt._is_pure_punctuation('')
 
 
-def test_strip_leading_box_drawing_chunks_separates_a_glued_border_char():
+def test_strip_box_drawing_chunk_edges_separates_a_glued_border_char():
     # SCRIPT.WS's own shape: a table-border '│' glued directly onto the
     # caption word with no space, one literal WS7 chunk. '│' (U+2502) at
     # 24pt Courier has natural width 14.4pt = 144dp.
     items = [(_pc('│Figure', 1000), _tc())]
-    stripped = pt._strip_leading_box_drawing_chunks(items)
+    stripped = pt._strip_box_drawing_chunk_edges(items)
     assert len(stripped) == 1
     assert stripped[0][0]['text'] == 'Figure'
     assert stripped[0][0]['x_decipoints'] == 1000 + 144
 
 
-def test_strip_leading_box_drawing_chunks_leaves_plain_text_alone():
+def test_strip_box_drawing_chunk_edges_leaves_plain_text_alone():
     items = [(_pc('Figure', 1000), _tc())]
-    stripped = pt._strip_leading_box_drawing_chunks(items)
+    stripped = pt._strip_box_drawing_chunk_edges(items)
     assert stripped[0][0]['text'] == 'Figure'
     assert stripped[0][0]['x_decipoints'] == 1000
 
 
-def test_strip_leading_box_drawing_chunks_leaves_a_pure_box_run_alone():
+def test_strip_box_drawing_chunk_edges_leaves_a_pure_box_run_alone():
     # Nothing but box-drawing characters -- _is_box_drawing_text's own
     # territory (applied later, in load_ws7_tokens), not this function's.
     items = [(_pc('│──', 1000), _tc())]
-    stripped = pt._strip_leading_box_drawing_chunks(items)
+    stripped = pt._strip_box_drawing_chunk_edges(items)
     assert stripped[0][0]['text'] == '│──'
     assert stripped[0][0]['x_decipoints'] == 1000
+
+
+def test_strip_box_drawing_chunk_edges_separates_a_trailing_border_char():
+    # FIX 2 (generalizing mechanism N to both edges): a table row that
+    # ends against its own right-hand border, e.g. '1│' -- the leading
+    # edge is real text, so this must survive as leading-strip's own
+    # no-op path while still dropping the TRAILING '│'. No x correction
+    # is needed: a chunk's own x is its LEFT edge, unaffected by removing
+    # characters off its right end.
+    items = [(_pc('1│', 1000), _tc())]
+    stripped = pt._strip_box_drawing_chunk_edges(items)
+    assert stripped[0][0]['text'] == '1'
+    assert stripped[0][0]['x_decipoints'] == 1000
+
+
+def test_strip_box_drawing_chunk_edges_separates_both_edges_at_once():
+    # A caption row glued to a border on BOTH sides, e.g. '│Figure 1│'
+    # captured as one chunk (SCRIPT's own table shape, extended): both
+    # the leading and trailing box-drawing runs are stripped in the same
+    # pass, and only the leading strip shifts x.
+    items = [(_pc('│Figure 1│', 1000), _tc())]
+    stripped = pt._strip_box_drawing_chunk_edges(items)
+    assert stripped[0][0]['text'] == 'Figure 1'
+    assert stripped[0][0]['x_decipoints'] == 1000 + 144
 
 
 def test_correct_toggle_boundary_chunks_shifts_a_style_change_with_no_advance():

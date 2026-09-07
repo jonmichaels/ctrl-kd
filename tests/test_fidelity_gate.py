@@ -370,6 +370,138 @@ def test_engine_page_tokens_merges_a_superscript_inside_a_word():
     assert 'cases.5' in texts
 
 
+# ------------------------------------- FIX 1: rise snapping (mechanism Z addendum)
+# ctrl-kd's own PDF never needs snap_raised_baselines to do any real work
+# (Ts never touches the tracked baseline y -- see that function's own
+# docstring, and every round-trip test above/below already proves it's a
+# no-op there). These tests exercise the load-bearing case directly: an
+# external reader (macOS Quartz, via --engine-chars) that bakes the rise
+# into each glyph's own y_top_pt, the shape `_external_chars_to_tokens`
+# actually has to correct.
+def _char_dict(ch, x, x_end, y, size=12.0, font='Courier', font_class='fixed', page=1):
+    return {'text': ch, 'x_pt': x, 'x_end_pt': x_end, 'y_top_pt': y,
+            'size_pt': size, 'font': font, 'font_class': font_class, 'page': page}
+
+
+def test_engine_chars_merges_a_physically_offset_superscript_via_rise_snapping():
+    """FIX 1: 'E=mc' followed by a superscript '2' sitting 4.5pt ABOVE the
+    line -- the confirmed real WS7 sup/sub offset (see RISE_SNAP_WINDOW_PT's
+    own comment) and exactly the shape a Ts-baking external reader reports
+    -- with no real horizontal gap between 'c' and '2'. Must merge into
+    ONE word 'E=mc2', matching what ctrl-kd's own PDF already produces for
+    the identical shape (test_engine_page_tokens_merges_a_superscript_
+    inside_a_word) -- the chars path and the PDF path AGREE."""
+    chars = [
+        _char_dict('E', 100.0, 107.2, 300.0),
+        _char_dict('=', 107.2, 114.4, 300.0),
+        _char_dict('m', 114.4, 121.6, 300.0),
+        _char_dict('c', 121.6, 128.8, 300.0),
+        _char_dict('2', 128.8, 134.3, 295.5, size=9.25),  # 300.0 - 4.5
+    ]
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    loaded = fg.load_engine_chars(data)
+    texts = [t['text'] for t in loaded['eng_tokens']]
+    assert texts == ['E=mc2'], texts
+
+
+def test_engine_chars_does_not_snap_a_raised_marker_across_a_real_gap():
+    """A minority baseline within window is left ALONE when its own
+    x-run does NOT continue the dominant line -- e.g. a superscript that
+    sits after a real typed space, not glued to the preceding word. Never
+    force-merged: conservative by design, same rule
+    snap_raised_baselines' own docstring states."""
+    chars = [
+        _char_dict('c', 121.6, 128.8, 300.0),
+        _char_dict('a', 128.8, 136.0, 300.0),
+        _char_dict('t', 136.0, 143.2, 300.0),
+        _char_dict(' ', 143.2, 150.4, 300.0),
+        _char_dict('2', 150.4, 155.9, 295.5, size=9.25),  # isolated, real gap before it
+    ]
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    loaded = fg.load_engine_chars(data)
+    texts = [t['text'] for t in loaded['eng_tokens']]
+    assert texts == ['cat', '2'], texts
+
+
+def test_engine_chars_does_not_snap_a_baseline_too_far_from_any_dominant_one():
+    """A minority baseline OUTSIDE RISE_SNAP_WINDOW_PT of every dominant
+    baseline is a genuinely different printed line (or an isolated
+    marker with nothing real nearby), never snapped regardless of x."""
+    chars = [
+        _char_dict('c', 121.6, 128.8, 300.0),
+        _char_dict('2', 128.8, 134.3, 300.0 - fg.RISE_SNAP_WINDOW_PT - 1.0, size=9.25),
+    ]
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    loaded = fg.load_engine_chars(data)
+    texts = sorted(t['text'] for t in loaded['eng_tokens'])
+    assert texts == ['2', 'c'], texts
+
+
+# ------------------------------- FIX 2: box-drawing exclusion (mechanism Z addendum)
+# ctrl-kd's own PDF never draws a box-drawing character as a text op at
+# all (pdf.py draws every one as a PDF vector fill -- see the exclusion
+# block's own docstring in fidelity_gate.py, right above `_op_chars`), so
+# _op_chars/engine_page_tokens' own drop is a no-op on every real engine
+# PDF this repo produces. `test_op_chars_...` below proves the SAME
+# function the PDF-ops path calls handles a box-drawing character
+# identically to the chars path, if one were ever handed to it --
+# "the PDF path and a chars file agree."
+def test_op_chars_drops_a_box_drawing_character_fused_to_a_word():
+    op = {'font': 'F1', 'size': 12, 'tz': fg.TZ_DEFAULT, 'rise': 0,
+          'x': 100.0, 'text': '│Figure'}
+    chars = fg._op_chars(op, 'Courier', 'fixed')
+    words = fg.segment_words_from_chars(chars)
+    assert [w['text'] for w in words] == ['Figure'], words
+
+
+def test_engine_chars_box_drawing_only_line_produces_no_words():
+    """A row made ENTIRELY of box-drawing characters (a table border, a
+    ruled line) contributes NO word at all on the engine side -- the
+    exact behaviour ctrl-kd's own vector-drawn Printed PDF already has by
+    construction (nothing to compare a WS7 box-drawing chunk against, see
+    tools/pcl_tolerance.py's own module docstring)."""
+    chars = [_char_dict(ch, 100.0 + i * 7.2, 107.2 + i * 7.2, 300.0)
+            for i, ch in enumerate('──────')]
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    loaded = fg.load_engine_chars(data)
+    assert loaded['eng_tokens'] == []
+
+
+def test_engine_chars_figure_caption_row_strips_box_drawing_from_both_ends():
+    """SCRIPT.WS's own table-figure-caption shape, extended to both edges:
+    a row captured (by the macOS app's own Native-facsimile chars
+    extractor) as '│Figure 1│' -- a leading border glyph glued
+    directly onto 'Figure' (ending 0.0012pt before it, the confirmed real
+    app-side gap), a real typed space, then '1' glued to a trailing
+    border glyph with no gap at all. Must segment as exactly ['Figure',
+    '1'] -- both box-drawing characters dropped, the real text alone
+    remains at its own real position, matching WS7's own capture of the
+    identical row after tools/pcl_tolerance.py's own
+    `_strip_box_drawing_chunk_edges` (mechanism N, generalized to both
+    ends by this same fix)."""
+    chars = [
+        _char_dict('│', 100.0, 107.1988, 300.0),   # leading border, 0.0012pt short of 'F'
+        _char_dict('F', 107.2, 114.4, 300.0),
+        _char_dict('i', 114.4, 121.6, 300.0),
+        _char_dict('g', 121.6, 128.8, 300.0),
+        _char_dict('u', 128.8, 136.0, 300.0),
+        _char_dict('r', 136.0, 143.2, 300.0),
+        _char_dict('e', 143.2, 150.4, 300.0),
+        _char_dict(' ', 150.4, 157.6, 300.0),            # real typed space
+        _char_dict('1', 157.6, 164.8, 300.0),
+        _char_dict('│', 164.8, 172.0, 300.0),        # trailing border, zero gap
+    ]
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    loaded = fg.load_engine_chars(data)
+    texts = [t['text'] for t in loaded['eng_tokens']]
+    assert texts == ['Figure', '1'], texts
+
+
 # ---------------------------------------------------------- classification
 def test_classify_font():
     assert fg.classify_font('Times-Bold') == 'serif'

@@ -98,10 +98,10 @@
       "no_substitute_word_count": 76,
       "counts_by_reason": {
         "cgtimes-drift-exceeds-tolerance": 4,
-        "exact-drift": 9,
-        "extra-word-in-engine": 338,
+        "exact-drift": 49,
+        "extra-word-in-engine": 298,
         "line-start-shift": 9,
-        "word-unmatched": 173
+        "word-unmatched": 133
       },
       "divergences": [
         {
@@ -202,7 +202,67 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.38pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.28pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "Ital",
+            "Ital"
+          ],
+          "ws7_pos": [
+            110.4,
+            288.0
+          ],
+          "pdf_pos": [
+            110.76,
+            288.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.36pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 298.0,
+          "words": [
+            "Bold",
+            "Bold"
+          ],
+          "ws7_pos": [
+            110.4,
+            298.0
+          ],
+          "pdf_pos": [
+            110.76,
+            298.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.36pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 338.0,
+          "words": [
+            "Italic",
+            "Italic"
+          ],
+          "ws7_pos": [
+            98.4,
+            338.0
+          ],
+          "pdf_pos": [
+            98.68,
+            338.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.28pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -222,7 +282,127 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.42pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.32pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "1509",
+            "1509"
+          ],
+          "ws7_pos": [
+            140.4,
+            378.0
+          ],
+          "pdf_pos": [
+            141.0,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            296.4,
+            378.0
+          ],
+          "pdf_pos": [
+            298.04,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.64pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "455",
+            "455"
+          ],
+          "ws7_pos": [
+            332.4,
+            378.0
+          ],
+          "pdf_pos": [
+            334.24,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.84pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            362.4,
+            378.0
+          ],
+          "pdf_pos": [
+            364.44,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.04pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "455",
+            "455"
+          ],
+          "ws7_pos": [
+            398.4,
+            378.0
+          ],
+          "pdf_pos": [
+            400.74,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 378.0,
+          "words": [
+            "682",
+            "682"
+          ],
+          "ws7_pos": [
+            428.4,
+            378.0
+          ],
+          "pdf_pos": [
+            430.94,
+            378.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.54pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -242,7 +422,7 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.24pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -262,7 +442,127 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.24pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 398.0,
+          "words": [
+            "1509",
+            "1509"
+          ],
+          "ws7_pos": [
+            140.4,
+            398.0
+          ],
+          "pdf_pos": [
+            141.0,
+            398.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 398.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            296.4,
+            398.0
+          ],
+          "pdf_pos": [
+            298.04,
+            398.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.64pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 398.0,
+          "words": [
+            "569",
+            "569"
+          ],
+          "ws7_pos": [
+            332.4,
+            398.0
+          ],
+          "pdf_pos": [
+            334.24,
+            398.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.84pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 398.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            362.4,
+            398.0
+          ],
+          "pdf_pos": [
+            364.44,
+            398.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.04pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 478.0,
+          "words": [
+            "Ital",
+            "Ital"
+          ],
+          "ws7_pos": [
+            110.4,
+            478.0
+          ],
+          "pdf_pos": [
+            110.76,
+            478.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.36pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 488.0,
+          "words": [
+            "Bold",
+            "Bold"
+          ],
+          "ws7_pos": [
+            110.4,
+            488.0
+          ],
+          "pdf_pos": [
+            110.76,
+            488.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.36pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -282,7 +582,47 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.38pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.28pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 538.0,
+          "words": [
+            "4391",
+            "4391"
+          ],
+          "ws7_pos": [
+            140.4,
+            538.0
+          ],
+          "pdf_pos": [
+            141.0,
+            538.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 558.0,
+          "words": [
+            "4391",
+            "4391"
+          ],
+          "ws7_pos": [
+            140.4,
+            558.0
+          ],
+          "pdf_pos": [
+            141.0,
+            558.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -302,7 +642,27 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.24pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 568.0,
+          "words": [
+            "4391",
+            "4391"
+          ],
+          "ws7_pos": [
+            140.4,
+            568.0
+          ],
+          "pdf_pos": [
+            141.0,
+            568.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -322,7 +682,167 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.24pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 578.0,
+          "words": [
+            "4391",
+            "4391"
+          ],
+          "ws7_pos": [
+            140.4,
+            578.0
+          ],
+          "pdf_pos": [
+            141.0,
+            578.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 588.0,
+          "words": [
+            "4391",
+            "4391"
+          ],
+          "ws7_pos": [
+            140.4,
+            588.0
+          ],
+          "pdf_pos": [
+            141.0,
+            588.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "1556",
+            "1556"
+          ],
+          "ws7_pos": [
+            140.4,
+            608.0
+          ],
+          "pdf_pos": [
+            141.0,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            296.4,
+            608.0
+          ],
+          "pdf_pos": [
+            298.04,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.64pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "682",
+            "682"
+          ],
+          "ws7_pos": [
+            332.4,
+            608.0
+          ],
+          "pdf_pos": [
+            334.24,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.84pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "2048",
+            "2048"
+          ],
+          "ws7_pos": [
+            362.4,
+            608.0
+          ],
+          "pdf_pos": [
+            364.44,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.04pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "682",
+            "682"
+          ],
+          "ws7_pos": [
+            398.4,
+            608.0
+          ],
+          "pdf_pos": [
+            400.74,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.34pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 608.0,
+          "words": [
+            "909",
+            "909"
+          ],
+          "ws7_pos": [
+            428.4,
+            608.0
+          ],
+          "pdf_pos": [
+            430.94,
+            608.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.54pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -342,7 +862,87 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.42pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.32pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "1556",
+            "1556"
+          ],
+          "ws7_pos": [
+            140.4,
+            618.0
+          ],
+          "pdf_pos": [
+            141.0,
+            618.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "1821",
+            "1821"
+          ],
+          "ws7_pos": [
+            296.4,
+            618.0
+          ],
+          "pdf_pos": [
+            298.04,
+            618.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.64pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "682",
+            "682"
+          ],
+          "ws7_pos": [
+            332.4,
+            618.0
+          ],
+          "pdf_pos": [
+            334.24,
+            618.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.84pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "1821",
+            "1821"
+          ],
+          "ws7_pos": [
+            362.4,
+            618.0
+          ],
+          "pdf_pos": [
+            364.44,
+            618.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +2.04pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -362,7 +962,27 @@
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual +0.42pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +0.32pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 628.0,
+          "words": [
+            "1530",
+            "1530"
+          ],
+          "ws7_pos": [
+            140.4,
+            628.0
+          ],
+          "pdf_pos": [
+            141.0,
+            628.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "LJ6DTP",
@@ -1162,7 +1782,7 @@
           ],
           "font_class": "no_substitute",
           "reason": "line-start-shift",
-          "detail": "line-start residual +8.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual +8.20pt (tolerance 2.5pt)"
         },
         {
           "doc": "LJ6DTP",

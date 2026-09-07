@@ -369,19 +369,17 @@ MAX_LISTED_PER_REASON = 40
 # scope. (Table/rectangle fidelity has its own dedicated tests --
 # tests/test_lj6dtp_pcl_rectangles.py and siblings -- this coordinate gate
 # is text-only by construction, see fidelity_gate.py's own docstring.)
-_BOX_DRAWING_RANGES = (
-    (0x2500, 0x2580),  # Box Drawing
-    (0x2580, 0x25A0),  # Block Elements
-    (0x25A0, 0x2600),  # Geometric Shapes
-)
-
-
-def _is_box_drawing_text(text: str) -> bool:
-    stripped = text.strip()
-    if not stripped:
-        return False
-    return all(any(lo <= ord(ch) < hi for lo, hi in _BOX_DRAWING_RANGES)
-               for ch in stripped)
+#
+# FIX 2 ("one rule in one place for every input", 2026-09-07): what counts
+# as box-drawing is now defined ONCE, in fg (fidelity_gate.py's own
+# `_BOX_DRAWING_RANGES`/`_is_box_drawing_char`/`_is_box_drawing_text`) --
+# the engine side's `_op_chars`/`_external_chars_to_tokens` need the exact
+# same test, at CHARACTER granularity, to drop a box-drawing glyph fused
+# onto real text (e.g. the app's own Native-facsimile '│Figure'); this
+# module keeps its own name bound to that single definition rather than a
+# second copy that could drift from it.
+_BOX_DRAWING_RANGES = fg._BOX_DRAWING_RANGES
+_is_box_drawing_text = fg._is_box_drawing_text
 
 
 # fg.match_doc aligns WHOLE-DOCUMENT token streams purely by text equality
@@ -460,28 +458,38 @@ DOUBLE_STRIKE_EPS_PT = 2.0  # generous vs the ~1.4pt slant offset a faux-italic
                             # outside it).
 
 
-def _strip_leading_box_drawing_chunks(items):
-    """Mechanism N (triage 2026-09-06 residuals round): a WS7 print chunk
-    that combines a box-drawing/table-border character directly against a
-    real word with no space (SCRIPT.WS's own '│Figure', a
-    table-bordered figure caption) is, for WS7's own driver, one literal
-    character run -- the LaserJet's resident Courier charset draws
-    box-drawing glyphs as ordinary text, same font, same advance, no
-    different from any other character. Our own engine draws a
+def _strip_box_drawing_chunk_edges(items):
+    """Mechanism N (triage 2026-09-06 residuals round; generalized to both
+    edges 2026-09-07, FIX 2, "one rule in one place for every input"): a
+    WS7 print chunk that combines a box-drawing/table-border character
+    directly against a real word with no space (SCRIPT.WS's own
+    '│Figure', a table-bordered figure caption) is, for WS7's own driver,
+    one literal character run -- the LaserJet's resident Courier charset
+    draws box-drawing glyphs as ordinary text, same font, same advance,
+    no different from any other character. Our own engine draws a
     box-drawing character as a VECTOR (`_graphic_ops`, Jon's ruling:
     box/rule fidelity is a real drawn line, not a font glyph standing in
     for one) and keeps it entirely separate from the adjoining text span
     (`_split_graphics`) -- so the two sides' text streams can never
     literally match on a chunk like this no matter how correct the
     position: our own 'Figure' token never carries a box character, and
-    never will. Strips a WS7 chunk's own LEADING box-drawing/block/
-    geometric run (`_BOX_DRAWING_RANGES`) before matching, correcting its
-    x forward by the stripped run's own natural AFM width -- the same
-    "this is what our engine's own text stream would show" normalization
-    mechanisms C/J/K already give this driver's other representation
-    differences. A chunk that is NOTHING BUT box-drawing characters is
-    left alone -- `_is_box_drawing_text`'s own territory, applied later in
-    `load_ws7_tokens`."""
+    never will.
+
+    Strips a WS7 chunk's own LEADING **and TRAILING** box-drawing/block/
+    geometric run (`_BOX_DRAWING_RANGES`) before matching -- the same
+    symmetry `fg._op_chars`/`fg._external_chars_to_tokens` apply to a
+    character list on the engine side (drop the box-drawing character
+    wherever it sits, leading or trailing, and keep the rest positioned
+    exactly where it already was). A LEADING run's removal corrects the
+    chunk's own x forward by the stripped run's own natural AFM width --
+    the same "this is what our engine's own text stream would show"
+    normalization mechanisms C/J/K already give this driver's other
+    representation differences; a TRAILING run needs no such correction
+    at all (the chunk's own x, its left edge, is unchanged by removing
+    characters off its right end). A chunk that is NOTHING BUT
+    box-drawing characters (the leading and trailing strips meet in the
+    middle) is left alone -- `_is_box_drawing_text`'s own territory,
+    applied later in `load_ws7_tokens`."""
     out = []
     for pc, tc in items:
         text = pc['text']
@@ -489,13 +497,20 @@ def _strip_leading_box_drawing_chunks(items):
         while i < len(text) and any(lo <= ord(text[i]) < hi
                                     for lo, hi in _BOX_DRAWING_RANGES):
             i += 1
-        if i == 0 or i == len(text):
+        j = len(text)
+        while j > i and any(lo <= ord(text[j - 1]) < hi
+                            for lo, hi in _BOX_DRAWING_RANGES):
+            j -= 1
+        if i == 0 and j == len(text):
             out.append((pc, tc))
             continue
-        prefix, rest = text[:i], text[i:]
+        if i >= j:
+            out.append((pc, tc))  # nothing but box-drawing -- left alone
+            continue
+        prefix, core = text[:i], text[i:j]
         shift_dp = round(fg.afm.string_width_pt(prefix, pc.get('font'),
                                                  pc['size_pt']) * fg.DECIPT_PER_PT)
-        out.append((dict(pc, text=rest, x_decipoints=pc['x_decipoints'] + shift_dp), tc))
+        out.append((dict(pc, text=core, x_decipoints=pc['x_decipoints'] + shift_dp), tc))
     return out
 
 
@@ -700,7 +715,7 @@ def _correct_toggle_boundary_chunks(items):
     -- mechanism C's own territory, and not two genuinely coincident
     same-style chunks, which this must never touch). `items` is one WS7
     print line's (pc, tc) pairs, already sorted by x and already through
-    `_strip_leading_box_drawing_chunks` (mechanism N).
+    `_strip_box_drawing_chunk_edges` (mechanism N).
 
     Runs BEFORE mechanisms D/C/K (moved here in mechanism Z's own
     residuals round, 2026-09-07): a chain of chunks that never got a real
@@ -991,7 +1006,7 @@ def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
     a workaround.
 
     `items` is one WS7 print line's (pc, tc) pairs, already sorted by x
-    and already through `_strip_leading_box_drawing_chunks`/`_correct_
+    and already through `_strip_box_drawing_chunk_edges`/`_correct_
     toggle_boundary_chunks`/`_dedupe_double_strike_chunks`/`_merge_
     kerning_split_chunks`/`_merge_trailing_punctuation_chunks` (in that
     order -- see mechanism J's own docstring for why J now runs before
@@ -1159,7 +1174,7 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             by_y[pc['y_decipoints']].append((pc, tc))
         for _y, items in by_y.items():
             items.sort(key=lambda pt: pt[0]['x_decipoints'])
-            items = _strip_leading_box_drawing_chunks(items)  # mechanism N
+            items = _strip_box_drawing_chunk_edges(items)  # mechanism N
             items = _correct_toggle_boundary_chunks(items)  # mechanism J, before D (mechanism Z round)
             items = _dedupe_double_strike_chunks(items)   # mechanism D, before C
             items = _merge_kerning_split_chunks(items)    # mechanism C
