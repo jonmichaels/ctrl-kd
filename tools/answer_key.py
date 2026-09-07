@@ -114,7 +114,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 
-from ctrlkd import core, emit                                     # noqa: E402
+from ctrlkd import core, emit, pictures as pix_module              # noqa: E402
 from ctrlkd.pdf import emit_pdf                                   # noqa: E402
 from ctrlkd import __version__ as ENGINE_VERSION                  # noqa: E402
 from sawyer_fixture import (sawyer_manifest_problem, sawyer_archive,  # noqa: E402
@@ -127,6 +127,35 @@ SAMPLE_DOCS = ['LYING.WS', 'OCAPTAIN.WS', 'TWAINLET.WS', 'WARPRAYR.WS']
 
 FORMATS = ['text', 'markdown', 'html', 'rtf', 'pdf', 'layout']
 MODES = ['printed', 'modern']
+
+# Pictures axis (planning #211, 2026-09-06). `--pictures` is a REAL,
+# user-facing CLI option (cli.py, choices off/embed/export, default
+# 'embed') -- until this round every cell in this key was generated with
+# ZERO pictures kwargs, which is not "the library default" as the rest of
+# this file's OPTIONS docstring paragraph claims: emit_text/markdown/
+# html/rtf/pdf's own `pictures=` parameter defaults to 'off', the
+# OPPOSITE of the CLI's own default. So every picture-bearing document's
+# recorded cells were silently exercising the untested path (a document
+# whose PDF export genuinely embeds an image, per CLI use, had never once
+# had that embedded-image byte stream checked into this key at all).
+#
+# Fix: the DEFAULT `<fmt>.<mode>` grid below is now generated with
+# `pictures='embed'` and this document's own real, resolved PixResult
+# list (ctrlkd.pictures.resolve_document_pictures against the document's
+# own on-disk path) -- i.e. the PRODUCT default, actually exercised, not
+# an emitter-internal fallback nobody asked for. For the ~247 of 252
+# documents that carry no `doc.graphics` at all this changes nothing
+# (resolve_document_pictures returns `[]`, and `pictures='embed'` with no
+# results to embed behaves identically to 'off' -- confirmed by the
+# determinism check below, not asserted). For the handful of documents
+# that DO reference a picture, the embed-mode grid now differs from the
+# old always-off grid, and a second grid --
+# `cells_pictures_off` in that document's own answer-key entry, present
+# only when `picture_bearing` is true -- separately records the
+# `--pictures off` variant so the axis this CLI flag actually exposes is
+# itself checked into the key, not silently collapsed into "whichever one
+# happened to be the emitter's own internal fallback."
+PICTURES_AXIS = ['embed', 'off']
 
 _PDF_PAGE_COUNT_RE = re.compile(rb'/Type\s*/Pages\s*/Kids\s*\[[^\]]*\]\s*/Count\s+(\d+)')
 
@@ -148,19 +177,44 @@ def _pdf_page_count(data):
     return int(m.group(1))
 
 
-def _cell(doc, fmt, mode):
+def _cell(doc, fmt, mode, pictures='embed', pix_results=None):
+    kwargs = {'mode': mode, 'pictures': pictures, 'pix_results': pix_results}
     if fmt == 'pdf':
-        data = emit_pdf(doc, mode=mode)
+        data = emit_pdf(doc, **kwargs)
     else:
-        data = emit.get_emitter(fmt)['fn'](doc, mode=mode).encode('utf-8')
+        # Every registered emitter accepts **_options (or, for text/layout,
+        # simply ignores pictures/pix_results because that format's own
+        # rendering never consults them -- see PICTURES_AXIS's own note
+        # above) -- so passing these two kwargs uniformly to all six
+        # formats is always safe, never a TypeError.
+        data = emit.get_emitter(fmt)['fn'](doc, **kwargs).encode('utf-8')
     entry = {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
     if fmt == 'pdf':
         entry['pages'] = _pdf_page_count(data)
     return entry
 
 
-def _grid(doc):
-    return {f'{fmt}.{mode}': _cell(doc, fmt, mode) for fmt in FORMATS for mode in MODES}
+def _grid(doc, pictures='embed', pix_results=None):
+    return {f'{fmt}.{mode}': _cell(doc, fmt, mode, pictures=pictures, pix_results=pix_results)
+            for fmt in FORMATS for mode in MODES}
+
+
+def _doc_entry(doc, doc_path):
+    """One document's full answer-key entry: the default (product-default,
+    pictures='embed') grid, resolved against the document's own real path
+    so any doc.graphics reference actually gets a chance to embed -- plus,
+    only for a document that carries at least one picture reference, a
+    second `cells_pictures_off` grid recording the `--pictures off`
+    variant (see PICTURES_AXIS above)."""
+    results = pix_module.resolve_document_pictures(doc, doc_path)
+    picture_bearing = len(doc.graphics) > 0
+    entry = {
+        'picture_bearing': picture_bearing,
+        'cells': _grid(doc, pictures='embed', pix_results=results),
+    }
+    if picture_bearing:
+        entry['cells_pictures_off'] = _grid(doc, pictures='off', pix_results=None)
+    return entry
 
 
 def _git_generator():
@@ -181,7 +235,7 @@ def build_samples():
         doc = core.parse(data)
         docs[name] = {
             'source_sha256': hashlib.sha256(data).hexdigest(),
-            'cells': _grid(doc),
+            **_doc_entry(doc, path),
         }
     return docs
 
@@ -201,7 +255,8 @@ def build_sawyer():
     non_document_assets = {}
     for rel in sawyer_enumerate_archive(root):
         name = sawyer_doc_name(rel)
-        data = open(os.path.join(root, rel), 'rb').read()
+        full_path = os.path.join(root, rel)
+        data = open(full_path, 'rb').read()
         sha = hashlib.sha256(data).hexdigest()
         if sawyer_is_non_document_asset(rel):
             non_document_assets[name] = {
@@ -218,7 +273,9 @@ def build_sawyer():
                 'path': rel, 'source_sha256': sha, 'reason': str(e)}
             continue
         convertible[name] = {
-            'path': rel, 'source_sha256': sha, 'cells': _grid(doc)}
+            'path': rel, 'source_sha256': sha,
+            **_doc_entry(doc, full_path),
+        }
     return convertible, known_nonconvertible, non_document_assets, len(convertible)
 
 
@@ -244,15 +301,39 @@ def build():
     total_convertible_docs = n_samples + n_convertible
     total_grid_cells = total_convertible_docs * cells_per_doc
 
+    all_docs = list(samples_docs.values()) + list(sawyer_docs.values())
+    picture_bearing_docs = [d for d in all_docs if d.get('picture_bearing')]
+    n_picture_bearing = len(picture_bearing_docs)
+    pictures_off_grid_cells = n_picture_bearing * cells_per_doc
+
     key = {
         'schema_version': 1,
         'generator': {'tool': 'tools/answer_key.py', 'git_sha': sha, 'date': date},
         'engine_version': ENGINE_VERSION,
-        'axes': {'formats': FORMATS, 'modes': MODES},
-        'options': ('every cell is <emitter>(doc, mode=mode) with zero additional '
-                    'keyword arguments -- every other option (notes, styles, '
+        'axes': {'formats': FORMATS, 'modes': MODES, 'pictures': PICTURES_AXIS},
+        'options': ('every cell is <emitter>(doc, mode=mode, pictures=pictures, '
+                    'pix_results=pix_results) -- every other option (notes, styles, '
                     'fonts_target, note_refs, headers, toc, sentence_spacing, '
-                    'page_settings, ...) is that emitter\'s own library default'),
+                    'page_settings, ...) is that emitter\'s own library default. '
+                    'The `cells` grid (every document) is recorded at '
+                    'pictures="embed" -- the CLI\'s own product default -- with '
+                    '`pix_results` resolved against the document\'s real on-disk '
+                    'path (ctrlkd.pictures.resolve_document_pictures), so a '
+                    'document that actually references a picture gets that '
+                    'picture actually embedded, not silently rendered with the '
+                    'text placeholder an unresolved/off run would show. A '
+                    'document with `picture_bearing: true` (doc.graphics is '
+                    'non-empty) additionally carries a `cells_pictures_off` grid, '
+                    'the SAME <fmt>.<mode> cross product recorded at '
+                    'pictures="off" (no pix_results) -- the other value the '
+                    '--pictures flag actually exposes to users. A '
+                    'picture-insensitive format (text always shows the literal '
+                    '"[image: NAME]" placeholder baked into the parsed span; '
+                    'layout does not accept a pictures option at all; a '
+                    'Printed-mode fenced Markdown body is emit_text\'s own '
+                    'output) will legitimately show identical embed/off hashes '
+                    '-- that is a recorded fact about this engine\'s own format '
+                    'coverage, not a generator bug.'),
         'groups': {
             'samples': {
                 'source': 'bundled samples/*.WS (public-domain texts, in-repo, see samples/README.md)',
@@ -284,6 +365,13 @@ def build():
                             '%d modes = %d docs x %d cells/doc = %d grid cells'
                             % (n_samples, n_convertible, n_formats, n_modes,
                                total_convertible_docs, cells_per_doc, total_grid_cells)),
+            'picture_bearing_docs': n_picture_bearing,
+            'pictures_off_grid_cells': pictures_off_grid_cells,
+            'pictures_off_arithmetic': ('%d picture-bearing docs x %d cells/doc = '
+                                         '%d additional cells_pictures_off cells '
+                                         '(not folded into total_grid_cells above)'
+                                         % (n_picture_bearing, cells_per_doc,
+                                            pictures_off_grid_cells)),
         },
     }
     return key

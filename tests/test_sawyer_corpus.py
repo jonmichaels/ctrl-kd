@@ -63,6 +63,7 @@ import os
 import pytest
 
 from ctrlkd import core
+from ctrlkd import pictures as ctrlkd_pictures
 from ctrlkd.core import ParseError
 
 from sawyer_fixture import (SAWYER_DOCS, sawyer_classify,
@@ -145,9 +146,27 @@ def _parsed(name, path):
     return core.parse(data)
 
 
+@functools.lru_cache(maxsize=None)
+def _pix_results(name, path):
+    """Resolved once per document, shared across its 12 (format, mode)
+    cells -- same discipline as _parsed above, and matches
+    tools/answer_key.py's own "decode once per document" convention
+    (ctrlkd.pictures.resolve_document_pictures's own docstring)."""
+    return ctrlkd_pictures.resolve_document_pictures(_parsed(name, path), path)
+
+
 FORMATS = KEY['axes']['formats']
 MODES = KEY['axes']['modes']
 GRID_CASES = [(name, fmt, mode) for name in CONVERTIBLE_NAMES for fmt in FORMATS for mode in MODES]
+
+# Picture-bearing convertible docs (planning #211): those additionally carry
+# a `cells_pictures_off` grid in the answer key, recording the OTHER value
+# of the --pictures flag (see tools/answer_key.py's PICTURES_AXIS note).
+PICTURE_BEARING_NAMES = sorted(
+    name for name in CONVERTIBLE_NAMES
+    if SAWYER_KEY['convertible'][name].get('picture_bearing'))
+PICTURES_OFF_CASES = [(name, fmt, mode) for name in PICTURE_BEARING_NAMES
+                       for fmt in FORMATS for mode in MODES]
 
 
 @pytest.mark.parametrize('name,fmt,mode', GRID_CASES,
@@ -156,10 +175,17 @@ def test_sawyer_doc_matches_answer_key(name, fmt, mode, require_sawyer_doc):
     """(b) parse succeeds and every registered format x mode converts
     without error; (c) each cell's sha256/byte-length matches
     tests/answer_key.json, generated from THIS engine at THIS commit
-    (tools/answer_key.py)."""
+    (tools/answer_key.py). Recorded at pictures='embed' with this
+    document's own resolved PixResult list -- the CLI's product default,
+    matching exactly how tools/answer_key.py's own _doc_entry built the
+    'cells' grid -- so a picture-bearing document's embedded-image bytes
+    are actually the ones this test compares, not a placeholder-only
+    render that happened to share pictures='embed's name but not its
+    resolved pix_results."""
     path = require_sawyer_doc(name)
     doc = _parsed(name, path)
-    got = ak._cell(doc, fmt, mode)
+    pix_results = _pix_results(name, path)
+    got = ak._cell(doc, fmt, mode, pictures='embed', pix_results=pix_results)
     expected = SAWYER_KEY['convertible'][name]['cells'][f'{fmt}.{mode}']
     assert got['bytes'] == expected['bytes'], (
         f'{name} {fmt}.{mode}: output size {got["bytes"]} != committed {expected["bytes"]} '
@@ -170,6 +196,33 @@ def test_sawyer_doc_matches_answer_key(name, fmt, mode, require_sawyer_doc):
     if fmt == 'pdf':
         assert got['pages'] == expected['pages'], (
             f'{name} {fmt}.{mode}: page count {got["pages"]} != committed {expected["pages"]}')
+
+
+@pytest.mark.parametrize('name,fmt,mode', PICTURES_OFF_CASES,
+                          ids=[f'{n}__{f}__{m}' for n, f, m in PICTURES_OFF_CASES])
+def test_sawyer_picture_bearing_doc_matches_answer_key_pictures_off(name, fmt, mode, require_sawyer_doc):
+    """The --pictures off variant of a picture-bearing document's grid
+    (tests/answer_key.json's own 'cells_pictures_off'), the other value
+    the --pictures flag actually exposes to users. No pix_results is
+    passed -- 'off' never embeds regardless, so this always shows the
+    same "[image: NAME]" placeholder text core.py bakes into the parsed
+    span, matching what a real `ctrl-kd --pictures off` run produces."""
+    path = require_sawyer_doc(name)
+    doc = _parsed(name, path)
+    got = ak._cell(doc, fmt, mode, pictures='off', pix_results=None)
+    expected = SAWYER_KEY['convertible'][name]['cells_pictures_off'][f'{fmt}.{mode}']
+    assert got['bytes'] == expected['bytes'], (
+        f'{name} {fmt}.{mode} (pictures=off): output size {got["bytes"]} != committed '
+        f'{expected["bytes"]} -- if deliberate, rerun tools/answer_key.py --record and '
+        f'commit the new answer key')
+    assert got['sha256'] == expected['sha256'], (
+        f'{name} {fmt}.{mode} (pictures=off): sha256 {got["sha256"]} != committed '
+        f'{expected["sha256"]} -- if deliberate, rerun tools/answer_key.py --record and '
+        f'commit the new answer key')
+    if fmt == 'pdf':
+        assert got['pages'] == expected['pages'], (
+            f'{name} {fmt}.{mode} (pictures=off): page count {got["pages"]} != committed '
+            f'{expected["pages"]}')
 
 
 # ============================ named non-convertible documents (asserted)

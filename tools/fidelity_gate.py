@@ -131,6 +131,7 @@ from collections import defaultdict
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 from ctrlkd import core, pdf as pdfmod, afm  # noqa: E402
+from ctrlkd import pictures as ctrlkd_pictures  # noqa: E402
 
 DECIPT_PER_PT = 10.0
 
@@ -252,6 +253,34 @@ _TEXT_OP_RE = re.compile(
 _UNESC_RE = re.compile(rb'\\(.)')
 
 TZ_DEFAULT = 100.0   # pdf.py's own PDF-default text-scaling state
+
+# One shape covers every embedded-picture draw op pdf.py writes (round 19,
+# PIX images RULED IN -- both `ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm '
+# b'/Im%d Do Q' ...)` call sites, checked by hand): a unit-square `cm`
+# scaled to the drawn width/height and translated to the box's own
+# LOWER-LEFT corner (PDF's own bottom-up y), then `/Im<N> Do`. Planning
+# #211 (mechanism L revisited): this is the engine-side half of the new
+# raster-position comparison -- see engine_page_rasters/ws7_page_rasters
+# below.
+_IMAGE_OP_RE = re.compile(
+    rb'q (?P<w>[\d.]+) 0 0 (?P<h>[\d.]+) (?P<x>[\d.]+) (?P<y>[\d.]+) cm '
+    rb'/Im(?P<idx>\d+) Do Q')
+
+
+def parse_image_ops(content: bytes) -> list:
+    """[{idx, w, h, x, y}, ...] in emission order -- `x`/`y` are the drawn
+    box's own LOWER-LEFT corner in PDF page space (bottom-up), `w`/`h` its
+    drawn width/height in points, straight off the `cm` matrix. Mirrors
+    `parse_text_ops`'s shape/discipline for the image-drawing op instead
+    of the text-showing one."""
+    ops = []
+    for m in _IMAGE_OP_RE.finditer(content):
+        ops.append({
+            'idx': int(m.group('idx')),
+            'w': float(m.group('w')), 'h': float(m.group('h')),
+            'x': float(m.group('x')), 'y': float(m.group('y')),
+        })
+    return ops
 
 
 def parse_pdf_objects(data: bytes) -> dict:
@@ -430,6 +459,28 @@ def engine_baseline_gaps(tokens: list) -> list:
     return ys, gaps
 
 
+def engine_page_rasters(page: dict, page_no: int) -> list:
+    """[{x, y_top, w_pt, h_pt, page}, ...] for one PDF page dict's own
+    embedded-picture `Do` ops (planning #211, mechanism L revisited).
+    Same PAGE-LOCAL, top-down convention as engine_page_tokens: `x` is the
+    drawn box's own left edge (PDF's `cm` x is already the page's left
+    edge, same as a text op's), `y_top` is the box's own TOP edge
+    (`mediabox_h - (op_y + op_h)` -- PDF's `cm` y is the box's BOTTOM-LEFT
+    corner in PDF's bottom-up space, so the box's top is `op_y + op_h`
+    above the page bottom, flipped the same way `engine_page_tokens`
+    flips a text baseline)."""
+    mb_h = page['mediabox'][1]
+    out = []
+    for op in parse_image_ops(page['content']):
+        out.append({
+            'x': op['x'],
+            'y_top': mb_h - (op['y'] + op['h']),
+            'w_pt': op['w'], 'h_pt': op['h'],
+            'page': page_no,
+        })
+    return out
+
+
 # ------------------------------------------------------------- WS7 loading
 def ws7_page_tokens(page: dict, page_no: int) -> list:
     """measurements.json page['chunks'] -> the same token shape
@@ -449,15 +500,57 @@ def ws7_page_tokens(page: dict, page_no: int) -> list:
     return out
 
 
+def ws7_page_rasters(page: dict, page_no: int) -> list:
+    """measurements.json page['rasters'] (pcl_render.py's own
+    `ESC*r#A`/raster-origin capture, planning #211) -> the same
+    {x, y_top, w_pt, h_pt, page} shape `engine_page_rasters` produces.
+    `x_decipoints`/`y_decipoints` are ALREADY the raster's own top-left
+    corner in PCL's native top-down convention (the cursor position at
+    ESC*r#A, the same convention ws7_page_tokens' baseline y already
+    uses) -- confirmed directly against PREVIEW/-SCREEN's own v3 capture:
+    x_decipoints=576 (57.6pt) lands exactly on the engine's own resolved
+    `.po` left margin. `width_px`/`height_px` at the raster's own
+    `resolution_dpi` give the physical size in points (`px / dpi * 72`),
+    same arithmetic pcl_render.py itself uses to size the PNG it writes."""
+    out = []
+    for r in page.get('rasters', []):
+        w_pt = r['width_px'] / r['resolution_dpi'] * 72.0
+        h_pt = r['height_px'] / r['resolution_dpi'] * 72.0
+        out.append({
+            'x': r['x_decipoints'] / DECIPT_PER_PT,
+            'y_top': r['y_decipoints'] / DECIPT_PER_PT,
+            'w_pt': w_pt, 'h_pt': h_pt,
+            'page': page_no,
+        })
+    return out
+
+
 # ------------------------------------------------------------------ engine
 def render_engine_pdf(ws_path: str) -> bytes:
     """The document rendered exactly as the CLI would for --mode printed:
     `core.parse` (auto-detect, cp437, the CLI's own defaults) then
-    `pdf.emit_pdf(doc, mode='printed')` with no options -- letter, the
-    document's own geometry, nothing overridden."""
+    `pdf.emit_pdf(doc, mode='printed')` -- letter, the document's own
+    geometry, nothing overridden.
+
+    Mechanism L revisited (planning #211, 2026-09-06): this used to call
+    `emit_pdf(doc, mode='printed')` with ZERO options, which means
+    `pictures` defaults to the LIBRARY default, 'off' -- the opposite of
+    the CLI's own default ('embed'). A picture-bearing document (PREVIEW,
+    -SCREEN, -README) was therefore NEVER actually exercised through this
+    gate with its picture embedded -- the engine side always showed the
+    bare "[image: NAME]" placeholder text, which mechanism L's own
+    `_IMAGE_PLACEHOLDER_RE` filter then excluded from the text-position
+    comparison entirely, leaving the embedded raster completely untested.
+    Now resolves this document's own real doc.graphics references against
+    its own on-disk path (same call answer_key.py's `_doc_entry` makes)
+    and renders with `pictures='embed'` -- the product default, actually
+    exercised. For a document with no picture reference this changes
+    nothing (`resolve_document_pictures` returns `[]`, and 'embed' with no
+    results to embed behaves identically to 'off')."""
     data = open(ws_path, 'rb').read()
     doc = core.parse(data)
-    return pdfmod.emit_pdf(doc, mode='printed')
+    pix_results = ctrlkd_pictures.resolve_document_pictures(doc, ws_path)
+    return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix_results)
 
 
 # ------------------------------------------------------------------ match
@@ -638,6 +731,34 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
         _, gaps = engine_baseline_gaps(eng_tok_i)
         eng_gaps_by_page[i + 1] = gaps
 
+    # Planning #211 (mechanism L revisited): raster (embedded-picture)
+    # position, matched by page + emission order within a page -- the
+    # corpus never carries more than one raster per page today, so
+    # positional pairing (not text alignment, which doesn't apply to a
+    # raster) is unambiguous; a future document with two pictures on one
+    # page would pair them in the same left-to-right/top-to-bottom order
+    # both sides draw them in. `ws7`/`engine` is None on whichever side
+    # has fewer at that page/index -- never force-paired, same "unmatched
+    # is reported, not guessed" discipline as match_doc.
+    ws7_rasters_by_page = {p.get('page', i + 1): ws7_page_rasters(p, p.get('page', i + 1))
+                           for i, p in enumerate(ws7['pages'])}
+    eng_rasters_by_page = {i + 1: engine_page_rasters(p, i + 1)
+                           for i, p in enumerate(engine_pages)}
+    raster_report = []
+    for pn in sorted(set(ws7_rasters_by_page) | set(eng_rasters_by_page)):
+        ws7_r = ws7_rasters_by_page.get(pn, [])
+        eng_r = eng_rasters_by_page.get(pn, [])
+        for i in range(max(len(ws7_r), len(eng_r))):
+            w = ws7_r[i] if i < len(ws7_r) else None
+            e = eng_r[i] if i < len(eng_r) else None
+            entry = {'page': pn, 'ws7': w, 'engine': e}
+            if w is not None and e is not None:
+                entry['dx'] = round(e['x'] - w['x'], 3)
+                entry['dy'] = round(e['y_top'] - w['y_top'], 3)
+                entry['dw'] = round(e['w_pt'] - w['w_pt'], 3)
+                entry['dh'] = round(e['h_pt'] - w['h_pt'], 3)
+            raster_report.append(entry)
+
     page_reports = []
     for pn in range(1, n_ws7_pages + 1):
         deltas = by_ws7_page.get(pn, [])
@@ -711,6 +832,7 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
         'doc_worst_residuals': doc_worst,
         'unmatched_engine_by_page': unmatched_engine_all,
         'pcl_top_margin_e_field_values': pcl_top_margin_fields,
+        'rasters': raster_report,
         'pages': page_reports,
     }
 

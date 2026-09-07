@@ -49,6 +49,25 @@ totals while the suite still reported success. The Sawyer-archive gate now
 FAILS instead once armed (`tests/conftest.py`, `require_sawyer_doc`). Prefer
 that shape for any new gate.
 
+**Pictures are a real axis, not an afterthought.** `--pictures` (off/embed/
+export, CLI default `embed`) is a shipped, user-facing flag — `tests/
+answer_key.json`'s `axes.pictures` and `tools/answer_key.py`'s own
+`PICTURES_AXIS` docstring note are the record of it. Every document's
+`cells` grid is recorded with `pictures='embed'` and that document's own
+resolved `PixResult` list (the product default, actually exercised, not an
+emitter's library-internal fallback); a document with `picture_bearing:
+true` (`doc.graphics` non-empty) additionally carries a `cells_pictures_off`
+grid for the CLI's other value. The `pcl` tier's own `fg.render_engine_pdf`
+follows the same rule (planning #211, mechanism L revisited,
+`tools/PCL-DIVERGENCE-TRIAGE.md`) — a picture-bearing captured document's
+raster position/size is compared against real WS7 too now, when the
+capture has one (`raster-position-shift`/`raster-size-mismatch`/
+`raster-count-mismatch`, `tools/pcl_tolerance.py`). Get this wrong (render
+with the library's own `pictures='off'` default instead of the CLI's) and
+a picture-bearing document's real embedded-image byte stream is silently
+never exercised by anything — exactly what happened before this note
+existed.
+
 ## This repo is PUBLIC — the guard is mechanical, not advisory
 
 Private material reached this repo repeatedly, and every fix added one more

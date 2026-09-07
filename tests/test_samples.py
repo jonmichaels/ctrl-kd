@@ -33,6 +33,7 @@ import sys
 import pytest
 
 from ctrlkd import core, emit
+from ctrlkd import pictures as ctrlkd_pictures
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
 import answer_key as ak                                            # noqa: E402
@@ -87,12 +88,36 @@ def test_sample_parses_without_error(name):
 
 CELLS = [(name, fmt, mode) for name in DOCS for fmt in FORMATS for mode in MODES]
 
+# Picture-bearing bundled samples (planning #211): none of the four public-
+# domain samples reference a WordStar picture (doc.graphics is always []),
+# so this is an empty list today -- kept, not hand-dropped, so a future
+# picture-bearing sample gets this coverage automatically instead of
+# silently falling through the crack this same gap left in the Sawyer
+# corpus before this round. See tests/test_sawyer_corpus.py's identical
+# pattern, and tools/answer_key.py's PICTURES_AXIS note, for the full story.
+PICTURE_BEARING_SAMPLE_NAMES = sorted(
+    name for name in DOCS if SAMPLES_KEY[name].get('picture_bearing'))
+assert PICTURE_BEARING_SAMPLE_NAMES == [], (
+    'a bundled sample now carries a picture -- add it to samples/README.md '
+    'credits if new, and note that the pictures_off grid test below now '
+    'has real cases')
+PICTURES_OFF_CELLS = [(name, fmt, mode) for name in PICTURE_BEARING_SAMPLE_NAMES
+                       for fmt in FORMATS for mode in MODES]
+
 
 @pytest.mark.parametrize('name,fmt,mode', CELLS,
                           ids=[f'{n}__{f}__{m}' for n, f, m in CELLS])
 def test_sample_matches_answer_key(name, fmt, mode):
+    """Recorded (and re-checked here) at pictures='embed' with this
+    sample's own resolved PixResult list -- the CLI's product default,
+    matching tools/answer_key.py's own _doc_entry. A no-op for these four
+    samples today (none carries a picture, so pix_results is always []),
+    but matches the Sawyer tier's own convention rather than silently
+    diverging from it."""
     doc = _doc(name)
-    got = ak._cell(doc, fmt, mode)               # {'sha256', 'bytes', ['pages']}
+    docpath = os.path.join(SAMPLES_DIR, name)
+    pix_results = ctrlkd_pictures.resolve_document_pictures(doc, docpath)
+    got = ak._cell(doc, fmt, mode, pictures='embed', pix_results=pix_results)
     expected = SAMPLES_KEY[name]['cells'][f'{fmt}.{mode}']
     assert got['bytes'] == expected['bytes'], (
         f'{name} {fmt}.{mode}: output size {got["bytes"]} != committed {expected["bytes"]} '
@@ -105,6 +130,24 @@ def test_sample_matches_answer_key(name, fmt, mode):
     if fmt == 'pdf':
         assert got['pages'] == expected['pages'], (
             f'{name} {fmt}.{mode}: page count {got["pages"]} != committed {expected["pages"]}')
+
+
+@pytest.mark.parametrize('name,fmt,mode', PICTURES_OFF_CELLS,
+                          ids=[f'{n}__{f}__{m}' for n, f, m in PICTURES_OFF_CELLS])
+def test_sample_matches_answer_key_pictures_off(name, fmt, mode):
+    """The --pictures off variant, for any bundled sample that carries a
+    picture -- see tests/test_sawyer_corpus.py's identical test for the
+    Sawyer tier. PICTURES_OFF_CELLS is empty today (no bundled sample
+    carries a picture), so this collects zero cases -- present for
+    parity/future-proofing, not dead code: see PICTURE_BEARING_SAMPLE_NAMES
+    above."""
+    doc = _doc(name)
+    got = ak._cell(doc, fmt, mode, pictures='off', pix_results=None)
+    expected = SAMPLES_KEY[name]['cells_pictures_off'][f'{fmt}.{mode}']
+    assert got['bytes'] == expected['bytes']
+    assert got['sha256'] == expected['sha256']
+    if fmt == 'pdf':
+        assert got['pages'] == expected['pages']
 
 
 # ============================================= direct content assertions

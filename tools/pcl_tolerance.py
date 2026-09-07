@@ -117,6 +117,53 @@ measurement on top of it.
   residuals ARE large (p50=2.0pt, p95=94.4pt, max=462.2pt, n=3154), which
   is exactly the expected signature of a face with no base-14 metric
   match, not evidence of anything to fix.
+
+RASTER TOLERANCE EVIDENCE (planning #211, 2026-09-06 -- mechanism L
+revisited)
+----------------------------------------------------------------------
+tools/PCL-DIVERGENCE-TRIAGE.md mechanism L excluded a picture placeholder
+from the TEXT comparison (real WS7 has no "[image: NAME]" text at all --
+it printed the actual raster), which correctly stopped it from being
+misread as a word-position bug, but also meant the raster itself was
+never checked against anything. render_engine_pdf now renders with
+`pictures='embed'` (fg.render_engine_pdf's own docstring), so every
+picture-bearing captured document with a WS7-side raster measurement
+(measurements.json's own `pages[].rasters`, pcl_render.py's
+ESC*r#A/ESC*rB capture) gets its raster's own position/size compared,
+mechanically -- keyed off the capture's own data, same "no doc-name
+allowlist" discipline as resolve_doc_paths' v2/v3 preference.
+
+n=3 rasters measured directly (all three of this corpus's picture-bearing
+documents that currently have a raster-bearing v3 capture: PREVIEW,
+-SCREEN, -README -- all three reference the SAME picture,
+INSET/PIX/WORDSTAR.PIX): x matches to 0.0pt on all three (the image's own
+left edge tracks `.po` exactly, same margin logic as everything else on
+the page); width/height residuals are under 0.6pt on all three (px/dpi
+rounding, not a real size bug). The vertical position (dy, engine y_top
+minus WS7 y_top) is NOT zero on any of the three -- a consistent small
+cluster: PREVIEW -2.70pt, -SCREEN -3.00pt, -README -3.00pt. Same sign,
+same order of magnitude, on three independent documents/pages -- almost
+certainly ONE real, small, shared root cause in the image's own
+"reserved band" vertical placement (`src/ctrlkd/pdf.py`'s image-drawing
+branch, `img_y = y + (reserved - h_pt)`), not three coincidences. Not
+diagnosed further or fixed this round (out of this task's scope --
+mechanism L revisited only asks to ADD the comparison); named as a new
+open finding, see tools/PCL-DIVERGENCE-TRIAGE.md's own mechanism Y entry.
+
+RASTER_X_EPS_PT reuses LINE_START_EPS_PT (2.5pt) -- the raster's own left
+edge is conceptually the same "where does content start on this line"
+measurement a line-start x already is, and the measured evidence (0.0pt
+on all 3) sits far inside it. RASTER_Y_EPS_PT reuses BASELINE_EPS_PT
+(1.0pt) -- deliberately the SAME tight, near-exact-equality standard
+applied to every text baseline regardless of font (module docstring:
+"Line starts, baselines, page breaks and page counts are checked to
+(near-)exact equality for EVERY font, substituted or not"); a raster's
+own vertical position is exactly that kind of layout fact, not a glyph
+metric, so it gets the same rigor rather than a looser bound picked to
+make the n=3 evidence above pass. All three measured documents therefore
+show a real `raster-position-shift` divergence at this tolerance -- see
+mechanism Y. RASTER_SIZE_EPS_PT (1.0pt) is a generous but still
+meaningful bound above the largest measured size residual (0.58pt).
 """
 from __future__ import annotations
 
@@ -212,6 +259,14 @@ REASON_UNCLASSIFIED_FONT_TIER = 'unclassified-font-tier'
 # means either this doc's own `.po`/margin handling regressed, or the
 # capture wasn't actually made against a stock install after all.
 REASON_PRISTINE_FRAME_OFFSET = 'pristine-frame-offset-exceeds-tolerance'
+# Planning #211 (mechanism L revisited): the raster (embedded-picture)
+# axis -- see this module's own "RASTER TOLERANCE EVIDENCE" docstring
+# section and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Y. Never a
+# FONT_SUBSTITUTION_REASONS member: a raster's own position/size is this
+# engine's own layout logic, not a font-metric substitution.
+REASON_RASTER_POSITION_SHIFT = 'raster-position-shift'
+REASON_RASTER_SIZE_MISMATCH = 'raster-size-mismatch'
+REASON_RASTER_COUNT_MISMATCH = 'raster-count-mismatch'
 
 ALL_REASONS = frozenset({
     REASON_PAGE_COUNT_MISMATCH, REASON_PCL_REPARSE_MISMATCH,
@@ -219,7 +274,8 @@ ALL_REASONS = frozenset({
     REASON_BASELINE_SHIFT, REASON_LINE_START_SHIFT, REASON_EXACT_DRIFT,
     REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE,
     REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, REASON_UNCLASSIFIED_FONT_TIER,
-    REASON_PRISTINE_FRAME_OFFSET,
+    REASON_PRISTINE_FRAME_OFFSET, REASON_RASTER_POSITION_SHIFT,
+    REASON_RASTER_SIZE_MISMATCH, REASON_RASTER_COUNT_MISMATCH,
 })
 
 # Mechanism I (tools/PCL-DIVERGENCE-TRIAGE.md): real CG-Times/Univers
@@ -258,6 +314,11 @@ CGTIMES_DRIFT_RATE_PT_PER_PT = 0.02
 # data (n=21) to fit its own curve yet.
 UNIVERS_DRIFT_BASE_PT = CGTIMES_DRIFT_BASE_PT
 UNIVERS_DRIFT_RATE_PT_PER_PT = CGTIMES_DRIFT_RATE_PT_PER_PT
+# See module docstring's "RASTER TOLERANCE EVIDENCE" section (planning
+# #211) for the n=3 measurements behind these three.
+RASTER_X_EPS_PT = LINE_START_EPS_PT
+RASTER_Y_EPS_PT = BASELINE_EPS_PT
+RASTER_SIZE_EPS_PT = 1.0
 
 
 def cgtimes_tolerance_pt(dist_into_line_pt: float) -> float:
@@ -947,6 +1008,46 @@ def doc_report(doc_name: str) -> dict:
             detail='raw .pcl re-parse chunk count disagrees with the committed '
                    'measurements.json for this page -- the corpus data is stale '
                    'relative to tools/pcl_render.py, or the .pcl file changed')
+
+    # Planning #211 (mechanism L revisited): raster (embedded-picture)
+    # position/size, for every page whose WS7 capture records at least one
+    # raster (fg.ws7_page_rasters -- measurements.json's own `rasters`
+    # field). Mechanical, keyed off the capture's own data: a document
+    # with no raster in its capture contributes zero raster checks here,
+    # no allowlist involved. See module docstring's "RASTER TOLERANCE
+    # EVIDENCE" section and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Y.
+    for i, p in enumerate(ws7_meta['pages']):
+        pn = p.get('page', i + 1)
+        ws7_r = fg.ws7_page_rasters(p, pn)
+        eng_page = engine_pages[pn - 1] if 0 < pn <= len(engine_pages) else None
+        eng_r = fg.engine_page_rasters(eng_page, pn) if eng_page is not None else []
+        if not ws7_r and not eng_r:
+            continue
+        for idx in range(max(len(ws7_r), len(eng_r))):
+            w = ws7_r[idx] if idx < len(ws7_r) else None
+            e = eng_r[idx] if idx < len(eng_r) else None
+            if w is None or e is None:
+                ws7_pos = [round(w['x'], 2), round(w['y_top'], 2)] if w else None
+                pdf_pos = [round(e['x'], 2), round(e['y_top'], 2)] if e else None
+                add(REASON_RASTER_COUNT_MISMATCH, pn, None, [f'raster#{idx}'],
+                    ws7_pos, pdf_pos, None,
+                    detail=f'WS7 has {len(ws7_r)} raster(s) on page {pn}, engine has '
+                           f'{len(eng_r)}')
+                continue
+            dx, dy = round(e['x'] - w['x'], 3), round(e['y_top'] - w['y_top'], 3)
+            dw, dh = round(e['w_pt'] - w['w_pt'], 3), round(e['h_pt'] - w['h_pt'], 3)
+            ws7_pos = [round(w['x'], 2), round(w['y_top'], 2)]
+            pdf_pos = [round(e['x'], 2), round(e['y_top'], 2)]
+            if abs(dx) > RASTER_X_EPS_PT or abs(dy) > RASTER_Y_EPS_PT:
+                add(REASON_RASTER_POSITION_SHIFT, pn, round(w['y_top'], 1), [f'raster#{idx}'],
+                    ws7_pos, pdf_pos, None,
+                    detail=f'raster position residual dx={dx:+.2f}pt dy={dy:+.2f}pt '
+                           f'(tolerance dx {RASTER_X_EPS_PT}pt, dy {RASTER_Y_EPS_PT}pt)')
+            elif abs(dw) > RASTER_SIZE_EPS_PT or abs(dh) > RASTER_SIZE_EPS_PT:
+                add(REASON_RASTER_SIZE_MISMATCH, pn, round(w['y_top'], 1), [f'raster#{idx}'],
+                    ws7_pos, pdf_pos, None,
+                    detail=f'raster size residual dw={dw:+.2f}pt dh={dh:+.2f}pt '
+                           f'(tolerance {RASTER_SIZE_EPS_PT}pt)')
 
     m = fg.match_doc(ws7_tokens, eng_tokens)
     deltas = fg.pair_deltas(m['pairs'])

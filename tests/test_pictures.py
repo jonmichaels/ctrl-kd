@@ -6,11 +6,17 @@ test_pix.py), gated on the real WS7 tree being present.
 """
 import os
 import struct
+import sys
 import tempfile
 
 import pytest
 
 from ctrlkd import core, emit, pictures
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
+import fidelity_gate as fg  # noqa: E402 -- reuses extract_pages/parse_text_ops/
+                            # parse_image_ops rather than re-deriving a second
+                            # PDF content-stream parser here (planning #211)
 
 
 def _tiny_pix_bytes(gcols=8, grows=1, prt_options_raw=None):
@@ -446,6 +452,110 @@ def test_pdf_printed_miss_keeps_placeholder_text_no_xobject(tmp_path):
     out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
     assert b'/Im0 Do' not in out
     assert b'NOPE.PIX' in out
+
+
+# ============================================================ planning #211
+# Planning #211: the answer key and the `pcl` tier both used to run with
+# pictures OFF, so a real embedded-image byte stream (and its POSITION) was
+# never checked anywhere in this repo -- not even here, where the existing
+# `test_pdf_printed_embed_places_an_image_xobject` above only asserted an
+# XObject exists, never where it landed. This pair closes that gap with a
+# synthetic fixture (no corpus content, same discipline as the rest of this
+# file): a missing .PIX still yields the "[image: NAME]" placeholder text
+# with no XObject at all (the miss test above, restated here paired with its
+# positive twin for the record), and a resolvable one yields a real Image
+# XObject drawn at exactly the position an ordinary first line of text would
+# occupy there -- "WordStar's own position" without hardcoding an absolute
+# page-geometry constant this test would otherwise have to independently
+# re-derive (and could silently drift from if pdf.py's own margin/leading
+# constants ever changed). Two otherwise-identical documents (one with the
+# pix block as its own first content line, one with an ordinary word in the
+# exact same place) are rendered and their drawn positions compared.
+
+def _first_page_content(pdf_bytes):
+    page = fg.extract_pages(pdf_bytes)[0]
+    return page, page['content']
+
+
+def test_pdf_printed_missing_pix_yields_placeholder_text_with_no_xobject_at_all(tmp_path):
+    """The negative half of the pair: a pix tag whose target file the
+    resolver can't find keeps the ordinary "[image: NAME]" placeholder
+    TEXT (a real Tj op at the SAME position plain text would occupy --
+    proven directly, not just "some text is present somewhere") and draws
+    no image XObject whatsoever."""
+    from ctrlkd import pdf
+    doc, results, _ = _doc_with_one_pix(tmp_path, payload=br'C:\PIX\NOPE.PIX',
+                                        name='SOMETHING-ELSE.PIX')
+    out = pdf.emit_pdf(doc, mode='printed', pictures='embed', pix_results=results)
+    page, content = _first_page_content(out)
+    assert b'/Im0 Do' not in out
+    assert b'/Subtype /Image' not in out
+    text_ops = fg.parse_text_ops(content)
+    placeholder = next(op for op in text_ops if 'NOPE.PIX' in op['text'])
+    assert '[image: NOPE.PIX]' in placeholder['text']
+
+
+def test_pdf_printed_resolved_pix_draws_the_image_xobject_at_wordstars_own_position(tmp_path):
+    """The positive half: a resolvable pix tag, sitting alone as the
+    document's own first content line (the real-corpus shape -- confirmed
+    against all 5 acceptance documents, see _doc_with_isolated_pix), draws
+    a real Image XObject at exactly the (x, y) an ordinary first line of
+    TEXT draws at in an otherwise byte-identical document -- i.e. the
+    image lands flush with the document's own left margin and top-of-page
+    position, the same place WordStar's own pagination would put any other
+    first line there. This is checked by COMPARING two renders rather than
+    asserting a hardcoded page-geometry constant, so it stays correct if
+    pdf.py's own margin/leading constants ever change."""
+    from ctrlkd import pdf
+    pix_bytes = _tiny_pix_bytes()
+    (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
+    docpath = tmp_path / 'DOC.WS'
+    docpath.write_bytes(b'')
+
+    pix_block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    pix_doc = core.parse_ws(pix_block + b'\r\n\r\nAfter.\r\n')
+    results = pictures.resolve_document_pictures(pix_doc, docpath)
+    pix_pdf = pdf.emit_pdf(pix_doc, mode='printed', pictures='embed', pix_results=results)
+
+    # Control document: same left margin/top-of-page geometry, but the
+    # pix tag's own line is TWO ordinary text lines instead ("Placeholder."
+    # then "Second.") -- their own baseline-to-baseline gap is this
+    # document's own real single-spacing lead, self-derived rather than a
+    # hardcoded 12pt literal that could silently drift from pdf.py's own
+    # default if that constant ever changed.
+    text_doc = core.parse_ws(b'Placeholder.\r\nSecond.\r\n\r\nAfter.\r\n')
+    text_pdf = pdf.emit_pdf(text_doc, mode='printed')
+
+    pix_page, pix_content = _first_page_content(pix_pdf)
+    text_page, text_content = _first_page_content(text_pdf)
+    mb_h = pix_page['mediabox'][1]
+    assert mb_h == text_page['mediabox'][1]
+
+    image_ops = fg.parse_image_ops(pix_content)
+    assert len(image_ops) == 1
+    img = image_ops[0]
+    img_x = img['x']
+    img_y_top = mb_h - (img['y'] + img['h'])
+
+    text_ops = fg.parse_text_ops(text_content)
+    first_word = next(op for op in text_ops if 'Placeholder' in op['text'])
+    second_word = next(op for op in text_ops if 'Second' in op['text'])
+    text_x = first_word['x']
+    first_baseline_y_top = mb_h - first_word['y']
+    second_baseline_y_top = mb_h - second_word['y']
+    lead = second_baseline_y_top - first_baseline_y_top
+    assert lead > 0
+    expected_img_y_top = first_baseline_y_top - lead
+
+    # Left margin: the image's own left edge is exactly where an ordinary
+    # first line of text starts.
+    assert img_x == pytest.approx(text_x, abs=0.01)
+    # Vertical position: the image is drawn flush with the TOP of its
+    # reserved band -- one line's own lead ABOVE where that line's own
+    # text baseline would sit, i.e. exactly where the top of an ordinary
+    # first line's own cell starts. "WordStar's own position": the same
+    # top-of-page placement any other first content line gets.
+    assert img_y_top == pytest.approx(expected_img_y_top, abs=0.01)
 
 
 def test_pdf_printed_text_sharing_the_line_prevents_substitution(tmp_path):
