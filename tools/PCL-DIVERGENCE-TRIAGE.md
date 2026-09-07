@@ -2422,6 +2422,76 @@ by exactly one space, superscript in a word) and
 plus the off-baseline-stitching and mechanism-J/D-reordering regressions
 named above.
 
+**EXTENDED 2026-09-07 — external readers hand chars, one segmenter.** The
+macOS app's own PDFKit/Quartz-based reader (real subset fonts, real
+`/Widths`-derived advances) tried to re-implement this mechanism's own
+word-boundary rule a SECOND time, directly against its own glyph
+positions, and regressed — the same class of mistake the reverted
+same-day attempt above already made once (a rule re-derived on only one
+side of a comparison drifts from the other side's own version of it). Jon's
+ruling: an external PDF reader hands this gate raw CHARACTERS, and this
+gate does the word segmentation ITSELF, in ONE place, for both sides —
+never re-implemented by a consumer again. `tools/fidelity_gate.py` gained
+an "engine-chars (JSON)" schema (`schema_version` 2, one level lower than
+the existing "engine-words" schema, `--engine-chars FILE` on both
+`fidelity_gate.py` and `pcl_tolerance.py`'s own `--doc`, `--dump-engine-chars
+FILE` on the PDF path): per-character `text` (one scalar)/`x_pt`/`x_end_pt`
+(the glyph's own ADVANCE end, never its ink/bounding-box end — see
+`load_engine_chars()`'s own TOLERANCE note for exactly why)/`y_top_pt`
+(baseline, rise NOT applied)/`size_pt`/`font` (nullable)/`font_class`
+(required, same vocabulary as the words schema)/`page`. `load_engine_chars`
+converts this into the IDENTICAL per-baseline character sequence `_op_chars`
+already builds from a parsed PDF's own text ops (same `text`/`x_start`/
+`x_end`/`is_space`/`space_width_pt`/`size`/`basefont`/`font_class` shape),
+then calls `segment_words_from_chars` — this mechanism's own shared
+segmenter, reused rather than reimplemented a second time.
+
+The one real subtlety: `_op_chars` (the ops-based path, i.e. this repo's
+own PDF) scales `char_space_width_pt`'s own boundary CAP by the text op's
+real `Tz` (horizontal-scale percent — pdf.py sets a real, non-100 `Tz`
+routinely, the face-constant-Tz HMI-grid machinery), but the engine-chars
+schema deliberately carries NO `tz` field: a reader working from real
+glyph positions has already applied whatever text-matrix scale was in
+effect to produce `x_pt`/`x_end_pt`, so the measured GAP between two
+characters is already in real page points with that scale baked in — only
+the CAP itself is applied un-rescaled (`char_space_width_pt`'s own default
+`tz=100.0`). Verified, not just argued: the three-way round-trip claim
+(`gate(pdf) == gate(words-dump(pdf)) == gate(chars-dump(pdf))`) is checked
+in `tests/test_fidelity_gate.py` against the bundled public samples
+(including WARPRAYR's own real Tz-scaled Univers-substituted quote line —
+the one case this note's own tolerance caveat flags as unverified in
+principle), all four Tier-1 synthetic styled fixtures above, and a
+generated picture-bearing fixture; and manually against the private
+corpus's own 18 captured documents (every one identical across all three
+inputs — `CTRLKD_PRIVATE_CORPUS` armed, `gate(pdf) == gate(words-dump) ==
+gate(chars-dump)` for BOXES, DOCA, DOCB, DOCC, DOCD, LJ6DTP, LYING,
+OCAPTAIN, DOCE, PREVIEW, `-README`, SAWYER, `-SCREEN`, SCRIPT, DOCF,
+TWAINLET, VERSIONS, WARPRAYR). The pcl fidelity tier's own pre-existing
+manifest divergences (LJ6DTP parked, LYING/WARPRAYR named residuals —
+15/18 clean, unchanged before and after this round) are untouched: this
+round adds a new INPUT format, never changes what happens once tokens are
+extracted.
+
+An earlier draft of `load_engine_chars`'s own baseline-ordering (sort
+`y_top_pt` `reverse=True`, copied from `engine_page_tokens`' own
+`by_baseline` sort without adjusting for the coordinate flip) shuffled
+every document's own word order into a near-total scramble while leaving
+every per-page word COUNT and the full-document multiset identical —
+caught by the round-trip tests above (a length-preserving permutation, not
+a text/position mismatch) before it ever reached a real reader: `y_top_pt`
+is the TOP-DOWN convention (y increases DOWNWARD, this file's own
+"COORDINATE CONVENTION"), the OPPOSITE of the raw PDF y
+`engine_page_tokens` itself sorts descending, so the topmost baseline is
+the SMALLEST `y_top_pt` -- ascending order finds it, not descending.
+
+Fixed: `tools/fidelity_gate.py`'s `dump_engine_chars`/`load_engine_chars`/
+`_external_chars_to_tokens` (new), `run_gate` (new `engine_chars` param),
+CLI (`--engine-chars`/`--dump-engine-chars`); `tools/pcl_tolerance.py`'s
+`doc_report`/CLI (`--engine-chars` pass-through). Tests:
+`tests/test_fidelity_gate.py`'s `_assert_gate_round_trips_pdf_bytes`
+(three-way: pdf/words/chars) applied to the bundled samples, all four
+Tier-1 fixtures, and the picture fixture.
+
 ---
 
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)

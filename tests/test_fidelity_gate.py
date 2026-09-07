@@ -278,6 +278,21 @@ def test_parse_text_ops_consumes_every_op_in_a_bundled_tz_scaled_sample(name):
 # clean documents -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z for
 # the full trace and tools/pcl_tolerance.py's own tests for the matching
 # WS7-side half of this fix (`_merge_zero_gap_cross_font_chunks`).
+def _screen_greek_math_line_doc():
+    """-SCREEN's own cp437 Greek/math demo line, drawn through FIVE
+    alternating Symbol/Courier text ops at zero gap. Factored out (rather
+    than inlined, this repo's usual test-module convention) so both the
+    op-level test below AND the engine-chars round-trip tests (further
+    down this file) exercise the identical fixture."""
+    line = 'αßΓπΣσµτΦΘΩδφε'.encode('cp437')
+    data = (ws7_block(0x00)
+           + b'Plain prose padding so the detector reads this as a document.'
+           + HARD + line + HARD
+           + b'And a closing line of ordinary prose keeps the ratio honest.'
+           + HARD)
+    return core.parse_ws(data)
+
+
 def test_engine_page_tokens_merges_a_styled_span_split_inside_a_word():
     """Tier 1: styled-span split inside a word. -SCREEN's own cp437
     Greek/math demo line draws through FIVE alternating Symbol/Courier
@@ -286,17 +301,21 @@ def test_engine_page_tokens_merges_a_styled_span_split_inside_a_word():
     identity (ctrlkd.symbolmap, via `_op_chars`) so the merged text
     matches WS7's own cp437-decoded capture exactly, not just its
     position."""
-    line = 'αßΓπΣσµτΦΘΩδφε'.encode('cp437')
-    data = (ws7_block(0x00)
-           + b'Plain prose padding so the detector reads this as a document.'
-           + HARD + line + HARD
-           + b'And a closing line of ordinary prose keeps the ratio honest.'
-           + HARD)
-    doc = core.parse_ws(data)
+    doc = _screen_greek_math_line_doc()
     out = pdf.emit_pdf(doc, mode='printed')
     page = fg.extract_pages(out)[0]
     texts = [t['text'] for t in fg.engine_page_tokens(page, 1)]
+    line = 'αßΓπΣσµτΦΘΩδφε'.encode('cp437')
     assert line.decode('cp437') in texts
+
+
+def _zero_gap_punctuation_doc():
+    """SAWYER.WS's own 'WSMSGS.OVR' (bold) immediately followed by '.]'
+    (plain), no typed space between them. Factored out for the same
+    reason as `_screen_greek_math_line_doc`, above."""
+    return core.parse_ws(
+        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
+        + HARD + b'See \x02WSMSGS.OVR\x02.] for details.' + HARD)
 
 
 def test_engine_page_tokens_merges_zero_gap_punctuation_after_a_word():
@@ -307,10 +326,7 @@ def test_engine_page_tokens_merges_zero_gap_punctuation_after_a_word():
     boundary correction resolving the WS7-side twin of this exact
     fixture to the identical zero gap; see tools/pcl_tolerance.py's own
     `_merge_zero_gap_cross_font_chunks` tests)."""
-    punct_doc = core.parse_ws(
-        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
-        + HARD + b'See \x02WSMSGS.OVR\x02.] for details.' + HARD)
-    punct_out = pdf.emit_pdf(punct_doc, mode='printed')
+    punct_out = pdf.emit_pdf(_zero_gap_punctuation_doc(), mode='printed')
     punct_page = fg.extract_pages(punct_out)[0]
     punct_tokens = [t['text'] for t in fg.engine_page_tokens(punct_page, 1)]
     assert 'WSMSGS.OVR.]' in punct_tokens
@@ -328,6 +344,17 @@ def test_engine_page_tokens_keeps_two_words_separated_by_exactly_one_space():
     assert texts == ['Hello', 'world']
 
 
+def _superscript_in_a_word_doc():
+    """A footnote-style reference digit directly after a period, no typed
+    space -- this engine keeps ONE Td line and only applies a `Ts` rise for
+    the raised character (mechanism G), so the two ops sit at zero gap.
+    Factored out for the same reason as `_screen_greek_math_line_doc`,
+    above."""
+    return core.parse_ws(
+        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
+        + HARD + b'See cases.\x145\x14 for the ruling.' + HARD)
+
+
 def test_engine_page_tokens_merges_a_superscript_inside_a_word():
     """Tier 1: superscript in a word (a footnote-style reference digit
     directly after a period, no typed space) -- this engine keeps ONE Td
@@ -337,10 +364,7 @@ def test_engine_page_tokens_merges_a_superscript_inside_a_word():
     capture instead moves the PEN, landing the marker on a genuinely
     different y -- see tools/pcl_tolerance.py's own off-baseline
     stitching tests for that half, `_find_offbaseline_occupant`)."""
-    doc = core.parse_ws(
-        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
-        + HARD + b'See cases.\x145\x14 for the ruling.' + HARD)
-    out = pdf.emit_pdf(doc, mode='printed')
+    out = pdf.emit_pdf(_superscript_in_a_word_doc(), mode='printed')
     page = fg.extract_pages(out)[0]
     texts = [t['text'] for t in fg.engine_page_tokens(page, 1)]
     assert 'cases.5' in texts
@@ -898,22 +922,33 @@ def test_cli_pdf_flag_with_explicit_measurements_needs_no_corpus_env(tmp_path, m
     assert report['doc_unmatched_ws7'] == 0
 
 
-# ------------------------------------------------ engine-words (JSON) schema
-# Planning: the PCL fidelity gate must accept PRE-EXTRACTED word positions,
-# so a PDF written by a different emitter (macOS Quartz's `Tm`/`TJ` over
-# subset fonts, which _TEXT_OP_RE cannot parse at all) can be judged by the
-# same tolerance model -- see dump_engine_words/load_engine_words's own
-# docstrings for the schema. The claim under test here: run_gate(pdf_bytes=X)
-# and run_gate(engine_words=dump_engine_words(X)) must report BYTE-IDENTICAL
+# ------------------------------------------ engine-words/engine-chars (JSON) schema
+# Planning: the PCL fidelity gate must accept PRE-EXTRACTED word/character
+# positions, so a PDF written by a different emitter (macOS Quartz's
+# `Tm`/`TJ` over subset fonts, which parse_text_ops cannot parse at all) can
+# be judged by the same tolerance model -- see dump_engine_words/
+# load_engine_words's own docstrings for the words schema, and
+# dump_engine_chars/load_engine_chars's own for the chars schema (mechanism
+# Z, 2026-09-07: an external reader hands this gate CHARACTERS, this gate
+# segments them ITSELF -- so mechanism Z's own word-boundary rule is never
+# re-implemented a second time by any consumer). The claim under test here:
+# run_gate(pdf_bytes=X), run_gate(engine_words=dump_engine_words(X)), and
+# run_gate(engine_chars=dump_engine_chars(X)) must all report BYTE-IDENTICAL
 # results for the same X, for real, non-trivial engine output -- not just a
-# hand-built one-line fixture. Two sources of X, per this repo's
+# hand-built one-line fixture. Three sources of X, per this repo's
 # synthetic-fixtures-only convention: the bundled PUBLIC samples (src/
 # ctrlkd/samples/*.WS, which ship in this repo and need no private corpus --
 # real multi-page prose, whatever font substitution each one happens to
-# hit, e.g. WARPRAYR's own Univers-substituted Tz-scaled quote line) and one
-# fully synthetic, GENERATED fixture built here that deliberately forces an
-# embedded picture (a raster -- the one extraction path the bundled samples
-# never exercise, since none of them reference a .PIX at all).
+# hit, e.g. WARPRAYR's own Univers-substituted Tz-scaled quote line), the
+# Tier 1 synthetic styled fixtures mechanism Z's own tests already built
+# (symbol-styled bold/italic, the -SCREEN Greek/math zero-gap line, zero-gap
+# punctuation, a superscript inside a word -- see further down this file),
+# and one fully synthetic, GENERATED fixture built here that deliberately
+# forces an embedded picture (a raster -- the one extraction path the
+# bundled samples never exercise, since none of them reference a .PIX at
+# all). The private corpus's own 18 captured documents are checked the same
+# way, manually (not in this repo's own test suite -- see
+# tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z).
 SAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            'src', 'ctrlkd', 'samples')
 BUNDLED_SAMPLE_DOCS = ['LYING', 'WARPRAYR', 'TWAINLET', 'OCAPTAIN']
@@ -931,34 +966,98 @@ def _fake_measurements_matching_page_count(n_pages):
                       for i in range(n_pages)]}
 
 
-def _assert_gate_round_trips(name, ws_path, m_path):
-    pdf_bytes = fg.render_engine_pdf(ws_path)
+def _assert_gate_round_trips_pdf_bytes(name, pdf_bytes, m_path, ws_path=None):
+    """gate(pdf) == gate(engine_words dump(pdf)) == gate(engine_chars
+    dump(pdf)), for an ALREADY-RENDERED pdf_bytes (ws_path is carried
+    through only for the report's own 'ws_path' field -- run_gate accepts
+    None there, same as its own --pdf CLI path). Both the words-level and
+    the chars-level claims are checked here, and BOTH are also
+    round-tripped through an actual JSON string (not just the in-memory
+    dict) -- catches anything a dump_* function wrote that json.dumps/
+    json.loads wouldn't survive byte-for-byte (e.g. a non-JSON-native
+    key)."""
     via_pdf = fg.run_gate(name, ws_path, m_path, pdf_bytes=pdf_bytes)
+
     words = fg.dump_engine_words(pdf_bytes)
     assert words['schema_version'] == fg.ENGINE_WORDS_SCHEMA_VERSION
     assert words['n_pages'] == via_pdf['n_engine_pages']
     via_words = fg.run_gate(name, ws_path, m_path, engine_words=words)
     assert via_pdf == via_words, name
-    # round-tripping through an actual JSON string (not just the in-memory
-    # dict) too -- catches anything dump_engine_words wrote that json.dumps/
-    # json.loads wouldn't survive byte-for-byte (e.g. a non-JSON-native key).
-    via_json_roundtrip = fg.run_gate(name, ws_path, m_path,
-                                     engine_words=json.loads(json.dumps(words)))
-    assert via_pdf == via_json_roundtrip, name
+    via_words_json = fg.run_gate(name, ws_path, m_path,
+                                 engine_words=json.loads(json.dumps(words)))
+    assert via_pdf == via_words_json, name
+
+    chars = fg.dump_engine_chars(pdf_bytes)
+    assert chars['schema_version'] == fg.ENGINE_CHARS_SCHEMA_VERSION
+    assert chars['n_pages'] == via_pdf['n_engine_pages']
+    via_chars = fg.run_gate(name, ws_path, m_path, engine_chars=chars)
+    assert via_pdf == via_chars, name
+    via_chars_json = fg.run_gate(name, ws_path, m_path,
+                                 engine_chars=json.loads(json.dumps(chars)))
+    assert via_pdf == via_chars_json, name
+
+
+def _assert_gate_round_trips(name, ws_path, m_path):
+    pdf_bytes = fg.render_engine_pdf(ws_path)
+    _assert_gate_round_trips_pdf_bytes(name, pdf_bytes, m_path, ws_path=ws_path)
 
 
 @pytest.mark.parametrize('name', BUNDLED_SAMPLE_DOCS)
-def test_engine_words_round_trip_on_bundled_samples(name, tmp_path):
-    """gate(pdf) == gate(dump(pdf)), for every bundled PUBLIC sample .WS --
-    this repo's own real Printed output (multi-page, real body text,
-    whatever font substitution each sample happens to hit), needing no
-    private corpus at all."""
+def test_engine_words_and_chars_round_trip_on_bundled_samples(name, tmp_path):
+    """gate(pdf) == gate(words-dump(pdf)) == gate(chars-dump(pdf)), for
+    every bundled PUBLIC sample .WS -- this repo's own real Printed output
+    (multi-page, real body text, whatever font substitution each sample
+    happens to hit, e.g. WARPRAYR's own Tz-scaled quote line -- see
+    load_engine_chars()'s own TOLERANCE note for why a Tz-scaled run is the
+    one case the chars path could, in principle, disagree with the
+    ops-based path on), needing no private corpus at all."""
     ws_path = os.path.join(SAMPLES_DIR, f'{name}.WS')
     pdf_bytes = fg.render_engine_pdf(ws_path)
     n_pages = len(fg.extract_pages(pdf_bytes))
     m_path = tmp_path / f'{name}.measurements.json'
     m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
     _assert_gate_round_trips(name, ws_path, str(m_path))
+
+
+# ---- the four Tier 1 synthetic styled fixtures mechanism Z's own tests
+# built above (styled-span split inside a word, zero-gap punctuation, a
+# superscript inside a word) get the SAME three-way round-trip claim here --
+# these are exactly the shapes a font/style/rise switch with no real gap
+# could, in principle, tempt a from-scratch chars-side segmenter into
+# treating as a boundary; segment_words_from_chars (reused, not
+# reimplemented, by load_engine_chars) proves it doesn't.
+def test_engine_chars_round_trip_on_symbol_styled_bold_italic_run(tmp_path):
+    doc = _symbol_styled_greek_doc()
+    out = pdf.emit_pdf(doc, mode='printed')
+    n_pages = len(fg.extract_pages(out))
+    m_path = tmp_path / 'SYMBOL_STYLED.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
+    _assert_gate_round_trips_pdf_bytes('SYMBOL_STYLED', out, str(m_path))
+
+
+def test_engine_chars_round_trip_on_screen_greek_math_zero_gap_line(tmp_path):
+    doc = _screen_greek_math_line_doc()
+    out = pdf.emit_pdf(doc, mode='printed')
+    n_pages = len(fg.extract_pages(out))
+    m_path = tmp_path / 'SCREEN_GREEK.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
+    _assert_gate_round_trips_pdf_bytes('SCREEN_GREEK', out, str(m_path))
+
+
+def test_engine_chars_round_trip_on_zero_gap_punctuation_after_a_word(tmp_path):
+    out = pdf.emit_pdf(_zero_gap_punctuation_doc(), mode='printed')
+    n_pages = len(fg.extract_pages(out))
+    m_path = tmp_path / 'PUNCT.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
+    _assert_gate_round_trips_pdf_bytes('PUNCT', out, str(m_path))
+
+
+def test_engine_chars_round_trip_on_superscript_inside_a_word(tmp_path):
+    out = pdf.emit_pdf(_superscript_in_a_word_doc(), mode='printed')
+    n_pages = len(fg.extract_pages(out))
+    m_path = tmp_path / 'SUPERSCRIPT.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
+    _assert_gate_round_trips_pdf_bytes('SUPERSCRIPT', out, str(m_path))
 
 
 # ---- generated fixture: force an embedded picture (the raster round-trip
@@ -996,16 +1095,18 @@ def _ws_pix_block(payload):
     return b'\x1d' + jump + bytes([0x10]) + payload + jump + b'\x1d'
 
 
-def test_engine_words_round_trip_on_generated_picture_fixture(tmp_path):
-    """gate(pdf) == gate(dump(pdf)) for a synthetic document that embeds a
-    real picture -- the raster extraction path (engine_page_rasters /
-    'rasters' in the JSON schema), which none of the bundled prose samples
-    above ever exercise. Regression guard for the real bug this test
-    caught while it was being written: load_engine_words() originally
-    dropped the raster dict's own 'page' key (engine_page_rasters()
-    includes it, load_engine_words() didn't put it back), which made a
-    picture-bearing document's `rasters` report differ between the two
-    paths -- silently, since every OTHER field still compared equal."""
+def test_engine_words_and_chars_round_trip_on_generated_picture_fixture(tmp_path):
+    """gate(pdf) == gate(words-dump(pdf)) == gate(chars-dump(pdf)) for a
+    synthetic document that embeds a real picture -- the raster extraction
+    path (engine_page_rasters / 'rasters' in both JSON schemas), which none
+    of the bundled prose samples above ever exercise. Regression guard for
+    the real bug this test caught while it was being written: load_engine_
+    words() originally dropped the raster dict's own 'page' key
+    (engine_page_rasters() includes it, load_engine_words() didn't put it
+    back), which made a picture-bearing document's `rasters` report differ
+    between the two paths -- silently, since every OTHER field still
+    compared equal. load_engine_chars() shares the same raster-loading code
+    shape, so this guard covers it too."""
     (tmp_path / 'FIGURE1.PIX').write_bytes(_tiny_pix_bytes())
     ws_path = tmp_path / 'DOC.WS'
     block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')

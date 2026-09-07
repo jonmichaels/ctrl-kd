@@ -131,6 +131,22 @@ USAGE
     # tests/test_pcl_tolerance.py's round-trip test.
     python3 tools/fidelity_gate.py --doc LYING --dump-engine-words /tmp/lying-words.json
 
+    # --engine-chars: ONE LEVEL LOWER than --engine-words -- a PRE-EXTRACTED
+    # CHARACTERS JSON (see the "engine-chars (JSON)" schema comment above
+    # load_engine_chars(), below) instead of already-segmented words. This
+    # repo does mechanism Z's own word segmentation itself
+    # (segment_words_from_chars) -- the producer (e.g. the macOS app's own
+    # Quartz-based PDF reader) hands over characters only, never
+    # re-implementing that boundary rule on its own side:
+    CTRLKD_PRIVATE_CORPUS=/path/to/corpus python3 tools/fidelity_gate.py \
+        --doc LYING --engine-chars /path/to/lying-chars.json --out-json /tmp/lying-app.json
+
+    # --dump-engine-chars: produce that same chars JSON from ctrl-kd's OWN
+    # PDF -- round-trips as gate(pdf) == gate(--engine-chars dump(pdf)) ==
+    # gate(--engine-words dump(pdf)); see tests/test_fidelity_gate.py's
+    # round-trip tests.
+    python3 tools/fidelity_gate.py --doc LYING --dump-engine-chars /tmp/lying-chars.json
+
 For the automated, tolerance-aware version of this gate (per-font-class
 drift bounds, a checked-in named-divergence manifest, drift detection) see
 tools/pcl_tolerance.py and the `pcl` pytest tier (tests/test_pcl_fidelity.py)
@@ -1051,6 +1067,248 @@ def load_engine_words(data: dict) -> dict:
             'eng_rasters_by_page': dict(eng_rasters_by_page)}
 
 
+# ---------------------------------------------------- engine-chars (JSON)
+ENGINE_CHARS_SCHEMA_VERSION = 2
+
+# A pre-extracted substitute for a Printed PDF, ONE LEVEL LOWER than
+# engine-words: individual CHARACTERS instead of already-segmented words.
+# Exists because the app coder's own first attempt to re-implement
+# mechanism Z's own word-boundary rule (segment_words_from_chars, above)
+# directly against Quartz's real PDF text (subset CID/Type0 fonts, real
+# /Widths-derived advances) regressed -- Jon's ruling, 2026-09-07: an
+# external PDF reader hands this gate CHARACTERS, and this gate does the
+# word segmentation ITSELF, in ONE place, for both sides, so mechanism Z's
+# own boundary rule is never re-implemented a second time by any consumer.
+# `load_engine_chars()` converts this schema into the identical
+# per-baseline character sequence `_op_chars` builds from a parsed PDF's
+# own text ops, then calls `segment_words_from_chars` -- the SAME function
+# `engine_page_tokens` (the ops-based path) already calls -- so a word is
+# the same set of characters regardless of which side (this repo's own PDF
+# parser, or an external reader handing over characters) built it.
+#
+# SCHEMA (version 2) -- top level:
+#     {
+#       "schema_version": 2,
+#       "n_pages": <int>,           # same meaning as the words schema's own
+#                                    # n_pages (see "engine-words (JSON)",
+#                                    # above)
+#       "chars": [ <char>, ... ],   # every CHARACTER on every page, in ANY
+#                                    # order (page + reading order
+#                                    # recommended for readability; nothing
+#                                    # downstream depends on global order --
+#                                    # load_engine_chars groups by page then
+#                                    # by baseline itself, same as
+#                                    # engine_page_tokens does for ops)
+#       "rasters": [ <raster>, ... ] # IDENTICAL shape to the words schema's
+#                                    # own "rasters" (see above); [] if none
+#     }
+#
+# <char>:
+#     {
+#       "text": <str>,       # exactly ONE character -- a single Unicode
+#                             # scalar value. A literal space (" ") is a
+#                             # real character here, not omitted --
+#                             # load_engine_chars treats text == " " as
+#                             # is_space, exactly `_op_chars`'s own rule.
+#       "x_pt": <float>,     # this character's own glyph ADVANCE START, in
+#                             # points, PAGE-LOCAL top-left origin (same
+#                             # convention as the words schema's own "x_pt"
+#                             # -- see this file's module docstring,
+#                             # "COORDINATE CONVENTION"). x increases
+#                             # rightward.
+#       "x_end_pt": <float>, # this character's own glyph ADVANCE END, in
+#                             # points, PAGE-LOCAL -- i.e. x_pt plus however
+#                             # far this ONE character actually moved the
+#                             # pen. MUST be the ADVANCE end (the font's own
+#                             # /Widths or /W entry for the glyph actually
+#                             # shown, times any text-matrix scale already
+#                             # in effect), NEVER the glyph's ink/bounding-
+#                             # box end -- segment_words_from_chars measures
+#                             # the GAP since the previous character's own
+#                             # x_end_pt, so a glyph-box width (which can
+#                             # overshoot or undershoot the true advance,
+#                             # e.g. an italic 'f' or a tight kerned pair)
+#                             # reports a wrong gap and can flip a
+#                             # word-boundary decision either way. See the
+#                             # TOLERANCE note on load_engine_chars() below
+#                             # for the exact caveat this buys/costs.
+#       "y_top_pt": <float>, # this character's own BASELINE, in points,
+#                             # PAGE-LOCAL, down from the page's own top
+#                             # edge -- IDENTICAL convention and meaning to
+#                             # the words schema's own "y_top_pt". Rise
+#                             # (PDF `Ts`) is NOT applied here: a
+#                             # superscript/subscript character reports its
+#                             # own TRUE baseline, the same "the pen never
+#                             # actually moved" model mechanism G's own
+#                             # engine-side handling already uses (see
+#                             # test_engine_page_tokens_merges_a_superscript_
+#                             # inside_a_word).
+#       "size_pt": <float>,  # nominal font size in points -- same meaning
+#                             # as the words schema's own "size_pt".
+#       "font": <str|null>,  # same meaning as the words schema's own
+#                             # "font", nullable (a subset/system font this
+#                             # repo cannot name at all is fine as null --
+#                             # word-boundary math never actually needs
+#                             # this field once "font_class" below is
+#                             # given; it survives only for the divergence
+#                             # report's own font_exact_match diagnostic).
+#       "font_class": <str>, # REQUIRED, same vocabulary and same "producer
+#                             # must supply it, never re-derived" rule as
+#                             # the words schema's own "font_class" (see
+#                             # above) -- it is what char_space_width_pt's
+#                             # own cap picks between (WORD_GAP_MAX_PT vs
+#                             # SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT).
+#       "page": <int>        # 1-indexed engine page number, same meaning
+#                             # as the words schema's own "page"
+#     }
+#
+# <raster>: IDENTICAL shape to the words schema's own <raster> (above) --
+# this level of extraction has nothing to do with rasters at all.
+
+
+def dump_engine_chars(pdf_bytes: bytes) -> dict:
+    """A PDF (any of this repo's own PDFs) -> the engine-chars JSON schema
+    documented immediately above -- ONE LEVEL LOWER than dump_engine_words:
+    every character `_op_chars` itself builds from `parse_text_ops`, before
+    segment_words_from_chars ever merges them into a word. Exists so that
+    schema can be produced from ctrl-kd's own PDF and ROUND-TRIPPED:
+    run_gate(..., pdf_bytes=X), run_gate(..., engine_chars=dump_engine_chars(X))
+    and run_gate(..., engine_words=dump_engine_words(X)) must all report
+    byte-identical results for the same X -- tests/test_fidelity_gate.py's
+    round-trip tests check exactly this claim, for every bundled sample,
+    the Tier 1 synthetic styled fixtures, and the generated picture
+    fixture. `--dump-engine-chars PATH` (see main()) is this function wired
+    to the CLI's own PDF path. Skips the same `[image: NAME]` placeholder
+    ops engine_page_tokens itself skips (mechanism L) -- see
+    `_IMAGE_PLACEHOLDER_RE`."""
+    engine_pages = extract_pages(pdf_bytes)
+    chars, rasters = [], []
+    for i, page in enumerate(engine_pages):
+        pn = i + 1
+        mb_h = page['mediabox'][1]
+        for op in parse_text_ops(page['content']):
+            if _IMAGE_PLACEHOLDER_RE.match(op['text']):
+                continue
+            basefont = page['fonts'].get(op['font'])
+            font_class = classify_font(basefont)
+            y_top = mb_h - op['y']
+            for c in _op_chars(op, basefont, font_class):
+                chars.append({
+                    'text': c['text'], 'x_pt': c['x_start'], 'x_end_pt': c['x_end'],
+                    'y_top_pt': y_top, 'size_pt': c['size'], 'font': c['basefont'],
+                    'font_class': c['font_class'], 'page': pn,
+                })
+        for r in engine_page_rasters(page, pn):
+            rasters.append({
+                'x_pt': r['x'], 'y_top_pt': r['y_top'],
+                'w_pt': r['w_pt'], 'h_pt': r['h_pt'], 'page': pn,
+            })
+    return {'schema_version': ENGINE_CHARS_SCHEMA_VERSION,
+            'n_pages': len(engine_pages), 'chars': chars, 'rasters': rasters}
+
+
+def _external_chars_to_tokens(chars: list) -> list:
+    """[<char>, ...] (the engine-chars JSON schema's own per-character
+    dicts, any order) -> [{'text','x','y_top','size','basefont',
+    'font_class','page'}, ...] -- the SAME word-token shape
+    engine_page_tokens() itself produces from a parsed PDF's own ops.
+    Groups by page, then by baseline (y_top_pt, rounded to 3 places -- same
+    convention `engine_page_tokens`'s own by_baseline grouping uses on
+    op['y']), sorts each baseline left-to-right, rebuilds the exact
+    per-character dict shape `_op_chars` produces (text/x_start/x_end/
+    is_space/space_width_pt/size/basefont/font_class), and re-segments
+    through `segment_words_from_chars` -- mechanism Z's own shared
+    segmenter, reused rather than reimplemented. See the TOLERANCE note on
+    load_engine_chars(), below, for the one place this path measurably
+    differs from the ops-based path: char_space_width_pt's own `tz`
+    argument."""
+    by_page_baseline = defaultdict(lambda: defaultdict(list))
+    for c in chars:
+        space_w = char_space_width_pt(c.get('font'), c['size_pt'])
+        by_page_baseline[c['page']][round(c['y_top_pt'], 3)].append({
+            'text': c['text'], 'x_start': c['x_pt'], 'x_end': c['x_end_pt'],
+            'is_space': c['text'] == ' ', 'space_width_pt': space_w,
+            'size': c['size_pt'], 'basefont': c.get('font'),
+            'font_class': c['font_class'],
+        })
+    out = []
+    for page in sorted(by_page_baseline):
+        by_y = by_page_baseline[page]
+        # reading order: top of page first -- y_top_pt is the TOP-DOWN
+        # convention (y increases DOWNWARD, this file's module docstring's
+        # own "COORDINATE CONVENTION"), the OPPOSITE of the raw PDF y
+        # engine_page_tokens' own by_baseline sorts (reverse=True) --
+        # so here the smallest y_top_pt is the topmost line: ascending.
+        for y in sorted(by_y):
+            row = sorted(by_y[y], key=lambda ch: ch['x_start'])
+            for w in segment_words_from_chars(row):
+                out.append({
+                    'text': w['text'], 'x': w['x'], 'y_top': y,
+                    'size': w['size'], 'basefont': w['basefont'],
+                    'font_class': w['font_class'], 'page': page,
+                })
+    return out
+
+
+def load_engine_chars(data: dict) -> dict:
+    """The engine-chars JSON schema (documented above) -> {'n_engine_pages',
+    'eng_tokens', 'eng_rasters_by_page'} -- the exact same three things
+    load_engine_words() produces, so run_gate()/pcl_tolerance.doc_report()
+    run completely unmodified downstream regardless of whether the engine
+    side came from a parsed PDF, a pre-extracted words JSON, or (this
+    function) a pre-extracted CHARACTERS JSON. Only checks that
+    'schema_version' is present, same discipline as load_engine_words().
+
+    TOLERANCE NOTE (read this before feeding this gate real Quartz-reader
+    output): `_op_chars` (the ops-based path, i.e. this repo's own PDF)
+    computes each character's own `space_width_pt` via
+    `char_space_width_pt(basefont, size_pt, tz)`, where `tz` is the PDF
+    `Tz` (horizontal-scale percent) operand actually in force for that
+    character's own text-showing op -- pdf.py sets a real, non-100 Tz
+    routinely (the face-constant-Tz HMI-grid machinery,
+    `_line_ops_printed`), so the boundary threshold this repo's own PDF
+    gets checked against is itself Tz-scaled. The engine-chars schema
+    deliberately carries NO "tz" field: a reader working from real glyph
+    positions (Quartz's own `/Widths`- or `/W`-derived advances -- this
+    note's own reason `x_end_pt` must be the ADVANCE end, never the glyph
+    box) has ALREADY applied whatever text-matrix scale was in effect to
+    produce `x_pt`/`x_end_pt`, so the measured GAP between two characters
+    is already in real page points with that scale baked in.
+    `char_space_width_pt` is called here with its default `tz=100.0` --
+    i.e. the boundary CAP itself (WORD_GAP_MAX_PT /
+    SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT) is applied AS WRITTEN, in page
+    points, AFTER any text-matrix scale, never re-scaled a second time by a
+    `tz` this schema does not carry. This is the one place `_external_
+    chars_to_tokens`'s own threshold can differ, in principle, from
+    `_op_chars`'s (which scales the SAME cap by the op's own real `tz`) --
+    the round-trip tests (tests/test_fidelity_gate.py, including
+    WARPRAYR's own Univers-substituted Tz-scaled quote line) and the
+    private corpus's 18 captured documents (checked manually, not in this
+    repo's own test suite -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanism
+    Z) confirm it never actually flips a word-boundary decision anywhere
+    in this repo's own bundled samples, Tier 1 fixtures, or that corpus:
+    every real Tz this corpus uses is a legibility-preserving HMI-grid
+    nudge close to 100 (never a deliberate condense/expand), and every
+    confirmed real word gap sits well clear of either cap either way (see
+    WORD_GAP_MAX_PT's and SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT's own
+    comments for the measured margins). A future reader whose real
+    Tz-equivalent scale sits far from 100 on a run that ALSO sits near a
+    cap boundary is the one case this note flags as unverified -- report
+    it if found; the fix is a real `tz` field on a future schema version,
+    not a silent guess here."""
+    if 'schema_version' not in data:
+        raise ValueError("engine-chars JSON missing required 'schema_version' key")
+    eng_tokens = _external_chars_to_tokens(data['chars'])
+    eng_rasters_by_page = defaultdict(list)
+    for r in data.get('rasters', []):
+        eng_rasters_by_page[r['page']].append({
+            'x': r['x_pt'], 'y_top': r['y_top_pt'],
+            'w_pt': r['w_pt'], 'h_pt': r['h_pt'], 'page': r['page'],
+        })
+    return {'n_engine_pages': data['n_pages'], 'eng_tokens': eng_tokens,
+            'eng_rasters_by_page': dict(eng_rasters_by_page)}
+
+
 # ------------------------------------------------------------- WS7 loading
 def ws7_page_tokens(page: dict, page_no: int) -> list:
     """measurements.json page['chunks'] -> the same token shape
@@ -1252,7 +1510,7 @@ def _agreement(deltas, key):
 # --------------------------------------------------------------- doc-level
 def run_gate(doc_name: str, ws_path: str, measurements_path: str,
              pcl_path: str = None, pdf_bytes: bytes = None,
-             engine_words: dict = None) -> dict:
+             engine_words: dict = None, engine_chars: dict = None) -> dict:
     """`ws_path` renders the CURRENT engine's own Printed PDF via
     render_engine_pdf(), same as ever. Pass `pdf_bytes` instead (any
     already-rendered PDF -- `ws_path` may then be None, kept only for the
@@ -1265,13 +1523,24 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
     an emitter this repo's own `parse_text_ops` state machine still cannot
     read (macOS Quartz's hex-string text over CID/Type0 subset fonts; see
     main()'s `--engine-words` flag and fidelity_gate.py's own module
-    docstring for the engine-words schema). At most one of `pdf_bytes`/`engine_words`
-    should be passed; `engine_words` wins if both are (checked first,
-    below)."""
+    docstring for the engine-words schema). Pass `engine_chars` instead (a
+    dict matching load_engine_chars()'s own "engine-chars (JSON)" schema)
+    to hand this gate raw CHARACTERS instead -- this repo does the word
+    segmentation itself (mechanism Z's own `segment_words_from_chars`),
+    never re-implemented by the producer (see main()'s `--engine-chars`
+    flag and load_engine_chars()'s own TOLERANCE note). At most one of
+    `pdf_bytes`/`engine_words`/`engine_chars` should be passed;
+    `engine_chars` wins over `engine_words`, which wins over `pdf_bytes`
+    (checked in that order, below)."""
     ws7 = json.load(open(measurements_path))
     n_ws7_pages = len(ws7['pages'])
 
-    if engine_words is not None:
+    if engine_chars is not None:
+        loaded = load_engine_chars(engine_chars)
+        n_engine_pages = loaded['n_engine_pages']
+        eng_all = loaded['eng_tokens']
+        eng_rasters_by_page = loaded['eng_rasters_by_page']
+    elif engine_words is not None:
         loaded = load_engine_words(engine_words)
         n_engine_pages = loaded['n_engine_pages']
         eng_all = loaded['eng_tokens']
@@ -1624,7 +1893,24 @@ def main(argv=None):
                     'actually extracted (from the PDF rendered from ws_path, or from --pdf) to '
                     'this path -- lets the schema be produced from ctrl-kd\'s own PDF and '
                     'round-tripped (gate(pdf) == gate(--engine-words dump)). Not valid together '
-                    'with --engine-words (there is no PDF to dump from in that mode).')
+                    'with --engine-words/--engine-chars (there is no PDF to dump from in that '
+                    'mode).')
+    ap.add_argument('--engine-chars', help='compare a PRE-EXTRACTED engine-chars JSON file -- '
+                    'raw CHARACTERS, one level lower than --engine-words -- instead of a PDF. '
+                    'For an external PDF reader (e.g. the macOS app\'s own Quartz-based reader) '
+                    'that can hand over real character positions but must NOT re-implement '
+                    'mechanism Z\'s own word-boundary rule itself: this gate does that '
+                    'segmentation, in one place, for both sides. See this file\'s own '
+                    'module-level "engine-chars (JSON)" comment block, just above '
+                    'dump_engine_chars(), for the schema, and load_engine_chars()\'s own '
+                    'TOLERANCE note. Same --doc/--measurements resolution as --pdf; mutually '
+                    'exclusive with --pdf/--engine-words.')
+    ap.add_argument('--dump-engine-chars', help='ALSO write the engine-chars JSON this run '
+                    'actually extracted (from the PDF rendered from ws_path, or from --pdf) to '
+                    'this path -- lets the schema be produced from ctrl-kd\'s own PDF and '
+                    'round-tripped (gate(pdf) == gate(--engine-chars dump)). Not valid together '
+                    'with --engine-words/--engine-chars (there is no PDF to dump from in that '
+                    'mode).')
     ap.add_argument('--out-json')
     ap.add_argument('--batch', nargs='+', help='Doc names to run in one pass '
                     '(each via --doc-style resolution); writes one JSON per '
@@ -1634,10 +1920,20 @@ def main(argv=None):
 
     if a.engine_words and a.pdf:
         ap.error('--engine-words and --pdf are mutually exclusive')
-    if a.dump_engine_words and a.engine_words:
-        ap.error('--dump-engine-words has no PDF to dump from when --engine-words is used')
-    if (a.engine_words or a.dump_engine_words) and a.batch:
-        ap.error('--engine-words/--dump-engine-words are not supported together with --batch')
+    if a.engine_chars and a.pdf:
+        ap.error('--engine-chars and --pdf are mutually exclusive')
+    if a.engine_chars and a.engine_words:
+        ap.error('--engine-chars and --engine-words are mutually exclusive')
+    if a.dump_engine_words and (a.engine_words or a.engine_chars):
+        ap.error('--dump-engine-words has no PDF to dump from when --engine-words/--engine-chars '
+                 'is used')
+    if a.dump_engine_chars and (a.engine_words or a.engine_chars):
+        ap.error('--dump-engine-chars has no PDF to dump from when --engine-words/--engine-chars '
+                 'is used')
+    if (a.engine_words or a.dump_engine_words or a.engine_chars
+            or a.dump_engine_chars) and a.batch:
+        ap.error('--engine-words/--dump-engine-words/--engine-chars/--dump-engine-chars are '
+                 'not supported together with --batch')
 
     reports = []
     if a.batch:
@@ -1657,23 +1953,28 @@ def main(argv=None):
                 os.makedirs(a.out_dir, exist_ok=True)
                 json.dump(r, open(os.path.join(a.out_dir, f'{name}.json'), 'w'),
                           indent=2)
-    elif a.pdf or a.engine_words:
-        src = a.pdf or a.engine_words
+    elif a.pdf or a.engine_words or a.engine_chars:
+        src = a.pdf or a.engine_words or a.engine_chars
         name = a.doc_opt or a.doc or os.path.splitext(os.path.basename(src))[0]
         if a.measurements:
             ws_path, mpath, pcl_path = a.ws, a.measurements, a.pcl
         else:
             if not (a.doc_opt or a.doc):
-                ap.error('--pdf/--engine-words needs either --doc NAME (corpus resolution) or '
-                         'an explicit --measurements PATH')
+                ap.error('--pdf/--engine-words/--engine-chars needs either --doc NAME '
+                         '(corpus resolution) or an explicit --measurements PATH')
             ws_path, mpath, pcl_path = resolve_doc_paths(name)
-        if a.engine_words:
+        if a.engine_chars:
+            r = run_gate(name, ws_path, mpath, pcl_path,
+                        engine_chars=json.load(open(a.engine_chars)))
+        elif a.engine_words:
             r = run_gate(name, ws_path, mpath, pcl_path,
                         engine_words=json.load(open(a.engine_words)))
         else:
             pdf_bytes = open(a.pdf, 'rb').read()
             if a.dump_engine_words:
                 json.dump(dump_engine_words(pdf_bytes), open(a.dump_engine_words, 'w'), indent=2)
+            if a.dump_engine_chars:
+                json.dump(dump_engine_chars(pdf_bytes), open(a.dump_engine_chars, 'w'), indent=2)
             r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
         reports.append(r)
         if a.out_json:
@@ -1690,9 +1991,12 @@ def main(argv=None):
                 print(f'fidelity_gate: {name}: skipped -- ${ARCHIVE_ENV} unset',
                       file=sys.stderr)
                 return 0
-        if a.dump_engine_words:
+        if a.dump_engine_words or a.dump_engine_chars:
             pdf_bytes = render_engine_pdf(ws_path)
-            json.dump(dump_engine_words(pdf_bytes), open(a.dump_engine_words, 'w'), indent=2)
+            if a.dump_engine_words:
+                json.dump(dump_engine_words(pdf_bytes), open(a.dump_engine_words, 'w'), indent=2)
+            if a.dump_engine_chars:
+                json.dump(dump_engine_chars(pdf_bytes), open(a.dump_engine_chars, 'w'), indent=2)
             r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
         else:
             r = run_gate(name, ws_path, mpath, pcl_path)

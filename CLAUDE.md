@@ -89,6 +89,31 @@ generated picture-bearing fixture — Tier 1, no private data. Everything
 downstream of extraction (matching, tolerance, reason vocabulary, manifest
 comparison) is unmodified either way.
 
+**External readers hand this gate CHARACTERS, not words — one segmenter,
+for both sides.** The macOS app's own PDFKit/Quartz-based reader tried to
+re-implement mechanism Z's own word-boundary rule
+(`segment_words_from_chars`/`char_space_width_pt`) a second time, against
+real glyph advances, and regressed — Jon's ruling, 2026-09-07: an external
+reader hands this gate raw characters and this gate does the segmentation
+itself, in ONE place. `--engine-chars FILE` (both `fidelity_gate.py` and
+`pcl_tolerance.py`'s own `--doc`), schema_version 2, is one level lower
+than `--engine-words`: per-character `text`/`x_pt`/`x_end_pt` (the ADVANCE
+end, never the glyph box)/`y_top_pt`/`size_pt`/`font`(nullable)/
+`font_class`(required)/`page` — see the "engine-chars (JSON)" schema
+comment above `dump_engine_chars()` for the exact shape, and
+`load_engine_chars()`'s own TOLERANCE note for the one place this path
+could, in principle, disagree with the ops-based path (the boundary caps
+are applied in page points, never re-scaled by a `Tz`-equivalent this
+schema doesn't carry — confirmed to cost nothing against every bundled
+sample, Tier 1 fixture, and the private corpus's 18 captured documents).
+`--dump-engine-chars FILE` produces that JSON from ctrl-kd's own PDF, so
+the three-way round-trip claim (`gate(pdf) == gate(--engine-words
+dump(pdf)) == gate(--engine-chars dump(pdf))`) is checked in
+`tests/test_fidelity_gate.py` against the bundled public samples, all four
+Tier 1 synthetic styled fixtures (symbol-styled bold/italic, the -SCREEN
+Greek/math zero-gap line, zero-gap punctuation, a superscript inside a
+word), and the generated picture-bearing fixture — no private data.
+
 ## This repo is PUBLIC — the guard is mechanical, not advisory
 
 Private material reached this repo repeatedly, and every fix added one more
