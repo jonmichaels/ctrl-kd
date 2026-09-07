@@ -82,6 +82,22 @@ USAGE
     python3 tools/fidelity_gate.py --pdf OUT.pdf \
         --measurements NAME.measurements.json [--pcl NAME.pcl] --out-json /tmp/out.json
 
+    # --engine-words: same as --pdf, but for an emitter this file's own PDF
+    # parser (_TEXT_OP_RE) cannot read at all -- e.g. macOS Quartz's `Tm`/
+    # `TJ` output over subset fonts. Takes a PRE-EXTRACTED words JSON (see
+    # the "engine-words (JSON)" schema comment above dump_engine_words(),
+    # below) instead of a PDF; everything downstream (matching, tolerance,
+    # reason vocabulary, manifest comparison) runs exactly as it does for
+    # --pdf, since load_engine_words() hands back the identical token shape:
+    CTRLKD_PRIVATE_CORPUS=/path/to/corpus python3 tools/fidelity_gate.py \
+        --doc LYING --engine-words /path/to/lying-words.json --out-json /tmp/lying-app.json
+
+    # --dump-engine-words: produce that same words JSON from ctrl-kd's OWN
+    # PDF (the rendered-from-ws_path PDF, or a --pdf) -- round-trips as
+    # gate(pdf) == gate(--engine-words dump(pdf)); see
+    # tests/test_pcl_tolerance.py's round-trip test.
+    python3 tools/fidelity_gate.py --doc LYING --dump-engine-words /tmp/lying-words.json
+
 For the automated, tolerance-aware version of this gate (per-font-class
 drift bounds, a checked-in named-divergence manifest, drift detection) see
 tools/pcl_tolerance.py and the `pcl` pytest tier (tests/test_pcl_fidelity.py)
@@ -481,6 +497,167 @@ def engine_page_rasters(page: dict, page_no: int) -> list:
     return out
 
 
+# --------------------------------------------------- engine-words (JSON)
+ENGINE_WORDS_SCHEMA_VERSION = 1
+
+# A pre-extracted substitute for a Printed PDF -- so a PDF written by ANY
+# emitter (not just this repo's own pdf.py -- e.g. macOS Quartz's `Tm`/`TJ`
+# operators over subset fonts, which _TEXT_OP_RE cannot parse at all: it
+# matches only pdf.py's own literal `BT /Fn SIZE Tf ... Td (TEXT) Tj ET`
+# op shape) can be judged by the exact same matching/tolerance machinery
+# this whole file (and pcl_tolerance.py, one layer up) already runs on
+# ctrl-kd's own PDF output. Produced by dump_engine_words() from this
+# repo's own PDF (see that function's own docstring for the round-trip
+# guarantee this buys), or by any other emitter directly; consumed by
+# load_engine_words() and, through it, run_gate(..., engine_words=...) /
+# pcl_tolerance.doc_report(..., engine_words=...).
+#
+# SCHEMA (version 1) -- top level:
+#     {
+#       "schema_version": 1,
+#       "n_pages": <int>,             # total engine page count, INCLUDING
+#                                      # pages with zero words (a blank or
+#                                      # image-only page still counts --
+#                                      # n_pages drives page_count_mismatch)
+#       "words": [ <word>, ... ],     # every word on every page, in ANY
+#                                      # order (page + reading order is
+#                                      # recommended for readability, but
+#                                      # nothing downstream depends on
+#                                      # global order -- match_doc/
+#                                      # difflib re-derives correspondence
+#                                      # from each token's own 'page' plus
+#                                      # whole-document text alignment)
+#       "rasters": [ <raster>, ... ]  # embedded-picture boxes; [] if none
+#     }
+#
+# <word>:
+#     {
+#       "text": <str>,       # the word's own literal text, no surrounding
+#                             # whitespace, exactly as it should compare
+#                             # against a WS7 chunk's own text (see
+#                             # match_doc/difflib) -- this repo's own
+#                             # _TOKEN_RE splits on runs of spaces only,
+#                             # never on punctuation, so e.g. a trailing
+#                             # comma stays attached to its word.
+#       "x_pt": <float>,     # LEFT edge of the word's own first glyph, in
+#                             # points, PAGE-LOCAL (relative to THIS
+#                             # page's own top-left corner, NOT the PDF's
+#                             # native bottom-left origin -- see this
+#                             # file's own module docstring, "COORDINATE
+#                             # CONVENTION"). x increases rightward.
+#       "y_top_pt": <float>, # the word's own BASELINE, in points,
+#                             # PAGE-LOCAL, measured DOWN from the page's
+#                             # own top edge (y increases downward, the
+#                             # OPPOSITE of raw PDF space). A word whose
+#                             # baseline sits at raw PDF bottom-up position
+#                             # y_pdf on a page of height page_height_pt
+#                             # converts as y_top_pt = page_height_pt - y_pdf
+#                             # (exactly engine_page_tokens' own `mb_h -
+#                             # op['y']`, below).
+#       "size_pt": <float>,  # nominal font size in points (PDF Tf size,
+#                             # or the emitting engine's own equivalent)
+#       "font": <str|null>,  # the word's own font/BaseFont name,
+#                             # UNRESOLVED (a PDF subset name like
+#                             # "ABCDEF+Helvetica" is fine as-is -- see
+#                             # "font_class", which is what classification
+#                             # actually runs on downstream). null if
+#                             # genuinely unknown.
+#       "font_class": <str>, # REQUIRED: one of "serif" / "sans" /
+#                             # "fixed" / "symbol" / "unknown"
+#                             # (classify_font()'s own vocabulary). NOT
+#                             # derived by the loader -- a subset or
+#                             # system font name cannot be reliably
+#                             # reclassified by this repo's own base-14
+#                             # prefix heuristic, so the PRODUCER must
+#                             # supply the correct class directly:
+#                             # Courier/any monospace face -> "fixed",
+#                             # Times/a serif body face -> "serif",
+#                             # Helvetica/Arial/a sans face -> "sans",
+#                             # Symbol/ZapfDingbats/Wingdings -> "symbol".
+#       "page": <int>        # 1-indexed engine page number this word is on
+#     }
+#
+# <raster>:
+#     {
+#       "x_pt": <float>,     # drawn box's own LEFT edge, page-local points
+#       "y_top_pt": <float>, # drawn box's own TOP edge, page-local points,
+#                             # down from the page's own top edge
+#       "w_pt": <float>,     # drawn width, points
+#       "h_pt": <float>,     # drawn height, points
+#       "page": <int>        # 1-indexed engine page number
+#     }
+#
+# Everything downstream of extraction -- match_doc, pair_deltas,
+# frame_offset, residuals, and pcl_tolerance.py's whole tolerance/reason-
+# vocabulary/manifest machinery -- consumes only the common token shape
+# engine_page_tokens()/engine_page_rasters() already produce from a PDF
+# this repo parsed itself (keys x/y_top/size/basefont instead of this
+# schema's x_pt/y_top_pt/size_pt/font); load_engine_words() below is the
+# one place that translates between the two.
+
+
+def dump_engine_words(pdf_bytes: bytes) -> dict:
+    """A PDF (any of this repo's own PDFs -- extract_pages/
+    engine_page_tokens/engine_page_rasters already know how to parse
+    them) -> the engine-words JSON schema documented immediately above.
+    Exists so that schema can be produced from ctrl-kd's own PDF output
+    and ROUND-TRIPPED: run_gate(..., pdf_bytes=X) and run_gate(...,
+    engine_words=dump_engine_words(X)) must report byte-identical results
+    for the same X -- tests/test_pcl_tolerance.py's round-trip test
+    checks exactly this claim, for every bundled sample plus a generated
+    synthetic fixture. `--dump-engine-words PATH` (see main()) is this
+    function wired to the CLI's own PDF path."""
+    engine_pages = extract_pages(pdf_bytes)
+    words, rasters = [], []
+    for i, page in enumerate(engine_pages):
+        pn = i + 1
+        for t in engine_page_tokens(page, pn):
+            words.append({
+                'text': t['text'], 'x_pt': t['x'], 'y_top_pt': t['y_top'],
+                'size_pt': t['size'], 'font': t['basefont'],
+                'font_class': t['font_class'], 'page': pn,
+            })
+        for r in engine_page_rasters(page, pn):
+            rasters.append({
+                'x_pt': r['x'], 'y_top_pt': r['y_top'],
+                'w_pt': r['w_pt'], 'h_pt': r['h_pt'], 'page': pn,
+            })
+    return {'schema_version': ENGINE_WORDS_SCHEMA_VERSION,
+            'n_pages': len(engine_pages), 'words': words, 'rasters': rasters}
+
+
+def load_engine_words(data: dict) -> dict:
+    """The engine-words JSON schema (documented above) -> {'n_engine_pages',
+    'eng_tokens', 'eng_rasters_by_page'} -- the exact three things
+    run_gate()/pcl_tolerance.doc_report() need in place of
+    extract_pages(pdf_bytes) + engine_page_tokens(...) +
+    engine_page_rasters(...). `eng_tokens` comes back in the SAME
+    per-word dict shape engine_page_tokens() itself produces (text/x/
+    y_top/size/basefont/font_class/page), so every match_doc/
+    pair_deltas/frame_offset/pcl_tolerance call downstream runs
+    unmodified regardless of which side built the tokens. Accepts a dict
+    from THIS repo's own dump_engine_words(), or from any other
+    producer (e.g. the macOS app's own PDFKit-based dumper) that follows
+    the same schema. Only checks that 'schema_version' is present (there
+    is only one version today, ENGINE_WORDS_SCHEMA_VERSION) -- a future
+    incompatible bump should add a real compatibility check here."""
+    if 'schema_version' not in data:
+        raise ValueError("engine-words JSON missing required 'schema_version' key")
+    eng_tokens = [{
+        'text': w['text'], 'x': w['x_pt'], 'y_top': w['y_top_pt'],
+        'size': w['size_pt'], 'basefont': w.get('font'),
+        'font_class': w['font_class'], 'page': w['page'],
+    } for w in data['words']]
+    eng_rasters_by_page = defaultdict(list)
+    for r in data.get('rasters', []):
+        eng_rasters_by_page[r['page']].append({
+            'x': r['x_pt'], 'y_top': r['y_top_pt'],
+            'w_pt': r['w_pt'], 'h_pt': r['h_pt'], 'page': r['page'],
+        })
+    return {'n_engine_pages': data['n_pages'], 'eng_tokens': eng_tokens,
+            'eng_rasters_by_page': dict(eng_rasters_by_page)}
+
+
 # ------------------------------------------------------------- WS7 loading
 def ws7_page_tokens(page: dict, page_no: int) -> list:
     """measurements.json page['chunks'] -> the same token shape
@@ -681,30 +858,49 @@ def _agreement(deltas, key):
 
 # --------------------------------------------------------------- doc-level
 def run_gate(doc_name: str, ws_path: str, measurements_path: str,
-             pcl_path: str = None, pdf_bytes: bytes = None) -> dict:
+             pcl_path: str = None, pdf_bytes: bytes = None,
+             engine_words: dict = None) -> dict:
     """`ws_path` renders the CURRENT engine's own Printed PDF via
     render_engine_pdf(), same as ever. Pass `pdf_bytes` instead (any
     already-rendered PDF -- `ws_path` may then be None, kept only for the
     report's own 'ws_path' field) to compare a DIFFERENT engine's output
     against the same WS7 ground truth -- this is how the Swift/sr side
     reuses this tool without a second implementation of the whole gate
-    (see main()'s `--pdf` flag)."""
+    (see main()'s `--pdf` flag). Pass `engine_words` instead of either
+    (a dict already matching the schema load_engine_words() documents,
+    e.g. json.load()ed from a file) to skip PDF PARSING entirely -- for
+    an emitter this repo's own `_TEXT_OP_RE` cannot read at all (macOS
+    Quartz's `Tm`/`TJ` operators over subset fonts; see main()'s
+    `--engine-words` flag and fidelity_gate.py's own module docstring for
+    the engine-words schema). At most one of `pdf_bytes`/`engine_words`
+    should be passed; `engine_words` wins if both are (checked first,
+    below)."""
     ws7 = json.load(open(measurements_path))
-    if pdf_bytes is None:
-        pdf_bytes = render_engine_pdf(ws_path)
-    engine_pages = extract_pages(pdf_bytes)
-
     n_ws7_pages = len(ws7['pages'])
-    n_engine_pages = len(engine_pages)
 
-    # Build whole-document token streams (each token carries its own real
-    # page number) and match ONCE, globally -- see match_doc's docstring
+    if engine_words is not None:
+        loaded = load_engine_words(engine_words)
+        n_engine_pages = loaded['n_engine_pages']
+        eng_all = loaded['eng_tokens']
+        eng_rasters_by_page = loaded['eng_rasters_by_page']
+    else:
+        if pdf_bytes is None:
+            pdf_bytes = render_engine_pdf(ws_path)
+        engine_pages = extract_pages(pdf_bytes)
+        n_engine_pages = len(engine_pages)
+        eng_all = []
+        for i, p in enumerate(engine_pages):
+            eng_all.extend(engine_page_tokens(p, i + 1))
+        eng_rasters_by_page = {i + 1: engine_page_rasters(p, i + 1)
+                               for i, p in enumerate(engine_pages)}
+
+    # Build the WS7 whole-document token stream (each token carries its
+    # own real page number) and match ONCE, globally, against eng_all
+    # (built above, from whichever source) -- see match_doc's docstring
     # for why per-page-index matching breaks under pagination drift.
-    ws7_all, eng_all = [], []
+    ws7_all = []
     for i, p in enumerate(ws7['pages']):
         ws7_all.extend(ws7_page_tokens(p, p.get('page', i + 1)))
-    for i, p in enumerate(engine_pages):
-        eng_all.extend(engine_page_tokens(p, i + 1))
 
     m = match_doc(ws7_all, eng_all)
     all_deltas = pair_deltas(m['pairs'])
@@ -725,11 +921,19 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
         unmatched_engine_by_page[t['page']].append(t['text'])
     ws7_gaps_by_page = {p.get('page', i + 1): p.get('baseline_gaps_pt', [])
                         for i, p in enumerate(ws7['pages'])}
+    # Grouping eng_all (built above, from whichever source) back by its
+    # own 'page' field reproduces exactly the same per-page token lists
+    # engine_page_tokens(p, i + 1) would have, in the same order
+    # (concatenation-then-regroup is lossless) -- so this works
+    # identically whether eng_all came from a freshly-parsed PDF or from
+    # load_engine_words(), with no second pass over `engine_pages`.
+    eng_tokens_by_page = defaultdict(list)
+    for t in eng_all:
+        eng_tokens_by_page[t['page']].append(t)
     eng_gaps_by_page = {}
-    for i, p in enumerate(engine_pages):
-        eng_tok_i = engine_page_tokens(p, i + 1)
-        _, gaps = engine_baseline_gaps(eng_tok_i)
-        eng_gaps_by_page[i + 1] = gaps
+    for pn in range(1, n_engine_pages + 1):
+        _, gaps = engine_baseline_gaps(eng_tokens_by_page.get(pn, []))
+        eng_gaps_by_page[pn] = gaps
 
     # Planning #211 (mechanism L revisited): raster (embedded-picture)
     # position, matched by page + emission order within a page -- the
@@ -739,11 +943,10 @@ def run_gate(doc_name: str, ws_path: str, measurements_path: str,
     # page would pair them in the same left-to-right/top-to-bottom order
     # both sides draw them in. `ws7`/`engine` is None on whichever side
     # has fewer at that page/index -- never force-paired, same "unmatched
-    # is reported, not guessed" discipline as match_doc.
+    # is reported, not guessed" discipline as match_doc. eng_rasters_by_page
+    # was built above, from whichever engine-word source was given.
     ws7_rasters_by_page = {p.get('page', i + 1): ws7_page_rasters(p, p.get('page', i + 1))
                            for i, p in enumerate(ws7['pages'])}
-    eng_rasters_by_page = {i + 1: engine_page_rasters(p, i + 1)
-                           for i, p in enumerate(engine_pages)}
     raster_report = []
     for pn in sorted(set(ws7_rasters_by_page) | set(eng_rasters_by_page)):
         ws7_r = ws7_rasters_by_page.get(pn, [])
@@ -1015,12 +1218,32 @@ def main(argv=None):
                     'the WS7 measurements/.pcl from the corpus as usual, or with an explicit '
                     '--measurements PATH [--pcl PATH] for a fully standalone comparison that '
                     'needs neither CTRLKD_PRIVATE_CORPUS nor CTRLKD_SAWYER_ARCHIVE.')
+    ap.add_argument('--engine-words', help='compare a PRE-EXTRACTED engine-words JSON file '
+                    'instead of a PDF -- for an emitter this repo cannot parse as a PDF at all '
+                    '(e.g. macOS Quartz Tm/TJ output over subset fonts, which this file\'s own '
+                    '_TEXT_OP_RE cannot match). See this file\'s own module-level "engine-words '
+                    '(JSON)" comment block, just above dump_engine_words(), for the schema -- '
+                    'produced by --dump-engine-words, below, or by any other emitter\'s own '
+                    'dumper. Same --doc/--measurements resolution as --pdf; mutually exclusive '
+                    'with --pdf.')
+    ap.add_argument('--dump-engine-words', help='ALSO write the engine-words JSON this run '
+                    'actually extracted (from the PDF rendered from ws_path, or from --pdf) to '
+                    'this path -- lets the schema be produced from ctrl-kd\'s own PDF and '
+                    'round-tripped (gate(pdf) == gate(--engine-words dump)). Not valid together '
+                    'with --engine-words (there is no PDF to dump from in that mode).')
     ap.add_argument('--out-json')
     ap.add_argument('--batch', nargs='+', help='Doc names to run in one pass '
                     '(each via --doc-style resolution); writes one JSON per '
                     'doc into --out-dir')
     ap.add_argument('--out-dir')
     a = ap.parse_args(argv)
+
+    if a.engine_words and a.pdf:
+        ap.error('--engine-words and --pdf are mutually exclusive')
+    if a.dump_engine_words and a.engine_words:
+        ap.error('--dump-engine-words has no PDF to dump from when --engine-words is used')
+    if (a.engine_words or a.dump_engine_words) and a.batch:
+        ap.error('--engine-words/--dump-engine-words are not supported together with --batch')
 
     reports = []
     if a.batch:
@@ -1040,17 +1263,24 @@ def main(argv=None):
                 os.makedirs(a.out_dir, exist_ok=True)
                 json.dump(r, open(os.path.join(a.out_dir, f'{name}.json'), 'w'),
                           indent=2)
-    elif a.pdf:
-        name = a.doc_opt or a.doc or os.path.splitext(os.path.basename(a.pdf))[0]
-        pdf_bytes = open(a.pdf, 'rb').read()
+    elif a.pdf or a.engine_words:
+        src = a.pdf or a.engine_words
+        name = a.doc_opt or a.doc or os.path.splitext(os.path.basename(src))[0]
         if a.measurements:
             ws_path, mpath, pcl_path = a.ws, a.measurements, a.pcl
         else:
             if not (a.doc_opt or a.doc):
-                ap.error('--pdf needs either --doc NAME (corpus resolution) or an explicit '
-                         '--measurements PATH')
+                ap.error('--pdf/--engine-words needs either --doc NAME (corpus resolution) or '
+                         'an explicit --measurements PATH')
             ws_path, mpath, pcl_path = resolve_doc_paths(name)
-        r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
+        if a.engine_words:
+            r = run_gate(name, ws_path, mpath, pcl_path,
+                        engine_words=json.load(open(a.engine_words)))
+        else:
+            pdf_bytes = open(a.pdf, 'rb').read()
+            if a.dump_engine_words:
+                json.dump(dump_engine_words(pdf_bytes), open(a.dump_engine_words, 'w'), indent=2)
+            r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
         reports.append(r)
         if a.out_json:
             json.dump(r, open(a.out_json, 'w'), indent=2)
@@ -1066,7 +1296,12 @@ def main(argv=None):
                 print(f'fidelity_gate: {name}: skipped -- ${ARCHIVE_ENV} unset',
                       file=sys.stderr)
                 return 0
-        r = run_gate(name, ws_path, mpath, pcl_path)
+        if a.dump_engine_words:
+            pdf_bytes = render_engine_pdf(ws_path)
+            json.dump(dump_engine_words(pdf_bytes), open(a.dump_engine_words, 'w'), indent=2)
+            r = run_gate(name, ws_path, mpath, pcl_path, pdf_bytes=pdf_bytes)
+        else:
+            r = run_gate(name, ws_path, mpath, pcl_path)
         reports.append(r)
         if a.out_json:
             json.dump(r, open(a.out_json, 'w'), indent=2)

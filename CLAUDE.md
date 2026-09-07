@@ -68,6 +68,23 @@ a picture-bearing document's real embedded-image byte stream is silently
 never exercised by anything — exactly what happened before this note
 existed.
 
+**The `pcl` gate can judge a PDF it cannot parse.** `tools/fidelity_gate.py`'s
+own `_TEXT_OP_RE` matches only this repo's own PDF text-drawing op shape
+(`BT /Fn SIZE Tf ... Td (TEXT) Tj ET`) — a PDF a different emitter wrote
+(macOS Quartz's `Tm`/`TJ` over subset fonts, e.g.) extracts as zero words,
+not "everything unmatched." `--engine-words FILE` (both `fidelity_gate.py`
+and `pcl_tolerance.py`'s own `--doc`) takes a PRE-EXTRACTED words JSON
+instead of a PDF — see the "engine-words (JSON)" schema comment above
+`dump_engine_words()` in `tools/fidelity_gate.py` for the exact shape (a
+producer must supply `font_class` directly; it is never re-derived from a
+subset font name). `--dump-engine-words FILE` produces that same JSON from
+ctrl-kd's own PDF, so the round-trip claim (`gate(pdf) ==
+gate(--engine-words dump(pdf))`) is checked in
+`tests/test_fidelity_gate.py` against the bundled public samples plus a
+generated picture-bearing fixture — Tier 1, no private data. Everything
+downstream of extraction (matching, tolerance, reason vocabulary, manifest
+comparison) is unmodified either way.
+
 ## This repo is PUBLIC — the guard is mechanical, not advisory
 
 Private material reached this repo repeatedly, and every fix added one more

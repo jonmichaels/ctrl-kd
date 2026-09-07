@@ -5,8 +5,10 @@ parsing, engine word-splitting, WS7/engine matching, and frame-offset
 arithmetic -- against inputs whose right answer is known by construction,
 never against the real WS7 corpus (private, outside the repo; see
 tools/fidelity_gate.py's own doc-resolution/skip-when-absent logic)."""
+import json
 import os
 import re
+import struct
 import sys
 
 import pytest
@@ -15,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
                                 'tools'))
 import fidelity_gate as fg  # noqa: E402
 
-from ctrlkd import core, pdf  # noqa: E402
+from ctrlkd import core, pdf, pictures  # noqa: E402
 
 HARD = b'\x0d\x0a'
 
@@ -640,3 +642,130 @@ def test_cli_pdf_flag_with_explicit_measurements_needs_no_corpus_env(tmp_path, m
     report = json.loads(out_json.read_text())
     assert report['doc_matched'] == len(words)
     assert report['doc_unmatched_ws7'] == 0
+
+
+# ------------------------------------------------ engine-words (JSON) schema
+# Planning: the PCL fidelity gate must accept PRE-EXTRACTED word positions,
+# so a PDF written by a different emitter (macOS Quartz's `Tm`/`TJ` over
+# subset fonts, which _TEXT_OP_RE cannot parse at all) can be judged by the
+# same tolerance model -- see dump_engine_words/load_engine_words's own
+# docstrings for the schema. The claim under test here: run_gate(pdf_bytes=X)
+# and run_gate(engine_words=dump_engine_words(X)) must report BYTE-IDENTICAL
+# results for the same X, for real, non-trivial engine output -- not just a
+# hand-built one-line fixture. Two sources of X, per this repo's
+# synthetic-fixtures-only convention: the bundled PUBLIC samples (src/
+# ctrlkd/samples/*.WS, which ship in this repo and need no private corpus --
+# real multi-page prose, whatever font substitution each one happens to
+# hit, e.g. WARPRAYR's own Univers-substituted Tz-scaled quote line) and one
+# fully synthetic, GENERATED fixture built here that deliberately forces an
+# embedded picture (a raster -- the one extraction path the bundled samples
+# never exercise, since none of them reference a .PIX at all).
+SAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           'src', 'ctrlkd', 'samples')
+BUNDLED_SAMPLE_DOCS = ['LYING', 'WARPRAYR', 'TWAINLET', 'OCAPTAIN']
+
+
+def _fake_measurements_matching_page_count(n_pages):
+    """A placeholder WS7 measurements.json carrying only the right page
+    COUNT, no chunks at all. Sufficient for the round-trip claim under
+    test: both run_gate() calls being compared are given the EXACT SAME
+    ws7 fixture, so its content can never explain a difference between
+    the two ENGINE-side extraction paths -- only real extraction disagreement
+    could. (Real ws7 ground truth is exercised separately, in the private
+    `pcl` tier -- tests/test_pcl_fidelity.py.)"""
+    return {'pages': [{'page': i + 1, 'chunks': [], 'baseline_gaps_pt': []}
+                      for i in range(n_pages)]}
+
+
+def _assert_gate_round_trips(name, ws_path, m_path):
+    pdf_bytes = fg.render_engine_pdf(ws_path)
+    via_pdf = fg.run_gate(name, ws_path, m_path, pdf_bytes=pdf_bytes)
+    words = fg.dump_engine_words(pdf_bytes)
+    assert words['schema_version'] == fg.ENGINE_WORDS_SCHEMA_VERSION
+    assert words['n_pages'] == via_pdf['n_engine_pages']
+    via_words = fg.run_gate(name, ws_path, m_path, engine_words=words)
+    assert via_pdf == via_words, name
+    # round-tripping through an actual JSON string (not just the in-memory
+    # dict) too -- catches anything dump_engine_words wrote that json.dumps/
+    # json.loads wouldn't survive byte-for-byte (e.g. a non-JSON-native key).
+    via_json_roundtrip = fg.run_gate(name, ws_path, m_path,
+                                     engine_words=json.loads(json.dumps(words)))
+    assert via_pdf == via_json_roundtrip, name
+
+
+@pytest.mark.parametrize('name', BUNDLED_SAMPLE_DOCS)
+def test_engine_words_round_trip_on_bundled_samples(name, tmp_path):
+    """gate(pdf) == gate(dump(pdf)), for every bundled PUBLIC sample .WS --
+    this repo's own real Printed output (multi-page, real body text,
+    whatever font substitution each sample happens to hit), needing no
+    private corpus at all."""
+    ws_path = os.path.join(SAMPLES_DIR, f'{name}.WS')
+    pdf_bytes = fg.render_engine_pdf(ws_path)
+    n_pages = len(fg.extract_pages(pdf_bytes))
+    m_path = tmp_path / f'{name}.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(n_pages)))
+    _assert_gate_round_trips(name, ws_path, str(m_path))
+
+
+# ---- generated fixture: force an embedded picture (the raster round-trip
+# path -- none of the bundled samples above reference a .PIX at all).
+def _tiny_pix_bytes(gcols=8, grows=1):
+    """A minimal, structurally valid, single-row MONO .PIX -- same
+    construction as tests/test_pictures.py's own _tiny_pix_bytes (row 0 is
+    always stored raw, so this needs none of test_pix.py's tile-encoding
+    machinery); duplicated here rather than imported since test modules
+    aren't a shared library by this repo's own convention."""
+    row_bytes = gcols // 8
+    mode_blob = bytearray(29)
+    mode_blob[1] = 1                                  # htype bit0: bitmap
+    struct.pack_into('<HH', mode_blob, 18, gcols, grows)
+    mode_blob[22] = 1                                 # gfore: 1 bitplane
+    tile_info = struct.pack('<HHHH', grows, gcols, 1, 1)
+    tile_bitmap = bytes(row_bytes)                     # one raw all-zero row
+
+    items = [(0, bytes(mode_blob)), (1, bytes(4 * 16)), (2, tile_info),
+            (0x8000, tile_bitmap)]
+    header = struct.pack('<HH', 3, len(items))
+    index_off = 4 + 8 * len(items)
+    index_entries = bytearray()
+    blobs = bytearray()
+    cur = index_off
+    for did, blob in items:
+        index_entries += struct.pack('<HHI', did, len(blob), cur)
+        blobs += blob
+        cur += len(blob)
+    return bytes(header) + bytes(index_entries) + bytes(blobs)
+
+
+def _ws_pix_block(payload):
+    jump = (len(payload) + 4).to_bytes(2, 'little')
+    return b'\x1d' + jump + bytes([0x10]) + payload + jump + b'\x1d'
+
+
+def test_engine_words_round_trip_on_generated_picture_fixture(tmp_path):
+    """gate(pdf) == gate(dump(pdf)) for a synthetic document that embeds a
+    real picture -- the raster extraction path (engine_page_rasters /
+    'rasters' in the JSON schema), which none of the bundled prose samples
+    above ever exercise. Regression guard for the real bug this test
+    caught while it was being written: load_engine_words() originally
+    dropped the raster dict's own 'page' key (engine_page_rasters()
+    includes it, load_engine_words() didn't put it back), which made a
+    picture-bearing document's `rasters` report differ between the two
+    paths -- silently, since every OTHER field still compared equal."""
+    (tmp_path / 'FIGURE1.PIX').write_bytes(_tiny_pix_bytes())
+    ws_path = tmp_path / 'DOC.WS'
+    block = _ws_pix_block(br'C:\PIX\FIGURE1.PIX')
+    ws_path.write_bytes(b'Before the picture.\r\n\r\n' + block
+                        + b'\r\n\r\nAfter the picture.\r\n')
+    doc = core.parse_ws(ws_path.read_bytes())
+    pix_results = pictures.resolve_document_pictures(doc, str(ws_path))
+    assert pix_results and pix_results[0].ok, 'fixture must actually resolve the picture'
+
+    pdf_bytes = fg.render_engine_pdf(str(ws_path))
+    engine_pages = fg.extract_pages(pdf_bytes)
+    assert any(fg.engine_page_rasters(p, i + 1) for i, p in enumerate(engine_pages)), \
+        'fixture must actually draw a raster op, or this test proves nothing'
+
+    m_path = tmp_path / 'DOC.measurements.json'
+    m_path.write_text(json.dumps(_fake_measurements_matching_page_count(len(engine_pages))))
+    _assert_gate_round_trips('DOC', str(ws_path), str(m_path))

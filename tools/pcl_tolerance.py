@@ -923,7 +923,7 @@ def _divergence(doc, page, line_y, words, ws7_pos, pdf_pos, font_class, reason, 
     }
 
 
-def doc_report(doc_name: str) -> dict:
+def doc_report(doc_name: str, engine_words: dict = None) -> dict:
     """The full named-divergence report for one captured document:
     {doc, verdict, source_ws, capture_set, install, counts_by_reason,
     divergences, ...}.
@@ -953,6 +953,15 @@ def doc_report(doc_name: str) -> dict:
     means); no-substitute-tier word positions are not evaluated at all
     (see module docstring), so they never appear here except via the
     line-start/baseline/word-count checks every tier gets.
+
+    `engine_words`, when given, is a dict already matching the engine-words
+    JSON schema `fg.load_engine_words()` documents (fg = tools/
+    fidelity_gate.py) -- this SKIPS rendering/parsing a PDF entirely and
+    uses those pre-extracted words/rasters instead, so a PDF written by an
+    emitter this repo cannot parse as its own (Quartz `Tm`/`TJ` output over
+    subset fonts, e.g.) can still be judged by this exact tolerance model,
+    reason vocabulary, and manifest comparison -- unmodified. Default
+    (None) renders `ws_path` with this repo's own engine, same as ever.
     """
     capture = fg.resolve_doc_capture(doc_name)
     ws_path = capture['ws_path']
@@ -975,12 +984,20 @@ def doc_report(doc_name: str) -> dict:
     ws7_meta = json.load(open(measurements_path))
     n_ws7_pages = len(ws7_meta['pages'])
 
-    pdf_bytes = fg.render_engine_pdf(ws_path)
-    engine_pages = fg.extract_pages(pdf_bytes)
-    n_engine_pages = len(engine_pages)
-    eng_tokens = []
-    for i, p in enumerate(engine_pages):
-        eng_tokens.extend(fg.engine_page_tokens(p, i + 1))
+    if engine_words is not None:
+        loaded = fg.load_engine_words(engine_words)
+        n_engine_pages = loaded['n_engine_pages']
+        eng_tokens = loaded['eng_tokens']
+        eng_rasters_by_page = loaded['eng_rasters_by_page']
+    else:
+        pdf_bytes = fg.render_engine_pdf(ws_path)
+        engine_pages = fg.extract_pages(pdf_bytes)
+        n_engine_pages = len(engine_pages)
+        eng_tokens = []
+        for i, p in enumerate(engine_pages):
+            eng_tokens.extend(fg.engine_page_tokens(p, i + 1))
+        eng_rasters_by_page = {i + 1: fg.engine_page_rasters(p, i + 1)
+                               for i, p in enumerate(engine_pages)}
     # Same two exclusions as the WS7 side (box-drawing has no text-run
     # counterpart on either side by construction; short/punctuation tokens
     # are unreliable to align via whole-document text matching either
@@ -1019,8 +1036,7 @@ def doc_report(doc_name: str) -> dict:
     for i, p in enumerate(ws7_meta['pages']):
         pn = p.get('page', i + 1)
         ws7_r = fg.ws7_page_rasters(p, pn)
-        eng_page = engine_pages[pn - 1] if 0 < pn <= len(engine_pages) else None
-        eng_r = fg.engine_page_rasters(eng_page, pn) if eng_page is not None else []
+        eng_r = eng_rasters_by_page.get(pn, [])
         if not ws7_r and not eng_r:
             continue
         for idx in range(max(len(ws7_r), len(eng_r))):
@@ -1224,10 +1240,19 @@ def main(argv=None):
                          '(requires CTRLKD_PRIVATE_CORPUS, and CTRLKD_SAWYER_ARCHIVE for '
                          'the sawyer-group documents) -- writes the file, does not print a diff')
     ap.add_argument('--doc', help='print one document\'s live report (no manifest write)')
+    ap.add_argument('--engine-words', help='with --doc: judge a PRE-EXTRACTED engine-words '
+                    'JSON file (see fidelity_gate.py\'s "engine-words (JSON)" schema comment) '
+                    'instead of rendering/parsing this repo\'s own PDF for that document -- '
+                    'e.g. a words file produced from a Quartz-emitted PDF this repo cannot '
+                    'parse as its own. Not valid with --record.')
     a = ap.parse_args(argv)
 
+    if a.engine_words and a.record:
+        ap.error('--engine-words is not valid with --record')
+
     if a.doc:
-        print(json.dumps(doc_report(a.doc), indent=2))
+        engine_words = json.load(open(a.engine_words)) if a.engine_words else None
+        print(json.dumps(doc_report(a.doc, engine_words=engine_words), indent=2))
         return 0
 
     if a.record:
