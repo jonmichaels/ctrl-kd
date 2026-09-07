@@ -499,13 +499,22 @@ def test_pdf_printed_resolved_pix_draws_the_image_xobject_at_wordstars_own_posit
     """The positive half: a resolvable pix tag, sitting alone as the
     document's own first content line (the real-corpus shape -- confirmed
     against all 5 acceptance documents, see _doc_with_isolated_pix), draws
-    a real Image XObject at exactly the (x, y) an ordinary first line of
-    TEXT draws at in an otherwise byte-identical document -- i.e. the
-    image lands flush with the document's own left margin and top-of-page
-    position, the same place WordStar's own pagination would put any other
-    first line there. This is checked by COMPARING two renders rather than
-    asserting a hardcoded page-geometry constant, so it stays correct if
-    pdf.py's own margin/leading constants ever change."""
+    a real Image XObject at exactly the (x, y) WordStar's own pagination
+    puts it: flush with an ordinary first line's own left margin
+    horizontally, and vertically a quarter-line (descent) BELOW where an
+    ordinary first line's own top-of-cell would sit. This is checked by
+    COMPARING two renders rather than asserting a hardcoded page-geometry
+    constant, so it stays correct if pdf.py's own margin/leading constants
+    ever change.
+
+    Mechanism Y (PCL-DIVERGENCE-TRIAGE.md): measured against three
+    independent `ws7-prints/v3` PRISTINE.EXE captures (PREVIEW, -SCREEN,
+    -README), real WS7 does not draw the picture flush with the raw top
+    of its reserved band (the preceding line's own baseline) -- it sits a
+    further `0.25 * size` (that preceding line's own descent, the SAME
+    fraction `_graphic_ops` already uses for a box-drawing glyph's own
+    cell) below that, i.e. flush with the PRECEDING line's own cell
+    BOTTOM rather than its baseline."""
     from ctrlkd import pdf
     pix_bytes = _tiny_pix_bytes()
     (tmp_path / 'FIGURE1.PIX').write_bytes(pix_bytes)
@@ -545,16 +554,17 @@ def test_pdf_printed_resolved_pix_draws_the_image_xobject_at_wordstars_own_posit
     second_baseline_y_top = mb_h - second_word['y']
     lead = second_baseline_y_top - first_baseline_y_top
     assert lead > 0
-    expected_img_y_top = first_baseline_y_top - lead
+    size = pdf._printed_size(text_doc)
+    expected_img_y_top = first_baseline_y_top - lead + 0.25 * size
 
     # Left margin: the image's own left edge is exactly where an ordinary
     # first line of text starts.
     assert img_x == pytest.approx(text_x, abs=0.01)
-    # Vertical position: the image is drawn flush with the TOP of its
-    # reserved band -- one line's own lead ABOVE where that line's own
-    # text baseline would sit, i.e. exactly where the top of an ordinary
-    # first line's own cell starts. "WordStar's own position": the same
-    # top-of-page placement any other first content line gets.
+    # Vertical position (mechanism Y): the image is drawn flush with the
+    # BOTTOM of its reserved band's preceding line's own cell -- one
+    # line's own lead ABOVE where that line's own text baseline would
+    # sit, then back down by that same line's own descent
+    # (`0.25 * size`), not flush with the raw baseline itself.
     assert img_y_top == pytest.approx(expected_img_y_top, abs=0.01)
 
 

@@ -5255,11 +5255,40 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         # registered in every page's /XObject resources by emit_pdf
         # (round 19), one entry per embedded pix index, shared exactly
         # like the /Font dict already is.
+        #
+        # Mechanism Y (PCL-DIVERGENCE-TRIAGE.md, planning #211 follow-up):
+        # "the band's top edge" above is the PREVIOUS line's own BASELINE
+        # (that is what subtracting `reserved` from the previous line's y
+        # lands on) -- but real WS7 does not start the picture flush with
+        # that baseline. Measured against three independent `ws7-prints/v3`
+        # PRISTINE.EXE captures (PREVIEW, -SCREEN, -README, all embedding
+        # the same INSET/PIX/WORDSTAR.PIX), the raster's real top edge sits
+        # a further 2.7-3.0pt BELOW that baseline on every one of them --
+        # x and width/height already matched to within decipoint-rounding
+        # noise (<=0.58pt), only this vertical offset was missing. 3.0pt is
+        # exactly `0.25 * size` for these captures' own 12pt default text
+        # (-SCREEN and -README land on the WS7 figure to 0.0pt once it is
+        # applied; PREVIEW to 0.3pt, itself decipoint-rounding-sized, the
+        # same tolerance this module already accepts elsewhere for a
+        # measured-vs-predicted fit). `0.25 * pt` is not a new constant:
+        # it is the SAME baseline-to-cell-bottom (descent) fraction
+        # `_graphic_ops` already uses for a box-drawing glyph's own cell
+        # (`yb = y - 0.25 * pt`) -- applied here to the PRECEDING line's
+        # cell instead of the image's own, because the picture cannot
+        # start until that line's full cell (baseline plus descent) has
+        # cleared, the same physical constraint a text glyph's own cell
+        # observes. `size` is this function's own default text size
+        # parameter (the same one already threaded to `_line_ops_printed`
+        # and the `.l#` gutter below) -- pix tags reserve blank PHYSICAL
+        # lines at the document's own default size, never a per-line
+        # override PageLine tracks (see the "image" docstring above), so
+        # reusing it here matches every other furniture line's own
+        # assumption instead of adding a new one.
         img = getattr(line, 'image', None)
         if img is not None:
             pix_idx, w_pt, h_pt = img
             reserved = getattr(line, 'lead', None) or h_pt
-            img_y = y + (reserved - h_pt)
+            img_y = y + (reserved - h_pt) - 0.25 * size
             ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
                       % (w_pt, h_pt, left_here, img_y, pix_idx))
             continue

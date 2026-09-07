@@ -142,6 +142,18 @@ divergent (a document the task text did not name as expected to change)
 — flagged explicitly, not silently absorbed; see mechanism Y's own
 "Scope note" for the options this leaves open.
 
+**Mechanism-Y fix round (follow-up, same day):** traced and fixed the
+residual mechanism Y's own round above left NAMED but unfixed. Real WS7
+starts a picture's reserved band not flush with the preceding line's own
+baseline (what the pre-fix `img_y` computed), but a further `0.25 *
+size` below it — the preceding line's own descent, the SAME fraction
+`src/ctrlkd/pdf.py`'s `_graphic_ops` already uses for a box-drawing
+glyph's own cell. PREVIEW and `-README` return to clean (0 divergences,
+`pytest -m pcl` PASSES); `-SCREEN` drops its `raster-position-shift` row
+and keeps only its already-documented Symbol/cp437 residual (mechanism
+G's own entry). See mechanism Y's own entry, below mechanism X, for the
+full measurement table and the fix.
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -177,7 +189,7 @@ changes it describes are the only outputs.
 | V. `-README`'s "stock prints 14 pages, engine 16" | -README | page-count-mismatch, extra-word-in-engine (785), word-unmatched (136) — all cascading from the page-count mismatch | **CORPUS STALENESS** (the `ws7-prints/v3` harness tree's own copy of `-README.WS` is byte-identical to `v1`'s stale Version 1.4, never refreshed to the canonical archive's current Version 1.5 when the `v3`/PRISTINE.EXE batch was built — mechanism E's own finding, recurring here for the same reason) | **RESOLVED, no engine or corpus change** (verified directly: feeding the engine the harness tree's own 1.4 file reproduces `v3`'s 14-page capture chunk-for-chunk; feeding it the current 1.5 file reproduces the recorded 16-page output — the engine is correct against whichever file it is actually given) |
 | W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 | -README (`.h1`, every content page, 45 of the 47 divergences this document had left) | baseline-shift | **BROAD SUPPORT** (a FOURTH Sawyer-WSCHANGE-vs-stock contamination, same class as S/T/U: every prior fit for `_running_ops`'s own `hm`-participation gate — b26-header-round2's mt_source-only rule, register b31's OR-of-both-sources widening — was built entirely against Sawyer's WSCHANGE'd `WS.EXE`; `-README` is the corpus's only header-bearing document with `mt_source`/`hm_source` both `'default'`, and its `ws7-prints/v3` PRISTINE.EXE recapture is the first time this exact combination was ever checked against stock) | **FIXED** (`src/ctrlkd/pdf.py` `_running_ops`'s `hm` now participates in `head_base` UNCONDITIONALLY, no gate on either source at all; mechanism-W round, planning task, 2026-09-07) |
 | X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
-| Y. An embedded picture's own vertical position sits ~2.7-3.0pt too high (engine) vs. real WS7's own raster origin — a NEW comparison axis, not previously checked at all | PREVIEW, -SCREEN, -README (every currently-raster-captured picture-bearing document in the corpus — all three reference `INSET/PIX/WORDSTAR.PIX`) | raster-position-shift (new reason; x/width/height all match closely, only the vertical position is off) | **BROAD SUPPORT, likely** (same sign/magnitude on 3 independent documents strongly suggests one shared cause in the image's own "reserved band" vertical placement, `src/ctrlkd/pdf.py`'s `img_y = y + (reserved - h_pt)`) but **NOT DIAGNOSED** | **NAMED, NOT FIXED** — out of this round's scope (planning #211 asked to ADD the comparison, not fix engine positioning); see mechanism Y's own entry for the measurements and the scope note |
+| Y. An embedded picture's own vertical position sat ~2.7-3.0pt too high (engine) vs. real WS7's own raster origin | PREVIEW, -SCREEN, -README (every currently-raster-captured picture-bearing document in the corpus — all three reference `INSET/PIX/WORDSTAR.PIX`) | raster-position-shift (x/width/height all matched closely, only the vertical position was off) | **BROAD SUPPORT** (same sign/magnitude on 3 independent documents; one shared cause in the image's own "reserved band" vertical placement, `src/ctrlkd/pdf.py`'s `img_y`) | **FIXED** (`src/ctrlkd/pdf.py`'s `_page_stream` — `img_y` now subtracts `0.25 * size`, the SAME baseline-to-cell-bottom/descent fraction `_graphic_ops` already uses for a box-drawing glyph's own cell, applied to the PRECEDING line's cell instead of the image's own; follow-up round, 2026-09-06) |
 
 ---
 
@@ -2003,7 +2015,7 @@ other two findings), `-README` reaches **clean** — 0 divergences,
 
 ---
 
-## Y. An embedded picture's own vertical position is ~2.7-3.0pt too high — NAMED, NOT FIXED
+## Y. An embedded picture's own vertical position was ~2.7-3.0pt too high — FIXED
 
 **Why this exists.** Planning #211 (2026-09-06): the answer key and the
 `pcl` tier both ran with pictures OFF (`fg.render_engine_pdf` called
@@ -2046,55 +2058,70 @@ NOT match on any of the three:
 | -SCREEN | 363.0 | 360.0 | -3.00pt |
 | -README | 39.0 | 36.0 | -3.00pt |
 
-Same sign (the engine always draws the picture HIGHER on the page than
+Same sign (the engine always drew the picture HIGHER on the page than
 real WS7 did) and the same small order of magnitude (a quarter to a
 third of a 12pt line) on three independent documents/pages — far more
-likely one shared root cause than three coincidences. The most likely
-site, by inspection (not yet confirmed by an isolated probe): the
-image's own "reserved band" vertical placement in `src/ctrlkd/pdf.py`
-(`img_y = y + (reserved - h_pt)`, where `reserved` is the AUTHORED
-placeholder-plus-following-blank-lines height, not a quantity derived
-from the picture's own real physical size) — the same class of small,
-consistent vertical-anchor error mechanisms S/T/U/W each turned out to
-be, all previously hidden behind a Sawyer-WSCHANGE-vs-stock install
-difference or a masking coincidence. This has NOT been isolated the same
-way those were (no direct probe against a minimal synthetic document
-yet) — named as a real, evidenced, likely-BROAD-SUPPORT finding, not
-diagnosed to a root line of code.
+likely one shared root cause than three coincidences, exactly as
+suspected: the image's own "reserved band" vertical placement in
+`src/ctrlkd/pdf.py`'s `_page_stream` (`img_y = y + (reserved - h_pt)`,
+where `reserved` is the AUTHORED placeholder-plus-following-blank-lines
+height, not a quantity derived from the picture's own real physical
+size).
 
-**Not fixed, this round — explicitly out of scope.** Planning #211 asked
-to "add raster-position comparison at the tolerance you can justify from
-the capture's own raster origin" — adding the check, not chasing an
-engine position bug it then reveals. Mechanisms S/T/U/W each took their
-own dedicated round (a corpus probe, a `PRISTINE.EXE` recapture, or
-both) to pin down safely; doing that justice for mechanism Y belongs in
-its own round, not appended to a task whose acceptance criteria is about
-the pictures axis itself.
+**Diagnosis (follow-up round, same day).** `y + reserved` is, by
+construction, exactly the PREVIOUS pageline's own baseline (that is what
+subtracting `reserved` from it produced `y` in the first place) — so the
+pre-fix formula placed the image's top edge flush with that baseline.
+Instrumenting `_page_stream` directly (temporary stderr tracing, removed
+before commit) against all three documents' own real `.WS` source
+confirmed the previous line in every case is ordinary default-size
+(12pt) Courier text or an authored blank at the same size, immediately
+followed by the pix tag's own reserved band — the SAME shape in all
+three, no per-document quirk. Real WS7 does not start the picture at
+that raw baseline: it leaves room for the preceding line's own DESCENT
+first, exactly the `0.25 * pt` baseline-to-cell-bottom fraction
+`_graphic_ops` already uses elsewhere in this same file for a
+box-drawing glyph's own cell (`yb = y - 0.25 * pt`) — applied here to
+the PRECEDING line's cell instead of the glyph's own, because the
+picture cannot start until that line's full cell (baseline plus
+descent) has cleared. For these captures' own 12pt default text,
+`0.25 * 12 = 3.0pt`, which reproduces `-SCREEN` and `-README` to 0.0pt
+and `PREVIEW` to 0.3pt (itself decipoint-rounding-sized, the same
+tolerance this module already accepts elsewhere for a measured-vs-
+predicted fit — see e.g. `_pix_reserved_advance`'s own docstring).
 
-**Scope note — `-README` was not named by the task.** The task's own
-acceptance text says "PREVIEW's and -SCREEN's raster position is
-compared" and "`pytest -m pcl` unchanged for all 18 except PREVIEW/
--SCREEN." `-README` carrying a raster too, and therefore also picking up
-this new divergence, is a real surprise this round's own mechanical
-"any raster-bearing capture, no allowlist" design uncovered — consistent
-with this whole file's own standing preference for mechanical
-classification over hand-picked exceptions (see e.g. mechanism E's `v2`
-preference, or planning #205a's full-archive sweep), but it does flip
-`-README` from **clean** (0 divergences, `pytest -m pcl` PASSES, as of
-the mechanism-W/X round) to **divergent** — a document the task did not
-name as expected to change, and whose clean status took four separate
-mechanisms (Q, R via footnotes, W, X) to earn. Two ways to resolve this,
-Jon's call:
+| Doc | Preceding line | WS7 y_top (pt) | Old engine y_top | New engine y_top | Residual |
+|---|---|---|---|---|---|
+| PREVIEW | "A sample graphic:" (12pt Courier-Bold), baseline 407.7pt | 434.7 | 432.0 | 435.0 | 0.3pt |
+| -SCREEN | authored blank line (12pt), baseline 348.0pt | 363.0 | 360.0 | 363.0 | 0.0pt |
+| -README | top of page (`_printed_top`, 36pt, no preceding line) | 39.0 | 36.0 | 39.0 | 0.0pt |
 
-1. **Keep it** (current state, mechanical, no hand-curated exception) —
-   `-README` stays divergent until mechanism Y itself is diagnosed and
-   fixed in its own round, the same way S/T/U/W each were.
-2. **Scope the raster check to PREVIEW/-SCREEN only** (a hand-picked
-   `CAPTURED_DOCS`-shaped allowlist inside the raster-comparison loop) —
-   preserves `-README`'s clean status at the cost of the one thing this
-   repo's own culture keeps explicitly warning against: a doc-name
-   allowlist that silently stops covering a case (a future 4th
-   raster-bearing capture) nobody remembers to add to it.
+x and width/height needed no change (already matching to ≤0.58pt,
+inside `RASTER_X_EPS_PT`/`RASTER_SIZE_EPS_PT`).
+
+**Fixed** (`src/ctrlkd/pdf.py`, `_page_stream`): `img_y` now subtracts
+`0.25 * size` (`size` is this function's own default text-size
+parameter, the same one already threaded to `_line_ops_printed` and the
+`.l#` gutter in the same loop — pix tags reserve blank PHYSICAL lines at
+the document's own default size, never a per-line override `PageLine`
+tracks, so reusing it here matches every other furniture line's own
+assumption rather than adding a new one). `tests/test_pictures.py`'s
+own `test_pdf_printed_resolved_pix_draws_the_image_xobject_at_
+wordstars_own_position` encoded the OLD (flush-with-baseline) model as
+a hardcoded expectation — updated to assert the new `- 0.25 * size`
+relationship instead, still self-derived from a comparison render
+rather than a literal constant.
+
+**Scope note — `-README` was not named by the original comparison task,
+and this round resolves it.** `-README` carrying a raster too (not just
+PREVIEW/-SCREEN) was a real surprise the mechanical "any raster-bearing
+capture, no allowlist" design uncovered — consistent with this whole
+file's own standing preference for mechanical classification over
+hand-picked exceptions (see e.g. mechanism E's `v2` preference). With
+the fix landed, option 1 from the prior round's own list ("keep it
+mechanical, no allowlist") resolves cleanly: `-README` returns to
+**clean** (0 divergences, `pytest -m pcl` PASSES) on its own, the same
+way PREVIEW does — no allowlist was ever needed.
 
 ---
 

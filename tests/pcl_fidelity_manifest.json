@@ -3136,37 +3136,15 @@
     },
     "PREVIEW": {
       "doc": "PREVIEW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/PREVIEW.WS",
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 2,
-      "counts_by_reason": {
-        "raster-position-shift": 1
-      },
-      "divergences": [
-        {
-          "doc": "PREVIEW",
-          "page": 1,
-          "line_y_top_pt": 434.7,
-          "words": [
-            "raster#0"
-          ],
-          "ws7_pos": [
-            57.6,
-            434.7
-          ],
-          "pdf_pos": [
-            57.6,
-            432.0
-          ],
-          "font_class": null,
-          "reason": "raster-position-shift",
-          "detail": "raster position residual dx=+0.00pt dy=-2.70pt (tolerance dx 2.5pt, dy 1.0pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 8,
         "median_dx": 0.0,
@@ -3175,37 +3153,15 @@
     },
     "-README": {
       "doc": "-README",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/-README.WS",
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 16,
       "n_engine_pages": 16,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "raster-position-shift": 1
-      },
-      "divergences": [
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 39.0,
-          "words": [
-            "raster#0"
-          ],
-          "ws7_pos": [
-            57.6,
-            39.0
-          ],
-          "pdf_pos": [
-            57.6,
-            36.0
-          ],
-          "font_class": null,
-          "reason": "raster-position-shift",
-          "detail": "raster position residual dx=+0.00pt dy=-3.00pt (tolerance dx 2.5pt, dy 1.0pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 618,
         "median_dx": 0.0,
@@ -3240,7 +3196,6 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "extra-word-in-engine": 2,
-        "raster-position-shift": 1,
         "word-unmatched": 4
       },
       "divergences": [
@@ -3275,25 +3230,6 @@
           "font_class": "symbol",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 363.0,
-          "words": [
-            "raster#0"
-          ],
-          "ws7_pos": [
-            57.6,
-            363.0
-          ],
-          "pdf_pos": [
-            57.6,
-            360.0
-          ],
-          "font_class": null,
-          "reason": "raster-position-shift",
-          "detail": "raster position residual dx=+0.00pt dy=-3.00pt (tolerance dx 2.5pt, dy 1.0pt)"
         },
         {
           "doc": "-SCREEN",
