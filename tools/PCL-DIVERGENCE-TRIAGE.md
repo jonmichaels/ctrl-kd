@@ -190,7 +190,7 @@ changes it describes are the only outputs.
 | W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 | -README (`.h1`, every content page, 45 of the 47 divergences this document had left) | baseline-shift | **BROAD SUPPORT** (a FOURTH Sawyer-WSCHANGE-vs-stock contamination, same class as S/T/U: every prior fit for `_running_ops`'s own `hm`-participation gate — b26-header-round2's mt_source-only rule, register b31's OR-of-both-sources widening — was built entirely against Sawyer's WSCHANGE'd `WS.EXE`; `-README` is the corpus's only header-bearing document with `mt_source`/`hm_source` both `'default'`, and its `ws7-prints/v3` PRISTINE.EXE recapture is the first time this exact combination was ever checked against stock) | **FIXED** (`src/ctrlkd/pdf.py` `_running_ops`'s `hm` now participates in `head_base` UNCONDITIONALLY, no gate on either source at all; mechanism-W round, planning task, 2026-09-07) |
 | X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
 | Y. An embedded picture's own vertical position sat ~2.7-3.0pt too high (engine) vs. real WS7's own raster origin | PREVIEW, -SCREEN, -README (every currently-raster-captured picture-bearing document in the corpus — all three reference `INSET/PIX/WORDSTAR.PIX`) | raster-position-shift (x/width/height all matched closely, only the vertical position was off) | **BROAD SUPPORT** (same sign/magnitude on 3 independent documents; one shared cause in the image's own "reserved band" vertical placement, `src/ctrlkd/pdf.py`'s `img_y`) | **FIXED** (`src/ctrlkd/pdf.py`'s `_page_stream` — `img_y` now subtracts `0.25 * size`, the SAME baseline-to-cell-bottom/descent fraction `_graphic_ops` already uses for a box-drawing glyph's own cell, applied to the PRECEDING line's cell instead of the image's own; follow-up round, 2026-09-06) |
-| Z. The gate's own reader (`_TEXT_OP_RE`) was keyed to ONE operand order and never matched `_symbol_style_op`'s two OTHER shapes (faux-bold: `Tr`/`w` before `Ts`; faux-oblique: `Tm` not `Td`) — every Symbol-styled bold/italic/bold-italic op silently dropped, not reported unmatched; corrects mechanism B's own "verified against every call site" claim (false for `_symbol_style_op`'s 3 sites) and the earlier "-SCREEN extra Ω... code was already right" entry (true of the engine's PDF bytes, not of the gate's own automated extraction) | -SCREEN (only document in this corpus with a Symbol-styled bold/italic run) | word-unmatched, extra-word-in-engine (both already present, but under-reporting how fragmented the extraction was — see below) | **TOOLING** (harness bug, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `_TEXT_OP_RE` replaced by a content-stream state machine, `_tokenize_content`/`parse_text_ops`, accepts any operand order; 2026-09-07) — a SEPARATE, pre-existing mid-word Symbol/Courier fragmentation on the same line stays **named, not fixed** (a same-baseline zero-gap merge was tried and reverted the same day — see mechanism Z's own entry for why) |
+| Z. The gate's own reader (`_TEXT_OP_RE`) was keyed to ONE operand order and never matched `_symbol_style_op`'s two OTHER shapes (faux-bold: `Tr`/`w` before `Ts`; faux-oblique: `Tm` not `Td`) — every Symbol-styled bold/italic/bold-italic op silently dropped, not reported unmatched; corrects mechanism B's own "verified against every call site" claim (false for `_symbol_style_op`'s 3 sites) and the earlier "-SCREEN extra Ω... code was already right" entry (true of the engine's PDF bytes, not of the gate's own automated extraction) | -SCREEN (only document in this corpus with a Symbol-styled bold/italic run) | word-unmatched, extra-word-in-engine (both already present, but under-reporting how fragmented the extraction was — see below) | **TOOLING** (harness bug, not an engine behaviour) | **FIXED** (`tools/fidelity_gate.py` `_TEXT_OP_RE` replaced by a content-stream state machine, `_tokenize_content`/`parse_text_ops`, accepts any operand order; 2026-09-07) — the SEPARATE, pre-existing mid-word Symbol/Courier fragmentation on the same line, once "named, not fixed" after a reverted same-baseline zero-gap merge, is now **RESOLVED** too: same-side (character-level) segmentation on BOTH sides (`segment_words_from_chars`/`char_space_width_pt`, `tools/fidelity_gate.py`; `_merge_zero_gap_cross_font_chunks`/`_find_offbaseline_occupant`, `tools/pcl_tolerance.py`), ruled by Jon from the real-LaserJet paper scan of `-SCREEN` (corpus `verdicts.json` doc87 p6) — see mechanism Z's own entry, RESOLVED update, 2026-09-07 |
 
 ---
 
@@ -2297,6 +2297,130 @@ purposes without merging them at the token level generally — out of
 scope for this round (one contrived reference/demo line, same
 proportion-of-effort judgment the original "extra Ω" entry already made
 about this exact line).
+
+---
+
+**RESOLVED 2026-09-07 — same-side (character-level) segmentation, both
+sides, ruled by Jon from the real-LaserJet paper scan of `-SCREEN`**
+(the private corpus's own `ws7-prints/paper-scans/verdicts.json`
+doc87 p6): the cp437 Greek/math line `αßΓπΣσµτΦΘΩδφε` prints as ONE word
+per occurrence, four occurrences on page 1 at x = 57.6, 180.0, 302.4,
+424.8pt (y≈324pt) — confirming what the "tried and reverted" entry above
+could only infer from measurements.json: both sides print one contiguous
+run, and the 8 extra-word/4 word-unmatched this line carried was a
+MATCHING artifact, not an engine divergence.
+
+The reverted attempt above diagnosed the real constraint correctly
+("geometry alone... cannot distinguish a font-substitution split from a
+word directly followed by punctuation") but drew the wrong conclusion
+from it — the missing information was never the emitter's own span
+boundaries, it was that only ONE side (the engine) had been taught to
+look past its own op/chunk boundaries at all. The actual fix teaches
+BOTH sides the identical, purely GEOMETRIC rule, so an op/chunk boundary
+stops being the thing either side privileges:
+
+  Reconstruct each baseline's own character sequence (engine: every
+  character of every text op, walking its OWN x + per-character AFM/Tz
+  advance, exactly as `split_engine_op` already did per-op, now carried
+  across ops on one baseline; WS7: measurements.json's own chunks,
+  walked the same way). A word boundary is a space character, or a
+  horizontal gap ≥ one cell (fixed pitch) / the face's own space-glyph
+  width (proportional, capped — see below) between consecutive
+  characters. A font, style, or rise change with NO such gap is NEVER a
+  boundary by itself.
+
+This is genuinely the SAME merge the reverted attempt tried (a same-
+baseline, near-zero-gap join) — the fix was making the WS7 side do it
+too, symmetrically, from characters rather than pre-formed chunks. Once
+both sides use the identical rule, `WSMSGS.OVR` + `.]` (the reverted
+attempt's own counterexample) resolves correctly in the other direction:
+real WS7 prints them touching too (confirmed directly — SAWYER.WS's own
+`.]` chunk carries a STALE raw x inherited from `WSMSGS.OVR`'s own last
+real `H` command, mechanism J's own pattern; corrected, the true gap is
+0.0pt, identical to the engine's own already-correct position) — so
+`WSMSGS.OVR.]` is now ONE word on both sides, which is the CORRECT
+result, not a workaround. Six previously-clean documents stay clean
+under the symmetric rule for exactly this reason.
+
+Two further, real WS7-specific complications surfaced building this,
+both fixed as part of the same round (`tools/pcl_tolerance.py`):
+
+  - A super/subscript character sits on a DIFFERENT y than the line it
+    visually belongs to in WS7's own capture (confirmed: DOCC.WS's own
+    footnote-reference markers, `-SCREEN`'s own subscript `H2O` demo —
+    both measure exactly 4.5pt of real vertical pen movement), unlike
+    this engine's PDF, which keeps one Td line and applies a `Ts` rise
+    instead (mechanism G). Left un-stitched, the marker's own horizontal
+    span reads as an unexplained gap between the two real, same-baseline
+    neighbors either side of it. `_find_offbaseline_occupant` searches
+    nearby-but-different-y chunks for one that fully explains such a
+    gap (and is itself never independently checkable —
+    `_is_unreliable_to_align` — so this can never double-count a real
+    word) and splices it in.
+  - A proportional (CG-Times/Univers-substituted) face's own nominal
+    space-glyph width is NOT a safe merge threshold in this corpus: real
+    WS7 word-to-word gaps in substituted running text range from well
+    under 1pt (LYING.WS's own `speak`/`no`, confirmed real, 0.78pt) to
+    several pt (LYING.WS's own `is`/`eternal;`, confirmed real, 2.8pt),
+    overlapping entirely with what a "this is one continuous run"
+    threshold would need to cover. `char_space_width_pt`
+    (`tools/fidelity_gate.py`) caps the merge threshold accordingly:
+    `WORD_GAP_MAX_PT` (1.5pt, matching `KERNING_MERGE_EPS_PT`'s own
+    already-validated bound) for an exact/fixed-pitch or symbol face,
+    `SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT` (0.3pt — merge only at a
+    genuinely near-zero gap) for a font-substituted proportional one.
+    Every CONFIRMED mechanism-Z target is fixed-pitch Courier and
+    measures exactly 0.0pt either way, so this costs nothing against any
+    of them.
+
+Also fixed the same round, as prerequisites once both sides had to agree
+(`tools/pcl_tolerance.py`): mechanism J (toggle-boundary correction) now
+runs BEFORE mechanism D (double-strike dedupe) rather than after — a
+chain of chunks that never got a real repositioning command can share
+one stale x across MORE than two chunks (SAWYER.WS's own `D,B,A,C),`
+menu-tag list), which mechanism D's own same-key/near-x rule misread as
+double-strike duplicates purely by coincidence when it ran first.
+Reordering alone then broke a genuine double-strike whose second strike
+lands with a same-stale-x but different-font predecessor (`-README.WS`'s
+own `LASERJET.PDF`, double-struck, with the rest of its own sentence
+emitted between the two strikes) — mechanism J's own `is_repeat` guard
+(the exact two-back `A, B, A` sandwich shape, never "any repeat anywhere
+in a same-x run") resolves this without reintroducing the SAWYER
+mis-match either way.
+
+**Before/after, full corpus** (`CTRLKD_PRIVATE_CORPUS` armed,
+`python3 tools/pcl_tolerance.py --record`): all 14 previously-clean
+documents (BOXES, DOCA, DOCB, DOCC, DOCD, OCAPTAIN, DOCE, PREVIEW,
+`-README`, SAWYER, SCRIPT, DOCF, TWAINLET, VERSIONS) stay clean.
+`-SCREEN` goes divergent → **clean** (12 → 0). WARPRAYR is
+byte-identical to its prior recorded divergences (unaffected). LYING
+gains exactly ONE new, understood pair (`extra-word-in-engine`
+`'Prize.1'` / `word-unmatched` `'Prize.'` — a footnote-reference marker
+in PROPORTIONAL text: the engine merges it, since its own gap is
+genuinely 0.0pt regardless of font class, but `SUBSTITUTED_PROPORTIONAL_
+GAP_MAX_PT` correctly blocks the WS7 side from attempting the same merge
+across the corpus's own unpredictable proportional spacing — an
+accepted asymmetry, not a bug, given the alternative is reintroducing
+`speak`/`no`-class false merges corpus-wide). LJ6DTP (**PARKED** per
+Jon's ruling, mechanism H) moves in both directions —
+`baseline-shift` 21→0 and `exact-drift` 34→9 (both improvements, a side
+effect of mechanism J's own reordering) against `extra-word-in-engine`
+292→338 and `word-unmatched` 150→173 (more of the same
+proportional-substitution noise this document was already parked for)
+— not investigated further, by the same instruction that parked it.
+
+Fixed: `tools/fidelity_gate.py`'s `segment_words_from_chars`/
+`char_space_width_pt`/`_op_chars` (shared character-level segmentation
+machinery) and `engine_page_tokens` (engine side, now calls it instead
+of stopping at an op boundary); `tools/pcl_tolerance.py`'s
+`_merge_zero_gap_cross_font_chunks`/`_find_offbaseline_occupant` (WS7
+side) plus the mechanism-J/D reordering above. Tests:
+`tests/test_fidelity_gate.py`'s four Tier-1 fixtures (styled-span split
+inside a word, punctuation after a word at zero gap, two words separated
+by exactly one space, superscript in a word) and
+`tests/test_pcl_tolerance.py`'s WS7-side mirror of the same four shapes
+plus the off-baseline-stitching and mechanism-J/D-reordering regressions
+named above.
 
 ---
 

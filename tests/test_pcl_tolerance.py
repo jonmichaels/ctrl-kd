@@ -384,6 +384,178 @@ def test_correct_toggle_boundary_chunks_leaves_a_same_underline_coincidence_alon
     assert [c[0]['x_decipoints'] for c in corrected] == [2000, 2000]
 
 
+# --------------------------------------- mechanism Z: same-side segmentation
+# 2026-09-07, Jon's ruling from the real-LaserJet paper scan of -SCREEN
+# (the private corpus's own verdicts.json doc87 p6): the WS7-side half of
+# same-side character segmentation (fg.segment_words_from_chars/
+# fg.char_space_width_pt) -- see tools/fidelity_gate.py's own
+# engine_page_tokens tests for the engine-side half of these same four
+# Tier-1 shapes (styled-span split inside a word, punctuation after a
+# word, two words separated by exactly one space, superscript in a word).
+def test_merge_zero_gap_cross_font_chunks_merges_across_a_font_change():
+    # SAWYER.WS's own 'WSMSGS.OVR' (bold) + '.]' (plain) shape, at the
+    # exact zero gap mechanism J's own correction resolves it to (its own
+    # test above confirms this position). Neither mechanism C nor K ever
+    # touch this (both require the SAME font on both sides) -- mechanism
+    # Z is the general, font-agnostic case.
+    end_dp = _natural_end_dp('WSMSGS.OVR', 1000, 'Courier-Bold', 24)
+    items = [(_pc('WSMSGS.OVR', 1000, font='Courier-Bold'), _tc()),
+             (_pc('.]', end_dp, font='Courier'), _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items)
+    assert len(merged) == 1
+    assert merged[0][0]['text'] == 'WSMSGS.OVR.]'
+    assert merged[0][0]['x_decipoints'] == 1000
+
+
+def test_merge_zero_gap_cross_font_chunks_leaves_a_real_gap_unmerged():
+    items = [(_pc('Hello', 1000), _tc()), (_pc('world', 1000 + 2000), _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items)
+    assert len(merged) == 2
+    assert [m[0]['text'] for m in merged] == ['Hello', 'world']
+
+
+def test_merge_zero_gap_cross_font_chunks_splits_at_exactly_one_space_width():
+    # Tier 1: two words separated by exactly one space -- the boundary
+    # case (gap == one space glyph's own width) must still split, not
+    # merge (segment_words_from_chars' own `gap >= threshold` rule).
+    end_dp = _natural_end_dp('Hello', 1000, 'Courier', 24)
+    space_dp = round(pt.fg.char_space_width_pt('Courier', 24) * pt.fg.DECIPT_PER_PT)
+    items = [(_pc('Hello', 1000), _tc()), (_pc('world', end_dp + space_dp), _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items)
+    assert len(merged) == 2
+    assert [m[0]['text'] for m in merged] == ['Hello', 'world']
+
+
+def test_merge_zero_gap_cross_font_chunks_leaves_a_same_position_overlay_untouched():
+    # -SCREEN.WS/-README.WS's own "Strike-out" demo: a literal dash-
+    # overlay chunk printed a SECOND time at the SAME position as the
+    # word it strikes through (WS7's own double-strike-style rendering of
+    # a strikethrough, not an exact-text double-strike mechanism D
+    # already dedupes). x never advances for it -- it must never enter
+    # the character stream at all, only pass through untouched.
+    items = [(_pc('Strike-out', 1000), _tc()), (_pc('----------', 1000), _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items)
+    texts = [m[0]['text'] for m in merged]
+    assert 'Strike-out' in texts
+    assert '----------' in texts
+    assert not any('S-t-r' in t for t in texts)
+
+
+def test_find_offbaseline_occupant_matches_a_raised_footnote_marker():
+    # DOCC.WS's own real measured shape: 'Indians.' ends at 216.0pt;
+    # its footnote-reference '1' sits exactly there too, but 4.5pt ABOVE
+    # the line's own baseline (WS7 really moves the pen for a super/
+    # subscript character -- mechanism G).
+    marker = _pc('1', 2160, size=9.25, font='Courier')
+    marker['y_decipoints'] = 1275
+    occ = pt._find_offbaseline_occupant([(marker, _tc())], 2160, 2359, 1320)
+    assert occ is not None
+    assert occ[0]['text'] == '1'
+
+
+def test_find_offbaseline_occupant_never_absorbs_a_real_checkable_word():
+    # A nearby off-baseline candidate that WOULD become its own checkable
+    # token (long enough / has alnum content beyond mechanism Z's own
+    # unreliable-to-align scope) must never be absorbed -- only a
+    # fragment that could never independently align is fair game.
+    word = _pc('Word', 2160, font='Courier')
+    word['y_decipoints'] = 1275
+    occ = pt._find_offbaseline_occupant([(word, _tc())], 2160, 3000, 1320)
+    assert occ is None
+
+
+def test_merge_zero_gap_cross_font_chunks_stitches_a_superscript_inside_a_word():
+    # Tier 1: superscript in a word. DOCC.WS's own real measured
+    # numbers: 'Indians.' (x=158.4pt, ends at 216.0pt) + a raised
+    # footnote '1' (x=216.0pt, y 4.5pt above the line) + 'The' (the next
+    # real word, x=235.9pt) -- the gap between 'Indians.' and 'The' looks
+    # too wide to merge on its own, but is fully explained by the marker
+    # sitting inside it.
+    word = _pc('Indians.', 1584, font='Courier', size=12)
+    word['y_decipoints'] = 1320
+    nxt = _pc('The', 2359, font='Courier', size=12)
+    nxt['y_decipoints'] = 1320
+    marker = _pc('1', 2160, size=9.25, font='Courier')
+    marker['y_decipoints'] = 1275
+    items = [(word, _tc()), (nxt, _tc())]
+    page_chunks = items + [(marker, _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
+    texts = [m[0]['text'] for m in merged]
+    assert 'Indians.1' in texts
+    assert 'The' in texts
+
+
+def test_merge_zero_gap_cross_font_chunks_stitches_a_subscript_inside_a_word():
+    # Tier 1: -SCREEN.WS's own real measured 'H2O' shape -- 'H' and 'O'
+    # on the same baseline, a lowered subscript '2' sitting exactly
+    # between them on a different y.
+    h = _pc('H', 1728, font='Courier', size=12)
+    h['y_decipoints'] = 1680
+    o = _pc('O', 1855, font='Courier', size=12)
+    o['y_decipoints'] = 1680
+    two = _pc('2', 1800, size=9.25, font='Courier')
+    two['y_decipoints'] = 1725
+    items = [(h, _tc()), (o, _tc())]
+    page_chunks = items + [(two, _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
+    assert [m[0]['text'] for m in merged] == ['H2O']
+
+
+def test_merge_zero_gap_cross_font_chunks_stitches_a_trailing_marker_at_line_end():
+    # The real DOCC.WS regression: a footnote reference at the very END
+    # of a printed line has no FOLLOWING same-baseline chunk to bound a
+    # gap window against at all -- must still be found via the trailing
+    # window search past the line's own last chunk.
+    word = _pc('agreement.', 4176, font='Courier', size=12)
+    word['y_decipoints'] = 2520
+    marker = _pc('2', 4896, size=9.25, font='Courier')
+    marker['y_decipoints'] = 2475
+    items = [(word, _tc())]
+    page_chunks = items + [(marker, _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
+    assert merged[0][0]['text'] == 'agreement.2'
+
+
+def test_merge_zero_gap_cross_font_chunks_a_lone_offbaseline_marker_runs_no_search_of_its_own():
+    # The real -SCREEN.WS regression: a baseline made ENTIRELY of a
+    # fragment that would never become its own checkable token anyway
+    # (e.g. a lone raised trademark 'TM' marker, its own by_y group) must
+    # never run ITS OWN occupant search and wrongly absorb the FOLLOWING
+    # real line's own punctuation.
+    marker = _pc('TM', 1440, size=9.25, font='Courier')
+    marker['y_decipoints'] = 2595
+    comma = _pc(',', 1550, font='Courier', size=12)
+    comma['y_decipoints'] = 2640
+    items = [(marker, _tc())]
+    page_chunks = items + [(comma, _tc())]
+    merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
+    assert merged[0][0]['text'] == 'TM'
+
+
+def test_toggle_boundary_before_double_strike_dedupe_does_not_swallow_a_stale_x_chain():
+    # SAWYER.WS's own 'D,B,A,C),' menu-tag list, the real regression that
+    # moved mechanism J ahead of mechanism D (see J's own docstring):
+    # FOUR separate literal commas, none of which ever got a real
+    # repositioning command, all sharing one stale raw x=57.6pt along
+    # with the four bold letters. Run in the SAME order load_ws7_tokens
+    # itself uses (N, J, D, C, K, Z): J must resolve each comma to its
+    # own real, distinct, cascading position BEFORE D ever looks at x,
+    # so D finds no duplicates at all, and mechanism Z then merges the
+    # whole, now-contiguous chain into one word.
+    raw = [('D', 'Courier-Bold'), (',', 'Courier'), ('B', 'Courier-Bold'),
+          (',', 'Courier'), ('A', 'Courier-Bold'), (',', 'Courier'),
+          ('C', 'Courier-Bold'), ('),', 'Courier')]
+    items = [(_pc(text, 1000, font=font), _tc()) for text, font in raw]
+    items = pt._correct_toggle_boundary_chunks(items)      # mechanism J
+    items = pt._dedupe_double_strike_chunks(items)         # mechanism D
+    assert len(items) == 8, 'mechanism D must not drop any of these 8 chunks'
+    items = pt._merge_kerning_split_chunks(items)          # mechanism C
+    items = pt._merge_trailing_punctuation_chunks(items)   # mechanism K
+    merged = pt._merge_zero_gap_cross_font_chunks(items)   # mechanism Z
+    assert len(merged) == 1
+    assert merged[0][0]['text'] == 'D,B,A,C),'
+
+
 # ------------------------------------------------------- token exclusions
 def test_box_drawing_text_detects_pure_border_and_block_runs():
     assert pt._is_box_drawing_text('│')            # vertical bar

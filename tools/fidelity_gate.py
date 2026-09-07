@@ -35,12 +35,31 @@ WHAT IT DOES
    line's position) -- so it reads every `Tj`/`TJ`/`'`/`"` regardless of
    what order the surrounding state ops were written in, and regardless of
    which of Td/Tm placed the text.
-3. Splits each engine text run into WORD-granular positions using the
-   project's OWN AFM metrics (`ctrlkd.afm.string_width_pt`) and the run's
-   OWN Tz scale (carried across ops within a page's content stream,
-   exactly as pdf.py's `tz_state` does) -- so a Courier run holding
-   several words gets the same per-word x pdf.py itself computed, without
-   re-deriving pdf.py's internal HMI/pitch state.
+3. Splits each PAGE's own text into WORD-granular positions from
+   CHARACTERS, not from op/chunk boundaries (mechanism Z, 2026-09-07,
+   Jon's ruling from the real-LaserJet paper scan of -SCREEN, corpus
+   verdicts.json doc87 p6): every character of every text op is walked
+   at its own x (the project's OWN AFM metrics, `ctrlkd.afm.
+   string_width_pt`, and the run's OWN Tz scale, carried across ops
+   within a page exactly as pdf.py's `tz_state` does -- so a Courier run
+   holding several words gets the same per-word x pdf.py itself
+   computed, without re-deriving pdf.py's internal HMI/pitch state), then
+   re-segmented into words purely by those characters
+   (`segment_words_from_chars`): a space, or a horizontal gap at or past
+   the smaller of the two adjoining characters' own face's space-glyph
+   width (`char_space_width_pt`, capped -- a proportional/font-
+   substituted face's own nominal space width is not a safe merge
+   threshold in this corpus, see that function's own comment). A font,
+   style, or `Ts` rise change with NO such gap is NEVER itself a word
+   boundary -- this is what lets e.g. -SCREEN's own cp437 Greek/math
+   demo line (drawn as several zero-gap, alternating Symbol/Courier text
+   ops, Symbol-styled characters untransliterated back to their real
+   Unicode identity via `ctrlkd.symbolmap`) read as ONE word, matching
+   WS7's own single captured chunk in both text and position.
+   `tools/pcl_tolerance.py`'s `_merge_zero_gap_cross_font_chunks` builds
+   the identical segmentation from WS7's own measurements.json chunks, so
+   a word is the same set of characters on both sides regardless of which
+   side happened to draw it as more than one op/chunk.
 4. Matches engine words to WS7 chunks per page, in reading/emission
    order, via difflib's sequence alignment on the TEXT ONLY -- this is
    honest about disagreement: a word that doesn't literally match on
@@ -162,6 +181,7 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 from ctrlkd import core, pdf as pdfmod, afm  # noqa: E402
 from ctrlkd import pictures as ctrlkd_pictures  # noqa: E402
+from ctrlkd import symbolmap  # noqa: E402
 
 DECIPT_PER_PT = 10.0
 
@@ -527,7 +547,221 @@ def classify_font(basefont) -> str:
 
 
 # --------------------------------------------------- engine word splitting
-_TOKEN_RE = re.compile(r' +|[^ ]+')
+# MECHANISM Z, same-side segmentation (2026-09-07, Jon's ruling from the
+# real-LaserJet paper scan of -SCREEN, the private corpus's own verdicts.json
+# doc87 p6): both sides of this gate now build a "word" the SAME way --
+# from CHARACTERS placed at an x position, not from however many
+# text-showing ops (engine) or PCL print chunks (WS7) happened to carry
+# them. A word boundary is a space character, or a real horizontal GAP
+# (>= the smaller of the two adjoining characters' own face's
+# space-glyph width -- char_space_width_pt) between one character's own
+# x_end and the next one's own x_start; a font, size, style or rise
+# change with NO such gap is never itself a boundary. This is what lets
+# -SCREEN's own cp437 Greek/math demo line (four alternating Symbol/
+# Courier text ops per styled repetition, zero gap between every one of
+# them) merge into ONE word matching WS7's own single 14-character
+# captured chunk, while a real typed space between two differently-styled
+# words still splits them correctly either way -- see
+# segment_words_from_chars below (this file) for the engine side and
+# tools/pcl_tolerance.py's `_merge_zero_gap_cross_font_chunks` (mechanism
+# Z) for the WS7 side, and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z for
+# the full trace, including why the FIRST attempt at this (2026-09-07,
+# reverted the same day) broke six previously-clean documents: it only
+# ever touched the engine side, so a WS7 chunk pair at the identical zero
+# gap (confirmed on SAWYER.WS's own 'WSMSGS.OVR' + '.]', mechanism J's
+# own toggle-boundary correction already resolves their real, contiguous
+# position) never merged to match it. Applying the SAME rule to both
+# sides fixes both cases at once.
+WORD_GAP_SLACK_PT = 0.15  # decipoint-quantization (WS7's own measurements.json
+                          # is 0.1pt-granular) plus ordinary float rounding --
+                          # subtracted from the gap threshold so a real,
+                          # deliberately-typed space whose measured gap lands
+                          # a hair under its own nominal space-glyph width
+                          # (rounding, never a font-substitution artifact)
+                          # still counts as a boundary. Small relative to
+                          # every threshold this repo's own faces produce
+                          # (7.2pt Courier at 12pt/10cpi; a proportional
+                          # face's own space glyph is never this narrow
+                          # either), so it never risks turning a real
+                          # zero-ish gap (mechanism Z's own target, always
+                          # exactly 0.0pt in every confirmed case) into a
+                          # false boundary.
+
+
+WORD_GAP_MAX_PT = 1.5  # same magnitude as tools/pcl_tolerance.py's own
+                       # KERNING_MERGE_EPS_PT, this corpus's own already-
+                       # validated safe bound for "close enough to be one
+                       # continuous run" in a CG-Times/Univers-substituted
+                       # PROPORTIONAL running size. A face under font
+                       # substitution (every proportional face this repo
+                       # ever draws -- Jon's base-14-only ruling) has no
+                       # exact space-glyph metric to trust at all: real
+                       # WS7 word-to-word gaps in this corpus's own
+                       # CG-Times-substituted 12-16pt running text measure
+                       # as low as ~2.8pt (confirmed: LYING.WS's own 'is'
+                       # 'eternal;', a real two-word gap, not a font-
+                       # substitution artifact -- mechanism Z's own
+                       # literal "the face's own space width" threshold,
+                       # ~3.0pt for 12pt Times-Roman, sat ABOVE that real
+                       # gap and wrongly merged it, the same "widening a
+                       # merge epsilon regresses the rest of the corpus"
+                       # lesson mechanism C's own docstring already
+                       # names). Capping the threshold here costs nothing
+                       # against every CONFIRMED mechanism-Z target (the
+                       # Greek/math line, WSMSGS.OVR+'.]', a footnote
+                       # marker, H2O) -- every one of them is fixed-pitch
+                       # Courier and measures EXACTLY 0.0pt, nowhere near
+                       # this cap either way -- and a genuine fixed-pitch
+                       # word gap is always at least one full cell
+                       # (>=3.6pt at any size this corpus uses), safely
+                       # above it too.
+
+
+SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT = 0.3  # 'serif'/'sans' (classify_font) are
+                       # ALWAYS a font-substitution target in this repo (CG
+                       # Times -> Times, Univers -> Helvetica -- Jon's
+                       # base-14-only ruling; there is no OTHER way a serif/
+                       # sans-classified basefont ever appears), so real WS7
+                       # word-to-word spacing there is under the SAME
+                       # driver-justification noise WORD_GAP_MAX_PT's own
+                       # comment names -- except worse: it is not just
+                       # SMALLER than a nominal space-glyph width, it can be
+                       # SMALLER than WORD_GAP_MAX_PT itself (confirmed:
+                       # LYING.WS's own 'speak'/'no', a real two-word gap,
+                       # measures 0.78pt -- inside WORD_GAP_MAX_PT's own
+                       # 1.5pt bound, which merged it into 'speakno').
+                       # There is no single threshold in this corpus that
+                       # cleanly separates "real proportional word gap" from
+                       # "font-substitution zero-gap artifact" -- real gaps
+                       # range from well under 1pt to several pt. So a
+                       # substituted-proportional character pair merges
+                       # ONLY at a genuinely near-zero gap (float/decipoint-
+                       # quantization noise, comfortably above
+                       # WORD_GAP_SLACK_PT so a true zero-gap font-switch --
+                       # none confirmed in this corpus's own proportional
+                       # text, but the same principle as the fixed-pitch
+                       # case -- would still merge), never at anything
+                       # resembling a real, if unusually tight, space.
+
+
+def char_space_width_pt(basefont, size_pt, tz=100.0):
+    """The natural width of ONE space glyph in `basefont` at `size_pt`,
+    scaled by `tz` (PDF horizontal-scale percent, 100 = unscaled) -- the
+    same per-character AFM metric this file already uses for a word's own
+    advance (afm.string_width_pt), applied to the one character (' ')
+    that stands in for "how far a deliberately typed space actually moves
+    the pen" in this font/size/scale, then CAPPED (see WORD_GAP_MAX_PT's
+    and SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT's own comments -- a
+    proportional face's own nominal space-glyph width is not a safe merge
+    threshold in this corpus, and a font-SUBSTITUTED proportional face
+    ['serif'/'sans', classify_font] is worse still). For Courier (or any
+    other monospace face) the UNCAPPED value equals ONE FIXED-PITCH CELL
+    exactly, since every glyph -- including the space -- shares one
+    width; for a proportional face it is that face's own real space-glyph
+    width, before the cap. Used by segment_words_from_chars as the
+    word-boundary gap threshold."""
+    w = afm.string_width_pt(' ', basefont, size_pt) if basefont else size_pt * 0.6
+    cap = (SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT
+          if classify_font(basefont) in ('serif', 'sans') else WORD_GAP_MAX_PT)
+    return min(w, cap) * (tz / 100.0)
+
+
+def _finish_word(chars):
+    """[char, ...] (one word's worth, in left-to-right order, as built by
+    segment_words_from_chars) -> one word dict: every field of the FIRST
+    character (the same "merged token keeps the first chunk's own
+    position/font/size" convention tools/pcl_tolerance.py's own
+    mechanism-C/K chunk merges already use), plus 'text' (every
+    character's own text, concatenated) and 'x' (the first character's
+    own x_start)."""
+    first = chars[0]
+    word = dict(first)
+    word['text'] = ''.join(c['text'] for c in chars)
+    word['x'] = first['x_start']
+    return word
+
+
+def segment_words_from_chars(chars: list) -> list:
+    """[{'text', 'x_start', 'x_end', 'is_space', 'space_width_pt', ...any
+    other word-representative fields the caller wants carried through},
+    ...], already sorted left-to-right on ONE baseline -> [{'text', 'x',
+    ...the first character's own carried fields}, ...] -- mechanism Z's
+    own shared segmentation rule (see the comment block above
+    WORD_GAP_SLACK_PT): a space character always ends the current word
+    (and is itself dropped, never part of any word); otherwise a boundary
+    falls wherever the gap since the previous NON-SPACE character's own
+    x_end is >= the SMALLER of the two characters' own `space_width_pt`,
+    minus WORD_GAP_SLACK_PT. A font/size/style/rise change alone is never
+    a boundary -- only real horizontal distance is. Both
+    engine_page_tokens (below, engine side) and
+    tools/pcl_tolerance.py's `_merge_zero_gap_cross_font_chunks` (WS7
+    side) call this exact function so a word is the same set of
+    characters on both sides no matter which side happened to draw it as
+    more than one op/chunk."""
+    words = []
+    cur = []
+    for ch in chars:
+        if ch['is_space']:
+            if cur:
+                words.append(_finish_word(cur))
+            cur = []
+            continue
+        if cur:
+            prev = cur[-1]
+            gap = ch['x_start'] - prev['x_end']
+            threshold = min(prev['space_width_pt'], ch['space_width_pt'])
+            if gap >= threshold - WORD_GAP_SLACK_PT:
+                words.append(_finish_word(cur))
+                cur = []
+        cur.append(ch)
+    if cur:
+        words.append(_finish_word(cur))
+    return words
+
+
+def _op_chars(op: dict, basefont, font_class: str) -> list:
+    """One engine text op (parse_text_ops' own shape) -> [char dict, ...]
+    in emission order: every character's own x_start/x_end (the SAME
+    Tz-scaled AFM advance split_engine_op always used, just walked one
+    character at a time instead of stopping at a token boundary),
+    is_space, its own space_width_pt (char_space_width_pt), and its own
+    DISPLAY text -- a character drawn in the Symbol or ZapfDingbats face
+    is UNTRANSLITERATED back to the real Unicode character it actually
+    represents (ctrlkd.symbolmap.transliterate, the SAME reversible map
+    pdf.py itself consulted, in the other direction, to choose which byte
+    to write -- see symbolmap.py's own module docstring) -- so e.g.
+    -SCREEN's own Symbol-styled 'a'/'GpSs'/'tFQWdfe' compare directly
+    against WS7's own cp437-decoded real Greek/math text
+    ('α'/'ΓπΣσ'/'τΦΘΩδφε'); an ordinary Courier/Times/Helvetica character
+    passes through unchanged. WIDTH is always measured off the RAW
+    (untransliterated) character -- the actual glyph pdf.py placed, and
+    the same AFM table pdf.py's own layout used -- never the display
+    text, which exists purely for word-text comparison. Consumed by
+    segment_words_from_chars, directly (engine_page_tokens) or via
+    split_engine_op (kept for its own single-op callers/tests)."""
+    kind = None
+    if basefont:
+        low = basefont.lower()
+        if low.startswith('symbol'):
+            kind = 'math'
+        elif 'dingbat' in low:
+            kind = 'symbols'
+    space_w = char_space_width_pt(basefont, op['size'], op['tz'])
+    chars = []
+    cursor = op['x']
+    for raw_ch in op['text']:
+        w_nat = (afm.string_width_pt(raw_ch, basefont, op['size']) if basefont
+                 else op['size'] * 0.6)
+        w_actual = w_nat * (op['tz'] / 100.0)
+        x_start, x_end = cursor, cursor + w_actual
+        display = symbolmap.transliterate(raw_ch, kind) if kind else raw_ch
+        chars.append({
+            'text': display, 'x_start': x_start, 'x_end': x_end,
+            'is_space': raw_ch == ' ', 'space_width_pt': space_w,
+            'size': op['size'], 'basefont': basefont, 'font_class': font_class,
+        })
+        cursor = x_end
+    return chars
 
 # Mechanism L (triage 2026-09-06 residuals round). A `[image: NAME]` picture
 # placeholder (core.py's own byte-for-byte
@@ -548,66 +782,77 @@ _IMAGE_PLACEHOLDER_RE = re.compile(r'^\[image: .*\]$')
 def split_engine_op(op: dict, basefont) -> list:
     """One text op -> [(word_text, x_pt), ...] for its non-space tokens,
     walking the SAME per-character advance pdf.py itself would have used:
-    the token's own AFM natural width (ctrlkd.afm -- the identical table
-    pdf.py's `_natural_width_pt` reads) times the op's OWN Tz/100 scale.
+    each character's own AFM natural width (ctrlkd.afm -- the identical
+    table pdf.py's `_natural_width_pt` reads) times the op's OWN Tz/100
+    scale. A thin wrapper over `_op_chars`/`segment_words_from_chars` (the
+    general, cross-op/cross-chunk mechanism-Z machinery, above) scoped to
+    ONE op's own characters -- since there is never a real position gap
+    BETWEEN two characters this function itself placed (each one's
+    x_start is the previous one's own x_end, by construction), the only
+    boundary segment_words_from_chars ever finds within a single op is at
+    a literal space character, so this reproduces the pre-mechanism-Z
+    behaviour (split on space runs) byte for byte for a single-op caller.
     For a fixed-pitch (Courier) run this reproduces pdf.py's uniform
     per-character pitch exactly (Courier's AFM widths are constant); for a
     proportional run pdf.py already writes one Tj per word (see
     `_line_ops_printed`), so this only ever needs to split multi-word
-    Courier/indent runs."""
-    words = []
-    cursor = 0.0
-    for tok in _TOKEN_RE.findall(op['text']):
-        if basefont:
-            w_nat = afm.string_width_pt(tok, basefont, op['size'])
-        else:
-            w_nat = len(tok) * op['size'] * 0.6
-        w_actual = w_nat * (op['tz'] / 100.0)
-        if not tok.isspace():
-            words.append((tok, op['x'] + cursor))
-        cursor += w_actual
-    return words
+    Courier/indent runs. `engine_page_tokens` (below) does NOT call this
+    -- it needs to merge words ACROSS ops too (mechanism Z), so it walks
+    `_op_chars`/`segment_words_from_chars` directly over a whole baseline;
+    this function stays for any caller that only has one op in hand."""
+    basefont_resolved = basefont
+    font_class = classify_font(basefont_resolved)
+    chars = _op_chars(op, basefont_resolved, font_class)
+    return [(w['text'], w['x']) for w in segment_words_from_chars(chars)]
 
 
 def engine_page_tokens(page: dict, page_no: int) -> list:
     """[{text, x, y_top, size, basefont, font_class, page}, ...] for one PDF
-    page dict (from extract_pages), word-granular, in emission order.
-    `y_top`/`x` are PAGE-LOCAL (relative to this page's own top-left) --
-    pagination differences between the engine and WS7 are a SEPARATE
-    finding (see run_gate's page-alignment tracking), not folded into this
-    per-token position.
+    page dict (from extract_pages), word-granular. `y_top`/`x` are
+    PAGE-LOCAL (relative to this page's own top-left) -- pagination
+    differences between the engine and WS7 are a SEPARATE finding (see
+    run_gate's page-alignment tracking), not folded into this per-token
+    position.
 
-    NOT merged across a zero-gap mid-word font switch (e.g. -SCREEN's own
-    cp437 Greek/math line, which this engine draws as several Symbol/
-    Courier-alternating ops with no gap between them at all, while WS7's
-    own capture recorded it as one chunk) -- a same-baseline/zero-gap rule
-    tried here 2026-09-07 and reverted the same day: it also fuses a word
-    with IMMEDIATELY FOLLOWING PUNCTUATION at zero gap (`WSMSGS.OVR` +
-    `.]` -> `WSMSGS.OVR.]`), which WS7's own capture keeps as separate
-    chunks despite the identical zero gap -- confirmed against the real
-    corpus, where that "fix" turned six previously-clean documents
-    (DOCC/OCAPTAIN/PREVIEW/-README/SAWYER/SCRIPT/VERSIONS) divergent and
-    made -SCREEN itself WORSE (extra-word-in-engine 2 -> 4), not better.
-    Geometry alone (zero gap) cannot distinguish "one WS7 word split by a
-    font substitution artifact" from "a word directly followed by
-    punctuation" -- that needs the emitter's own span/token boundaries,
-    not something this after-the-fact PDF reader can reconstruct. Left
-    as a named, understood residual divergence -- see
-    tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z."""
+    MECHANISM Z (2026-09-07, Jon's ruling from the -SCREEN paper scan):
+    every text-showing op on a page is first exploded into its own
+    CHARACTERS (`_op_chars`), grouped by baseline (op['y'], rounded --
+    same convention `ws7_page_tokens`'s WS7-side `by_y` grouping already
+    uses), sorted left-to-right, and re-segmented into words purely by
+    the characters themselves (`segment_words_from_chars`): a space, or a
+    real horizontal gap -- NEVER by which Tj/op happened to carry them.
+    A font/style switch with no such gap is not a boundary, so -SCREEN's
+    own cp437 Greek/math demo line (four alternating Symbol/Courier text
+    ops per styled repetition, zero gap the whole way across) now merges
+    into ONE word, matching WS7's own single 14-character captured chunk
+    -- and (`_op_chars`'s own untransliteration) with comparable TEXT too,
+    not just position. A first attempt at this same idea (2026-09-07,
+    reverted the same day) merged on the engine side ALONE and broke six
+    previously-clean documents (a WS7 chunk pair at the identical zero
+    gap, e.g. SAWYER.WS's own 'WSMSGS.OVR' + '.]', stayed unmerged on
+    that side) -- see tools/pcl_tolerance.py's
+    `_merge_zero_gap_cross_font_chunks` for the matching WS7-side half of
+    this fix, and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z for the full
+    trace."""
     mb_h = page['mediabox'][1]
-    out = []
+    by_baseline = defaultdict(list)
     for op in parse_text_ops(page['content']):
         if _IMAGE_PLACEHOLDER_RE.match(op['text']):
             continue
         basefont = page['fonts'].get(op['font'])
-        for text, x in split_engine_op(op, basefont):
+        font_class = classify_font(basefont)
+        by_baseline[round(op['y'], 3)].extend(_op_chars(op, basefont, font_class))
+    out = []
+    for y in sorted(by_baseline, reverse=True):  # reading order: top of page first
+        chars = sorted(by_baseline[y], key=lambda c: c['x_start'])
+        for w in segment_words_from_chars(chars):
             out.append({
-                'text': text,
-                'x': x,
-                'y_top': mb_h - op['y'],
-                'size': op['size'],
-                'basefont': basefont,
-                'font_class': classify_font(basefont),
+                'text': w['text'],
+                'x': w['x'],
+                'y_top': mb_h - y,
+                'size': w['size'],
+                'basefont': w['basefont'],
+                'font_class': w['font_class'],
                 'page': page_no,
             })
     return out
@@ -683,9 +928,10 @@ ENGINE_WORDS_SCHEMA_VERSION = 1
 #                             # whitespace, exactly as it should compare
 #                             # against a WS7 chunk's own text (see
 #                             # match_doc/difflib) -- this repo's own
-#                             # _TOKEN_RE splits on runs of spaces only,
-#                             # never on punctuation, so e.g. a trailing
-#                             # comma stays attached to its word.
+#                             # segment_words_from_chars splits on a space
+#                             # character or a real horizontal gap, never
+#                             # on punctuation, so e.g. a trailing comma
+#                             # stays attached to its word.
 #       "x_pt": <float>,     # LEFT edge of the word's own first glyph, in
 #                             # points, PAGE-LOCAL (relative to THIS
 #                             # page's own top-left corner, NOT the PDF's

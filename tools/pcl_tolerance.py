@@ -389,7 +389,7 @@ def _is_box_drawing_text(text: str) -> bool:
 # driver frequently emits short punctuation as its OWN standalone PCL
 # chunk (a comma, a closing paren, a bare "A"/"B"/"C" list marker), split
 # from the word it visually follows -- something our engine's word
-# splitter never does (`_TOKEN_RE` keeps "Hello," together). A doc with
+# splitter never does (`fg.segment_words_from_chars` keeps "Hello," together). A doc with
 # many such chunks has dozens of identical 1-2 character tokens with no
 # positionally-correct engine counterpart to pick from; SequenceMatcher
 # pairs them anyway (LCS alignment has to pick SOME occurrence), producing
@@ -514,7 +514,28 @@ def _dedupe_double_strike_chunks(items, eps_pt=DOUBLE_STRIKE_EPS_PT):
     typeface id all match exactly, and x is within `eps_pt` of the most
     recent kept chunk in that same group -- identity AND (near-)position,
     never text alone (two different words can share an x by coincidence,
-    and two genuinely different words never land within so small a gap)."""
+    and two genuinely different words never land within so small a gap).
+
+    Mechanism Z's own residuals round (2026-09-07) moved mechanism J
+    (toggle-boundary correction, below) to run BEFORE this function
+    instead of after -- SAWYER.WS's own 'D,B,A,C),' menu-tag list has
+    FOUR separate ',' chunks that used to all share the SAME stale raw
+    x=57.6pt (mechanism J's own class of bug: none of them ever got a
+    real repositioning command), which this function's own same-key/
+    near-x rule misread as double-strike duplicates of the first comma
+    purely by coincidence. Running J first resolves each one to its own
+    real, distinct, cascading position BEFORE this function ever looks
+    at x at all, so they no longer collide -- while a REAL double-strike
+    duplicate (this function's own confirmed territory: identical text
+    reprinted at the identical real position, always the SAME font both
+    times) is never something J's own font-CHANGE-triggered correction
+    touches in the first place (J only fires when font or underline
+    DIFFERS between two raw-same-x chunks; a genuine duplicate's two
+    copies share a font, by construction) -- so this function's own
+    detection is unaffected for every case it was ever meant to catch,
+    including ones separated by other, unrelated chunks at a shared
+    stale x (SCRIPT.WS's own '^P^K' bold double-strike, with an
+    unrelated toggle-boundary comma sandwiched at the same raw x)."""
     out = []
     last_x = {}
     eps_dp = eps_pt * fg.DECIPT_PER_PT
@@ -679,8 +700,31 @@ def _correct_toggle_boundary_chunks(items):
     -- mechanism C's own territory, and not two genuinely coincident
     same-style chunks, which this must never touch). `items` is one WS7
     print line's (pc, tc) pairs, already sorted by x and already through
-    `_dedupe_double_strike_chunks`/`_merge_kerning_split_chunks`/
-    `_merge_trailing_punctuation_chunks`.
+    `_strip_leading_box_drawing_chunks` (mechanism N).
+
+    Runs BEFORE mechanisms D/C/K (moved here in mechanism Z's own
+    residuals round, 2026-09-07): a chain of chunks that never got a real
+    repositioning command (this function's own territory) can share one
+    stale raw x across MORE than two chunks (SAWYER.WS's own
+    'D,B,A,C),' menu-tag list, five chunks deep) -- resolving every one
+    of them to its own real, distinct, cascading position FIRST means
+    mechanism D's own same-position duplicate check (and mechanism C's/
+    K's own gap checks) never mistake two DIFFERENT chunks that only
+    coincidentally shared a stale x for a real duplicate or a real
+    kerning/punctuation split. This function's own "toggled" condition
+    (font OR underline differs from the IMMEDIATE predecessor at the
+    same raw x) is NOT actually disjoint from mechanism D's own target,
+    though, the way an earlier version of this docstring claimed: a
+    genuine double-strike's SECOND strike can land with a DIFFERENT-font
+    chunk as its own immediate predecessor at that shared x too, whenever
+    the rest of that chunk's own sentence gets emitted BETWEEN the two
+    strikes in the raw stream (confirmed real: -README.WS's own
+    'LASERJET.PDF', double-struck bold, with ', and WS4.PDF).' emitted in
+    between) -- the `is_repeat` guard above (the exact two-back SANDWICH
+    shape a real double-strike always has, see its own comment) is what
+    keeps this function from
+    "correcting" that second strike into a meaningless position instead
+    of leaving it alone for mechanism D to recognize and dedupe.
 
     Corrections CHAIN: each chunk's own corrected ("real") x, font, text
     and underline state feed forward as the base a LATER glued chunk
@@ -691,6 +735,43 @@ def _correct_toggle_boundary_chunks(items):
     corrected x, so detection must use the raw value even as advancement
     uses the corrected one). A single-pair chain -- mechanism J's own
     original BOXES case -- is the n=1 special case of the same loop."""
+    # Pre-scan for the one shape a genuine mechanism-D double-strike
+    # re-strike always has -- confirmed real on -README.WS's own
+    # 'LASERJET.PDF' (bold), double-struck, with the rest of its own
+    # sentence (', and WS4.PDF).') emitted BETWEEN the two strikes in
+    # the raw stream: a run of EXACTLY THREE consecutive same-raw-x
+    # chunks, shaped `A, B, A` (first and third share a key, the middle
+    # one -- always the visually-following punctuation -- does not).
+    # The second strike's own immediate predecessor is that middle
+    # chunk, a DIFFERENT font, exactly this function's own toggle shape
+    # -- but wrong: the second strike must stay at its own real,
+    # unmodified position for mechanism D (which runs next) to
+    # recognize and dedupe, not be "corrected" into some new,
+    # meaningless position past the punctuation. Scoped to EXACTLY three
+    # (never "any repeat anywhere in a same-x run"): SAWYER.WS's own
+    # 'D,B,A,C),' menu-tag chain is eight chunks deep at ONE shared raw
+    # x, and its own two matching commas sit four apart, not two, so a
+    # length-3 run never forms there at all -- confirmed this fires
+    # correctly even for a SHORT/generic repeated token (-README.WS's
+    # own single-BOLD-LETTER double-strikes, 'D,,D' and 'B,,B', each
+    # their OWN separate 3-run at a different x), which no text-length
+    # heuristic could ever safely distinguish from SAWYER's own chain.
+    repeat_ids = set()
+    run_start = 0
+    n = len(items)
+    for i in range(1, n + 1):
+        if i == n or items[i][0]['x_decipoints'] != items[run_start][0]['x_decipoints']:
+            if i - run_start == 3:
+                first_pc, _first_tc = items[run_start]
+                third_pc, third_tc = items[run_start + 2]
+                first_key = (first_pc['text'], first_pc.get('font'), first_pc['size_pt'],
+                            items[run_start][1].get('_T'))
+                third_key = (third_pc['text'], third_pc.get('font'), third_pc['size_pt'],
+                            third_tc.get('_T'))
+                if first_key == third_key:
+                    repeat_ids.add(id(third_pc))
+            run_start = i
+
     out = []
     prev_raw_x = None
     prev_real_x = None
@@ -701,9 +782,11 @@ def _correct_toggle_boundary_chunks(items):
     for pc, tc in items:
         cur = dict(pc)
         raw_x = pc['x_decipoints']
+        is_repeat = id(pc) in repeat_ids
         toggled = (prev_raw_x is not None and raw_x == prev_raw_x
                    and (pc.get('font') != prev_real_font
-                        or bool(pc.get('underline')) != bool(prev_underline)))
+                        or bool(pc.get('underline')) != bool(prev_underline))
+                   and not is_repeat)
         if toggled:
             prev_end_dp = prev_real_x + (
                 fg.afm.string_width_pt(prev_real_text, prev_real_font, prev_real_size)
@@ -795,6 +878,252 @@ def _reconcile_glued_ws7_chunks(eng_tokens, unmatched_ws7, unmatched_engine):
     return new_unmatched_ws7, new_unmatched_engine
 
 
+TRAILING_OCCUPANT_WINDOW_DP = 300  # 30pt -- how far past a printed line's own
+                                   # last chunk to look for a footnote/
+                                   # end-note reference marker that has no
+                                   # following same-baseline chunk to bound
+                                   # a gap window against (DOCC.WS's own
+                                   # footnote markers: 1-2 raised digits,
+                                   # 9.25pt Courier, never wider than
+                                   # ~11pt -- this is generous vs that,
+                                   # while nowhere near a real word's own
+                                   # width).
+SUPSUB_MAX_DY_DP = 80  # 8pt -- generous vs. every measured real WS7
+                       # super/subscript offset in this corpus (DOCC's
+                       # own footnote-reference superscript AND -SCREEN's
+                       # own subscript demo both measure exactly 4.5pt of
+                       # vertical offset from their line's own baseline),
+                       # while comfortably short of a genuinely different
+                       # printed LINE (which sits at least one whole
+                       # leading away, always >8pt in this corpus's own
+                       # body sizes).
+
+
+def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp):
+    """A super/subscript character sits on a DIFFERENT y than the line it
+    visually belongs to -- WS7's own driver really does move the pen
+    vertically for it (confirmed directly: DOCC's own footnote-
+    reference '1' after 'Indians.' sits 4.5pt ABOVE its line's baseline;
+    -SCREEN's own subscript '2' in 'H2O' sits 4.5pt BELOW), unlike this
+    engine's own PDF, which keeps the SAME Td line-position and only
+    applies a `Ts` rise (mechanism G). Left un-stitched, a real super/
+    subscript character inside a word makes the two same-baseline WS7
+    chunks either side of it look like they have a big horizontal GAP
+    between them (the sub/superscript character's own width, sitting on
+    the wrong y for `_merge_zero_gap_cross_font_chunks`'s own single-
+    baseline character stream to see) -- exactly backwards from
+    mechanism Z's usual problem (an unexplained SMALL gap that should
+    merge); here an explained LARGE gap must still merge, with the
+    occupant's own text spliced in.
+
+    `page_chunks` is every (pc, tc) pair on the WHOLE page (any y, not
+    just this line's). Returns the ONE chunk whose own natural x-span, in
+    decipoints, falls (within one WORD_GAP_SLACK_PT's own decipoint
+    equivalent either side) INSIDE [gap_x0_dp, gap_x1_dp], whose y is
+    within SUPSUB_MAX_DY_DP of `line_y_dp` but NOT equal to it (a real
+    super/subscript offset, never this same printed line), and whose own
+    text `_is_unreliable_to_align` -- so this only ever absorbs a chunk
+    that could never have become its own standalone checkable token
+    anyway (a lone digit, a bare footnote marker), never a real,
+    independently-matchable word; nothing is ever double-counted. Returns
+    None (never stitched) when zero or more than one candidate matches --
+    ambiguous is left alone, conservative by design."""
+    slack_dp = round(fg.WORD_GAP_SLACK_PT * fg.DECIPT_PER_PT)
+    candidates = []
+    for pc, tc in page_chunks:
+        y = pc['y_decipoints']
+        if y == line_y_dp or abs(y - line_y_dp) > SUPSUB_MAX_DY_DP:
+            continue
+        if not _is_unreliable_to_align(pc['text']):
+            continue
+        x0 = pc['x_decipoints']
+        x1 = x0 + round(fg.afm.string_width_pt(pc['text'], pc.get('font'), pc['size_pt'])
+                        * fg.DECIPT_PER_PT)
+        if x0 >= gap_x0_dp - slack_dp and x1 <= gap_x1_dp + slack_dp:
+            candidates.append((pc, tc))
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
+    """Mechanism Z (triage 2026-09-07, Jon's ruling from the real-LaserJet
+    paper scan of -SCREEN, the private corpus's own verdicts.json doc87 p6):
+    the WS7-side half of same-side segmentation -- builds the SAME
+    character-level word boundaries `fg.engine_page_tokens` now builds on
+    the engine side (`fg.segment_words_from_chars`/`fg.char_space_
+    width_pt`) from THIS WS7 print line's own already-cleaned chunk
+    stream (after mechanisms N/D/C/K/J, above), so a word is the same set
+    of characters on both sides regardless of which side happened to
+    split it across more than one op/chunk. A gap that is fully
+    accounted for by a super/subscript character sitting on a nearby,
+    DIFFERENT y (see `_find_offbaseline_occupant`, immediately above) is
+    stitched in too, so e.g. -SCREEN's own 'H' + subscript '2' + 'O'
+    reconstructs as the one word 'H2O' this engine's own PDF already
+    writes (mechanism G: the engine keeps one Td line and only applies a
+    `Ts` rise, so it never had this problem on its own side).
+
+    Unlike mechanism C (kerning-pair splits) and mechanism K (trailing
+    punctuation), this does NOT require the two chunks to share a font --
+    it is the general case those two are conservative, same-font-only
+    special cases of: WS7's own driver sometimes starts a fresh print
+    chunk (a style toggle, a font-substitution boundary) with NO real
+    horizontal movement of the pen at all, and when that happens the two
+    chunks are, visually, ONE continuous word/run -- exactly like
+    -SCREEN's own cp437 Greek/math demo line, captured as ONE
+    14-character WS7 chunk per styled repetition already (nothing to
+    merge on THIS side for that document -- see the engine-side fix,
+    `fg.engine_page_tokens`, mechanism Z, for why that line needed
+    fixing at all).
+
+    Confirmed correct on SAWYER.WS's own 'WSMSGS.OVR' (bold) + '.]'
+    (plain): real WS7 prints them at IDENTICAL zero gap (once mechanism
+    J's own toggle-boundary correction resolves '.]' 's real position --
+    its raw captured x is stale, inherited from 'WSMSGS.OVR' 's own last
+    real `H` command, exactly mechanism J's own documented shape), the
+    SAME zero gap this engine's own PDF already places them at. The
+    first attempt at this merge (2026-09-07, reverted the same day) only
+    ever touched the engine side, so this exact WS7 chunk pair stayed
+    unmerged under mechanism C/K's own same-font-only rule while the
+    engine side merged anyway -- a real cross-side MATCHING mismatch, not
+    an engine divergence, turning six previously-clean documents
+    divergent. Merging both sides under the SAME rule fixes both: this
+    line, and that one -- confirmed real, not a guess: WordStar printed
+    them touching, so one word on both sides is the CORRECT result, not
+    a workaround.
+
+    `items` is one WS7 print line's (pc, tc) pairs, already sorted by x
+    and already through `_strip_leading_box_drawing_chunks`/`_correct_
+    toggle_boundary_chunks`/`_dedupe_double_strike_chunks`/`_merge_
+    kerning_split_chunks`/`_merge_trailing_punctuation_chunks` (in that
+    order -- see mechanism J's own docstring for why J now runs before
+    D/C/K). `page_chunks`
+    (every (pc, tc) pair on the WHOLE page, any y) enables the off-
+    baseline super/subscript stitching described above; omit it (None,
+    the default) to skip that half and merge same-baseline chunks only --
+    every Tier-1 synthetic fixture that builds a single line by hand uses
+    this default. A chunk that does NOT advance the line -- its own x
+    lands at or before the running end of everything placed so far, e.g.
+    a literal dash-overlay chunk WS7 emits at the SAME position as the
+    word it strikes through (`-SCREEN`/`-README`'s own "Strike-out"
+    demo: a '----------' chunk printed a second time directly on top of
+    the word, not a real, exact double-strike duplicate mechanism D
+    already dedupes, since its text differs) -- is a same-POSITION
+    overlay, not a same-LINE continuation; the character model this
+    function builds only ever describes side-by-side placement, so such
+    a chunk never enters it at all and is returned UNTOUCHED, in its own
+    original position in the output list (still subject to every
+    downstream filter -- `_is_box_drawing_text`/`_is_unreliable_to_align`
+    -- exactly as before this mechanism existed). Returns a new
+    `(pc, tc)` list, sorted by x, in the same shape; a merged chunk keeps
+    the FIRST character's own `tc` (so its `_T`/typeface-id-derived tier
+    is unaffected) and the first chunk's own position/font/size, the same
+    convention every other merge function in this file already uses."""
+    slack_pt = fg.WORD_GAP_SLACK_PT
+    chars = []
+    overlays = []
+    normal_items = []
+    running_end_pt = None
+    for pc, tc in items:
+        x_pt = pc['x_decipoints'] / fg.DECIPT_PER_PT
+        if running_end_pt is not None and x_pt < running_end_pt - slack_pt:
+            overlays.append((pc, tc))  # same-position overlay, not a continuation
+            continue
+        basefont = pc.get('font')
+        size_pt = pc['size_pt']
+        space_w = fg.char_space_width_pt(basefont, size_pt)
+        cursor = x_pt
+        for ch in pc['text']:
+            w = fg.afm.string_width_pt(ch, basefont, size_pt)
+            x_start, x_end = cursor, cursor + w
+            chars.append({
+                'text': ch, 'x_start': x_start, 'x_end': x_end,
+                'is_space': ch == ' ', 'space_width_pt': space_w,
+                'size_pt': size_pt, 'font': basefont, 'tc': tc,
+            })
+            cursor = x_end
+        running_end_pt = cursor
+        normal_items.append((pc, tc))
+    if page_chunks and normal_items:
+        line_y_dp = items[0][0]['y_decipoints']
+
+        def _splice(occ):
+            opc, otc = occ
+            obasefont, osize = opc.get('font'), opc['size_pt']
+            ospace_w = fg.char_space_width_pt(obasefont, osize)
+            ocursor = opc['x_decipoints'] / fg.DECIPT_PER_PT
+            for ch in opc['text']:
+                w = fg.afm.string_width_pt(ch, obasefont, osize)
+                chars.append({
+                    'text': ch, 'x_start': ocursor, 'x_end': ocursor + w,
+                    'is_space': ch == ' ', 'space_width_pt': ospace_w,
+                    'size_pt': osize, 'font': obasefont, 'tc': otc,
+                })
+                ocursor += w
+
+        for i in range(len(normal_items) - 1):
+            pc_a, pc_b = normal_items[i][0], normal_items[i + 1][0]
+            end_dp = round((pc_a['x_decipoints'] / fg.DECIPT_PER_PT
+                            + fg.afm.string_width_pt(pc_a['text'], pc_a.get('font'),
+                                                      pc_a['size_pt'])) * fg.DECIPT_PER_PT)
+            start_dp = pc_b['x_decipoints']
+            if start_dp <= end_dp:
+                continue  # already zero/negative gap, nothing to stitch
+            occ = _find_offbaseline_occupant(page_chunks, end_dp, start_dp, line_y_dp)
+            if occ is not None:
+                _splice(occ)
+        # The TRAILING search (past this line's own last chunk, below) is
+        # gated on this baseline having at least one item that would
+        # become its own checkable token on its own merits -- a baseline
+        # made ENTIRELY of chunks that would never independently align
+        # anyway (every one of them `_is_unreliable_to_align` -- e.g.
+        # `by_y`'s OWN group for a lone superscript/subscript marker,
+        # which exists as a group only because it sits on its own
+        # distinct y) is never a real printed LINE with a trailing edge
+        # of its own to search past -- it is only ever supposed to be
+        # ABSORBED as an occupant by some OTHER, real line nearby
+        # (confirmed real: -SCREEN's own trademark 'TM' marker, alone on
+        # its own raised baseline, was wrongly absorbing the FOLLOWING
+        # real line's own comma into a standalone 'TM,' token before this
+        # guard existed). Scoped to the TRAILING search only -- the
+        # MIDDLE-gap loop above needs no such guard: it is already
+        # bounded by two same-baseline chunks a real line's own
+        # `by_y` group actually holds (confirmed real: -SCREEN's own
+        # 'H'+subscript-'2'+'O' shape has 'H' and 'O' each individually
+        # SHORT enough to fail this same real-content test on their own,
+        # yet the middle-gap merge between them is exactly this
+        # mechanism's own correct, intended target).
+        line_has_real_content = any(not _is_unreliable_to_align(pc['text'])
+                                    for pc, _tc in normal_items)
+        # A footnote/end-note reference at the very END of a printed line
+        # (DOCC.WS's own footnote markers, e.g. 'agreement.' + a raised
+        # '2' with nothing else on that baseline after it) has no NEXT
+        # same-baseline chunk to bound a gap window against at all -- the
+        # loop above, which only ever looks BETWEEN two same-baseline
+        # chunks, can never see it. Re-run the same occupant search past
+        # the LINE's own last chunk, bounded generously (a footnote
+        # marker is never more than a couple of characters).
+        last_pc = normal_items[-1][0]
+        last_end_dp = round((last_pc['x_decipoints'] / fg.DECIPT_PER_PT
+                             + fg.afm.string_width_pt(last_pc['text'], last_pc.get('font'),
+                                                       last_pc['size_pt'])) * fg.DECIPT_PER_PT)
+        trailing_occ = (_find_offbaseline_occupant(
+            page_chunks, last_end_dp, last_end_dp + TRAILING_OCCUPANT_WINDOW_DP, line_y_dp)
+            if line_has_real_content else None)
+        if trailing_occ is not None:
+            _splice(trailing_occ)
+    chars.sort(key=lambda c: c['x_start'])
+    merged = list(overlays)
+    for w in fg.segment_words_from_chars(chars):
+        pc = {
+            'text': w['text'],
+            'x_decipoints': round(w['x_start'] * fg.DECIPT_PER_PT),
+            'y_decipoints': items[0][0]['y_decipoints'],
+            'size_pt': w['size_pt'], 'font': w['font'],
+        }
+        merged.append((pc, w['tc']))
+    merged.sort(key=lambda pt: pt[0]['x_decipoints'])
+    return merged
+
+
 def load_ws7_tokens(pcl_path: str, measurements_path: str):
     """[{text, x, y_top, size, basefont, font_class, page, tid, tier,
     dist_into_line_pt, is_line_start}, ...] -- fg.ws7_page_tokens()'s own
@@ -824,16 +1153,18 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
         if len(pub) != len(text_chunks):
             mismatched_pages.append(pidx)
             continue
+        page_chunks = list(zip(pub, text_chunks))
         by_y = defaultdict(list)
-        for pc, tc in zip(pub, text_chunks):
+        for pc, tc in page_chunks:
             by_y[pc['y_decipoints']].append((pc, tc))
         for _y, items in by_y.items():
             items.sort(key=lambda pt: pt[0]['x_decipoints'])
             items = _strip_leading_box_drawing_chunks(items)  # mechanism N
+            items = _correct_toggle_boundary_chunks(items)  # mechanism J, before D (mechanism Z round)
             items = _dedupe_double_strike_chunks(items)   # mechanism D, before C
             items = _merge_kerning_split_chunks(items)    # mechanism C
             items = _merge_trailing_punctuation_chunks(items)  # mechanism K
-            items = _correct_toggle_boundary_chunks(items)  # mechanism J
+            items = _merge_zero_gap_cross_font_chunks(items, page_chunks)  # mechanism Z
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0
             for pc, tc in items:

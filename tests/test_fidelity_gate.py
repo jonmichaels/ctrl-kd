@@ -266,21 +266,26 @@ def test_parse_text_ops_consumes_every_op_in_a_bundled_tz_scaled_sample(name):
         assert len(ops) == n_bt, (name, n_bt, len(ops))
 
 
-# ------------------------------- mid-word font-switch (NOT merged -- named)
-def test_engine_page_tokens_does_not_merge_zero_gap_ops_a_known_residual():
-    """A zero-gap same-baseline merge was tried here 2026-09-07 and
-    reverted the same day: it fixes -SCREEN's own cp437 Greek/math line
-    (which this engine draws as several Symbol/Courier-alternating ops
-    with zero gap, one WS7 chunk) but ALSO fuses an ordinary word with
-    immediately-following punctuation at zero gap (confirmed against the
-    real corpus: SAWYER's own 'WSMSGS.OVR' + '.]' -> 'WSMSGS.OVR.]',
-    which WS7's own capture keeps as separate chunks) -- turning six
-    previously-clean documents divergent. See engine_page_tokens' own
-    docstring and tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z. This test
-    pins the CURRENT (reverted) behaviour so a future re-attempt at this
-    merge trips a test here first, not a silent corpus-wide regression:
-    the cp437 Greek/math line still comes back as separate per-font-run
-    tokens, not one merged word."""
+# ------------------------------- mechanism Z: same-side segmentation (Tier 1)
+# 2026-09-07, Jon's ruling from the real-LaserJet paper scan of -SCREEN
+# (the private corpus's own verdicts.json doc87 p6): a same-baseline word is
+# segmented from CHARACTERS (segment_words_from_chars/char_space_width_pt,
+# tools/fidelity_gate.py), never from which text op/PCL chunk happened to
+# carry them -- a font/style/rise switch with NO real horizontal gap is
+# not a boundary; a space, or a real gap, is. A same-side-only attempt at
+# this (2026-09-07, reverted the same day, replaced by this whole
+# mechanism) merged on the engine side ALONE and broke six previously-
+# clean documents -- see tools/PCL-DIVERGENCE-TRIAGE.md mechanism Z for
+# the full trace and tools/pcl_tolerance.py's own tests for the matching
+# WS7-side half of this fix (`_merge_zero_gap_cross_font_chunks`).
+def test_engine_page_tokens_merges_a_styled_span_split_inside_a_word():
+    """Tier 1: styled-span split inside a word. -SCREEN's own cp437
+    Greek/math demo line draws through FIVE alternating Symbol/Courier
+    text ops at zero gap; this must now merge into ONE word, with the
+    Symbol-styled characters untransliterated back to their real Unicode
+    identity (ctrlkd.symbolmap, via `_op_chars`) so the merged text
+    matches WS7's own cp437-decoded capture exactly, not just its
+    position."""
     line = 'αßΓπΣσµτΦΘΩδφε'.encode('cp437')
     data = (ws7_block(0x00)
            + b'Plain prose padding so the detector reads this as a document.'
@@ -290,27 +295,55 @@ def test_engine_page_tokens_does_not_merge_zero_gap_ops_a_known_residual():
     doc = core.parse_ws(data)
     out = pdf.emit_pdf(doc, mode='printed')
     page = fg.extract_pages(out)[0]
-    n_chars = len(line.decode('cp437'))
-    tokens = fg.engine_page_tokens(page, 1)
-    whole_word_matches = [t for t in tokens if len(t['text']) == n_chars]
-    assert whole_word_matches == [], (
-        'the cp437 Greek/math line now comes back as ONE token -- if a new merge '
-        'was reintroduced, re-run the full private pcl corpus '
-        '(pytest -m pcl, CTRLKD_PRIVATE_CORPUS set) before keeping it: the last '
-        'attempt regressed DOCC/OCAPTAIN/PREVIEW/-README/SAWYER/SCRIPT/VERSIONS')
-    # A STYLED word directly followed by plain punctuation, SAME zero gap,
-    # must stay correctly split -- this is the real SAWYER.WS pattern the
-    # merge attempt got wrong ("the file WSMSGS.OVR.] rather than..." --
-    # the bold-styled filename ends exactly where the plain '.]' begins,
-    # a real font-boundary op split, not a font-substitution artifact).
+    texts = [t['text'] for t in fg.engine_page_tokens(page, 1)]
+    assert line.decode('cp437') in texts
+
+
+def test_engine_page_tokens_merges_zero_gap_punctuation_after_a_word():
+    """Tier 1: punctuation after a word, zero real gap. SAWYER.WS's own
+    'WSMSGS.OVR' (bold) immediately followed by '.]' (plain), no typed
+    space between them, must now merge into one word -- this is what
+    real WS7 actually printed (confirmed via mechanism J's own toggle-
+    boundary correction resolving the WS7-side twin of this exact
+    fixture to the identical zero gap; see tools/pcl_tolerance.py's own
+    `_merge_zero_gap_cross_font_chunks` tests)."""
     punct_doc = core.parse_ws(
         ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
         + HARD + b'See \x02WSMSGS.OVR\x02.] for details.' + HARD)
     punct_out = pdf.emit_pdf(punct_doc, mode='printed')
     punct_page = fg.extract_pages(punct_out)[0]
     punct_tokens = [t['text'] for t in fg.engine_page_tokens(punct_page, 1)]
-    assert 'WSMSGS.OVR' in punct_tokens          # the styled word, alone
-    assert not any(t.startswith('WSMSGS.OVR.') for t in punct_tokens)
+    assert 'WSMSGS.OVR.]' in punct_tokens
+    assert 'WSMSGS.OVR' not in punct_tokens
+
+
+def test_engine_page_tokens_keeps_two_words_separated_by_exactly_one_space():
+    """Tier 1: two words separated by exactly one space -- the ordinary
+    case must still split, not merge, even at the exact boundary
+    threshold (one space glyph's own width -- segment_words_from_chars'
+    own `gap >= threshold` rule)."""
+    content = b'BT /F1 12 Tf 0 Ts 72.0 700.0 Td (Hello world) Tj ET'
+    page = {'mediabox': (612, 792), 'fonts': {'F1': 'Courier'}, 'content': content}
+    texts = [t['text'] for t in fg.engine_page_tokens(page, 1)]
+    assert texts == ['Hello', 'world']
+
+
+def test_engine_page_tokens_merges_a_superscript_inside_a_word():
+    """Tier 1: superscript in a word (a footnote-style reference digit
+    directly after a period, no typed space) -- this engine keeps ONE Td
+    line and only applies a `Ts` rise for a raised character (mechanism
+    G), so the two ops sit at zero gap and must merge into one word,
+    matching DOCC.WS's own real footnote-reference shape (WS7's own
+    capture instead moves the PEN, landing the marker on a genuinely
+    different y -- see tools/pcl_tolerance.py's own off-baseline
+    stitching tests for that half, `_find_offbaseline_occupant`)."""
+    doc = core.parse_ws(
+        ws7_block(0x00) + b'Plain prose padding so the detector reads this as a document.'
+        + HARD + b'See cases.\x145\x14 for the ruling.' + HARD)
+    out = pdf.emit_pdf(doc, mode='printed')
+    page = fg.extract_pages(out)[0]
+    texts = [t['text'] for t in fg.engine_page_tokens(page, 1)]
+    assert 'cases.5' in texts
 
 
 # ---------------------------------------------------------- classification
