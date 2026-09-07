@@ -578,46 +578,83 @@ def _merge_trailing_punctuation_chunks(items, eps_pt=TRAILING_PUNCT_MERGE_EPS_PT
 
 
 def _correct_toggle_boundary_chunks(items):
-    """Mechanism J (triage 2026-09-06 residuals round): WS7's own driver,
-    when a style toggle (here: bold) immediately follows a character with
-    NO space between them, sometimes emits the toggled run's own PCL
-    horizontal-position escape at the SAME absolute x as the character
-    immediately before it -- dropping that one character's own advance
-    entirely, so the toggled run's ink overlaps the untoggled character's
-    on the real printed page. Confirmed on BOXES.WS: source `...double
-    lines (^Bbold^B^K'^B...` (a literal "(" immediately followed by a bold
-    toggle, no space) -- measurements.json records BOTH the plain "("
-    chunk and the bold "^K'" chunk starting at the identical x=489.6pt,
-    one full 7.2pt Courier column short of where "(" 's own natural width
-    would put it. Our engine draws the two runs CONTIGUOUSLY (correct,
-    unambiguous fixed-pitch typesetting -- nothing in WordStar's own spec
-    says a toggle eats a character's advance), so this is WS7's own driver
-    artifact, not an engine bug to reproduce: the same "capture artifact,
-    not a real position" treatment mechanisms C and D already give this
-    driver's other toggle-adjacent quirks.
+    """Mechanism J (triage 2026-09-06 residuals round), extended for the
+    underline case (page-5 URL trace, `-README` v3 pristine, planning
+    task): WS7's own LaserJet driver only re-emits a fresh
+    `ESC&a<n>H` (absolute horizontal position) before a text run when its
+    OWN internal logic decides to -- immediately after a bold toggle with
+    no space (mechanism J's original BOXES evidence) or around an inline
+    UNDERLINE toggle (`ESC&dD`/`ESC&d@`, which carry no position field of
+    their own at all). Confirmed on `-README`'s own page 5, raw `.pcl`:
 
-    Scoped tightly to the one confirmed shape -- a chunk whose x is
-    EXACTLY equal to the immediately preceding chunk's own x (a full
-    character's advance dropped, not merely a small kerning-style
-    discrepancy `_merge_kerning_split_chunks` already owns) AND whose font
-    differs from that preceding chunk's (a style toggle, not two chunks of
-    the same run WS7 happened to split -- mechanism C's own territory).
-    `items` is one WS7 print line's (pc, tc) pairs, already sorted by x
-    and already through `_dedupe_double_strike_chunks`/
-    `_merge_kerning_split_chunks`. The corrected chunk's x moves forward to
-    the preceding chunk's own natural end; nothing else about it changes."""
+        ...&a1512H(\\x1b&dDhttp://www.vdosplus.org\\x1b&d@)\\x1b&a3384Hor...
+
+    "(" gets its own real `H` (1512dp = 151.2pt); the underlined URL and
+    the closing ")" get NONE -- both simply inherit whatever `cursor_x`
+    was last set to, i.e. "("'s own position, in measurements.json. This
+    is a real property of WS7's PCL stream, not a real print position: a
+    physical LaserJet auto-advances its own pen after every glyph
+    regardless of whether the driver ever re-states its coordinate, so
+    the true positions are recovered by chaining each glued run's own
+    natural AFM width forward from the last chunk that DID carry a real,
+    distinct `H`. Verified exactly on this example: "(" (151.2, real) ->
+    URL corrected to 151.2+7.2=158.4 (matches this engine's own already-
+    correct `pdf_pos` -- the engine was right all along) -> ")" corrected
+    to 158.4+24*7.2=331.2 -> "or"'s own real, distinct `H` at 338.4 =
+    331.2+7.2 exactly, closing the loop with zero residual. This is a
+    capture/measurement-tool artifact (the same "not a real position"
+    class as mechanisms C/D/J's other driver quirks), not an engine bug
+    and NOT mechanism S's `.po` corpus-provenance question -- the pristine
+    capture disagrees with itself, mid-page, only at these two toggle
+    boundaries; a real `.po` offset would show on every line.
+
+    Scoped tightly to the two confirmed shapes: a chunk's x is corrected
+    only when it is EXACTLY equal to the immediately preceding WS7
+    chunk's own (uncorrected/raw) x on the same printed line -- a full
+    character's advance dropped outright, not the small kerning-style gap
+    `_merge_kerning_split_chunks` already owns -- AND either its font OR
+    its `underline` flag differs from that preceding chunk's (a style
+    toggle boundary, not two chunks of the same run WS7 happened to split
+    -- mechanism C's own territory, and not two genuinely coincident
+    same-style chunks, which this must never touch). `items` is one WS7
+    print line's (pc, tc) pairs, already sorted by x and already through
+    `_dedupe_double_strike_chunks`/`_merge_kerning_split_chunks`/
+    `_merge_trailing_punctuation_chunks`.
+
+    Corrections CHAIN: each chunk's own corrected ("real") x, font, text
+    and underline state feed forward as the base a LATER glued chunk
+    advances from, while glue-DETECTION still compares against the
+    preceding chunk's own RAW (uncorrected) x -- required for a run of
+    MORE than one glued chunk in a row (the URL-then-")" pair above is
+    exactly this shape: ")"'s raw x equals the URL's raw x, not the URL's
+    corrected x, so detection must use the raw value even as advancement
+    uses the corrected one). A single-pair chain -- mechanism J's own
+    original BOXES case -- is the n=1 special case of the same loop."""
     out = []
-    prev_pc = None
+    prev_raw_x = None
+    prev_real_x = None
+    prev_real_text = None
+    prev_real_font = None
+    prev_real_size = None
+    prev_underline = None
     for pc, tc in items:
         cur = dict(pc)
-        if (prev_pc is not None and cur['x_decipoints'] == prev_pc['x_decipoints']
-                and cur.get('font') != prev_pc.get('font')):
-            prev_end_dp = prev_pc['x_decipoints'] + (
-                fg.afm.string_width_pt(prev_pc['text'], prev_pc.get('font'),
-                                       prev_pc['size_pt']) * fg.DECIPT_PER_PT)
+        raw_x = pc['x_decipoints']
+        toggled = (prev_raw_x is not None and raw_x == prev_raw_x
+                   and (pc.get('font') != prev_real_font
+                        or bool(pc.get('underline')) != bool(prev_underline)))
+        if toggled:
+            prev_end_dp = prev_real_x + (
+                fg.afm.string_width_pt(prev_real_text, prev_real_font, prev_real_size)
+                * fg.DECIPT_PER_PT)
             cur['x_decipoints'] = round(prev_end_dp)
         out.append((cur, tc))
-        prev_pc = cur
+        prev_raw_x = raw_x
+        prev_real_x = cur['x_decipoints']
+        prev_real_text = pc['text']
+        prev_real_font = pc.get('font')
+        prev_real_size = pc['size_pt']
+        prev_underline = pc.get('underline')
     return out
 
 

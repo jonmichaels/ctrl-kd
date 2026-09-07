@@ -116,12 +116,12 @@ def test_pristine_frame_offset_reason_is_not_a_font_substitution_reason():
 
 
 # --------------------------------------------- WS7 chunk-splitting fixes
-def _pc(text, x_dp, size=24, font='Courier'):
+def _pc(text, x_dp, size=24, font='Courier', underline=False):
     """A synthetic measurements.json chunk dict -- just the fields
     _merge_kerning_split_chunks (and, later, _dedupe_double_strike_chunks)
     read."""
     return {'text': text, 'x_decipoints': x_dp, 'y_decipoints': 1000,
-            'size_pt': size, 'font': font}
+            'size_pt': size, 'font': font, 'underline': underline}
 
 
 def _tc(tid=4099):
@@ -347,6 +347,41 @@ def test_correct_toggle_boundary_chunks_single_item_is_a_no_op():
     corrected = pt._correct_toggle_boundary_chunks(items)
     assert len(corrected) == 1
     assert corrected[0][0]['x_decipoints'] == 1000
+
+
+def test_correct_toggle_boundary_chunks_underline_extension_chains_two_glues():
+    # `-README`'s own page-5 shape, raw .pcl: `&a1512H(` + ESC&dD (underline
+    # on, no position) + `http://www.vdosplus.org` (23 chars) + ESC&d@
+    # (underline off, no position) + `)` + ` ` + `&a3384Hor` -- WS7 only
+    # gave "(" a real H; the URL and the closing ")" both inherit "("'s own
+    # stale x in measurements.json. Same font throughout (Courier) -- only
+    # `underline` toggles -- so this must fire on the underline flag alone,
+    # and it must CHAIN through both glued chunks, not just the first.
+    # 12pt Courier: natural width 7.2pt/char = 72dp/char.
+    assert len('http://www.vdosplus.org') == 23
+    items = [
+        (_pc('(', 1512, size=12, underline=False), _tc(4099)),
+        (_pc('http://www.vdosplus.org', 1512, size=12, underline=True), _tc(4099)),
+        (_pc(')', 1512, size=12, underline=False), _tc(4099)),
+    ]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    assert xs == [1512, 1512 + 72, 1512 + 72 + 23 * 72]
+    # And the corrected end, plus ")"'s own 1-char width and the one
+    # source space before "or", lands exactly where WS7's own next real
+    # `H` ("or") was measured -- 3384dp -- closing the loop with zero
+    # residual (the source reads "...vdosplus.org) or the...").
+    assert xs[-1] + 72 + 72 == 3384
+
+
+def test_correct_toggle_boundary_chunks_leaves_a_same_underline_coincidence_alone():
+    # Same x, same font, same underline state on both -- not a toggle
+    # boundary at all; must not fire (mechanism D's dedupe territory if
+    # the text also matched, but here it doesn't, so this stays untouched).
+    items = [(_pc('Foo', 2000, underline=True), _tc()),
+             (_pc('Bar', 2000, underline=True), _tc())]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    assert [c[0]['x_decipoints'] for c in corrected] == [2000, 2000]
 
 
 # ------------------------------------------------------- token exclusions

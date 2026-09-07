@@ -92,6 +92,29 @@ in the `ws7-prints/v3` harness tree itself (a stale copy of `-README.WS`,
 not a stale CAPTURE this time), verified directly and resolved with no
 code change — see mechanism V's own entry, immediately below mechanism T.
 
+**Mechanism-W/X round, 2026-09-07 (planning task, `-README`'s own two
+remaining OPEN items: the header-vs-body-margin question mechanism V's
+own UPDATE left as "mechanism W, immediately below," and the page-5 URL
+`exact-drift`/`line-start-shift` pair mechanism S's own docstring had
+mislabeled as a `.po` corpus-provenance artifact):** the page-5 URLs were
+NOT mechanism S — traced to a WS7 PCL-driver artifact (the underline
+toggle `ESC&dD`/`ESC&d@` carries no position field, so the underlined
+run and the character right after it inherit a STALE `x` in
+`measurements.json`) and fixed as a tooling correction,
+`tools/pcl_tolerance.py`'s `_correct_toggle_boundary_chunks` generalized
+from mechanism J's bold-toggle case to underline too, with proper
+multi-chunk chaining (see that function's own updated docstring).
+Mechanism W itself (`-README`'s `mt_source`/`hm_source`-both-`'default'`
+header sitting 24pt too low) is a FOURTH Sawyer-WSCHANGE-vs-stock
+contamination, same class as S/T/U — fixed by dropping `_running_ops`'s
+own `hm`-participation gate entirely (`hm` participates in `head_base`
+UNCONDITIONALLY now). Fixing mechanism W un-masked a second, previously
+invisible bug in the SAME running head (mechanism X: `_hf_line_ops`'s
+own right-tab recovery carried an extra `-1` column bias) — traced and
+fixed the same round. `-README` reaches **clean** for the first time in
+this triage's history: 0 divergences, `pytest -m pcl` PASSES. See
+mechanisms W and X's own entries, below mechanism V, for the full trace.
+
 Every number below comes from `tools/pcl_tolerance.py --doc NAME` run
 against the real WS7 captures at `$CTRLKD_PRIVATE_CORPUS/ws7-prints/v1/`
 (never against our own prior output), cross-checked by hand against the
@@ -125,6 +148,8 @@ changes it describes are the only outputs.
 | T. The engine's "auto"/single-spacing leading for a paragraph style's `vmi==-2`, a too-small explicit `vmi`'s fallback, and a WS5+ font-block's own proportional-size leading (no style) all multiplied the governing font size by 1.2 — measured 2026-08-20 against `ws7-prints/v1` (Sawyer's `WS.EXE`), the SAME install mechanism S already found to have contaminated `.po`. A `PRISTINE.EXE` recapture of the same 4 documents (`ws7-prints/v3`, 2026-09-06/07) shows every one of these gaps at exactly 1/1.2 of the v1 figure, with zero exceptions | LYING, WARPRAYR (both styled, `vmi==-2`/too-small-`vmi` fallback), -SCREEN, PREVIEW (both WS5+ font-block, no style) — would also hit any other styled or font-block document using proportional/sized text, corpus-wide | baseline-shift (nearly all of it, all 4 documents), page-count-mismatch (LYING, WARPRAYR) | **BROAD SUPPORT** (any document using a paragraph style or a WS5+ proportional font block) | **FIXED** (`src/ctrlkd/pdf.py` `AUTO_LEAD_FACTOR` 1.2 → 1.0, consumed by `_style_lead_pt`/`_font_lead_pt`; mechanism-T round, cites "Automatic leading, 120% of text size" WSCHANGE path BCL, factory default OFF, `Installing and Customizing (WordStar 7)`) |
 | U. `_printed_top` added `.hm` (2 lines) on top of a default `.mt`, and `_printed_notes_reserve_pt`'s own anchor constant (calibrated together with a footnote-area line count that was also wrong) — BOTH measured only against `ws7-prints/v1`/`v2` (Sawyer's `WS.EXE`), the SAME install mechanisms S/T already found contaminated | Every default-`.mt` document, corpus-wide (top-margin half); every document with a footnote area (bottom-anchor half) — LYING is the direct oracle for both halves on one page | baseline-shift (LYING's footnote line, 5→0); a uniform, previously-MASKED top-of-page offset on every default-`.mt` document (not visible in `pcl` tier counts — the per-page median-dy calibration absorbs a uniform offset by design, same masking mechanism S's docstring already named) | **BROAD SUPPORT** (any document that never sets its own `.mt`; any document with a footnote area) | **FIXED** (`src/ctrlkd/pdf.py` `_printed_top` now `.mt` alone unconditionally; `_area_size`/`_render_area`'s footnote header 3→2 rendered lines (capacity cost stays 3, see that function's own docstring); `_printed_notes_reserve_pt` 84pt→120pt = `(.mb + DEFAULT_HM_LINES) * 12`. `-SCREEN`'s own footnote/endnote block is absent under pristine, `ws7-prints/v3/README.md` finding #3 — the 120pt reserve constant is OPEN, n=1, corroborated by symmetry with the confirmed `.hm` delta but not independently proven under stock; recorded, not resolved further) |
 | V. `-README`'s "stock prints 14 pages, engine 16" | -README | page-count-mismatch, extra-word-in-engine (785), word-unmatched (136) — all cascading from the page-count mismatch | **CORPUS STALENESS** (the `ws7-prints/v3` harness tree's own copy of `-README.WS` is byte-identical to `v1`'s stale Version 1.4, never refreshed to the canonical archive's current Version 1.5 when the `v3`/PRISTINE.EXE batch was built — mechanism E's own finding, recurring here for the same reason) | **RESOLVED, no engine or corpus change** (verified directly: feeding the engine the harness tree's own 1.4 file reproduces `v3`'s 14-page capture chunk-for-chunk; feeding it the current 1.5 file reproduces the recorded 16-page output — the engine is correct against whichever file it is actually given) |
+| W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 | -README (`.h1`, every content page, 45 of the 47 divergences this document had left) | baseline-shift | **BROAD SUPPORT** (a FOURTH Sawyer-WSCHANGE-vs-stock contamination, same class as S/T/U: every prior fit for `_running_ops`'s own `hm`-participation gate — b26-header-round2's mt_source-only rule, register b31's OR-of-both-sources widening — was built entirely against Sawyer's WSCHANGE'd `WS.EXE`; `-README` is the corpus's only header-bearing document with `mt_source`/`hm_source` both `'default'`, and its `ws7-prints/v3` PRISTINE.EXE recapture is the first time this exact combination was ever checked against stock) | **FIXED** (`src/ctrlkd/pdf.py` `_running_ops`'s `hm` now participates in `head_base` UNCONDITIONALLY, no gate on either source at all; mechanism-W round, planning task, 2026-09-07) |
+| X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
 
 ---
 
@@ -1737,7 +1762,7 @@ capture, and it does not hold up.
 
 ---
 
-## W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 — diagnosed, not fixed (n=1, `-README` is the only oracle)
+## W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 — FIXED (planning task, 2026-09-07)
 
 **Evidence.** `-README`'s own running head ("`WordStar 7.0 Archive / #`",
 one `.h1` line, printed on every content page — WordStar suppresses
@@ -1784,20 +1809,99 @@ one install family now known (twice) to diverge from stock on exactly
 this kind of factory-default line-count setting, and never re-checked
 after S and T shipped.
 
-**Not fixed in this job (no engine changes, per this job's own scope).**
-If the hypothesis holds, the fix is narrow — drop the `mt_source ==
-'file' or hm_source == 'file'` gate on `hm` so a header's `.hm` (explicit
-or its own factory default, 2 lines) always participates in `head_base`,
-the same way mechanism U already made the *body*'s own top margin ignore
-that distinction for `.mt` alone. But n=1 is thin evidence for reversing
-a rule that itself came from real (if contaminated) measurements, and a
-change here would need to be re-verified against every existing
-header-bearing oracle this triage has ever used (SCRIPT, LJ6DTP — both
-`mt_source`/`hm_source` == `'file'`, so unaffected either way) plus, if
-one becomes available, a second `mt_source`/`hm_source`-default
-header-bearing PRISTINE.EXE capture, before touching `_running_ops`.
-Recorded here as a precise, reproducible, single-example finding for that
-follow-up.
+**Fixed (planning task, follow-up job, 2026-09-07).** The hypothesis
+above held: `src/ctrlkd/pdf.py`'s `_running_ops` no longer gates `hm` on
+`mt_source`/`hm_source` at all — `hm = float(page.get('hm_lines', 2))`
+unconditionally, mirroring how mechanism U already made the *body*'s own
+top margin ignore that distinction for `.mt` alone. Re-verified against
+every existing header-bearing oracle before landing: SCRIPT's own
+`ws7-prints/v3` PRISTINE.EXE recapture (both `mt_source`/`hm_source` ==
+`'file'` throughout, so the gate was already true and unconditional
+participation changes nothing) stays clean, 0 divergences, `pytest -m
+pcl`. Three synthetic Tier-1 tests built on the OLD (Sawyer-contaminated)
+gate's own numbers were updated to the corrected stock values —
+`test_head_foot_land_where_wordstar_puts_them` (`tests/test_ctrlkd.py`,
+header line 2 → line 0), `test_header_baseline_uses_a_default_hm_too`
+(renamed from `..._ignores_a_default_hm`, 756.0pt → 780.0pt), and
+`test_mid_document_hm_fm_repositions_header_and_footer_with_mt_untouched`
+(HMFM_PROBE's own header numbers, 756/780 → constant 780 across all four
+pages — see that test's own updated docstring for why the corrected
+formula predicts NO header movement for its specific `.hm` delta, even
+though the checkpoint machinery it exists to pin is otherwise unaffected
+and still fully exercised via the footer). `-README` itself: `baseline-
+shift` 45 → 0.
+
+**This also exposed mechanism X** (immediately below): once the header's
+own Y position was correct, its X position could be compared for the
+first time, and it wasn't — see mechanism X's own entry, the SAME
+"a real fix un-masks a previously-invisible second bug" shape mechanism
+Q's own entry already named for `-README`'s body-margin question.
+
+---
+
+## X. `.h#`/`.f#` right-align tab recovery carried an extra `-1` bias, one column too far left — FIXED (planning task, 2026-09-07)
+
+**Evidence.** Fixing mechanism W (above) dropped `-README`'s
+`baseline-shift` count from 45 to 0, but a live `pytest -m pcl`/
+`pcl_tolerance.py --doc=-README` run immediately after showed the SAME
+document jump to 30 `exact-drift` + 15 `line-start-shift` — MORE named
+divergences than the 1+1 the URL-glue fix (this job's other half, see
+the top of this file) had already reduced it to. All 45 are the SAME
+running-head line ("WordStar 7.0 Archive / #"), all a uniform **-7.2pt**
+(one Courier column) — the engine's own header text lands one column too
+far LEFT of real WS7, on EVERY content page, both digit-width buckets
+(pages 2-9, one digit: ws7 352.8pt vs engine 345.6pt; pages 10-16, two
+digits: ws7 345.6pt vs engine 338.4pt). This was present in the raw
+numbers all along — the FIRST `pcl_tolerance.py` run this triage ever
+took of `-README` already shows this exact 7.2pt x-residual riding along
+on every one of mechanism W's own 45 `baseline-shift` rows — but the
+tool's own reason classification reports a row's `baseline-shift` (a
+24pt y-mismatch) without ALSO reporting its x-mismatch, so this specific
+7.2pt error was invisible under any reason name until mechanism W's own
+fix let the header's Y position match for the first time.
+
+**Traced to `_hf_line_ops`'s own `tab_rec` branch** (`src/ctrlkd/pdf.py`,
+mechanism Q's own code): `saved_target_col = round(abs_hmi /
+_TAB_HMI_PER_COL) + len(stripped_suffix) - 1`. For `-README`'s real
+`header_tabs[1]` (`(0, 41, 7380)`): `round(7380/180) + 24 - 1 = 64`.
+1-digit pages (`render(stripped_suffix)` still 24 chars, `#`→one digit):
+`new_cols = 64 - 24 = 40` → `x = left + 40*7.2 = 345.6`pt — the engine's
+own (wrong) number, exactly. 2-digit pages (25 chars): `new_cols = 64 -
+25 = 39` → `x = 338.4`pt — also exactly the engine's own wrong number.
+Dropping the `- 1` (`saved_target_col = 65`) gives `new_cols = 41`
+(1-digit, `x = 352.8`) and `new_cols = 40` (2-digit, `x = 345.6`) —
+**both exactly WS7's real, pristine-measured positions**, zero residual
+either side of the digit-count boundary.
+
+**Root cause: mechanism Q's own `-1` was fit against masked evidence.**
+Mechanism Q's own docstring justified the `-1` as "WS7's own
+suffix-final print column is exclusive of the tab's own SIZE-convention
+column, not inclusive" — but that justification was reverse-engineered
+from `ws7-prints/v1`/`v2`'s own numbers for the 2-digit case ONLY, at a
+time when `-README`'s header row was STILL 24pt too low (mechanism W's
+own bug, not yet found). A 24pt vertical error hid this column's own
+horizontal error behind it in exactly the same way it hid it from this
+job's own `pytest -m pcl` output above — mechanism Q's own fix was never
+actually checked against a page where the header's Y position was
+already right, on either digit-width bucket. Once mechanism W's fix
+landed FIRST in this same round, `-README`'s `ws7-prints/v3` PRISTINE.EXE
+capture could finally check it properly, on both buckets independently —
+and the `-1` failed on both, by the same amount, in the same direction:
+a real off-by-one in the ORIGINAL derivation, not a real WS7 rule.
+
+**Fix.** `src/ctrlkd/pdf.py`'s `_hf_line_ops`: `saved_target_col =
+round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)` — the `- 1`
+removed. `tests/test_ctrlkd.py`'s own synthetic oracle for this exact
+arithmetic (`test_running_head_right_tab_repositions_when_the_page_
+number_widens`) updated to the corrected target column (20 → 21) and
+its own expected padding (12/11 → 13/12 columns) — the PER-DIGIT delta
+(one column narrower per extra digit) is unchanged; only the baseline
+shifted by the same one column mechanism X removes everywhere.
+
+**Result:** `-README`'s remaining 30 `exact-drift` + 15 `line-start-shift`
+→ 0. Combined with mechanism W and the URL-glue tooling fix (this job's
+other two findings), `-README` reaches **clean** — 0 divergences,
+`pytest -m pcl` PASSES — for the first time in this triage's history.
 
 ---
 
@@ -1959,3 +2063,18 @@ entry for the full trace and why it is out of this round's scope.
 See `tools/pcl_tolerance.py`'s own commit history and `tests/
 pcl_fidelity_manifest.json` for the exact current counts by reason, per
 document.
+
+**This table (and the "still FAIL BY NAME" paragraph above it) predates
+mechanisms S through X and is not the current state.** As of the
+mechanism-W/X round (2026-09-07), `-README` PASSES (0 divergences) —
+see mechanisms W and X's own entries, above. Current corpus-wide status,
+all against `ws7-prints/v3` PRISTINE.EXE except where noted: 14 of 18
+documents PASS clean (BOXES, DOCA, DOCB, DOCC, DOCD, OCAPTAIN, DOCE,
+PREVIEW, `-README`, SAWYER, SCRIPT, DOCF, TWAINLET, VERSIONS). LYING,
+`-SCREEN` and WARPRAYR still FAIL BY NAME, unchanged by this round —
+every remaining divergence on all three is already named (mechanism I's
+accepted font-substitution/wrap-cascade class for LYING/WARPRAYR,
+`-SCREEN`'s own harness-limitation note), none unexplained. LJ6DTP stays
+parked (`ws7-prints/v2`, Sawyer's install — no PRISTINE.EXE capture
+exists for it, see `ws7-prints/v3/README.md`'s own "driver-missing"
+finding), by instruction, unaffected by this round.

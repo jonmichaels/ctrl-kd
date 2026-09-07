@@ -328,10 +328,14 @@ def _hm_fm_checkpoints(doc):
     the `.hm`/`.fm` pair IN FORCE from that block onward. Mirrors
     `_mt_mb_checkpoints` exactly (same `dot_positions` anchor, same
     "block 0 is the document's own global first-occurrence pair"
-    contract, bundled as a pair for the same reason mt/mb are: `.hm`'s
-    own effect on the header row -- `_running_ops`'s `head_base` -- is
-    gated on `mt_source`, so a page's header geometry already has to be
-    resolved jointly with mt/mb, not as an independent quantity).
+    contract) -- kept as its own pair/function rather than folded into
+    `_mt_mb_checkpoints` because `.hm`/`.fm` were found and fixed
+    together, sharing one dot-command regex, months after the mt/mb
+    mechanism shipped (mirrors `_pl_checkpoints`'s own docstring, which
+    gives the identical reason for staying separate). `_running_ops`'s
+    own `head_base` no longer gates `hm`'s participation on `mt_source`
+    at all (mechanism W, PCL-DIVERGENCE-TRIAGE.md) -- it reads whatever
+    `hm_lines` this checkpoint pair resolves to for the page unconditionally.
 
     Real WS7 evidence (HMFM_PROBE, dosbox-x, register b31-dot-command-
     sweep): a document that never touches `.mt` (stays at the factory
@@ -4032,16 +4036,34 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         width`, using the file's OWN (1-digit-'#') suffix width at save
         time. Reversing that (`+ the STORED suffix's own un-substituted
         width, un-styled control bytes stripped`) recovers `target_col`
-        without ever hardcoding a right margin -- EXCEPT a confirmed,
-        constant off-by-one (-README.WS: content[2:4] cols 41 + stored
-        suffix width 24 = 65, but the real print-time target measures
-        64 -- WS7's own suffix-final print column is exclusive of the tab's
-        own SIZE-convention column 65, not inclusive): `- 1` corrects it.
-        Re-deriving `target_col` this way, then subtracting THIS page's
-        own ACTUAL (post-`#`-substitution) suffix width, reproduces both
-        of -README's real WS7 x positions exactly (345.6pt page 9, 338.4pt
-        pages 10-16) -- see `tests/test_ctrlkd.py`'s own synthetic case for
-        the same arithmetic against a made-up right-tab and page number.
+        without ever hardcoding a right margin. Re-deriving `target_col`
+        this way, then subtracting THIS page's own ACTUAL (post-`#`-
+        substitution) suffix width, reproduces both of -README's real
+        WS7 x positions exactly (352.8pt pages 2-9, one digit; 345.6pt
+        pages 10-16, two digits) -- see `tests/test_ctrlkd.py`'s own
+        synthetic case for the same arithmetic against a made-up
+        right-tab and page number.
+
+        UPDATE (mechanism W follow-up trace, PCL-DIVERGENCE-TRIAGE.md,
+        planning task, 2026-09-07): this formula used to subtract an
+        EXTRA constant 1 from `saved_target_col` -- "content[2:4] cols
+        41 + stored suffix width 24 = 65, but the real print-time target
+        measures 64" -- fit against `ws7-prints/v1`/`v2`'s own numbers
+        for the 2-digit-page case ONLY, while `-README`'s header row was
+        STILL 24pt too low (mechanism W's own bug, not fixed until this
+        same round), which masked every header word's own horizontal
+        residual behind its much larger vertical one -- the `-1` was
+        never actually checked against a page where the header's Y
+        position was already correct. Once mechanism W's own fix landed
+        first, `-README`'s `ws7-prints/v3` PRISTINE.EXE capture showed
+        BOTH digit-width buckets uniformly 7.2pt (one column) LEFT of
+        this formula's own output -- the extra `-1` bias, not a real
+        WS7 rule (WS7's own suffix-final print column is INCLUSIVE of
+        the tab's own SIZE-convention target column, not exclusive as
+        the reverted comment claimed). Removed: `saved_target_col` is
+        simply `round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)`
+        now, and both digit-width buckets land exactly on the pristine
+        measurements above with zero residual.
 
         Fixed-pitch (`entry is None`, Courier) only: a proportional header
         face has no single column width to divide the HMI target by, and no
@@ -4076,8 +4098,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             if 0 <= char_idx and char_idx + cols <= len(txt):
                 suffix = txt[char_idx + cols:]
                 stripped_suffix = ''.join(c for c in suffix if ord(c) >= 0x20)
-                saved_target_col = (round(abs_hmi / _TAB_HMI_PER_COL)
-                                    + len(stripped_suffix) - 1)
+                saved_target_col = round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)
                 new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
                 txt = txt[:char_idx] + (' ' * new_cols) + suffix
         if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
@@ -4125,29 +4146,58 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     # body, where a laser printer can physically print it (Jon's finding,
     # 2026-08-05: no printer lays ink at y = 0).
     #
-    # b26-header-round2 (SUPERSEDES the b26-header-baseline analysis just
-    # above -- that round's rule, "subtract hm only when hm_source ==
-    # 'file'", was fit to a corpus where every EXPLICIT-mt document also
-    # happened to carry an explicit .hm (SCRIPT), so hm_source and
-    # mt_source were CONFOUNDED: nothing distinguished "keyed on hm's own
-    # source" from "keyed on mt's". It shipped, then broke LJ6DTP.WS on
-    # Jon's paper review -- LJ6DTP is the first oracle where mt is
-    # explicit (.mt 1.1") but hm is NOT (never touches .hm at all), and it
-    # separates the two hypotheses cleanly.
+    # b26-header-round2 / register b31-dot-command-sweep / mechanism W
+    # (PCL-DIVERGENCE-TRIAGE.md, planning task, 2026-09-06/07 -- SUPERSEDES
+    # both rounds below): every measurement that ever justified GATING hm's
+    # participation on mt_source/hm_source (-README, SCRIPT, LJ6DTP,
+    # HMFM_PROBE -- all five of b26-header-round2's own oracles, plus
+    # HMFM_PROBE which b31 added) was captured through Robert J. Sawyer's
+    # own WSCHANGE-customized `WS.EXE` (`ws7-prints/v1`/`v2`, or an
+    # equivalent dosbox-x probe against the SAME install) -- the identical
+    # install mechanisms S (`.po` factory default) and T (auto-leading
+    # factor) already found personalizes settings that had been mistaken
+    # for WordStar 7's stock behaviour. `-README` is the corpus's ONLY
+    # header-bearing document with mt_source/hm_source BOTH 'default', and
+    # a `PRISTINE.EXE` (factory, no WSCHANGE) recapture of it
+    # (`ws7-prints/v3`) measures its header at 12.0pt (head_base 0 = mt(3)
+    # - hm(2) - top_head(1), hm FULLY SUBTRACTED) -- not 35.7pt/head_base 2
+    # (hm zeroed), what every gated formula below predicts for this exact
+    # combination. hm participating UNCONDITIONALLY, with no gate on either
+    # source at all, is what stock WordStar 7 actually does -- and it was
+    # already the engine's own understanding once, before b26-header-round2
+    # (see the 2026-08-12 stock-header finding this triage's own memory
+    # cites: ".mt3/.hm2 puts the header baseline at line 1, gap exactly 3
+    # lines" -- head_base 0, hm fully subtracted, for the exact same
+    # all-default case PRISTINE.EXE has now reconfirmed directly).
     #
-    # Two independent bugs were tangled in that break, both now fixed:
+    # This does NOT reopen SCRIPT/LJ6DTP: both are mt_source == 'file' (or,
+    # for LJ6DTP's second page, the per-page swap's own local 'file' value)
+    # on every oracle page below, so EVERY gate this history ever tried
+    # (mt_source-only, hm_source-only, the b31 OR) already had hm
+    # participating there -- dropping the gate changes nothing for a
+    # document that ever states mt or hm itself; it only changes the
+    # all-default case, which until -README's own `ws7-prints/v3` capture
+    # had never been checked against a non-Sawyer install at all. SCRIPT's
+    # own PRISTINE.EXE recapture (also `ws7-prints/v3`, `pytest -m pcl`)
+    # confirms zero regression: still clean, all four of its own
+    # mt/hm-explicit header rows below included.
     #
-    # (1) hm's participation is keyed on mt_source, not hm_source. Five
-    #     measured WS7 header baselines (WS7 frame, the usual -0.3pt
-    #     decipoint residual), three independent documents:
-    #       -README (.mt 3 DEFAULT, .hm 2 default): WS7 35.7 == head_base
-    #         2 = mt(3) - top_head(1) -- hm NOT subtracted (mt_source
-    #         'default').
+    # Superseded history, kept for the numbers (still real WS7
+    # measurements, just from the WSCHANGE'd install, and every one of them
+    # STILL fits "hm participates unconditionally" -- none of these five
+    # ever exercised the all-default case that turned out to need
+    # correcting):
+    #   b26-header-round2: hm's participation is keyed on mt_source, not
+    #     hm_source (LJ6DTP.WS broke the OLDER "hm_source == 'file'" rule
+    #     on Jon's paper review -- LJ6DTP is mt EXPLICIT but hm at its own
+    #     default, separating the two hypotheses). Four measured WS7
+    #     header baselines (WS7 frame, the usual -0.3pt decipoint
+    #     residual), fitting hm-participates-unconditionally exactly as
+    #     well as the mt_source gate they were built to justify:
     #       SCRIPT normal (.MT 7 EXPLICIT, .HM 3 explicit): WS7 48.0 ==
-    #         head_base 3 = mt(7) - hm(3) - top_head(1) -- hm subtracted
-    #         (mt_source 'file').
+    #         head_base 3 = mt(7) - hm(3) - top_head(1).
     #       SCRIPT figure-1 (.mt1 mid-doc EXPLICIT, .HM 3 carries): WS7
-    #         12.0 == head_base max(0, 1-3-1) = 0 -- hm subtracted.
+    #         12.0 == head_base max(0, 1-3-1) = 0.
     #       SCRIPT figure-2 (.mt1" mid-doc EXPLICIT, .HM 3 carries): WS7
     #         36.0 == head_base 2 = mt(6) - hm(3) - top_head(1).
     #       LJ6DTP (.mt 1.1" EXPLICIT globally, its own mid-document
@@ -4156,20 +4206,21 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     #         value _printed_top already renders the (correct, unchanged)
     #         86.0pt body baseline from; .hm never touches at all, stays
     #         2/'default'): WS7 48.0 == head_base 3 = mt(6.0) - hm(2) -
-    #         top_head(1) -- hm SUBTRACTED despite being hm_source
-    #         'default', because mt_source is 'file' (the page's own
-    #         local override, same one the body already trusts).
-    #     All five fit ONE rule: hm participates whenever mt IS NOT at the
-    #     document's factory default (mt_source == 'file', reading
-    #     whatever mt is ACTUALLY in force on this page -- the per-page
-    #     swap value where one applies) -- regardless of whether hm ITSELF
-    #     was ever typed. Once an author moves mt off the factory default,
-    #     WS7 reserves hm's distance (explicit or its own factory default)
-    #     between the header and the body; a document that never touches
-    #     mt at all needs no such reservation, mt alone already being the
-    #     header's own working measure.
+    #         top_head(1).
+    #   register b31-dot-command-sweep: HMFM_PROBE (dosbox-x, Sawyer's own
+    #     WS.EXE) held `.mt` at its factory default for the WHOLE document
+    #     and still measured the header move to a different PCL row --
+    #     35.7pt before a mid-document `.hm 6`, 12.0pt after it. Read as
+    #     "hm participates unconditionally" rather than "hm participates
+    #     because hm_source == 'file' on the pages that moved": the SAME
+    #     35.7/12.0 numbers fall out (head_base max(0,3-2-1)=2 before,
+    #     max(0,3-6-1)=0 after) with no gate at all -- b31's own OR-widening
+    #     was one gate-shaped explanation of this data, not the only one,
+    #     and the all-default half of it (35.7, head_base 2) is now known
+    #     (mechanism W, above) to be the Sawyer-install artifact, not the
+    #     real stock reading for that combination.
     #
-    # (2) `.mt`/`.hm` are LINE-COUNT dot commands in WordStar's own file
+    # `.mt`/`.hm` are LINE-COUNT dot commands in WordStar's own file
     #     format, always at the FIXED 6 LPI (12pt) baseline (core.py's
     #     `_resolve_lines_arg`: "Unit-less .mt/.mb are lines at the fixed
     #     6 LPI baseline") -- a SEPARATE unit from `.lh`, the document's
@@ -4178,39 +4229,25 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     #     parameter (the document's `.lh`-derived body lead) instead of
     #     that fixed 12pt/line unit -- invisible on every prior oracle
     #     (-README, SCRIPT: both `.lh`-default, 12pt either way) until
-    #     LJ6DTP, whose own `.lh` is customized to 14pt (9.333/48in):
-    #     bug (1) ALONE (hm unconditionally ignored, mt_source never
-    #     checked) gave head_base 5.0 * 14pt lead + 12 = 82.0, the exact
-    #     wrong baseline on Jon's paper -- squarely inside LJ6DTP's own
-    #     body text (86.0pt, unaffected: `_printed_top`'s top-margin
-    #     reservation was never mixed with `.lh` to begin with). Fixing
-    #     ONLY bug (1) with the WRONG (customized) lead still would not
-    #     reach 48.0 (head_base 3.0 * 14 + 12 = 54.0) -- both had to be
-    #     found. LEAD (this module's own 6 LPI constant, already used
-    #     for the fontless/default-.lh case everywhere else) replaces
-    #     `lead` here; `size` is untouched (the header's own font size,
-    #     never a margin-count unit).
+    #     LJ6DTP, whose own `.lh` is customized to 14pt (9.333/48in): the
+    #     wrong-lead bug ALONE gave head_base 5.0 * 14pt lead + 12 = 82.0,
+    #     the exact wrong baseline on Jon's paper -- squarely inside
+    #     LJ6DTP's own body text (86.0pt, unaffected: `_printed_top`'s
+    #     top-margin reservation was never mixed with `.lh` to begin
+    #     with). LEAD (this module's own 6 LPI constant, already used for
+    #     the fontless/default-.lh case everywhere else) replaces `lead`
+    #     here; `size` is untouched (the header's own font size, never a
+    #     margin-count unit).
     mt = float(page.get('mt_lines', 3))
-    # register b31-dot-command-sweep (SUPERSEDES b26-header-round2's
-    # mt_source-only gate): HMFM_PROBE (dosbox-x) held `.mt` at its
-    # factory default for the WHOLE document (mt_source == 'default'
-    # throughout, never once 'file') and still measured the header move
-    # to a DIFFERENT PCL row -- 35.7pt before a mid-document `.hm 6`,
-    # 12.0pt after it (both within the usual 0.3pt decipoint residual of
-    # this function's own head_base*12+size arithmetic) -- something the
-    # mt_source-only gate cannot produce at all (it zeroes `hm`
-    # unconditionally whenever mt stays default, predicting the SAME
-    # 35.7-equivalent row on every page). `hm_source` was 'file' on the
-    # pages that moved (the author DID type `.hm 6` there) and 'default'
-    # on the ones that didn't -- exactly what an OR of the two sources
-    # predicts, and every one of b26-header-round2's five original
-    # measurements (all of which happened to have hm_source == 'file'
-    # whenever mt_source was too, or vice versa) still fits an OR read
-    # identically to the AND-like single-field gate they were built from:
-    # this widens the gate, it does not re-litigate them.
-    hm = (float(page.get('hm_lines', 2))
-         if page.get('mt_source') == 'file' or page.get('hm_source') == 'file'
-         else 0.0)
+    # mechanism W: hm participates UNCONDITIONALLY -- no gate on
+    # mt_source/hm_source at all. See the long comment above this
+    # function's own `head_base` block for the full derivation and why
+    # every gated formula this project ever shipped (b26-header-round2's
+    # mt_source-only rule, register b31's OR-of-both-sources widening)
+    # was fit entirely against Robert J. Sawyer's WSCHANGE-customized WS7
+    # install and never actually distinguished from this simpler rule
+    # until `-README`'s own `ws7-prints/v3` PRISTINE.EXE recapture.
+    hm = float(page.get('hm_lines', 2))
     top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
     ops = []

@@ -2419,22 +2419,26 @@ def test_head_foot_land_where_wordstar_puts_them():
     is capacity (`_printed_cap`), unaffected by where line 0 sits.
     Asserted in lines, not points, so it stays readable.
 
-    HEADER line (b26-header-baseline) UNCHANGED by mechanism U -- it is
-    computed by `_running_ops`, independent of `_printed_top`: `.hm` at
-    this fixture's DEFAULT value (2, `_hf_doc` never states `.hm`) does
-    not participate in the header's own placement -- WS7's real header
-    baseline for an all-default document (-README: .mt 3 default, .hm 2
-    default) is line 2 (mt - top_head, 35.7pt measured, NOT line 0), not
-    line 0. See `_running_ops`'s own docstring for the full four-point
-    derivation (-README plus three SCRIPT.WS pages, `.hm` explicit there
-    and mid-document `.mt` changes on two of them) that settles `.hm`'s
-    default-vs-explicit participation with no exception. FOOTER line is
-    UNCHANGED and still real WS4 evidence -- checked for the same
-    asymmetry and explicitly NOT extended to `.fm` (see `_running_ops`):
-    this test is the reason why, and stays the anchor for it. `.fm` here
-    is ALSO at its default value (2), so this is exactly the
-    discriminating case: header ignores a default `.hm`, footer does not
-    ignore a default `.fm`."""
+    HEADER line (b26-header-baseline/b31/mechanism W) UPDATED 2026-09-07
+    (mechanism W, PCL-DIVERGENCE-TRIAGE.md): `.hm` at this fixture's
+    DEFAULT value (2, `_hf_doc` never states `.hm`) DOES participate in
+    the header's own placement -- a `PRISTINE.EXE` (stock, no WSCHANGE)
+    recapture of `-README` (`ws7-prints/v3`, mt 3 default/hm 2 default,
+    the exact combination this fixture reproduces) measures its real
+    header baseline at line 0 (head_base 0 = mt - hm - top_head, 12.0pt
+    measured, NOT line 2/35.7pt) -- the OLDER "35.7pt/line 2" reading
+    (b26-header-round2, register b31) turned out to be measuring Robert J.
+    Sawyer's own WSCHANGE-customized WS.EXE, the same install mechanisms S
+    and T already found personalizes settings mistaken for WordStar 7's
+    stock behaviour. See `_running_ops`'s own docstring for the full
+    derivation and why this does not reopen SCRIPT.WS's own (still-clean,
+    still `mt`/`hm`-explicit) header rows. FOOTER line is UNCHANGED and
+    still real WS4 evidence -- checked for the same asymmetry and
+    explicitly NOT extended to `.fm` (see `_running_ops`): this test is
+    the reason why, and stays the anchor for it. `.fm` here is ALSO at its
+    default value (2); unlike the header, the footer's own `.fm` was
+    ALREADY applying unconditionally before mechanism W, so nothing here
+    changes for it."""
     import re
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(_hf_doc()), 'printed')
@@ -2445,20 +2449,27 @@ def test_head_foot_land_where_wordstar_puts_them():
     hdr = [line_of(y) for y, t in rows if 'HEADER-TEXT' in t]
     txt = [line_of(y) for y, t in rows if t.strip().startswith('LINE')]
     ftr = [line_of(y) for y, t in rows if 'FOOTER-TEXT' in t]
-    assert hdr == [2], f'header should sit at mt(3)-top_head(1) = line 2 (.hm 2 is default, ignored), got {hdr}'
+    assert hdr == [0], f'header should sit at mt(3)-hm(2)-top_head(1) = line 0 (.hm participates unconditionally), got {hdr}'
     assert txt[0] == 3, f'body should start at .mt alone = 3, got {txt[0]}'
     assert len(txt) == 55, f'55 body lines per page, got {len(txt)}'
     assert ftr == [60], f'footer at .pl-.mb+.fm = 60 (.fm UNCHANGED, still applies at its default), got {ftr}'
 
 
-def test_header_baseline_ignores_a_default_hm():
-    """b26-header-baseline (-README.WS): the -README shape directly -- ALL
+def test_header_baseline_uses_a_default_hm_too():
+    """mechanism W (PCL-DIVERGENCE-TRIAGE.md, planning task, 2026-09-07),
+    SUPERSEDES b26-header-baseline: the -README shape directly -- ALL
     default page geometry (.mt 3 default, .hm 2 default, matching
-    doc.meta['page']['hm_source'] == 'default'). WS7's real header
-    baseline there is 35.7pt (top-down), i.e. head_base 2 = mt(3) -
-    top_head(1) -- NOT mt - hm - top_head (0, the pre-fix bug: 12.0pt,
-    24pt too high). Pinned here at 36.0pt (the same 0.3pt decipoint
-    residual every other measured constant in this project carries)."""
+    doc.meta['page']['hm_source'] == 'default'). A `PRISTINE.EXE` (stock,
+    no WSCHANGE) recapture of `-README` (`ws7-prints/v3`) measures its
+    real header baseline at 12.0pt (top-down), i.e. head_base 0 = mt(3) -
+    hm(2) - top_head(1) -- hm FULLY SUBTRACTED even though both `.mt` and
+    `.hm` are at their document defaults. The OLDER reading pinned here
+    (35.7pt, head_base 2, hm zeroed) was `ws7-prints/v1`'s own measurement
+    of Robert J. Sawyer's WSCHANGE-customized WS.EXE, not stock WordStar
+    7 -- the same class of install contamination mechanisms S (`.po`) and
+    T (auto-leading) already found and corrected. Pinned here at 12.0pt
+    (the same 0.3pt decipoint residual every other measured constant in
+    this project carries)."""
     from ctrlkd.pdf import emit_pdf
     data = b'.he TITLE\r\n' + b''.join(f'Body line {i}.\r\n'.encode() for i in range(1, 10))
     doc = core.parse_ws(data)
@@ -2466,7 +2477,7 @@ def test_header_baseline_ignores_a_default_hm():
     pdf = emit_pdf(doc, mode='printed')
     ys = [float(m) for m in
          re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf)]
-    assert ys == [756.0]                    # 792 - 36.0
+    assert ys == [780.0]                    # 792 - 12.0
 
 
 def test_header_baseline_applies_a_default_hm_once_mt_is_explicit():
@@ -2709,21 +2720,36 @@ def test_single_geometry_document_never_touches_pl_checkpoints():
 
 def test_mid_document_hm_fm_repositions_header_and_footer_with_mt_untouched():
     """`.hm`/`.fm` are stateful too (register b31-dot-command-sweep) --
-    and, unlike `.mt`/`.mb`/`.pl`, this is measurable even when `.mt`
-    itself NEVER moves: real WS7 (HMFM_PROBE, dosbox-x) held `.mt` at its
-    factory default for the whole document and still printed its header/
-    footer at two different PCL rows once a mid-document `.hm 6`/`.fm 6`
-    (factory default `.hm 2`/`.fm 2`) took effect -- 35.7pt/75.6pt before,
-    12.0pt/80.4pt after (both within the usual 0.3pt decipoint residual).
+    and, unlike `.mt`/`.mb`/`.pl`, this is measurable in the FOOTER even
+    when `.mt` itself NEVER moves: real WS7 (HMFM_PROBE, dosbox-x, Robert
+    J. Sawyer's own WSCHANGE-customized WS.EXE) held `.mt` at its factory
+    default for the whole document and still printed its footer at two
+    different PCL rows once a mid-document `.hm 6`/`.fm 6` (factory
+    default `.hm 2`/`.fm 2`) took effect -- 75.6pt before, 80.4pt after
+    (within the usual 0.3pt decipoint residual). `foot_line = pl - mb +
+    fm` was already unconditional, and 66-8+2=60 vs 66-8+6=64 (*12 = 48pt)
+    matches the measured 48pt shift exactly, no residual.
 
-    This also FALSIFIES b26-header-round2's gate ("hm participates in the
-    header row only when mt_source == 'file'") -- `.mt` is 'default' on
-    EVERY page here, yet the header row still moves, because `.hm` itself
-    was explicitly typed (hm_source == 'file') on the pages after it.
-    Fixed to an OR of the two sources; see `_running_ops`'s own comment.
-    The footer needed no formula change -- `foot_line = pl - mb + fm` was
-    already unconditional, and 66-8+2=60 vs 66-8+6=64 (*12 = 48pt) matches
-    the measured 48pt shift exactly, no residual.
+    HEADER numbers UPDATED 2026-09-07 (mechanism W, PCL-DIVERGENCE-
+    TRIAGE.md, `-README`'s own `ws7-prints/v3` PRISTINE.EXE recapture):
+    HMFM_PROBE's own header reading here (35.7pt before the mid-document
+    `.hm 6`, 12.0pt after) was ALSO Sawyer-install-contaminated, the same
+    class of finding as mechanisms S/T -- register b31's own conclusion
+    from it ("hm participates in the header row only when mt_source ==
+    'file' OR hm_source == 'file'") is SUPERSEDED: hm participates
+    UNCONDITIONALLY (see `_running_ops`'s own docstring). For THIS
+    fixture's own values that means the header sits at the SAME row
+    (head_base 0, clipped: max(0,3-2-1)=0 before, max(0,3-6-1)=0 after)
+    on every page -- `.mt` staying at its factory default the whole
+    document already puts hm's participation past the clip floor before
+    `.hm` ever changes, so no visible header movement survives the
+    correction for this specific mid-document delta; HMFM_PROBE's own
+    apparent header movement was entirely the retired gate's own
+    artifact, not a real stock behaviour this fixture can still
+    demonstrate. The CHECKPOINT machinery this test exists to pin
+    (per-page `hm`/`fm` state, independent of `.mt`) is unaffected and
+    still fully exercised below -- via the footer's own real movement and
+    via `pages[].hm_lines`/`_hm_fm_checkpoints` directly.
 
     Register b31 E3 items 2+3 (2026-08-25): `.hm6`/`.fm6` here sit AFTER
     60 lines of real body text, so `_parse_page_dot` (pre-text-last-wins)
@@ -2737,8 +2763,10 @@ def test_mid_document_hm_fm_repositions_header_and_footer_with_mt_untouched():
     (both readings now agree at 2.0), and pages 3-4 are the ones that
     genuinely deviate and get the explicit override instead -- the
     override has moved to the pages that actually changed, which is what
-    it should have been pointing at all along. The measured PCL rows
-    (ys_h/ys_f below) are real WS7 ground truth and do not move."""
+    it should have been pointing at all along. The measured FOOTER PCL
+    rows (ys_f below) are real WS7 ground truth and do not move; the
+    HEADER rows (ys_h) are this engine's own corrected-formula output,
+    no longer pinned against HMFM_PROBE's own contaminated reading."""
     from ctrlkd.pdf import emit_pdf, _doc_to_pagelines, _hm_fm_checkpoints
     data = ('.he TITLE\r\n.fo FOOTTXT\r\n' +
             ''.join(f'Body line {i}.\r\n' for i in range(1, 61)) +
@@ -2762,7 +2790,7 @@ def test_mid_document_hm_fm_repositions_header_and_footer_with_mt_untouched():
            re.findall(rb'[\d.]+ ([\d.]+) Td \(TITLE\) Tj ET', pdf_bytes)]
     ys_f = [float(m) for m in
            re.findall(rb'[\d.]+ ([\d.]+) Td \(FOOTTXT\) Tj ET', pdf_bytes)]
-    assert ys_h == [756.0, 756.0, 780.0, 780.0]
+    assert ys_h == [780.0, 780.0, 780.0, 780.0]
     assert ys_f == [60.0, 60.0, 12.0, 12.0]
 
 
@@ -5593,7 +5621,19 @@ def test_running_head_right_tab_repositions_when_the_page_number_widens():
     branch) is `-README`'s own real numbers, re-derived from a synthetic
     tab whose `content[2:4]` ("absolute tab size in HMIs") is chosen so
     the recovered target column is a round number, not copied from the
-    real file."""
+    real file.
+
+    UPDATED 2026-09-07 (mechanism W follow-up trace, PCL-DIVERGENCE-
+    TRIAGE.md): the target-column arithmetic used to subtract an extra
+    constant 1 ("WS7's own suffix-final print column is exclusive of the
+    tab's own SIZE-convention column") -- fit only against the 2-digit
+    case while `-README`'s own header row was still 24pt too low
+    (mechanism W's own bug), which masked this exact off-by-one behind a
+    much bigger vertical one. `-README`'s `ws7-prints/v3` PRISTINE.EXE
+    recapture, taken AFTER mechanism W's own fix, shows both digit-width
+    buckets uniformly ONE COLUMN (7.2pt) further right than the old `-1`
+    formula ever produced -- the `-1` is gone; see `_hf_line_ops`'s own
+    docstring."""
     import re
     from ctrlkd.pdf import emit_pdf
 
@@ -5602,9 +5642,8 @@ def test_running_head_right_tab_repositions_when_the_page_number_widens():
         return ws7_block(0x09, size.to_bytes(2, 'little')
                          + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b' ')
 
-    # abs_hmi (2340 HMI = 13 cols) + len('TEST / #') (8, un-substituted) - 1
-    # (the same confirmed off-by-one -README's own real tab carries, see
-    # _hf_line_ops's own docstring) recovers target_col = 20.
+    # abs_hmi (2340 HMI = 13 cols) + len('TEST / #') (8, un-substituted)
+    # recovers target_col = 21.
     tab = tab_block(13, 2340)
     data = (b'.pn 9\r\n' +
             b'.h1 ' + tab + b'TEST / #' + HARD +
@@ -5619,12 +5658,12 @@ def test_running_head_right_tab_repositions_when_the_page_number_widens():
     # of its own takes `_hf_line_ops`'s single-Tj fast path (register C6's
     # own docstring): padding and text ride in ONE Tj string, at the SAME
     # `left` x on every page -- the repositioning shows up as a shorter
-    # leading-space RUN, not a different Td x. target_col 20: page 9's
-    # 8-char suffix ('TEST / 9') pads to 12 cols, page 10's 9-char suffix
-    # ('TEST / 10') pads to 11 -- ONE column (7.2pt) narrower, the exact
+    # leading-space RUN, not a different Td x. target_col 21: page 9's
+    # 8-char suffix ('TEST / 9') pads to 13 cols, page 10's 9-char suffix
+    # ('TEST / 10') pads to 12 -- ONE column (7.2pt) narrower, the exact
     # -README shape (its own header shifts 7.2pt LEFT the same way).
     heads = [t for x, y, t in ops if y > 720 and b'TEST' in t]
-    assert heads == [b' ' * 12 + b'TEST / 9', b' ' * 11 + b'TEST / 10']
+    assert heads == [b' ' * 13 + b'TEST / 9', b' ' * 12 + b'TEST / 10']
 
 
 def test_running_head_right_tab_leaves_a_fonted_header_alone():
