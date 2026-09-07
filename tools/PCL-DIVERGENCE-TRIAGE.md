@@ -1709,6 +1709,96 @@ knows exactly what to expect: once captured against 1.5, `-README`
 should show 16 WS7 pages and, if the vertical-default fixes above (S, T,
 U) hold, a substantially smaller residual than today's 35/6/785/1/136.
 
+**UPDATE, follow-up job, 2026-09-06/07 (`pytest -m pcl` re-run against
+`ws7-prints/v3` at corpus commit `c1bc954`, "`-README.*` re-captured from
+the corpus 1.5 file, 16 pages").** The predicted recapture happened
+(outside this repo, in the private corpus's own harness tree) and the
+prediction landed exactly: `-README` now measures **16 WS7 pages** against
+the engine's own 16, the `page-count-mismatch` verdict is gone, and the
+785 `extra-word-in-engine` / 136 `word-unmatched` cascade it drove is
+gone with it (`tools/pcl_tolerance.py --record` now reports `-README` as
+`counts_by_reason={'baseline-shift': 45, 'exact-drift': 1,
+'line-start-shift': 1}`, down from the 88-ish real-bug counts every
+earlier round measured against the stale 1.4 capture). Two of the three
+remaining reasons are already-explained residuals, not new findings:
+
+- `exact-drift`/`line-start-shift` (1 each, page 5, the two `http(s)://`
+  URLs in the document's own credits line): both residuals are `+7.20pt`
+  — mechanism S's own `.po` finding (Sawyer's WSCHANGE install
+  personalizes the body-margin factory default to column 7; this engine
+  correctly renders stock's column 8), already named there as an expected,
+  understood, corpus-provenance artifact, not a new bug.
+
+The third is new — see mechanism W, immediately below: `-README` is the
+corpus's *only* header-bearing document with `mt_source`/`hm_source` both
+`'default'` in the current `v3` pristine set, so this is the first time
+that code path has ever been checked against a stock (non-WSCHANGE)
+capture, and it does not hold up.
+
+---
+
+## W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 — diagnosed, not fixed (n=1, `-README` is the only oracle)
+
+**Evidence.** `-README`'s own running head ("`WordStar 7.0 Archive / #`",
+one `.h1` line, printed on every content page — WordStar suppresses
+headers/footers on page 1 by convention, matched on both sides) sits at
+`ws7=[352.8, 12.0]` on page 2 (12.0pt from the top of the page); the
+engine renders the same words at `pdf=[345.6, 36.0]` — **24.0pt too far
+down** (2 × the module's own 12pt/line `LEAD` constant), reproduced
+identically on every one of the document's 15 content pages (45 = 15 × 3
+header words; `tools/pcl_fidelity_manifest.json`'s `-README` entry, capped
+list, currently shows 40 of them). The 7.2pt x residual visible in the
+raw numbers is mechanism S's own `.po` artifact (above) riding along on
+the same chunk — the vertical 24.0pt is the new, isolated finding.
+
+**Traced to `_running_ops`'s own `head_base` formula**
+(`src/ctrlkd/pdf.py`, ~line 4193-4215): `hm = hm_lines if (mt_source ==
+'file' or hm_source == 'file') else 0.0`, then `head_base = max(0.0, mt -
+hm - top_head)`. For `-README`, `doc.meta['page']` (confirmed directly,
+`python3 -c` probe against the parsed document) is `mt_lines=3.0,
+mt_source='default', hm_lines=2.0, hm_source='default'` — neither
+condition holds, so `hm` is gated to `0.0` and `head_base = max(0, 3 - 0 -
+1) = 2`, giving `y_top = head_base*LEAD + size = 2*12 + 12 = 36.0` — the
+engine's own (wrong) number, exactly. Real WS7's measured `y_top = 12.0`
+is exactly what the SAME formula produces with `hm` NOT gated off
+(`head_base = max(0, 3 - 2 - 1) = 0`, `y_top = 0*12 + 12 = 12.0`).
+
+**Hypothesis (well-supported, not yet independently confirmed): this is
+a fourth instance of the same Sawyer-WSCHANGE-vs-stock contamination
+mechanisms S and T already found.** The `mt_source`/`hm_source` OR-gate
+above is `b26-header-round2`'s own rule, fit and confirmed (mechanism Q's
+round, "the HEADER itself is now pixel-exact") entirely against
+`ws7-prints/v1`/`v2` — captures made through Robert J. Sawyer's own
+WSCHANGE-customized `WS.EXE`, the SAME install mechanisms S (`.po`
+factory default) and T (auto-leading 1.2x) already found personalizes
+settings that had been mistaken for WordStar 7's stock behaviour. Every
+document in the `S`/`T` PRISTINE.EXE recapture campaign that already
+confirmed those two mechanisms (OCAPTAIN/BOXES/SAWYER/LYING/WARPRAYR, commit
+26169cd) has `doc.headers` **empty** — none of them exercises this gate at
+all. Checked directly, corpus-wide (same probe as above, all six
+documents with any `pcl`-tier oracle): `-README` is the *only* document in
+the current `v3`-armed set with a non-empty header, so this specific
+code path has literally never been checked against a PRISTINE.EXE capture
+before this job's recapture landed — it was validated once, against the
+one install family now known (twice) to diverge from stock on exactly
+this kind of factory-default line-count setting, and never re-checked
+after S and T shipped.
+
+**Not fixed in this job (no engine changes, per this job's own scope).**
+If the hypothesis holds, the fix is narrow — drop the `mt_source ==
+'file' or hm_source == 'file'` gate on `hm` so a header's `.hm` (explicit
+or its own factory default, 2 lines) always participates in `head_base`,
+the same way mechanism U already made the *body*'s own top margin ignore
+that distinction for `.mt` alone. But n=1 is thin evidence for reversing
+a rule that itself came from real (if contaminated) measurements, and a
+change here would need to be re-verified against every existing
+header-bearing oracle this triage has ever used (SCRIPT, LJ6DTP — both
+`mt_source`/`hm_source` == `'file'`, so unaffected either way) plus, if
+one becomes available, a second `mt_source`/`hm_source`-default
+header-bearing PRISTINE.EXE capture, before touching `_running_ops`.
+Recorded here as a precise, reproducible, single-example finding for that
+follow-up.
+
 ---
 
 ## Summary — all rounds (mechanism-G round + residuals round + SCRIPT-correction round, 2026-09-06)

@@ -3157,2131 +3157,858 @@
       "source_ws": "sawyer/-README.WS",
       "capture_set": "v3",
       "install": "pristine",
-      "n_ws7_pages": 14,
+      "n_ws7_pages": 16,
       "n_engine_pages": 16,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 35,
-        "exact-drift": 6,
-        "extra-word-in-engine": 785,
-        "page-count-mismatch": 1,
-        "word-unmatched": 136
+        "baseline-shift": 45,
+        "exact-drift": 1,
+        "line-start-shift": 1
       },
       "divergences": [
         {
           "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
+          "page": 2,
+          "line_y_top_pt": 12.0,
           "words": [
-            "COMPLETE",
-            "COMPLETE"
+            "WordStar",
+            "WordStar"
           ],
           "ws7_pos": [
-            158.4,
-            144.0
+            352.8,
+            12.0
           ],
           "pdf_pos": [
-            158.4,
-            144.0
+            345.6,
+            36.0
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "WORDSTAR",
-            "WORDSTAR"
-          ],
-          "ws7_pos": [
-            223.2,
-            144.0
-          ],
-          "pdf_pos": [
-            223.2,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "FOR",
-            "FOR"
-          ],
-          "ws7_pos": [
-            288.0,
-            144.0
-          ],
-          "pdf_pos": [
-            288.0,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "DOS",
-            "DOS"
-          ],
-          "ws7_pos": [
-            316.8,
-            144.0
-          ],
-          "pdf_pos": [
-            316.8,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
+          "page": 2,
+          "line_y_top_pt": 12.0,
           "words": [
             "7.0",
             "7.0"
           ],
           "ws7_pos": [
-            345.6,
-            144.0
-          ],
-          "pdf_pos": [
-            345.6,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "ARCHIVE",
-            "ARCHIVE"
-          ],
-          "ws7_pos": [
-            374.4,
-            144.0
-          ],
-          "pdf_pos": [
-            374.4,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "Using",
-            "Using"
-          ],
-          "ws7_pos": [
-            154.8,
-            168.0
-          ],
-          "pdf_pos": [
-            154.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            198.0,
-            168.0
-          ],
-          "pdf_pos": [
-            198.0,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "Customizing",
-            "Customizing"
-          ],
-          "ws7_pos": [
-            226.8,
-            168.0
-          ],
-          "pdf_pos": [
-            226.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            313.2,
-            168.0
-          ],
-          "pdf_pos": [
-            313.2,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            378.0,
-            168.0
-          ],
-          "pdf_pos": [
-            378.0,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "DOS",
-            "DOS"
-          ],
-          "ws7_pos": [
-            406.8,
-            168.0
-          ],
-          "pdf_pos": [
-            406.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Robert",
-            "Robert"
-          ],
-          "ws7_pos": [
-            244.8,
-            192.0
-          ],
-          "pdf_pos": [
-            244.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            316.8,
-            192.0
-          ],
-          "pdf_pos": [
-            316.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "sawyer@sfwriter.com",
-            "sawyer@sfwriter.com"
-          ],
-          "ws7_pos": [
-            223.2,
-            204.0
-          ],
-          "pdf_pos": [
-            223.2,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "Version",
-            "Version"
-          ],
-          "ws7_pos": [
-            252.0,
-            228.0
-          ],
-          "pdf_pos": [
-            252.0,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "2024",
-            "2024"
-          ],
-          "ws7_pos": [
-            349.2,
-            240.0
-          ],
-          "pdf_pos": [
-            345.6,
-            240.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "This",
-            "This"
-          ],
-          "ws7_pos": [
-            86.4,
-            312.0
-          ],
-          "pdf_pos": [
-            86.4,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "document",
-            "document"
-          ],
-          "ws7_pos": [
-            122.4,
-            312.0
-          ],
-          "pdf_pos": [
-            122.4,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "provided",
-            "provided"
-          ],
-          "ws7_pos": [
-            208.8,
-            312.0
-          ],
-          "pdf_pos": [
-            208.8,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "both",
-            "both"
-          ],
-          "ws7_pos": [
-            295.2,
-            312.0
-          ],
-          "pdf_pos": [
-            295.2,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "plain-text",
-            "plain-text"
-          ],
-          "ws7_pos": [
-            345.6,
-            312.0
-          ],
-          "pdf_pos": [
-            345.6,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "version",
-            "version"
-          ],
-          "ws7_pos": [
-            424.8,
-            312.0
-          ],
-          "pdf_pos": [
-            424.8,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "-README.TXT",
-            "-README.TXT"
-          ],
-          "ws7_pos": [
-            93.6,
-            324.0
-          ],
-          "pdf_pos": [
-            93.6,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            180.0,
-            324.0
-          ],
-          "pdf_pos": [
-            180.0,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            244.8,
-            324.0
-          ],
-          "pdf_pos": [
-            244.8,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "document",
-            "document"
-          ],
-          "ws7_pos": [
-            309.6,
-            324.0
-          ],
-          "pdf_pos": [
-            309.6,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "named",
-            "named"
-          ],
-          "ws7_pos": [
-            374.4,
-            324.0
-          ],
-          "pdf_pos": [
-            374.4,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "-README.WS",
-            "-README.WS"
-          ],
-          "ws7_pos": [
             417.6,
-            324.0
-          ],
-          "pdf_pos": [
-            417.6,
-            324.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "also",
-            "also"
-          ],
-          "ws7_pos": [
-            223.2,
-            348.0
-          ],
-          "pdf_pos": [
-            151.2,
-            348.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "available",
-            "available"
-          ],
-          "ws7_pos": [
-            259.2,
-            348.0
-          ],
-          "pdf_pos": [
-            187.2,
-            348.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "online",
-            "online"
-          ],
-          "ws7_pos": [
-            331.2,
-            348.0
-          ],
-          "pdf_pos": [
-            403.2,
-            348.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "at:",
-            "at:"
-          ],
-          "ws7_pos": [
-            381.6,
-            348.0
-          ],
-          "pdf_pos": [
-            453.6,
-            348.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "https://sfwriter.com/ws7.htm#readme",
-            "https://sfwriter.com/ws7.htm#readme"
-          ],
-          "ws7_pos": [
-            165.6,
-            360.0
-          ],
-          "pdf_pos": [
-            165.6,
-            360.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -180.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            57.6,
             12.0
           ],
           "pdf_pos": [
-            57.6,
-            264.0
+            410.4,
+            36.0
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual +36.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "see",
-            "see"
-          ],
-          "ws7_pos": [
-            93.6,
-            72.0
-          ],
-          "pdf_pos": [
-            122.4,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "summary",
-            "summary"
-          ],
-          "ws7_pos": [
-            144.0,
-            72.0
-          ],
-          "pdf_pos": [
-            172.8,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "WordStar's",
-            "WordStar's"
-          ],
-          "ws7_pos": [
-            223.2,
-            72.0
-          ],
-          "pdf_pos": [
-            252.0,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "strengths",
-            "strengths"
-          ],
-          "ws7_pos": [
-            302.4,
-            72.0
-          ],
-          "pdf_pos": [
-            331.2,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            396.0,
-            72.0
-          ],
-          "pdf_pos": [
-            424.8,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "file",
-            "file"
-          ],
-          "ws7_pos": [
-            424.8,
-            72.0
-          ],
-          "pdf_pos": [
-            453.6,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +28.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "1.5"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            309.6,
-            228.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "Monday,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            208.8,
-            240.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "August"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            266.4,
-            240.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "12,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            316.8,
-            240.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "HTML"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            302.4,
-            348.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "document"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            338.4,
-            348.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "Note"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            230.4,
-            408.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            288.0,
-            408.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "Files"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            316.8,
-            408.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "There"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "are"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "thirteen"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            129.6,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "files"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            194.4,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "with"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            237.6,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            273.6,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "extension"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            302.4,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            ".PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            367.2,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "C:\\WS"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            424.8,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            475.2,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "topmost"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "folder"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            115.2,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            187.2,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "archive"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            216.0,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "C:\\WS"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            273.6,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "(including"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            316.8,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "ASCII.PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            396.0,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "DRAFT.PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            456.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "LASERJET.PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            456.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "and"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            237.6,
-            456.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "WS4.PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            266.4,
-            456.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "These"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "are"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "not"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            129.6,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "Adobe"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            158.4,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "Acrobat"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            201.6,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "Portable"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            259.2,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "Document"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            324.0,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "Format"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            388.8,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "files."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            439.2,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "Rather,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            492.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-README",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 14 pages, engine 16 pages"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "1.4"
-          ],
-          "ws7_pos": [
-            309.6,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "Wednesday,"
-          ],
-          "ws7_pos": [
-            205.2,
-            240.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "July"
-          ],
-          "ws7_pos": [
-            284.4,
-            240.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "31,"
-          ],
-          "ws7_pos": [
-            320.4,
-            240.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
           "page": 2,
           "line_y_top_pt": 12.0,
           "words": [
-            "7.0"
-          ],
-          "ws7_pos": [
-            122.4,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 12.0,
-          "words": [
+            "Archive",
             "Archive"
-          ],
-          "ws7_pos": [
-            151.2,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "https://sfwriter.com/wordstar.htm"
-          ],
-          "ws7_pos": [
-            172.8,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Also"
-          ],
-          "ws7_pos": [
-            57.6,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "with."
-          ],
-          "ws7_pos": [
-            108.0,
-            120.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "WordStar"
-          ],
-          "ws7_pos": [
-            57.6,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "7.0"
-          ],
-          "ws7_pos": [
-            122.4,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Archive"
-          ],
-          "ws7_pos": [
-            151.2,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "WordStar"
-          ],
-          "ws7_pos": [
-            100.8,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "(by"
-          ],
-          "ws7_pos": [
-            165.6,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "default)"
-          ],
-          "ws7_pos": [
-            194.4,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "many"
-          ],
-          "ws7_pos": [
-            288.0,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "its"
-          ],
-          "ws7_pos": [
-            345.6,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "ancillary"
-          ],
-          "ws7_pos": [
-            374.4,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "programs"
           ],
           "ws7_pos": [
             446.4,
-            228.0
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
           "page": 3,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "values:"
-          ],
-          "ws7_pos": [
-            273.6,
-            252.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "(Alternatively,"
-          ],
-          "ws7_pos": [
-            57.6,
-            312.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 3,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "size.)"
-          ],
-          "ws7_pos": [
-            432.0,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 4,
           "line_y_top_pt": 12.0,
           "words": [
+            "WordStar",
             "WordStar"
           ],
           "ws7_pos": [
-            57.6,
+            352.8,
             12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 4,
+          "page": 3,
           "line_y_top_pt": 12.0,
           "words": [
+            "7.0",
             "7.0"
           ],
           "ws7_pos": [
-            122.4,
+            417.6,
             12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 3,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            446.4,
+            12.0
+          ],
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
           "page": 4,
           "line_y_top_pt": 12.0,
           "words": [
-            "Archive"
-          ],
-          "ws7_pos": [
-            151.2,
-            12.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 12.0,
-          "words": [
+            "WordStar",
             "WordStar"
           ],
           "ws7_pos": [
-            57.6,
+            352.8,
             12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
+          "page": 4,
           "line_y_top_pt": 12.0,
           "words": [
+            "7.0",
             "7.0"
           ],
           "ws7_pos": [
-            122.4,
+            417.6,
             12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 4,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            446.4,
+            12.0
+          ],
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
           "page": 5,
           "line_y_top_pt": 12.0,
           "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            352.8,
+            12.0
+          ],
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 5,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            417.6,
+            12.0
+          ],
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 5,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
             "Archive"
           ],
           "ws7_pos": [
-            151.2,
+            446.4,
             12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 6,
+          "line_y_top_pt": 12.0,
           "words": [
-            "(If"
+            "WordStar",
+            "WordStar"
           ],
           "ws7_pos": [
-            57.6,
-            660.0
+            352.8,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 6,
+          "line_y_top_pt": 12.0,
           "words": [
-            "you"
+            "7.0",
+            "7.0"
           ],
           "ws7_pos": [
-            86.4,
-            660.0
+            417.6,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 6,
+          "line_y_top_pt": 12.0,
           "words": [
-            "accidentally"
+            "Archive",
+            "Archive"
           ],
           "ws7_pos": [
-            115.2,
-            660.0
+            446.4,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 7,
+          "line_y_top_pt": 12.0,
           "words": [
-            "open"
+            "WordStar",
+            "WordStar"
           ],
           "ws7_pos": [
-            208.8,
-            660.0
+            352.8,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 7,
+          "line_y_top_pt": 12.0,
           "words": [
-            "plain"
+            "7.0",
+            "7.0"
           ],
           "ws7_pos": [
-            259.2,
-            660.0
+            417.6,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 7,
+          "line_y_top_pt": 12.0,
           "words": [
-            "text"
+            "Archive",
+            "Archive"
           ],
           "ws7_pos": [
-            302.4,
-            660.0
+            446.4,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 8,
+          "line_y_top_pt": 12.0,
           "words": [
-            "file"
+            "WordStar",
+            "WordStar"
           ],
           "ws7_pos": [
+            352.8,
+            12.0
+          ],
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 8,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            417.6,
+            12.0
+          ],
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 8,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            446.4,
+            12.0
+          ],
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            352.8,
+            12.0
+          ],
+          "pdf_pos": [
+            345.6,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            417.6,
+            12.0
+          ],
+          "pdf_pos": [
+            410.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            446.4,
+            12.0
+          ],
+          "pdf_pos": [
+            439.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 10,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
             338.4,
-            660.0
+            36.0
           ],
-          "pdf_pos": null,
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 10,
+          "line_y_top_pt": 12.0,
           "words": [
-            "\"document\""
+            "7.0",
+            "7.0"
           ],
           "ws7_pos": [
-            396.0,
-            660.0
+            410.4,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            403.2,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 660.0,
+          "page": 10,
+          "line_y_top_pt": 12.0,
           "words": [
-            "mode"
+            "Archive",
+            "Archive"
           ],
           "ws7_pos": [
-            475.2,
-            660.0
+            439.2,
+            12.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            432.0,
+            36.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
+            338.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            410.4,
+            12.0
+          ],
+          "pdf_pos": [
+            403.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            439.2,
+            12.0
+          ],
+          "pdf_pos": [
+            432.0,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
+            338.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            410.4,
+            12.0
+          ],
+          "pdf_pos": [
+            403.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            439.2,
+            12.0
+          ],
+          "pdf_pos": [
+            432.0,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
+            338.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            410.4,
+            12.0
+          ],
+          "pdf_pos": [
+            403.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            439.2,
+            12.0
+          ],
+          "pdf_pos": [
+            432.0,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
+            338.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "7.0",
+            "7.0"
+          ],
+          "ws7_pos": [
+            410.4,
+            12.0
+          ],
+          "pdf_pos": [
+            403.2,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Archive",
+            "Archive"
+          ],
+          "ws7_pos": [
+            439.2,
+            12.0
+          ],
+          "pdf_pos": [
+            432.0,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "-README",
+          "page": 15,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            345.6,
+            12.0
+          ],
+          "pdf_pos": [
+            338.4,
+            36.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "-README",
           "page": 5,
-          "line_y_top_pt": 672.0,
+          "line_y_top_pt": 504.0,
           "words": [
-            "and"
+            "http://www.vdosplus.org",
+            "http://www.vdosplus.org"
+          ],
+          "ws7_pos": [
+            151.2,
+            504.0
+          ],
+          "pdf_pos": [
+            158.4,
+            504.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "-README",
+          "page": 5,
+          "line_y_top_pt": 516.0,
+          "words": [
+            "https://www.vdos.info",
+            "https://www.vdos.info"
           ],
           "ws7_pos": [
             57.6,
-            672.0
+            516.0
           ],
-          "pdf_pos": null,
+          "pdf_pos": [
+            64.8,
+            516.0
+          ],
           "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 672.0,
-          "words": [
-            "find"
-          ],
-          "ws7_pos": [
-            86.4,
-            672.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "-README",
-          "page": 5,
-          "line_y_top_pt": 672.0,
-          "words": [
-            "that"
-          ],
-          "ws7_pos": [
-            122.4,
-            672.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+          "reason": "line-start-shift",
+          "detail": "line-start residual +7.20pt (tolerance 2.5pt)"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 27,
+        "n": 618,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
