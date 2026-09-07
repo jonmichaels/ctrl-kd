@@ -1991,13 +1991,21 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     page bottom instead. Numbers UPDATED 2026-09-07 (mechanism U,
     PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3 PRISTINE.EXE round): both
     `_printed_top` (36pt stock `.mt`, not the Sawyer-install (.mt+.hm)=60pt
-    this test used to assume) and `_printed_notes_reserve_pt` (120pt
-    stock reserve, not 84pt) moved -- see each function's own docstring
-    for the real-capture evidence (LYING.pcl/`ws7-prints/v3`,
-    -SCREEN.pcl/`ws7-prints/v1`). This doc's body is two short lines --
-    nowhere near a full (default) 55-line page -- so a flow-appended area
-    would land far above the anchor; anchored, it lands at the stock
-    reserve instead."""
+    this test used to assume) and `_printed_notes_reserve_pt` moved -- see
+    each function's own docstring for the real-capture evidence
+    (LYING.pcl/`ws7-prints/v3`, -SCREEN.pcl/`ws7-prints/v1`).
+
+    Re-derived a SECOND time, same day (mechanism U reopened): the
+    recaptured, COMPLETE `ws7-prints/v3/-SCREEN.pcl` (corpus commit
+    2be7569 -- the previous capture was silently truncated at the
+    embedded Inset picture, missing its own footnote/endnote block
+    entirely) measures reserve = 108pt (`(.mb + 1) * 12`), not 120pt
+    (`(.mb + 2) * 12`) -- see `_printed_notes_reserve_pt`'s own docstring
+    for the corrected derivation and the now n=2 (`-SCREEN` direct +
+    `LYING` boundary-consistent) confirmation under stock. This doc's
+    body is two short lines -- nowhere near a full (default) 55-line
+    page -- so a flow-appended area would land far above the anchor;
+    anchored, it lands at the stock reserve instead."""
     from ctrlkd.pdf import emit_pdf
     data = (ws7_block(0x00) +
             b'Short body line has a note' + ws7_note(0x03, b'Footnote text.', number=0) +
@@ -2006,12 +2014,12 @@ def test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page():
     doc = core.parse_ws(data)
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: y for _, _, _, x, y, text in _content_spans(pdf)}
-    assert spans[b'--------------------'] == 144.0
+    assert spans[b'--------------------'] == 132.0
     # Finding 4 (round 26 visual pass): "1." and "(1)" differ in width,
     # so this mixed footnote/endnote list hangs to a shared column --
     # three/two spaces, not the plain single space (_notes_marker_pad_cols).
-    assert spans[b'1.   Footnote text.'] == 120.0
-    assert spans[b'\\(1\\)  Endnote text.'] == 96.0
+    assert spans[b'1.   Footnote text.'] == 108.0
+    assert spans[b'\\(1\\)  Endnote text.'] == 84.0
 
 
 def test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page():

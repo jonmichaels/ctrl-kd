@@ -3195,7 +3195,7 @@
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "extra-word-in-engine": 5,
+        "extra-word-in-engine": 2,
         "word-unmatched": 4
       },
       "divergences": [
@@ -3228,54 +3228,6 @@
             324.0
           ],
           "font_class": "symbol",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 672.0,
-          "words": [
-            "Footnote"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.6,
-            672.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 696.0,
-          "words": [
-            "(1)"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            696.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "-SCREEN",
-          "page": 1,
-          "line_y_top_pt": 696.0,
-          "words": [
-            "Endnote"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.6,
-            696.0
-          ],
-          "font_class": "fixed",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
@@ -3345,7 +3297,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 19,
+        "n": 21,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }

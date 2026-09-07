@@ -793,51 +793,65 @@ def _printed_notes_reserve_pt(doc):
     text at V=6840 (684.0pt) -- a FULL page, so this document's own
     natural (un-anchored) flow is what actually places it: once
     `_printed_top`'s own fix lands, the body's last real content line
-    lands at y=648.0pt (matching pristine exactly on its own), and the
-    2-line header's own 24pt (2 x 12pt lead) reaches the footnote text at
-    exactly 648 + 24 = 672... plus the text's OWN entering lead (12pt) =
-    684.0pt, matching pristine's real measurement with ZERO residual,
-    via PURE SEQUENTIAL FLOW -- the anchor does not need to engage AT ALL
-    for this document, so LYING's own oracle only bounds this reserve
-    from BELOW (any reserve is equally a no-op here once it is large
-    enough, since the override only ever pushes the area DOWN, never up
-    past its own natural position). The anchor is a no-op exactly when
-    `target_first <= natural_y`, i.e. `792 - reserve - (area_len-1)*12 <=
-    648` -- giving `reserve >= 120` for this document's own 3-line area
-    (rule, blank, text -- area_len=3).
+    lands at y=648.0pt (matching pristine exactly on its own). The code's
+    own `body_y` (`_notes_top + body_len * default_lead`, the position of
+    the NEXT line after the body, not the last body line itself) is
+    648 + 12 = 660.0pt -- that, not 648, is what the override compares
+    against (`override = target_first - body_y`).
 
-    So: `-SCREEN` (Sawyer) needs EXACTLY 96pt (`.mb * 12`, no adjustment);
-    `LYING` (pristine) needs AT LEAST 120pt (`(.mb + 2) * 12`) to avoid
-    wrongly overriding its own already-correct natural position. These
-    are DIFFERENT installs and NOT required to share a reserve value --
-    the 24pt/2-line gap between them is the SAME magnitude as the
-    `.hm`-shaped contamination `_printed_top` already found at the OTHER
-    end of this exact same page (mechanism U, that function's own
-    docstring), which is corroborating (not conclusive) evidence that
-    stock's real anchor reserve is `(.mb + hm) * 12` -- the footnote area
-    carrying its own header-margin-shaped cushion above the physical
-    bottom margin, the mirror image of `_printed_top`'s (wrong, since-
-    fixed) header-margin-INSIDE-the-top-margin model. Fixed at 120pt =
-    `(.mb + DEFAULT_HM_LINES) * 12` on that reading.
+    2026-09-07 correction (planning #202 residuals round, `-SCREEN`
+    recapture): the prior text here compared `target_first` against
+    `natural_y` (648, the body's last content line) instead of the code's
+    actual `body_y` (660, one line further down) -- a 12pt/one-line error
+    in the DERIVATION, not in the code's own `override` arithmetic, but it
+    produced a reserve requirement (`>= 120`) that was 12pt too large. The
+    `-SCREEN` v3 capture used to look like it corroborated this because
+    `ws7-prints/v3/-SCREEN.pcl` was silently TRUNCATED at the embedded
+    Inset picture (fixed by corpus commit 2be7569, 2026-09-06): its lower
+    half -- the entire footnote/endnote block -- was missing from the
+    capture, not absent from stock WS7's real output. The claim below this
+    docstring used to carried ("its own footnote/endnote block is entirely
+    ABSENT under `ws7-prints/v3`") is FALSE and is corrected here: stock
+    WS7 prints the footnote and endnote block on this document exactly
+    like every other install. The recaptured, complete `-SCREEN.pcl`
+    measures: dash rule at V=6600 (660.0pt), footnote line ("1." then,
+    tab-separated, "Footnote") at V=6840 (684.0pt), endnote line ("(1)"
+    then "Endnote") at V=7080 (708.0pt), page-number footer at V=7320
+    (732.0pt, unaffected by this reserve -- already matched before and
+    after this fix). `-SCREEN`'s body ends at V=4341 (434.1pt, nowhere
+    near the anchor), so -- exactly like the v1/Sawyer case above -- its
+    own short page makes the anchor govern DIRECTLY, and now for the first
+    time gives a genuine second, INDEPENDENT stock data point (previously
+    only LYING's full-page, anchor-need-not-engage case existed): solving
+    `792 - reserve - (area_len-1)*12 = 660` with `area_len=3` (rule,
+    blank, text) gives `reserve = 108.0pt` = `(.mb + 1) * 12` (9 lines),
+    not `(.mb + 2) * 12` (120pt, the prior, now-refuted value).
 
-    JUDGMENT CALL, recorded rather than hidden (n=1 for stock -- `-SCREEN`
-    corroborates the MAGNITUDE of the Sawyer-vs-stock delta, not the
-    stock value itself, since its own footnote/endnote block is entirely
-    ABSENT under `ws7-prints/v3`, `ws7-prints/v3/README.md` finding #3;
-    OPEN, see the triage doc): LYING's own oracle only proves this
-    reserve is >= 120pt, not that it is EXACTLY 120pt -- a genuinely
-    SHORT stock page with a footnote (the case this anchor exists for)
-    is the only way to pin it tighter. `120` is chosen as the smallest
-    value consistent with the evidence and the one motivated by symmetry
-    with the already-confirmed `.hm` contamination, not asserted with
-    more confidence than that."""
+    Re-checked against LYING with `reserve = 108`: `override = target_first
+    - body_y = (792 - 108 - 24) - 660 = 0`, and the code's own gate is
+    `if override > 0`, so `0` still does NOT engage the anchor -- LYING's
+    already-correct pure-sequential-flow position (684.0pt, matching
+    pristine with zero residual) is completely undisturbed. So `108` is
+    not a compromise between two installs' needs; it is the exact value
+    both real stock captures independently agree on: -SCREEN governs it
+    directly (short page), LYING is consistent with it as a boundary case
+    (full page, override lands at exactly 0 rather than needing to stay
+    strictly negative).
+
+    CONFIRMED under stock, n=2 (`-SCREEN` direct + `LYING` boundary-
+    consistent), superseding the prior n=1 JUDGMENT CALL: `108pt` =
+    `(.mb + 1) * 12`, not `(.mb + DEFAULT_HM_LINES) * 12`. The `.hm`-
+    symmetry reading that motivated `+2` doesn't hold; the footnote area's
+    real cushion above the physical bottom margin is one line, not
+    `DEFAULT_HM_LINES` lines -- `_printed_top`'s own `.hm` finding (top of
+    page) and this reserve (bottom of page) are NOT mirror images after
+    all, contra the earlier note here."""
     page = doc.meta.get('page')
     if page is None:
-        return 120.0                   # print streams: no .mb to read;
+        return 108.0                   # print streams: no .mb to read;
                                         # the measured default constant
-    from .core import DEFAULT_HM_LINES
     mb = page.get('mb_lines', 8.0)
-    return max(0.0, (mb + DEFAULT_HM_LINES) * 12.0)
+    return max(0.0, (mb + 1) * 12.0)
 
 def _lead_pt(lh_48):
     """One `.lh` value (1/48in units) as points: a point is 1/72in, so

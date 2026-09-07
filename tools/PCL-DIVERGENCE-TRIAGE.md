@@ -146,7 +146,7 @@ changes it describes are the only outputs.
 | R. A footnote's own `1.`-style marker gets a literal space appended even when WS7's real capture glues it directly to the note text with no separator at all; separately, the footnote AREA's own bottom-anchor override was gated on exceeding one FULL default-lead gap, silently accepting any SMALLER (but still real) overshoot | LYING (its own single footnote, `1.Did not take the prize.`) | word-unmatched, extra-word-in-engine, baseline-shift (the whole footnote line, both effects) | **BROAD SUPPORT** (any document with a footnote, for the marker join; any document whose footnote area's own natural flow position overshoots the bottom anchor by LESS than one lead, for the anchor gate) | **FIXED** (`src/ctrlkd/pdf.py` `_note_marker`'s default join, `_paginate_printed_notes`'s `override > 0` gate; second residuals round) |
 | S. `core.DEFAULT_PO_COLS` (an UNSET `.po`'s resolved value) was briefly changed 8.0 → 7.0 on the theory that real WS7's own factory default was column 7, not the manual's stated column 8 — measured across all 18 `ws7-prints/v1` captures, all 17 undeclared-`.po` documents landing 7.2pt LEFT of the manual's figure. A direct probe of stock WordStar 7 (`PRISTINE.EXE`, untouched, no WSCHANGE) settled it the other way: stock's real factory default IS column 8, exactly as the manual says. Every one of those 18 captures was made through Robert J. Sawyer's own WSCHANGE-customized install, whose `.po` factory default he had personally set to 0.7in/column 7 — the corpus is uniformly Sawyer's-install, not stock, so it measured Sawyer's customization and reported it as WordStar's | Every document above whose body-margin question mechanism Q left open — -README, LYING (confirmed directly) — PLUS every other document in the corpus that never sets its own `.po`; the true state is a real, expected, and now-explained +7.2pt frame offset in the `ws7-prints/v1` corpus against this engine's STOCK rendering, not an engine bug | exact-drift, line-start-shift, and (for -README/LYING specifically) the residuals mechanism Q/R's own entries already named as "newly-surfaced, not attempted" — all attributable to the corpus's own install customization, not to `_resolve_left_pt`/`_printed_left` | **CORPUS PROVENANCE, not an engine bug** (the engine models STOCK WordStar 7; the capture corpus is uniformly Sawyer's customized install) | **REVERTED** (`src/ctrlkd/core.py` `DEFAULT_PO_COLS` restored to 8.0; Jon's ruling 2026-09-06, after the `PRISTINE.EXE` probe — see UPDATE at the end of mechanism S, below) |
 | T. The engine's "auto"/single-spacing leading for a paragraph style's `vmi==-2`, a too-small explicit `vmi`'s fallback, and a WS5+ font-block's own proportional-size leading (no style) all multiplied the governing font size by 1.2 — measured 2026-08-20 against `ws7-prints/v1` (Sawyer's `WS.EXE`), the SAME install mechanism S already found to have contaminated `.po`. A `PRISTINE.EXE` recapture of the same 4 documents (`ws7-prints/v3`, 2026-09-06/07) shows every one of these gaps at exactly 1/1.2 of the v1 figure, with zero exceptions | LYING, WARPRAYR (both styled, `vmi==-2`/too-small-`vmi` fallback), -SCREEN, PREVIEW (both WS5+ font-block, no style) — would also hit any other styled or font-block document using proportional/sized text, corpus-wide | baseline-shift (nearly all of it, all 4 documents), page-count-mismatch (LYING, WARPRAYR) | **BROAD SUPPORT** (any document using a paragraph style or a WS5+ proportional font block) | **FIXED** (`src/ctrlkd/pdf.py` `AUTO_LEAD_FACTOR` 1.2 → 1.0, consumed by `_style_lead_pt`/`_font_lead_pt`; mechanism-T round, cites "Automatic leading, 120% of text size" WSCHANGE path BCL, factory default OFF, `Installing and Customizing (WordStar 7)`) |
-| U. `_printed_top` added `.hm` (2 lines) on top of a default `.mt`, and `_printed_notes_reserve_pt`'s own anchor constant (calibrated together with a footnote-area line count that was also wrong) — BOTH measured only against `ws7-prints/v1`/`v2` (Sawyer's `WS.EXE`), the SAME install mechanisms S/T already found contaminated | Every default-`.mt` document, corpus-wide (top-margin half); every document with a footnote area (bottom-anchor half) — LYING is the direct oracle for both halves on one page | baseline-shift (LYING's footnote line, 5→0); a uniform, previously-MASKED top-of-page offset on every default-`.mt` document (not visible in `pcl` tier counts — the per-page median-dy calibration absorbs a uniform offset by design, same masking mechanism S's docstring already named) | **BROAD SUPPORT** (any document that never sets its own `.mt`; any document with a footnote area) | **FIXED** (`src/ctrlkd/pdf.py` `_printed_top` now `.mt` alone unconditionally; `_area_size`/`_render_area`'s footnote header 3→2 rendered lines (capacity cost stays 3, see that function's own docstring); `_printed_notes_reserve_pt` 84pt→120pt = `(.mb + DEFAULT_HM_LINES) * 12`. `-SCREEN`'s own footnote/endnote block is absent under pristine, `ws7-prints/v3/README.md` finding #3 — the 120pt reserve constant is OPEN, n=1, corroborated by symmetry with the confirmed `.hm` delta but not independently proven under stock; recorded, not resolved further) |
+| U. `_printed_top` added `.hm` (2 lines) on top of a default `.mt`, and `_printed_notes_reserve_pt`'s own anchor constant (calibrated together with a footnote-area line count that was also wrong) — BOTH measured only against `ws7-prints/v1`/`v2` (Sawyer's `WS.EXE`), the SAME install mechanisms S/T already found contaminated | Every default-`.mt` document, corpus-wide (top-margin half); every document with a footnote area (bottom-anchor half) — LYING is the direct oracle for both halves on one page; `-SCREEN` joined as a SECOND, independent stock oracle 2026-09-07 (see UPDATE below) | baseline-shift (LYING's footnote line, 5→0); a uniform, previously-MASKED top-of-page offset on every default-`.mt` document (not visible in `pcl` tier counts — the per-page median-dy calibration absorbs a uniform offset by design, same masking mechanism S's docstring already named) | **BROAD SUPPORT** (any document that never sets its own `.mt`; any document with a footnote area) | **FIXED** (`src/ctrlkd/pdf.py` `_printed_top` now `.mt` alone unconditionally; `_area_size`/`_render_area`'s footnote header 3→2 rendered lines (capacity cost stays 3, see that function's own docstring); `_printed_notes_reserve_pt` 84pt→120pt = `(.mb + DEFAULT_HM_LINES) * 12` at first, then CORRECTED 2026-09-07 to 108pt = `(.mb + 1) * 12` once the truncated `-SCREEN` capture was replaced with a complete one — see UPDATE below; the 120pt value's own "OPEN, n=1" status is now CONFIRMED, n=2, at the corrected value) |
 | V. `-README`'s "stock prints 14 pages, engine 16" | -README | page-count-mismatch, extra-word-in-engine (785), word-unmatched (136) — all cascading from the page-count mismatch | **CORPUS STALENESS** (the `ws7-prints/v3` harness tree's own copy of `-README.WS` is byte-identical to `v1`'s stale Version 1.4, never refreshed to the canonical archive's current Version 1.5 when the `v3`/PRISTINE.EXE batch was built — mechanism E's own finding, recurring here for the same reason) | **RESOLVED, no engine or corpus change** (verified directly: feeding the engine the harness tree's own 1.4 file reproduces `v3`'s 14-page capture chunk-for-chunk; feeding it the current 1.5 file reproduces the recorded 16-page output — the engine is correct against whichever file it is actually given) |
 | W. A `mt_source`/`hm_source`-both-`'default'` header sits 2 lines (24pt) too low against stock WS7 | -README (`.h1`, every content page, 45 of the 47 divergences this document had left) | baseline-shift | **BROAD SUPPORT** (a FOURTH Sawyer-WSCHANGE-vs-stock contamination, same class as S/T/U: every prior fit for `_running_ops`'s own `hm`-participation gate — b26-header-round2's mt_source-only rule, register b31's OR-of-both-sources widening — was built entirely against Sawyer's WSCHANGE'd `WS.EXE`; `-README` is the corpus's only header-bearing document with `mt_source`/`hm_source` both `'default'`, and its `ws7-prints/v3` PRISTINE.EXE recapture is the first time this exact combination was ever checked against stock) | **FIXED** (`src/ctrlkd/pdf.py` `_running_ops`'s `hm` now participates in `head_base` UNCONDITIONALLY, no gate on either source at all; mechanism-W round, planning task, 2026-09-07) |
 | X. A `.h#`/`.f#` right-align tab's own recovered `target_col` carried an extra `-1` bias, one whole column too far LEFT for every digit-width bucket uniformly | -README (running head "WordStar 7.0 Archive / #", ALL content pages — both the 1-digit pages 2-9 and the 2-digit pages 10-16, not just the digit-crossing boundary mechanism Q already fixed) | exact-drift, line-start-shift (the whole header line, every content page) — MASKED behind mechanism W's own 24pt vertical error until mechanism W's fix landed first in the same round | **BROAD SUPPORT** (any document whose running head/footer right-aligns a `#` against a typed tab — the SAME mechanism-Q code path, just its constant term) | **FIXED** (`src/ctrlkd/pdf.py` `_hf_line_ops`'s `saved_target_col` drops the extra `- 1`; mechanism-W round, planning task, 2026-09-07 — see mechanism W's own entry, this was found by tracing the residual mechanism W's fix newly exposed) |
@@ -1463,7 +1463,7 @@ substitution) divergence counts against `ws7-prints/v3`:**
 |---|---:|---:|---|---|
 | LYING | 40 → 5 | 1 → 0 | word-unmatched 7→2, extra-word-in-engine 12→7, line-start-shift 0→1 | divergent (residual below) |
 | WARPRAYR | 40 → 0 | 1 → 0 | extra-word-in-engine 4→4, line-start-shift 0→2 | divergent (pre-existing content mismatch, see `ws7-prints/v3/README.md`'s own WARPRAYR section — a glossary/abbreviation-expansion difference between installs, not a position bug; not this task's scope) |
-| -SCREEN | 79 → 0 | n/a | word-unmatched 4→4, extra-word-in-engine 5→5 (pre-existing: `v3`'s footnote/endnote block is genuinely absent from the pristine capture, per that README's finding #3, plus the already-named Symbol/cp437 mixed-encoding edge case) | divergent (both pre-existing, unrelated to this fix) |
+| -SCREEN | 79 → 0 | n/a | word-unmatched 4→4, extra-word-in-engine 5→5 (as understood at the time: `v3`'s footnote/endnote block believed genuinely absent from the pristine capture, per that README's finding #3, plus the already-named Symbol/cp437 mixed-encoding edge case) [**CORRECTED 2026-09-07**: the capture was TRUNCATED, not the block absent — see mechanism U's own UPDATE, below, for the full re-trace; extra-word-in-engine is now 5→2, the remaining 2 (plus the 4 word-unmatched) being only the Symbol/cp437 residual] | divergent (both pre-existing, unrelated to this fix) |
 | PREVIEW | 25 → 0 | n/a | none | **clean** |
 
 `.po` and the page-numbering-default fix (mechanisms S/v3-finding-#2)
@@ -1604,23 +1604,93 @@ against the SAME LYING page:
    corroborating (not proving) the exact value. Fixed: `src/ctrlkd/pdf.py`
    `_printed_notes_reserve_pt`.
 
-**OPEN, n=1, recorded per the assignment's own instruction: `-SCREEN`'s
-absent footnote block is NOT independent stock evidence for this
-constant.** `-SCREEN.WS`'s own footnote/endnote demonstration block is
-entirely ABSENT from its `ws7-prints/v3` (PRISTINE.EXE) capture --
+**SUPERSEDED 2026-09-07 -- the "OPEN, n=1" call below was wrong at the
+root, not just incomplete: `-SCREEN`'s footnote/endnote block was never
+absent from stock WS7's real output. It was absent from the *capture*.**
+The original claim (kept below, struck through in spirit, for the
+record) read: "`-SCREEN.WS`'s own footnote/endnote demonstration block
+is entirely ABSENT from its `ws7-prints/v3` (PRISTINE.EXE) capture --
 `ws7-prints/v3/README.md`'s own finding #3, confirmed at the raw PCL
-byte level (the string does not exist anywhere in `v3/-SCREEN.pcl`),
-page count unaffected (1 page either way). This means `-SCREEN` cannot
-corroborate `_printed_notes_reserve_pt`'s new 120pt constant under
-stock -- LYING is the ONLY stock oracle for it, and LYING's own page
-happens to be full enough that the anchor never actually engages, so it
-only proves the reserve is "at least" 120pt, not "exactly" 120pt. This
-triage explicitly does **NOT** change WHETHER footnotes/endnotes print
-(the "notes-printing default" `-SCREEN`'s own absence might otherwise
-suggest questioning) -- that is a SEPARATE, already-documented,
-unresolved install difference (`ws7-prints/v3/README.md` finding #3), out
-of this round's scope, and is recorded here as its own open item, not
-acted on.
+byte level (the string does not exist anywhere in `v3/-SCREEN.pcl`)...
+This means `-SCREEN` cannot corroborate `_printed_notes_reserve_pt`'s
+new 120pt constant under stock -- LYING is the ONLY stock oracle for
+it..." That PCL byte-level check was real and honestly reported -- the
+string genuinely wasn't in the file -- but the file itself was the
+problem: `ws7-prints/v3/-SCREEN.pcl` had been silently TRUNCATED at the
+document's own embedded Inset picture (the same corpus-capture failure
+mode `ws7-prints/v3/README.md` finding #3 first flagged as suspicious
+but didn't yet trace to a cause), so its lower half -- the entire
+footnote/endnote block, not just the byte string naming it -- was never
+captured at all. Corpus commit `2be7569` (2026-09-06) replaced it with a
+complete capture.
+
+**Re-measured against the complete capture.** `ws7-prints/v3/-SCREEN.pcl`
+now measures: dash rule at V=6600 (660.0pt), footnote line ("1." then,
+tab-separated, "Footnote") at V=6840 (684.0pt), endnote line ("(1)" then
+"Endnote") at V=7080 (708.0pt), page-number footer at V=7320 (732.0pt,
+governed by a different mechanism, already correct, unaffected by this
+finding). `-SCREEN`'s body ends at V=4341 (434.1pt) -- nowhere near the
+footnote area -- so, exactly like the original (truncated, still valid
+for its OWN measured lines) `v1`/Sawyer analysis above, this is a
+genuinely SHORT page where the reserve anchor governs the footnote
+line's position DIRECTLY, not just a lower bound: solving `792 - reserve
+- (area_len-1)*12 = 660` with `area_len=3` gives `reserve = 108.0pt` =
+`(.mb + 1) * 12`, not the `120pt` = `(.mb + DEFAULT_HM_LINES) * 12`
+adopted above.
+
+**Root cause of the original 120pt figure: an off-by-one-line error in
+the DERIVATION, not in the code's own arithmetic.** The reasoning above
+computed the "no-op" boundary as `target_first <= natural_y` using
+`natural_y = 648` -- LYING's own last BODY CONTENT line. But the code's
+actual `override` calculation (`_paginate_printed_notes`, `src/ctrlkd/
+pdf.py`) compares `target_first` against `body_y = _notes_top + body_len
+* default_lead`, which is the position of the line AFTER the last body
+line (`648 + 12 = 660`), not the last body line itself. Re-solving
+LYING's own boundary condition with `body_y = 660` (the quantity the
+code actually uses): `override = target_first - body_y = (792 - reserve
+- 24) - 660 = 108 - reserve`. `override <= 0` (the code's own gate --
+see `_paginate_printed_notes`'s `if override > 0:`) requires `reserve >=
+108`, not `>= 120`. So `108pt` is not a compromise between two installs'
+differing needs -- it is the exact value both real stock captures now
+independently agree on: `-SCREEN` governs it directly (short page,
+anchor engages), LYING is consistent with it as the boundary case (full
+page, `override` lands at exactly `0`, still not `> 0`, so LYING's
+already-correct pure-sequential-flow position is completely undisturbed
+by the smaller reserve -- verified directly, not just algebraically:
+LYING's own footnote-line divergence count is unchanged, 0, before and
+after this correction).
+
+**CONFIRMED under stock, n=2 (`-SCREEN` direct + `LYING` boundary-
+consistent), superseding the prior n=1 judgment call.** Fixed:
+`src/ctrlkd/pdf.py` `_printed_notes_reserve_pt`, 120pt -> 108pt =
+`(.mb + 1) * 12`. The `.hm`-symmetry reading that motivated `+
+DEFAULT_HM_LINES` (`+2`) doesn't hold -- the footnote area's real
+cushion above the physical bottom margin is one line, not
+`DEFAULT_HM_LINES` lines; `_printed_top`'s own `.hm` finding (top of
+page) and this reserve (bottom of page) are NOT mirror images after
+all, contra the original reading. This triage's earlier statement that
+this fix does **NOT** change WHETHER footnotes/endnotes print still
+holds, for a different reason than originally given: stock WS7 was
+ALWAYS printing them on `-SCREEN` -- the corpus just hadn't captured
+that part of the page yet.
+
+**Tests re-pinned again, same day:** `tests/test_ctrlkd.py`
+`test_pdf_printed_note_area_anchors_at_the_page_bottom_on_a_short_page`
+(rule/footnote/endnote 144.0/120.0/96.0pt -> 132.0/108.0/84.0pt --
+`test_pdf_printed_note_area_anchor_is_a_no_op_on_an_already_full_page`
+needed NO change, confirming the boundary-case reasoning above:
+`override` was already `<= 0` there under both 120pt and 108pt).
+`tests/pcl_fidelity_manifest.json` re-recorded: `-SCREEN`'s
+`extra-word-in-engine` count drops 5 -> 2 (the 3 entries that vanish are
+exactly the footnote/endnote/marker text that used to render with no
+corresponding WS7 word at all -- now it has one, in the right place,
+zero residual); every other document's manifest entry, byte for byte,
+unchanged (confirmed by diff). `-SCREEN`'s remaining 6 divergences
+(`extra-word-in-engine` 2, `word-unmatched` 4) are the SEPARATE,
+already-documented Symbol/cp437 mixed-encoding harness limitation (see
+this document's own note on `-SCREEN`'s "extra Ω" claim, below) --
+unrelated to this fix, unchanged by it, still FAILING BY NAME as a
+named, unfixed (harness-side) residual, not a regression.
 
 **Tests.** `tests/test_ctrlkd.py`: `test_pdf_printed_top_offset_follows_mt`
 (re-pinned to 36pt), `test_head_foot_land_where_wordstar_puts_them`
@@ -2078,3 +2148,44 @@ accepted font-substitution/wrap-cascade class for LYING/WARPRAYR,
 parked (`ws7-prints/v2`, Sawyer's install — no PRISTINE.EXE capture
 exists for it, see `ws7-prints/v3/README.md`'s own "driver-missing"
 finding), by instruction, unaffected by this round.
+
+**2026-09-07, same day, follow-up: `-SCREEN` and `PREVIEW` recaptures
+(corpus commits `2be7569`/`c3e16ab`).** Both `ws7-prints/v3/-SCREEN.pcl`
+and `ws7-prints/v3/PREVIEW.pcl` had been silently TRUNCATED at their own
+embedded Inset picture — the failure mode traced and fixed for `-SCREEN`
+in mechanism U's own UPDATE above (root cause: whatever produced these
+captures stopped mid-document at the first embedded raster, not at end
+of stream). Re-pulling the corpus after both recaptures landed and
+re-running the full `pcl` tier:
+
+- `-SCREEN`: `extra-word-in-engine` 5 → 2 (the 3 that vanish are exactly
+  the footnote/endnote/marker text a truncated capture never had a
+  chance to contain) — this is mechanism U's own fix, traced in full
+  above. `word-unmatched` stays 4, unchanged (the separate Symbol/cp437
+  harness limitation). Still FAILS BY NAME, for a strictly smaller and
+  now fully-accounted-for reason than before — not a regression.
+- `PREVIEW`: **zero divergences, before and after.** The old (truncated)
+  `PREVIEW.pcl` capture happened to end after all of this document's own
+  checkable text chunks (its Inset picture sits later in the stream than
+  any text this tier compares) — the raster itself was missing, but
+  nothing this tier measures depends on it, so the recapture changes
+  nothing observable here. Confirmed by direct `tools/pcl_tolerance.py
+  --doc=PREVIEW` comparison (`counts_by_reason` `{}` both before and
+  after) and by `pytest -m pcl -k PREVIEW` passing unchanged.
+
+Every other document's manifest entry is byte-for-byte unchanged by
+this round (confirmed by `git diff tests/pcl_fidelity_manifest.json` —
+only `-SCREEN`'s divergence set actually changed). `tests/
+answer_key.json` also moved: `-SCREEN`'s own `pdf`/`layout` cells (the
+footnote/endnote block now renders where stock WS7 really puts it) plus
+one bundled public-domain sample, `LYING.WS` (`layout.printed`/
+`layout.modern` only — its own footnote area's first line now carries
+an explicit `12.0pt` lead where it used to be implicit `null`, a
+zero-visual-effect but real serialization change: at the smaller
+reserve, this document's own `override` now computes to a small
+POSITIVE value (`+12.0pt`, where it used to be `<= 0`), so it takes the
+override branch and writes an explicit lead rather than leaving the
+field unset — the PDF bytes for this document are UNCHANGED, confirmed
+byte-for-byte, since the override it now writes is numerically the SAME
+12pt the document's own default lead already produced with no override
+at all).
