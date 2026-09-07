@@ -1254,7 +1254,7 @@ def _divergence(doc, page, line_y, words, ws7_pos, pdf_pos, font_class, reason, 
     }
 
 
-def doc_report(doc_name: str, engine_words: dict = None) -> dict:
+def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = None) -> dict:
     """The full named-divergence report for one captured document:
     {doc, verdict, source_ws, capture_set, install, counts_by_reason,
     divergences, ...}.
@@ -1291,8 +1291,16 @@ def doc_report(doc_name: str, engine_words: dict = None) -> dict:
     uses those pre-extracted words/rasters instead, so a PDF written by an
     emitter this repo cannot parse as its own (Quartz `Tm`/`TJ` output over
     subset fonts, e.g.) can still be judged by this exact tolerance model,
-    reason vocabulary, and manifest comparison -- unmodified. Default
-    (None) renders `ws_path` with this repo's own engine, same as ever.
+    reason vocabulary, and manifest comparison -- unmodified. `engine_chars`
+    is the SAME idea, one level lower (a dict matching `fg.
+    load_engine_chars()`'s own "engine-chars (JSON)" schema, raw
+    characters instead of already-segmented words) -- for an external
+    reader that must hand over characters and let this repo do mechanism
+    Z's own word segmentation itself, never re-implemented a second time by
+    the producer (see fg.load_engine_chars()'s own TOLERANCE note).
+    `engine_chars` wins over `engine_words` if both are given (checked
+    first, below). Default (both None) renders `ws_path` with this repo's
+    own engine, same as ever.
     """
     capture = fg.resolve_doc_capture(doc_name)
     ws_path = capture['ws_path']
@@ -1315,7 +1323,12 @@ def doc_report(doc_name: str, engine_words: dict = None) -> dict:
     ws7_meta = json.load(open(measurements_path))
     n_ws7_pages = len(ws7_meta['pages'])
 
-    if engine_words is not None:
+    if engine_chars is not None:
+        loaded = fg.load_engine_chars(engine_chars)
+        n_engine_pages = loaded['n_engine_pages']
+        eng_tokens = loaded['eng_tokens']
+        eng_rasters_by_page = loaded['eng_rasters_by_page']
+    elif engine_words is not None:
         loaded = fg.load_engine_words(engine_words)
         n_engine_pages = loaded['n_engine_pages']
         eng_tokens = loaded['eng_tokens']
@@ -1576,14 +1589,25 @@ def main(argv=None):
                     'instead of rendering/parsing this repo\'s own PDF for that document -- '
                     'e.g. a words file produced from a Quartz-emitted PDF this repo cannot '
                     'parse as its own. Not valid with --record.')
+    ap.add_argument('--engine-chars', help='with --doc: judge a PRE-EXTRACTED engine-chars '
+                    'JSON file (see fidelity_gate.py\'s "engine-chars (JSON)" schema comment) -- '
+                    'raw CHARACTERS, one level lower than --engine-words, for an external reader '
+                    'that must not re-implement mechanism Z\'s own word-boundary rule itself. '
+                    'Mutually exclusive with --engine-words; not valid with --record.')
     a = ap.parse_args(argv)
 
     if a.engine_words and a.record:
         ap.error('--engine-words is not valid with --record')
+    if a.engine_chars and a.record:
+        ap.error('--engine-chars is not valid with --record')
+    if a.engine_chars and a.engine_words:
+        ap.error('--engine-chars and --engine-words are mutually exclusive')
 
     if a.doc:
+        engine_chars = json.load(open(a.engine_chars)) if a.engine_chars else None
         engine_words = json.load(open(a.engine_words)) if a.engine_words else None
-        print(json.dumps(doc_report(a.doc, engine_words=engine_words), indent=2))
+        print(json.dumps(doc_report(a.doc, engine_words=engine_words,
+                                    engine_chars=engine_chars), indent=2))
         return 0
 
     if a.record:
