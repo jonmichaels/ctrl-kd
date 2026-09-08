@@ -1889,6 +1889,99 @@ DOT_PAGEBREAK = {b'PA'}                 # UNCONDITIONAL page break
 # unconditionally inserts the break it was there to prevent.
 DOT_CONDPAGE = b'CP'
 
+# ------------------------------------------------------------ conditionals
+#
+# `.IF`/`.EL`/`.EI` (planning #229, ledger 2026-09-08 08:00: "both engines
+# evaluate .if/.ei (and .el) for CONSTANT conditions ... and skip the block
+# when false -- what WordStar does"). WSFORMAT.WS's own reference text
+# (sawyer/REF/WSFORMAT.WS, the ".IF" entry) is the operator set:
+#
+#   "If.  Used for conditional merge printing in conjunction with the .EL
+#   and .EI commands.  Only simple conditions can be tested using the
+#   following operators:
+#     =   Strings alphabetically equal.
+#     <>  Strings unequal.
+#     >   Greater than.
+#     <   Less than.
+#     #=  Numbers equal.
+#     #<> Numbers unequal.
+#     #>  Greater than.
+#     #<  Less than.
+#   .IF commands may be nested up to 255 levels deep."
+#   "End if.  Indicates the final spot in a merge print document affected
+#   by a .IF command.  There must be one .EI for every .IF command."
+#   "Else.  Used for the "else" case after using a .IF command.  .EL
+#   commands are optional."
+#
+# `sawyer/REF/REFORM.DOT` -- a WordStar-authored TUTORIAL about this exact
+# command, and thus its own oracle -- adds one more documented shorthand its
+# own prose states outright: "The command if 0 is equivalent to if 1=0",
+# i.e. a bare argument with none of the operators above is a numeric
+# truthiness test (0 = false, nonzero = true), not an error.
+#
+# Merge variables (`&name&`): per the SAME ruling, "conditions that
+# reference merge variables are NOT evaluated (unchanged behaviour)" -- no
+# mail-merge work this round (#207 deferred). `_eval_if_condition` returns
+# None for these, and None means "always take this branch" for BOTH the
+# `.if` side and any `.el` side -- i.e. do nothing differently from before
+# this feature existed, since previously `.if`/`.el`/`.ei` were not
+# recognized as anything but inert dot lines at all and everything between
+# them always rendered. Confirmed corpus-wide (2026-09-08): every OTHER
+# `.if`-bearing document in the public Sawyer archive (24 total) is a
+# mail-merge template testing a merge variable -- REFORM.DOT and
+# sawyer/FONTS/PS/ERROR.WS are the only two with a genuine constant
+# condition, and in both, every suppressed span is a DOT COMMAND, never
+# body text -- so this feature's text-suppression branch (see parse_ws's
+# main loop) is real per its own spec but not yet exercised by anything in
+# this corpus.
+_IF_OP_RE = re.compile(rb'(#<>|#=|#>|#<|<>|=|>|<)')
+
+
+def _if_strip_quotes(s: bytes) -> bytes:
+    s = s.strip()
+    if len(s) >= 2 and s[:1] == s[-1:] and s[:1] in (b'"', b"'"):
+        return s[1:-1]
+    return s
+
+
+def _eval_if_condition(arg: bytes, encoding: str):
+    """A `.IF` argument's truth value: True, False, or None for "not
+    evaluated" (a merge-variable reference, or something this parser does
+    not recognize -- never guessed at, per the docstring above)."""
+    arg = arg.strip()
+    if b'&' in arg:
+        return None
+    m = _IF_OP_RE.search(arg)
+    if not m:
+        # REFORM.DOT's own documented shorthand: a bare numeric argument
+        # with no operator is a truthiness test (0 = false).
+        try:
+            return float(arg) != 0
+        except ValueError:
+            return None
+    op = m.group(1)
+    left = _if_strip_quotes(arg[:m.start()])
+    right = _if_strip_quotes(arg[m.end():])
+    if op.startswith(b'#'):
+        try:
+            lv, rv = float(left), float(right)
+        except ValueError:
+            return None
+        op = op[1:]
+    else:
+        lv = left.decode(encoding, 'replace')
+        rv = right.decode(encoding, 'replace')
+    if op == b'=':
+        return lv == rv
+    if op == b'<>':
+        return lv != rv
+    if op == b'>':
+        return lv > rv
+    if op == b'<':
+        return lv < rv
+    return None                     # unreachable: _IF_OP_RE only matches these four
+
+
 # ------------------------------------------------------------ page geometry
 #
 # .pl (page length), .po (page offset), .mt (top margin), .mb (bottom margin)
@@ -4090,6 +4183,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['margin_estimate'] = margin
 
     active, unknown, dots, dot_at = set(), {}, [], []
+    # #229: `.IF`/`.EL`/`.EI` nesting stacks (up to 255 deep per WSFORMAT.WS,
+    # never enforced here -- a Python list has no such ceiling and a
+    # document that actually nested that deep would be pathological).
+    # `if_orig[k]` is frame k's OWN evaluated condition (True/False, or
+    # None for "not evaluated" -- see `_eval_if_condition`); `if_active[k]`
+    # is whether frame k's CURRENTLY-OPEN branch (before or after its own
+    # `.EL`) should render. A line is suppressed iff ANY open frame is
+    # inactive (`not all(if_active)`) -- an outer False always wins over an
+    # inner True, matching nested-if semantics. Both are pushed/popped
+    # unconditionally by `.IF`/`.EI` regardless of the CURRENT suppression
+    # state, so nesting depth stays correct even inside an already-
+    # suppressed outer block (WordStar still has to find its own `.EI`).
+    if_orig, if_active = [], []
     # Always live, not ws5-only: dot-line comments ('..'/'.ig') exist in WS4
     # files too and now emit reference marks (ruling 2026-08-06)
     fn_counter = [0]
@@ -4254,6 +4360,40 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # that block) costs nothing and is the coarsest anchor that is
             # actually stable: it survives reflow, which a byte offset does not.
             dot_at.append((len(doc.blocks), len(cur.lines), cmd.decode(encoding, 'replace')))
+            # #229: `.IF`/`.EL`/`.EI` themselves ALWAYS execute (push/flip/
+            # pop the stacks above) regardless of the CURRENT suppression
+            # state -- round-trip bookkeeping for this dot line already
+            # happened, unconditionally, just above, so a `.IF`/`.EL`/`.EI`
+            # nested inside an already-false outer block still round-trips
+            # byte-exact even though it has no semantic effect of its own.
+            _if_code = cmd[1:3].upper()
+            if _if_code == b'IF':
+                if_orig.append(_eval_if_condition(cmd[3:], encoding))
+                if_active.append(True if if_orig[-1] is None else if_orig[-1])
+                continue
+            if _if_code == b'EL':
+                if if_orig:
+                    _cond = if_orig[-1]
+                    if _cond is not None:
+                        if_active[-1] = not _cond
+                    # None (merge variable): stays True either side of
+                    # `.EL` -- "leave current behaviour", ruling 2026-09-08
+                continue
+            if _if_code == b'EI':
+                if if_orig:
+                    if_orig.pop()
+                    if_active.pop()
+                continue
+            # Every OTHER dot command's SEMANTIC effect (page geometry,
+            # formatting, pagebreak, header/footer, TOC/index, comments --
+            # everything below this point) is skipped entirely while any
+            # open `.IF` frame is inactive: "false blocks skipped for
+            # layout and text output" (planning #229). The line's own
+            # bytes are already preserved above (dots/_rt_dots/dot_at), so
+            # round-trip is unaffected -- only the running parser STATE
+            # this line would otherwise have mutated is withheld.
+            if if_active and not all(if_active):
+                continue
             # '..' and '.ig' are COMMENT lines (ruling 2026-08-06): both
             # WordStar comment syntaxes unify into Note(kind='comment'),
             # each emitting a reference mark at its own position -- the
@@ -4363,6 +4503,18 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # line, which is where the state change actually takes effect.
             carried_marks.extend(m for _rel, m in line_marks
                                  if m[0] in ('colour', 'font'))
+            continue
+        # #229: a plain CONTENT line (not a dot command) inside an inactive
+        # `.IF` branch never happened, per WordStar -- "false blocks
+        # skipped for layout AND text output" (planning #229). Skipped
+        # whole: none of this physical line's text, marks, or (rare)
+        # embedded form feed reach the IR. Not exercised by anything in
+        # the current corpus (REFORM.DOT/ERROR.WS -- the only two
+        # documents with a genuine constant `.IF` -- suppress only dot
+        # commands, never body text; see the `_eval_if_condition`
+        # docstring), but implemented per spec rather than left as a
+        # narrower "dot commands only" fix.
+        if if_active and not all(if_active):
             continue
         # A LITERAL form feed is a page break, in any variant. WSFORMAT.TXT:
         # "0Ch ^L  Form Feed.  At print time causes page to be ejected.  No footer

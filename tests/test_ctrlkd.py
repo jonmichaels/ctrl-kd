@@ -3020,6 +3020,60 @@ def test_op_and_pg_are_a_stateful_pair():
     assert 'auto_page_numbers' not in core.parse_ws(b'T.\r\n').meta['formatting']
 
 
+def test_if_el_ei_evaluate_constant_conditions():
+    """#229 (ledger 2026-09-08 08:00, planning #229): ".IF ... Only simple
+    conditions can be tested using the following operators: = Strings
+    alphabetically equal. <> Strings unequal. > Greater than. < Less
+    than. #= Numbers equal. #<> Numbers unequal. #> Greater than.
+    #< Less than." (WSFORMAT.WS, the ".IF" entry) -- a CONSTANT condition
+    (no merge field) is evaluated and the false branch is skipped for
+    BOTH layout (dot-command state) and text output; a condition
+    referencing a merge variable (`&name&`) is left unevaluated, same as
+    before this feature existed (no mail-merge work this round, #207
+    deferred). Confirmed against the real corpus (2026-09-08): both
+    `sawyer/FONTS/PS/ERROR.WS` (".if 1=0" / ".po .7i" / ".ei") and
+    `sawyer/REF/REFORM.DOT` (a WordStar-authored TUTORIAL about this exact
+    command) are real, byte-identical shapes to the synthetic cases below."""
+    # a false condition suppresses the dot command inside it -- WS7
+    # applies the .po BEFORE the .if (1i = 10 columns), never the one
+    # the false block wraps (.7i = 7 columns)
+    d = core.parse_ws(b'.po 1i\r\n.if 1=0\r\n.po .7i\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 10.0
+    # a true condition applies its own dot command
+    d = core.parse_ws(b'.po 1i\r\n.if 1=1\r\n.po .7i\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 7.0
+    # .EL flips a false .IF's suppression -- WordStar's own "else" case
+    d = core.parse_ws(b'.po 1i\r\n.if 1=0\r\n.po .5i\r\n.el\r\n.po .7i\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 7.0
+    # ... and a true .IF's .EL side is the one suppressed
+    d = core.parse_ws(b'.po 1i\r\n.if 1=1\r\n.po .5i\r\n.el\r\n.po .7i\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 5.0
+    # a bare numeric argument with no operator: sawyer/REF/REFORM.DOT's own
+    # prose states outright "The command if 0 is equivalent to if 1=0"
+    d = core.parse_ws(b'.rm 6.5"\r\n.if 0\r\n.rm 5.0"\r\n.ei\r\nT.\r\n')
+    assert d.blocks[0].right_margin == 65.0
+    # nesting (WSFORMAT.WS: "may be nested up to 255 levels deep") -- an
+    # outer false frame suppresses an inner TRUE one too
+    d = core.parse_ws(b'.po 1i\r\n.if 1=0\r\n.if 1=1\r\n.po .5i\r\n.ei\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 10.0
+    # false-branch TEXT is skipped for output too, not just dot commands
+    d = core.parse_ws(b'.if 1=0\r\nHidden text.\r\n.ei\r\nVisible text.\r\n')
+    texts = [''.join(s.text for s in l.spans)
+             for b in d.blocks for l in (b.lines or ())]
+    assert texts == ['Visible text.']
+    # a merge-variable condition (&name&) is NOT evaluated -- "leave
+    # current behaviour": with no suppression at all, BOTH the .if side
+    # and the .el side apply in document order (the .el side, being
+    # last, wins) -- exactly what happened before .IF/.EL/.EI were
+    # recognized as anything but inert dot lines.
+    d = core.parse_ws(b'.po 1i\r\n.if &X&=1\r\n.po .5i\r\n.el\r\n.po .7i\r\n.ei\r\nT.\r\n')
+    assert d.meta['page']['po_cols'] == 7.0
+    d = core.parse_ws(b'.if &X&=1\r\nA.\r\n.el\r\nB.\r\n.ei\r\n')
+    texts = [''.join(s.text for s in l.spans)
+             for b in d.blocks for l in (b.lines or ())]
+    assert texts == ['A.', 'B.']
+
+
 def test_default_mode_is_printed():
     """Jon's ruling 2026-08-03: 'the CLI ships now and with the app. The CLI
     decisions are the app decisions.' Soft Return.app opens documents in Printed

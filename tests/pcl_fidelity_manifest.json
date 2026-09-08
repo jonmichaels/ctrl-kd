@@ -6332,7 +6332,7 @@
             96.0
           ],
           "pdf_pos": [
-            110.8,
+            132.4,
             156.0
           ],
           "font_class": "no_substitute",
@@ -6348,7 +6348,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            203.0,
+            224.6,
             582.0
           ],
           "font_class": "sans",
@@ -6368,7 +6368,7 @@
             156.0
           ],
           "pdf_pos": [
-            122.9,
+            144.5,
             516.0
           ],
           "font_class": "no_substitute",
@@ -6395,7 +6395,7 @@
           "pdf_pos": null,
           "font_class": null,
           "reason": "pristine-frame-offset-exceeds-tolerance",
-          "detail": "pristine-install absolute frame offset -45.45pt exceeds the line-start tolerance (2.5pt) -- a stock/pristine capture is expected to match this engine's stock-default rendering at 0.0pt"
+          "detail": "pristine-install absolute frame offset -23.85pt exceeds the line-start tolerance (2.5pt) -- a stock/pristine capture is expected to match this engine's stock-default rendering at 0.0pt"
         },
         {
           "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
@@ -6432,7 +6432,7 @@
       ],
       "document_frame_offset_pt": {
         "n": 2,
-        "median_dx": -45.45,
+        "median_dx": -23.85,
         "iqr_dx": 13.35
       }
     },
@@ -39503,7 +39503,7 @@
             348.0
           ],
           "pdf_pos": [
-            50.4,
+            72.0,
             372.0
           ],
           "font_class": "exact",
@@ -39523,7 +39523,7 @@
             348.0
           ],
           "pdf_pos": [
-            79.2,
+            100.8,
             372.0
           ],
           "font_class": "exact",
@@ -39543,7 +39543,7 @@
             348.0
           ],
           "pdf_pos": [
-            194.4,
+            216.0,
             372.0
           ],
           "font_class": "exact",
@@ -39563,7 +39563,7 @@
             348.0
           ],
           "pdf_pos": [
-            316.8,
+            338.4,
             372.0
           ],
           "font_class": "exact",
