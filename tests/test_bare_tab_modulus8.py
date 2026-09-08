@@ -1,31 +1,87 @@
 """planning #202 batch (issue "bare tab byte (0x09) renders zero-width
-instead of advancing to the next tab stop"): WS7's own file-format
-reference (WSFORMAT.WS control-code table, byte 09h ^I) states the rule
-in one sentence -- "At print time the number of hard spaces required to
-reach a modulus 8 print position is generated" -- and this repo rendered
-a bare 0x09 with ZERO width, gluing the word before it to the word after
-(sawyer/REF/wordstar-file-format.ws: "^@" + 0x09 + "Fix" rendered as one
-run "^@Fix", no gap at all).
+instead of advancing to the next tab stop") AND planning #244 (the
+round-trip gauntlet fix that moved the expansion out of `_decode_spans`).
+
+WS7's own file-format reference (WSFORMAT.WS control-code table, byte 09h
+^I) states the rule in one sentence -- "At print time the number of hard
+spaces required to reach a modulus 8 print position is generated" -- and
+this repo once rendered a bare 0x09 with ZERO width, gluing the word
+before it to the word after (sawyer/REF/wordstar-file-format.ws: "^@" +
+0x09 + "Fix" rendered as one run "^@Fix", no gap at all).
 
 VERIFIED against WS7's own real LaserJet PCL capture
 (ws7-prints/v4/sawyer__REF__wordstar-file-format_EXT_ws.pcl): the line
 "00h ^@<TAB>Fix the print position." -- 6 characters ("00h ^@") before
 the tab -- places "Fix" at exactly column 8 from the line's own margin
 (WS7 x=115.2pt on a 57.6pt margin = 8 Courier columns of 7.2pt each),
-the modulus-8 stop this fix computes. Fixing it turned this document's
-exact-drift count from 248 to 0 (tests/pcl_fidelity_manifest.json,
-planning #202 batch commit).
+the modulus-8 stop this fix computes.
 
-`core._decode_spans` is exercised directly, the same way several other
-tests in this file's neighbourhood do (test_ctrlkd.py, test_polarity_
-gate.py) -- it is the one function that owns this expansion (see its own
-0x09 branch and the `col` tracking above it), and reaching it through the
-full WS5+ symmetric-block binary format would test far more machinery
-than this fix touches. `core.parse_ws` is used too, for a plain
-print-stream document, to confirm the fix is reachable through the public
-parse entry point and not just the private helper.
+THE SPLIT (planning #244, 2026-09-08): the FIRST fix (planning #202
+batch) baked this expansion into `_decode_spans` at PARSE time, which
+turned every computed space into something byte-indistinguishable from a
+space the author actually typed -- `ctrlkd.writer`'s round-trip
+(tools/roundtrip_census.py, tests/test_writer.py's own private-repo
+gauntlet) re-emitted spaces instead of the source file's own 0x09 byte
+and never reproduced sawyer/MACROS/HOLYMAC/-HOLYMAC.WS, sawyer/REF/
+WINDOWS7.WS, or sawyer/REF/wordstar-file-format.ws (found 2026-09-08 by
+the census, then confirmed against sr's own Swift port). `_decode_spans`
+now keeps the literal 0x09 byte again (its pre-#237 form -- the document
+model IS the source bytes, unexpanded); `pdf._expand_bare_tabs_for_
+printed_layout` applies the SAME modulus-8 rule instead, at PRINTED-mode
+render time only, on a transient copy of the segment text that never
+touches the stored Span. Every OTHER mode (text, markdown, html, rtf,
+and Modern PDF) sees the bare, un-expanded tab byte now -- exactly their
+own pre-#237 behavior, since #237's own evidence (the WS7 LaserJet PCL
+capture above) was Printed-PDF-only despite living in a function every
+mode shared.
 """
-from ctrlkd import core
+import re
+import zlib
+
+from ctrlkd import core, pdf
+
+HARD = b'\r\n'
+
+
+def _decoded_streams(pdf_bytes):
+    out = []
+    for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', pdf_bytes, re.S):
+        body = m[1]
+        try:
+            out.append(zlib.decompress(body))
+        except zlib.error:
+            out.append(body)
+    return out
+
+
+def _word_x(pdf_bytes, word):
+    """The Td x immediately preceding `(word) Tj` in ANY decoded content
+    stream, or None if the word never appears as its own Tj operand --
+    copied from test_justification.py's own helper, this module's
+    neighbour, per test_ctrlkd.py's own "copy, don't import" guidance."""
+    needle = word.encode()
+    pat = re.compile(rb'([\d.]+) [\d.]+ Td \(' + re.escape(needle) + rb'\) Tj')
+    for stream in _decoded_streams(pdf_bytes):
+        m = pat.search(stream)
+        if m:
+            return float(m[1])
+    return None
+
+
+def _drawn_line(pdf_bytes, contains):
+    """The full Tj operand string of the first drawn text object CONTAINING
+    `contains`, or None. A plain, single-styled fixed-pitch printed line
+    draws as ONE whole-line Tj (this file's own bare-tab lines included --
+    no styled span to split it, same as any other unjustified single-span
+    line, see test_justification.py's `ojOffIsUnaffected` for the sibling
+    finding) -- `_word_x`'s "one word, its own Tj" shape never fires here,
+    so the expansion is checked directly in the drawn STRING instead."""
+    pat = re.compile(rb'\((.*?' + re.escape(contains.encode()) + rb'.*?)\) Tj')
+    for stream in _decoded_streams(pdf_bytes):
+        m = pat.search(stream)
+        if m:
+            return m[1].decode('latin-1')
+    return None
 
 
 def _spans_text(raw: bytes) -> str:
@@ -33,52 +89,25 @@ def _spans_text(raw: bytes) -> str:
     return ''.join(s.text for s in spans)
 
 
-def test_bare_tab_after_six_columns_reaches_the_next_modulus_8_stop():
-    """The exact WS7-verified case: 6 characters before the tab ("00h ^@"),
-    landing on column 8 -- 2 hard spaces, not zero."""
-    text = _spans_text(b'00h ^@\tFix')
-    assert text == '00h ^@  Fix', repr(text)
+# ------------------------------------------------------- _decode_spans
+# The document model's own job now: keep the byte, verbatim, round-trip it.
+
+def test_decode_spans_keeps_the_literal_tab_byte():
+    """The parsed IR carries a real '\\t' character now, not computed
+    spaces -- the round-trip half of planning #244's split."""
+    text = _spans_text(b'00h \xc2^@\tFix')
+    assert '\t' in text, repr(text)
 
 
-def test_bare_tab_at_line_start_expands_to_a_full_stop():
-    """A tab at column 0 is still "not yet at a stop" by the standard tab
-    convention (a tab always advances at least one column) -- it must
-    reach column 8, a full 8 hard spaces, not 0."""
-    text = _spans_text(b'\tWord')
-    assert text == ' ' * 8 + 'Word', repr(text)
-
-
-def test_bare_tab_exactly_on_a_stop_still_advances_a_full_8():
-    """8 characters before the tab -- already sitting on a modulus-8
-    print position. WordStar's own rule ("hard spaces required to REACH
-    a modulus 8 position") still means the next one, not zero -- the
-    standard tab convention, and the only reading consistent with the
-    line-start case above."""
-    text = _spans_text(b'12345678\tWord')
-    assert text == '12345678' + ' ' * 8 + 'Word', repr(text)
-
-
-def test_bare_tab_column_count_resets_at_the_next_physical_line():
-    """`_decode_spans` is called once per physical (CRLF-delimited)
-    source line -- the column count must not carry over from a previous
-    call, or a short second line would land on the wrong stop."""
-    text = _spans_text(b'\tWord')
-    assert text == ' ' * 8 + 'Word'
-    # A second, independent call (simulating the next physical line)
-    # starts fresh at column 0 again, not wherever the first call ended.
-    text2 = _spans_text(b'ab\tWord')
-    assert text2 == 'ab' + ' ' * 6 + 'Word', repr(text2)
-
-
-def test_bare_tab_reachable_through_parse_ws_public_entry_point():
+def test_decode_spans_reachable_through_parse_ws_public_entry_point():
     """Not just the private helper -- a real (print-stream-detected)
-    document carrying a bare 0x09 expands it the same way through the
-    public parse_ws() entry point."""
+    document carrying a bare 0x09 keeps it literal through the public
+    parse_ws() entry point too."""
     doc = core.parse_ws(b'From: \tWordStar\r\n')
     text = ''.join(sp.text for blk in doc.blocks
                    for ln in getattr(blk, 'lines', [])
                    for sp in ln.spans)
-    assert text == 'From:   WordStar', repr(text)
+    assert text == 'From: \tWordStar', repr(text)
 
 
 def test_a_tb_ruler_type9_tab_block_is_unaffected():
@@ -99,3 +128,80 @@ def test_a_tb_ruler_type9_tab_block_is_unaffected():
     assert text == 'Word  Next', repr(text)
     tagged = [s for s in spans if any(t.startswith('tabhmi') for t in s.styles)]
     assert len(tagged) == 1, 'the padding must route through the tabhmi tag, not the bare-0x09 branch'
+
+
+# -------------------------------------------- Printed-PDF layout-time expansion
+# `pdf._expand_bare_tabs_for_printed_layout` -- the WS7-verified visual fix,
+# now applied only where it was ever evidenced: PRINTED-mode rendering.
+
+def _printed_pdf(src: bytes) -> bytes:
+    doc = core.parse_ws(src)
+    return pdf.emit_pdf(doc, mode='printed')
+
+
+def test_bare_tab_after_six_columns_reaches_the_next_modulus_8_stop_in_printed_pdf():
+    """The exact WS7-verified case: 6 characters before the tab ("00h ^@"),
+    landing on column 8 -- 2 hard spaces, not zero. Fontless (no font
+    block), so `_span_pitch` falls back to the 12pt-default 7.2pt/char
+    grid -- exact arithmetic, not a font-metric approximation. The whole
+    line draws as ONE Tj (a plain, unstyled fixed-pitch line, nothing to
+    split it), so the expansion is checked in the drawn string itself."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'00h ^@\tFix.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Fix.') == '00h ^@  Fix.'
+
+
+def test_bare_tab_at_line_start_expands_to_a_full_stop_in_printed_pdf():
+    """A tab at column 0 is still "not yet at a stop" by the standard tab
+    convention (a tab always advances at least one column) -- it must
+    reach column 8, a full 8 hard spaces, not 0."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'\tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == ' ' * 8 + 'Word.'
+
+
+def test_bare_tab_exactly_on_a_stop_still_advances_a_full_8_in_printed_pdf():
+    """8 characters before the tab -- already sitting on a modulus-8
+    print position. WordStar's own rule ("hard spaces required to REACH
+    a modulus 8 position") still means the next one, not zero -- the
+    standard tab convention, and the only reading consistent with the
+    line-start case above."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'12345678\tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == '12345678' + ' ' * 8 + 'Word.'
+
+
+def test_bare_tab_column_count_resets_at_the_next_physical_line_in_printed_pdf():
+    """Printed mode renders physical lines verbatim, never rewrapped, and
+    `_expand_bare_tabs_for_printed_layout` runs once per `_line_ops_
+    printed` call (one physical line) -- a short second line must not
+    inherit the column count from the line before it. Without the reset,
+    line two's own running count would start at line one's ending column
+    (16, not 0), and "ab" + a tab from there lands on column 24, not 8 --
+    `_drawn_line`'s own comment on why "WordOne."/"WordTwo." must differ
+    to disambiguate which line's Tj gets matched."""
+    pdf_bytes = _printed_pdf(
+        b'.po 0"\r\n.lm 0\r\n' + b'\tWordOne.' + HARD + b'ab\tWordTwo.' + HARD)
+    assert _drawn_line(pdf_bytes, 'WordOne.') == ' ' * 8 + 'WordOne.'
+    assert _drawn_line(pdf_bytes, 'WordTwo.') == 'ab' + ' ' * 6 + 'WordTwo.'
+
+
+def test_oj_off_default_text_mode_keeps_the_bare_tab_literal():
+    """Every mode OTHER than Printed PDF sees the raw, un-expanded byte --
+    the pre-#237 behavior, now deliberately restored rather than
+    accidentally shared. `mode='printed'` TEXT output (not PDF) is
+    included in that "every other mode": the layout-time fix lives in
+    `pdf.py`'s PDF writer alone, per this module's own header."""
+    from ctrlkd import emit
+    doc = core.parse_ws(b'From:\tWordStar' + HARD)
+    text_out = emit.emit_text(doc, mode='printed')
+    assert '\t' in text_out, repr(text_out)
+
+
+def test_a_styled_mixed_line_with_a_bare_tab_is_still_drawn_correctly():
+    """A line resolving to more than one styled span still reaches
+    `_expand_bare_tabs_for_printed_layout` (it runs on the RAW `segs`,
+    ahead of the split that later decides eligibility for other
+    per-line features like planning #238's justification) -- the tab
+    expands the same way regardless of how many styles surround it."""
+    pdf_bytes = _printed_pdf(
+        b'.po 0"\r\n.lm 0\r\n' + b'AB\x02\tCD\x02EF.' + HARD)
+    x = _word_x(pdf_bytes, 'EF.')
+    assert x == (8 + 2) * 7.2, x

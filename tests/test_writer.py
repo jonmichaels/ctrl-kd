@@ -94,6 +94,25 @@ def test_ws5_tab_block_and_expansion():
     assert rt(data) == data
 
 
+def test_bare_0x09_tab_byte_survives_verbatim():
+    """Planning #244 (found 2026-09-08 by the private round-trip census,
+    tools/roundtrip_census.py): a bare 0x09 tab byte (as opposed to the
+    `.tb`-ruler type-9 tab block the case above covers) must come back
+    as the SAME literal byte -- not the modulus-8 spaces Printed-mode PDF
+    rendering computes for it (`pdf._expand_bare_tabs_for_printed_layout`,
+    planning #244's own layout-time relocation of that expansion, see
+    that function's docstring). Baking the expansion into `_decode_spans`
+    at PARSE time (the original planning #202/#237 shape) made a computed
+    space indistinguishable from one the author actually typed, and this
+    exact byte broke round-trip on three real archive documents (sawyer/
+    MACROS/HOLYMAC/-HOLYMAC.WS, sawyer/REF/WINDOWS7.WS, sawyer/REF/
+    wordstar-file-format.ws) before this fix -- this is the synthetic,
+    public-repo regression guard for that gap; the private repo's own
+    corpus gauntlet is the real-file coverage."""
+    data = WS5_SEED + b'From:\tWordStar' + HARD + b'\x1a'
+    assert rt(data) == data
+
+
 def test_ws5_wrapped_extended_chars_and_bare_high_byte():
     # a real é as the wrapped triple, a chart glyph, a wrapped PRINTABLE
     # (ASCIITAB style), and a bare extended byte -- four different escape

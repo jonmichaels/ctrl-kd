@@ -4998,6 +4998,73 @@ def _pcl_rect_ops(prog_ops, anchor_x, anchor_y, page_h, restore_gray):
     return ops
 
 
+# A bare 0x09 tab byte's print-time expansion target, in document columns --
+# WSFORMAT.WS's own file-format reference (WordStar's control-code table,
+# byte 09h ^I): "At print time the number of hard spaces required to reach
+# a modulus 8 print position is generated."
+_TAB_MODULUS = 8
+
+
+def _expand_bare_tabs_for_printed_layout(segs):
+    """Expand every bare 0x09 tab byte in `segs`' own text into the literal
+    spaces WordStar's print-time rule computes -- planning #244 (the
+    round-trip gauntlet fix).
+
+    This used to happen in `_decode_spans` at PARSE time (planning #202/
+    #237): a running document-column count since the start of the physical
+    line, and on a bare 0x09, pad with however many spaces are needed to
+    reach the next multiple of 8 (a tab already sitting on a stop still
+    advances a full `_TAB_MODULUS`, the standard tab convention). That was
+    the RIGHT structural rule but the WRONG place to apply it -- baking the
+    expansion into the parsed Span.text makes a computed space
+    indistinguishable from one the author actually typed, so the native
+    WordStar writer's round-trip (tests/test_writer.py's corpus gauntlet,
+    tools/roundtrip_census.py) re-emits spaces instead of the original
+    0x09 byte and never reproduces the source file (sawyer/MACROS/HOLYMAC/
+    -HOLYMAC.WS, sawyer/REF/WINDOWS7.WS, sawyer/REF/wordstar-file-format.ws
+    -- found 2026-09-08, planning #244). `_decode_spans` now keeps the
+    literal byte (`buf.append(b)`, restored to its pre-#237 form -- the
+    document model IS the source bytes, unexpanded); this function applies
+    the SAME rule here instead, at PRINTED-mode render time only, on a
+    transient copy of the segment text. The underlying Span.text the
+    writer reads back out is never touched -- Modern mode and every other
+    emitter (text, markdown, html, rtf) never call this and keep seeing
+    the bare, un-expanded byte, exactly their own pre-#237 behavior
+    (unchanged -- #237's fidelity fix was Printed-PDF-only in its own
+    evidence, WS7 LaserJet PCL captures, despite living in a function
+    every mode shared).
+
+    Column-tracking matches `_decode_spans`'s own former semantics
+    exactly: a running count across the WHOLE physical line (every `segs`
+    entry, in order, regardless of style -- a font/colour change never
+    consumes a column), reset to 0 for each call (one call = one physical
+    line, since Printed mode renders physical lines verbatim, never
+    rewrapped). `segs` entries with no tab byte are returned unchanged --
+    most printed lines never carry one, so this is a no-op scan for them,
+    not a copy."""
+    if not any('\t' in entry[0] for entry in segs):
+        return segs
+    col = 0
+    out = []
+    for entry in segs:
+        text = entry[0]
+        if '\t' not in text:
+            col += len(text)
+            out.append(entry)
+            continue
+        pieces = []
+        for ch in text:
+            if ch == '\t':
+                needed = _TAB_MODULUS - (col % _TAB_MODULUS)
+                pieces.append(' ' * needed)
+                col += needed
+            else:
+                pieces.append(ch)
+                col += 1
+        out.append((''.join(pieces),) + entry[1:])
+    return out
+
+
 def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
@@ -5100,6 +5167,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # double-count this fixes. A line with NO typed leading whitespace of
     # its own (indent never fires) is unaffected -- `fi` remains its only
     # indent source, unchanged.
+    # Planning #244 (the round-trip gauntlet fix): expand any bare 0x09 tab
+    # byte HERE, at render time, not in `_decode_spans` -- see
+    # `_expand_bare_tabs_for_printed_layout`'s own docstring. First
+    # transform on `segs`, ahead of even `_lj_substitute`, so the running
+    # column count matches `_decode_spans`'s own former semantics exactly:
+    # from the physical line's first character, before any drawing-time
+    # substitution.
+    segs = _expand_bare_tabs_for_printed_layout(segs)
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
         # LJ6DTP -- the same gate covers its character substitutions.
