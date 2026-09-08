@@ -1111,6 +1111,80 @@ def test_pdf_trailing_double_pagebreak_no_blank_sheet():
     pages2 = _doc_to_pagelines(core.parse_ws(data2), False)
     assert [bool(pg) for pg in pages2] == [True, False, True]
 
+
+def test_trailing_pa_has_content_after_byte_detector():
+    """Planning #228, research/2026-09-08_trailing-pa-rule.md: WS7 opens
+    the page after a forced `.pa` break ONLY when at least one more real
+    content paragraph -- even an entirely blank one -- follows that `.pa`
+    before end-of-file. Detected from the file's OWN saved trailer bytes
+    (`core._trailing_pa_has_content_after`), since the parser's own block/
+    line assembly never turns a trailing blank paragraph into a
+    `doc.blocks` entry (WordStar's internal bookkeeping block swallows it
+    first). `_TRAILING_PA_TRAILER_SUFFIX` is the fixed 5-byte ending
+    (`20 00 1d 0d 8a`) every `.pa`-terminated document's saved trailer
+    carries immediately before `^Z` padding, confirmed identical across 8
+    real corpus documents regardless of each file's own differing offset
+    bytes earlier in that same trailer."""
+    suf = core._TRAILING_PA_TRAILER_SUFFIX
+    pad = b'\x1a' * 8
+
+    # nothing after the suffix: the ordinary case (~80 of 92 scanned
+    # documents) -- no extra page
+    assert core._trailing_pa_has_content_after(b'...pa' + suf + pad) is False
+
+    # a bare CR/LF after the suffix: a genuine saved blank paragraph
+    # (sawyer/REF/PAGESIZE.WS's own exact shape) -- opens the page
+    assert core._trailing_pa_has_content_after(b'...pa' + suf + b'\r\n' + pad) is True
+
+    # two blank lines (probe J) -- still opens the page
+    assert core._trailing_pa_has_content_after(b'...pa' + suf + b'\r\n\r\n' + pad) is True
+
+    # whitespace-only "content" -- a lone space then a blank line (probe
+    # K) -- still opens the page
+    assert core._trailing_pa_has_content_after(b'...pa' + suf + b' \r\n' + pad) is True
+
+    # REAL dot-command text or a comment after the suffix is NOT a blank
+    # paragraph (probe H: a comment doesn't count) -- found as 6 false
+    # positives in the corpus (sawyer/MICKEE/MICKEE.WS ends `.pa` then a
+    # `.. end of file` comment; several mail-merge label templates end
+    # `.pa` then a real `.av` prompt) before this exact check existed
+    assert core._trailing_pa_has_content_after(
+        b'...pa' + suf + b'.. end of file\r\n' + pad) is False
+    assert core._trailing_pa_has_content_after(
+        b'...pa' + suf + b'.av "prompt",any-key\r\n' + pad) is False
+
+    # no `^Z` padding run at all, or no `.pa` before it: never matches
+    assert core._trailing_pa_has_content_after(b'...pa' + suf) is False
+    assert core._trailing_pa_has_content_after(b'no pa command here' + pad) is False
+
+    # a minimal/absent trailer (no recognizable suffix -- SCREEN.WS's own
+    # shape, a document too short to carry the usual bookkeeping block)
+    assert core._trailing_pa_has_content_after(b'...pa\r\n' + pad) is False
+
+
+@pytest.mark.sawyer
+def test_trailing_pa_opens_page_only_with_saved_blank_paragraph(require_sawyer_doc):
+    """End to end against the real corpus (planning #228). Only
+    sawyer/REF/PAGESIZE.WS actually saved a blank paragraph after its
+    trailing `.pa`; sawyer/STRENGTH.WS is a same-shape "bare .pa, nothing
+    after" document that must NOT open an extra page (44 documents just
+    like it regressed on the first attempt at this fix, precisely because
+    the rule was over-generalised to "any document ending in a
+    pagebreak")."""
+    from ctrlkd.pdf import _doc_to_pagelines
+
+    pagesize = core.parse(open(require_sawyer_doc('REF/PAGESIZE.WS'), 'rb').read())
+    assert pagesize.meta.get('pa_eof_blank_after') is True
+    pages = _doc_to_pagelines(pagesize, True)
+    assert len(pages) == 6
+    assert not pages[-1]                    # no body on the trailing page
+    assert pages[-1].explicit_break
+
+    strength = core.parse(open(require_sawyer_doc('STRENGTH.WS'), 'rb').read())
+    assert strength.meta.get('pa_eof_blank_after') is False
+    pages = _doc_to_pagelines(strength, True)
+    assert len(pages) == 1                  # no extra page opens
+
 # ---------------------------------------------------------------- note-aware export
 # footnote/endnote/annotation/comment inclusion (convert.py) and per-format,
 # per-kind rendering (emit.py). One synthetic doc carries all four kinds so

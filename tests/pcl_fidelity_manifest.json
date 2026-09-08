@@ -6272,31 +6272,17 @@
     },
     "sawyer__DISPLAY_EXT_WS": {
       "doc": "sawyer__DISPLAY_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/DISPLAY.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 2,
-      "n_engine_pages": 1,
+      "n_engine_pages": 2,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "page-count-mismatch": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__DISPLAY_EXT_WS",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 2 pages, engine 1 pages"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
-        "n": 37,
+        "n": 38,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -8398,67 +8384,11 @@
     },
     "sawyer__LSRBOX__CHECKER_EXT_BRD": {
       "doc": "sawyer__LSRBOX__CHECKER_EXT_BRD",
-      "verdict": "divergent",
-      "source_ws": "sawyer/LSRBOX/CHECKER.BRD",
-      "capture_set": "v4",
-      "install": "pristine",
-      "n_ws7_pages": 2,
-      "n_engine_pages": 1,
-      "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "page-count-mismatch": 1,
-        "word-unmatched": 2
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__LSRBOX__CHECKER_EXT_BRD",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 2 pages, engine 1 pages"
-        },
-        {
-          "doc": "sawyer__LSRBOX__CHECKER_EXT_BRD",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "<.Shaded"
-          ],
-          "ws7_pos": [
-            306.0,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__LSRBOX__CHECKER_EXT_BRD",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Relativ"
-          ],
-          "ws7_pos": [
-            370.8,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        }
-      ],
-      "document_frame_offset_pt": {
-        "n": 0,
-        "median_dx": null,
-        "iqr_dx": null
-      }
+      "verdict": "excluded",
+      "source_ws": null,
+      "counts_by_reason": {},
+      "divergences": [],
+      "reason": "parked: unexplained extra page, graphics overflow suspected \u2014 Jon 2026-09-08"
     },
     "sawyer__LSRBOX__LSRBOX_EXT_WS": {
       "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
@@ -37814,13 +37744,12 @@
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 2,
-      "n_engine_pages": 1,
+      "n_engine_pages": 2,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "exact-drift": 6,
         "extra-word-in-engine": 2,
         "line-start-shift": 2,
-        "page-count-mismatch": 1,
         "word-unmatched": 3
       },
       "divergences": [
@@ -38018,17 +37947,6 @@
         },
         {
           "doc": "sawyer__REF__NOTES_EXT_TST",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 2 pages, engine 1 pages"
-        },
-        {
-          "doc": "sawyer__REF__NOTES_EXT_TST",
           "page": 1,
           "line_y_top_pt": 103.5,
           "words": [
@@ -38077,7 +37995,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 13,
+        "n": 15,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -38258,29 +38176,15 @@
     },
     "sawyer__REF__PAGESIZE_EXT_WS": {
       "doc": "sawyer__REF__PAGESIZE_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/PAGESIZE.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 6,
-      "n_engine_pages": 5,
+      "n_engine_pages": 6,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "page-count-mismatch": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__PAGESIZE_EXT_WS",
-          "page": null,
-          "line_y_top_pt": null,
-          "words": null,
-          "ws7_pos": null,
-          "pdf_pos": null,
-          "font_class": null,
-          "reason": "page-count-mismatch",
-          "detail": "WS7 6 pages, engine 5 pages"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 158,
         "median_dx": 0.0,

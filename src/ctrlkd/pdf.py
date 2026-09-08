@@ -3035,7 +3035,8 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
                     if sentence_spacing else note.text)
         lines.extend(_note_wrap(_endnote_marker(label, pad_cols), note_text, width))
     pages = []
-    if last_page and last_page_cost < cap:
+    continuing = bool(last_page and last_page_cost < cap)
+    if continuing:
         page = list(last_page)
         room = cap - last_page_cost
         if last_page_has_area:                  # see docstring: WS7 measurements
@@ -3043,14 +3044,37 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
     else:
         page = []
         room = cap
+    # #228 (research/2026-09-08_trailing-pa-rule.md): a FRESH endnote page
+    # (not a continuation of the body's own last page) has no `.bi`-
+    # carrying line of its own -- every line here is a bare
+    # `_note_wrap`/`_render_area` tuple, never a PageLine -- so the auto-
+    # page-number lookup at render time has nothing to resolve against.
+    # `explicit_break_bi` (the document's own highest block index --
+    # "wherever the document's own state was by its own end") stands in,
+    # the same fallback the trailing-`.pa` blank page (_doc_to_pagelines,
+    # the plain path) already uses. Confirmed against sawyer/DISPLAY.WS:
+    # WS7's own page 2 (the endnote, on its own page once the trailing-
+    # `.pa` continuation fix above stops it merging with page 1) carries
+    # the automatic page number "2".
+    last_bi = len(doc.blocks) - 1
+    first_flushed = True
+    def _flush(pg):
+        nonlocal first_flushed
+        if first_flushed and continuing:
+            pages.append(pg)
+        else:
+            wrapped = Page(pg)
+            wrapped.explicit_break_bi = last_bi
+            pages.append(wrapped)
+        first_flushed = False
     for l in lines:
         if room < 1:
-            pages.append(page)
+            _flush(page)
             page, room = [], cap
         page.append(l)
         room -= 1
     if page:
-        pages.append(page)
+        _flush(page)
     return pages
 
 def _has_placeable_notes(doc):
@@ -3172,7 +3196,8 @@ class Page(list):
     the same answer twice from doc.meta['dot_positions']."""
 
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
-                'hm_lines', 'fm_lines', 'po_cols')
+                'hm_lines', 'fm_lines', 'po_cols', 'explicit_break',
+                'explicit_break_bi')
 
     def __init__(self, seq=()):
         super().__init__(seq)
@@ -3180,6 +3205,30 @@ class Page(list):
         self.footers = {}
         self.mt_lines = None
         self.mb_lines = None
+        # #228 (research/2026-09-08_trailing-pa-rule.md, planning #228): a
+        # trailing `.pa` followed by at least one more real content
+        # paragraph -- even a blank one -- before EOF opens a final page
+        # with no body; real WS7 still stamps its running footer/page
+        # number there (worked example: sawyer/REF/PAGESIZE.WS's WS7 page
+        # 6 is a single line, the footer digit "6", no body -- confirmed
+        # a genuine saved blank paragraph via the file's own trailer
+        # bytes, doc.meta['pa_eof_blank_after']). `explicit_break` marks
+        # a page force-closed by exactly that condition (never popped by
+        # the empty-trailing-page cleanup below); `explicit_break_bi` is
+        # the block index of the `.pa` itself, so the auto-page-number
+        # lookup (which normally reads a real line's own `.bi`) has
+        # something to resolve against on a page with no lines at all.
+        # Both stay at their default (False/None) for every ordinary
+        # page -- only `_doc_to_pagelines`'s new post-loop branch sets
+        # them, and ONLY when doc.meta['pa_eof_blank_after'] is True (a
+        # bare trailing `.pa` with nothing after it -- the overwhelming
+        # majority of `.pa`-terminated documents -- opens no page at all,
+        # per the research above; DISPLAY.WS/NOTES.TST's own extra page
+        # is a completely different, already-working mechanism --
+        # WordStar's default endnote-collection placement -- not this
+        # one).
+        self.explicit_break = False
+        self.explicit_break_bi = None
         # `.pl` in force when this page's own pagination started -- None
         # for "the document's global (first-occurrence) value", the same
         # contract as mt_lines/mb_lines above (register b31-dot-command-
@@ -3360,6 +3409,28 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pages, last_page_cost, last_page_has_area = _paginate_printed_notes(
             doc, cap, MAX_COLS, pix_results=pix_results, pictures=pictures,
             sentence_spacing=sentence_spacing)
+        # #228 (research/2026-09-08_trailing-pa-rule.md): a trailing `.pa`
+        # -- the document's own LAST block -- closes the current page
+        # (WordStar's own "force a new page" signal) even when nothing
+        # real follows it before EOF and no visible extra page ever
+        # opens (`doc.meta['pa_eof_blank_after']` False, the ordinary
+        # case). Forcing `last_page_cost` to `cap` here makes the
+        # continuation guard below correctly refuse to merge the
+        # document's endnotes onto page 1's remaining room, matching
+        # WordStar's own documented default endnote placement
+        # (WSFORMAT.TXT: no `.PE` -> "endnotes will be printed at the
+        # very end of the document ... starting a new page if they don't
+        # fit what's left"). Confirmed against sawyer/DISPLAY.WS and
+        # sawyer/REF/NOTES.TST: both end in a bare `.pa` (nothing after)
+        # and both need their real endnote content on ITS OWN fresh
+        # page, not merged with the footnote already on page 1 -- their
+        # "extra page" was misclassified by the original triage as this
+        # same trailing-`.pa`-opens-a-blank-page cause; it is not (see
+        # the research doc's "Corrections" section) -- it is this
+        # continuation-guard fix instead, one level removed from `.pa`
+        # itself but still gated on the document ending in one.
+        if doc.blocks and doc.blocks[-1].kind == 'pagebreak':
+            last_page_cost = cap
         last_page = pages[-1] if pages else None
         # round 26 wave 3 (fidelity_gate.py Finding C): endnotes CONTINUE
         # the last body/footnote page when it has room, rather than
@@ -3376,7 +3447,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             pages = pages[:-1] + end_pages
         else:
             pages = pages + end_pages
-        while len(pages) > 1 and not pages[-1]:
+        while (len(pages) > 1 and not pages[-1]
+               and not getattr(pages[-1], 'explicit_break', False)):
             pages.pop()
         return pages or [[]]
 
@@ -3459,11 +3531,20 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
 
     lines = []                                            # None = forced page break
+    # #228: block index of the MOST RECENT explicit pagebreak, so a
+    # trailing one (nothing real follows it) can still hand the render
+    # step something to resolve auto-page-number state against -- see
+    # `explicit_break_bi` above and the post-loop branch below. Only
+    # read when that pagebreak turns out to be the document's last
+    # thing AND doc.meta['pa_eof_blank_after'] is True; harmless
+    # otherwise.
+    last_pagebreak_bi = None
     for bi, b in enumerate(doc.blocks):
         for ev in hf_by_block.get(bi, ()):
             lines.append(('hf',) + ev)
         if b.kind == 'pagebreak':
             lines.append(None)
+            last_pagebreak_bi = bi
             continue
         if b.kind == 'condpage':
             # `.cp n` -- a break ONLY if fewer than n lines remain. Measured on
@@ -3771,10 +3852,19 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
         return lead
-    def _close_page():
+    def _close_page(explicit=False, break_bi=None):
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        # #228: only ever True from the post-loop trailing-`.pa` branch
+        # below, and only when `page` (this closing page's own body) is
+        # empty -- a page WITH content already carries real `.bi`-bearing
+        # lines, so it needs no fallback and stays exempt from the
+        # empty-trailing-page cleanup on its own (that cleanup only pops
+        # truly-empty pages to begin with).
+        if explicit and not pg:
+            pg.explicit_break = True
+            pg.explicit_break_bi = break_bi
         if (cur_mt, cur_mb) != (global_mt, global_mb):
             pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
         if cur_pl != doc_pl:
@@ -3811,6 +3901,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         hm, fm = _hm_fm_at(hm_fm_checkpoints, bi) if hm_fm_checkpoints else (global_hm, global_fm)
         po = _po_at(po_checkpoints, bi) if po_checkpoints else global_po
         return mt, mb, pl, hm, fm, po
+    # #228: True only in the gap between processing a forced pagebreak
+    # (`l is None`) and either the next real line or the end of `lines`
+    # -- set True right where the loop `continue`s on `l is None`, set
+    # False right before any real content is appended to `page`. If it
+    # is STILL True once the loop ends, the document's very last thing
+    # was an explicit pagebreak with nothing after it -- whether that
+    # opens a page depends on doc.meta['pa_eof_blank_after'] (see the
+    # post-loop branch below).
+    trailing_pagebreak = False
     for l in lines:
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt = l
@@ -3873,7 +3972,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
                     budget = (cap - 1) * default_lead
             if l is None:
+                trailing_pagebreak = True
                 continue
+        trailing_pagebreak = False
         if (suppress_blanks and not page and not getattr(l, 'image', None)
                 and not any(t.strip() for t, _ in l)):
             continue          # `.sb`: a blank line at the top of a page doesn't print
@@ -3882,6 +3983,25 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         page.append(l)
     if page:
         _close_page()
+    elif trailing_pagebreak and printed and doc.meta.get('pa_eof_blank_after'):
+        # #228 (research/2026-09-08_trailing-pa-rule.md, planning #228):
+        # "WS7 opens the page after a forced `.pa` break ONLY when at
+        # least one more real content paragraph -- even an entirely
+        # blank one -- follows that `.pa` before end-of-file." The
+        # document's last thing was an explicit `.pa`, `page` is empty
+        # by construction (reset when that pagebreak was processed
+        # above, never touched since), and doc.meta['pa_eof_blank_after']
+        # (computed once at parse time from the file's own saved-trailer
+        # bytes -- core.py's `_trailing_pa_has_content_after`) confirms
+        # this specific document really did save a blank paragraph after
+        # that `.pa`, not just a bare unconditional pagebreak (the
+        # overwhelming majority of `.pa`-terminated documents, which
+        # open no extra page at all). Gated on `printed`: Modern never
+        # reaches this function with printed=False in current usage
+        # (Modern's own PDF is currently a wholly separate pipeline,
+        # `_modern_streams`), but the gate is here in case a future
+        # caller does -- "drop in Modern" per the ruling.
+        _close_page(explicit=True, break_bi=last_pagebreak_bi)
     # We supply the paper margins, so WordStar's own margin blanks in a print
     # stream would double up. But deliberate spacing (a chapter-drop on page 1)
     # must survive: the MACHINE margin is uniform on every page, so strip only
@@ -3931,7 +4051,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # blank-stripping above — stripping is what hollows out a final page that
     # held only blank lines (1.1.5 popped before stripping and missed it; found
     # by the Swift port, job-012). Interior blanks from .pa .pa are preserved.
-    while len(pages) > 1 and not pages[-1]:
+    # #228: an empty page reached via the confirmed trailing-`.pa`-plus-
+    # saved-blank-paragraph shape (`explicit_break`, set only by the
+    # post-loop branch above) is real WS7 output -- its footer/page
+    # number prints even with no body -- and is exempt from this pop.
+    while len(pages) > 1 and not pages[-1] and not pages[-1].explicit_break:
         pages.pop()
     return pages or [[]]
 
@@ -6182,8 +6306,19 @@ def _emit_pdf_inner(doc, printed, options):
             else:
                 bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pl)
                       if bi is not None]
-                auto_page_number = (_pgnum_at(pgnum_checkpoints, max(bis))
-                                    if bis else False)
+                if bis:
+                    auto_page_number = _pgnum_at(pgnum_checkpoints, max(bis))
+                else:
+                    # #228: a page with no lines at all has no `.bi` to
+                    # read -- true of both an ordinary degenerate page
+                    # (kept False, as before) and our new confirmed
+                    # trailing-`.pa` page, which DOES need a number (WS7
+                    # stamps one). `explicit_break_bi` (the `.pa` block's
+                    # own index) stands in for "wherever the document's
+                    # own state was when this page opened."
+                    fallback_bi = getattr(pl, 'explicit_break_bi', None)
+                    auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
+                                        if fallback_bi is not None else False)
             running = _running_ops(doc, page_numbers[page_index], page_h, lead,
                                    size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),

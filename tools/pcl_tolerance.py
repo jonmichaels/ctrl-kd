@@ -213,7 +213,7 @@ CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
 # ----------------------------------------------------------- v4 exclusions
-# (planning #224/#226, ruled 2026-09-08). Four classes beyond the 48 merge
+# (planning #224/#226, ruled 2026-09-08). Five classes beyond the 48 merge
 # files already absent from CAPTURED_DOCS_V4 above: 'postscript' (3 real
 # PostScript-targeted documents + their 2 fixtures-ws5 duplicates -- an
 # unclassified PS typeface ID, not a placement bug -- Jon's ruling 2026-09-08
@@ -227,7 +227,12 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # pages onto one physical sheet -- unrepresentable as PDF pages; standing
 # parked issue planning #15, this exclusion does not open a new issue -- see
 # EXCLUDED_V4's own two entries for which two documents and how they were
-# found). Full detail (sha256, which half was kept, cross-references) lives
+# found), and 'parked' (planning #228, Jon's ruling 2026-09-08: an
+# investigated-but-unresolved single document, unconnected to any standing
+# parked issue -- see EXCLUDED_V4's own entry for detail. Named in every run,
+# same as the rest of this dict, so a future fix removes it from this list
+# rather than the gate silently going green on an unreviewed change).
+# Full detail (sha256, which half was kept, cross-references) lives
 # in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this dict
 # only carries what this PUBLIC repo needs: the doc_name these tests already
 # use (real key or public_alias, same resolution CAPTURED_DOCS_V4 itself
@@ -240,7 +245,8 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # collects a case for each -- 261 total, unchanged) so the gate skips them BY
 # NAME with this reason printed, every run, rather than silently shrinking the
 # parametrize list. The ACTIVE tier size (the denominator that matters for a
-# pass-rate claim) is 261 - 28 = 233 -- regenerate_manifest below writes a
+# pass-rate claim) is 261 - 29 = 232 (28 postscript/freeze/duplicate/
+# formfeed-off + 1 parked, as of planning #228) -- regenerate_manifest below writes a
 # verdict='excluded' placeholder for each (never a real doc_report()), so a
 # future `--record` run reproduces the skip without recomputing anything, and
 # a future v4 capture round finds these names pre-excluded rather than
@@ -274,6 +280,18 @@ EXCLUDED_V4 = {
     'sawyer__TAGS__OK': "duplicate: byte-identical duplicate of sawyer/TAGS/CHECKED (sawyer/TAGS/OK is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__ARTICLES__FORMFEED_EXT_WS': "formfeed-off: turns form feeds off with .xl 00 (and back on with .xl 0c) -- real WS7 overprints multiple pages onto one physical sheet, unrepresentable as PDF pages; standing parked issue planning #15, Jon's ruling 2026-09-08",
     'sawyer__REF__ROUNDED_EXT_BRD': "formfeed-off: sets .xl 00 (form feeds off) at the top of the document -- a continuous-label/border template for unbroken stationery, found by scanning the rest of the v4 batch for the same dot command; standing parked issue planning #15, Jon's ruling 2026-09-08",
+    # planning #228: investigated alongside the trailing-`.pa` rule (same
+    # visible symptom -- a footer-only final page -- but ruled OUT as that
+    # mechanism: its own `.pa` trailer is the standard byte-for-byte shape
+    # every "no extra page" document shares, none of the saved-blank-
+    # paragraph signature PAGESIZE.WS has). Best available explanation:
+    # this document's embedded absolute-position raster graphics (a
+    # LaserJet box/shading demo, 5,288 bytes of PCL on page 1 alone)
+    # overrun the printable area and WS7's driver ejects a page as a side
+    # effect -- a document-specific quirk of this one `.BRD` file, not
+    # evidence about `.pa` in general. See
+    # research/2026-09-08_trailing-pa-rule.md's own "CHECKER.BRD" section.
+    'sawyer__LSRBOX__CHECKER_EXT_BRD': "parked: unexplained extra page, graphics overflow suspected — Jon 2026-09-08",
 }
 
 MANIFEST_PATH = os.path.join(

@@ -4271,6 +4271,73 @@ def _rt_line_capture(raw: bytes, strip_hibit: bool, ws5: bool,
     return tuple(fx), b''
 
 
+# planning #228, research/2026-09-08_trailing-pa-rule.md (11 minimal WS7
+# harness probes, dated after the original triage's guess turned out wrong
+# for 3 of its 4 grouped documents -- see that doc's own "Corrections"
+# section). The real rule: WS7 opens the page after a forced `.pa` break
+# ONLY when at least one more real content paragraph -- even an entirely
+# blank one -- follows that `.pa` before end-of-file. A `.pa` that is
+# truly the last thing in the file (nothing after, not even a blank line)
+# ends printing right there: no next page, no footer, nothing. A second
+# bare `.pa` or a non-printing `..`/`.ig` comment after the first does NOT
+# count as "a line of content" (probes E/H).
+#
+# `sawyer/REF/PAGESIZE.WS` is the only document (of 92 `.pa`-terminated
+# files scanned) that matches this shape, and it does so at the BYTE
+# level, not the block level: WordStar's own saved-file trailer (cursor/
+# block-marker bookkeeping, immediately before the `^Z` padding run) ends
+# with a FIXED 5-byte suffix (`20 00 1d 0d 8a`) for every `.pa`-terminated
+# document that has nothing after its final `.pa` -- confirmed identical
+# across PAGESIZE/DISPLAY/CHECKER/STRENGTH/BOXES/CONVERT despite each
+# file's own preceding offset bytes differing. PAGESIZE.WS's trailer has
+# two MORE bytes after that same suffix (`0d 0a`, a bare hard return) --
+# structurally a genuine saved blank paragraph the parser's own block/line
+# assembly never turns into a `doc.blocks` entry (WordStar's internal
+# bookkeeping block swallows it before the line-decode loop ever sees it),
+# so this is checked directly against the raw bytes rather than against
+# parsed blocks. General on purpose (not special-cased to PAGESIZE.WS by
+# name), so a future document with the same saved-blank-paragraph shape is
+# picked up automatically.
+_TRAILING_PA_TRAILER_SUFFIX = bytes.fromhex('20001d0d8a')
+# Whitespace-only bytes: CR, LF, space, tab -- a genuinely BLANK saved
+# paragraph (probes D/J: one or more blank lines; probe K: a lone space
+# then a blank line) reads as nothing but these four bytes in the raw
+# trailer. Found necessary 2026-09-08 after the first cut of this check
+# (merely "any bytes at all after the suffix") false-positived on 6
+# corpus documents whose final `.pa` is genuinely followed by MORE real
+# dot-command text that doesn't happen to create a new `doc.blocks` entry
+# (`.av`/`.rr`/`..` comments -- none of which are "a content paragraph"
+# per probe H) -- e.g. sawyer/MICKEE/MICKEE.WS ends `.pa` ... `.. end of
+# file`, which is a comment, not a blank line, and must NOT open a page.
+_TRAILING_PA_WHITESPACE = frozenset(b'\r\n \t')
+
+
+def _trailing_pa_has_content_after(data: bytes) -> bool:
+    """True iff `data` ends in a `.pa`-terminated WordStar file whose own
+    saved trailer shows at least one more byte of WHITESPACE-ONLY content
+    (a saved blank paragraph -- CR/LF/space/tab, nothing else) after the
+    standard block-bookkeeping suffix and before the `^Z` padding run.
+    False for "nothing after the .pa" (the ordinary case, ~80 of 92
+    scanned documents), for a minimal/absent trailer (no recognizable
+    suffix at all -- a document too short to carry the usual bookkeeping
+    block, per the research's own SCREEN.WS example), AND for real
+    trailing dot-command text or comments that happen to sit in the same
+    byte range (see `_TRAILING_PA_WHITESPACE`'s own note) -- all three
+    read the same to a caller: no extra page."""
+    z = data.find(b'\x1a\x1a\x1a\x1a')
+    if z < 0:
+        return False
+    idx = data.rfind(b'.pa', 0, z)
+    if idx < 0:
+        return False
+    tail = data[idx:z]
+    suf = tail.rfind(_TRAILING_PA_TRAILER_SUFFIX)
+    if suf < 0:
+        return False
+    extra = tail[suf + len(_TRAILING_PA_TRAILER_SUFFIX):]
+    return bool(extra) and all(b in _TRAILING_PA_WHITESPACE for b in extra)
+
+
 def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc = Document()
     marks = {}
@@ -5156,6 +5223,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # writer refuses such documents instead of corrupting them.
         'unsupported': 'shift-jis' if _rt_sym.get('shift') else None,
     }
+    # #228 (planning #228, research/2026-09-08_trailing-pa-rule.md): only
+    # meaningful -- and only computed -- when the document's own last block
+    # really is a forced pagebreak; see `_trailing_pa_has_content_after`'s
+    # docstring for the byte-level rule itself.
+    if doc.blocks and doc.blocks[-1].kind == 'pagebreak':
+        doc.meta['pa_eof_blank_after'] = _trailing_pa_has_content_after(_rt_original)
     return doc
 
 # ---------------------------------------------------------------- print streams
