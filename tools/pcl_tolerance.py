@@ -213,7 +213,7 @@ CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
 # ----------------------------------------------------------- v4 exclusions
-# (planning #224/#226, ruled 2026-09-08). Three classes beyond the 48 merge
+# (planning #224/#226, ruled 2026-09-08). Four classes beyond the 48 merge
 # files already absent from CAPTURED_DOCS_V4 above: 'postscript' (3 real
 # PostScript-targeted documents + their 2 fixtures-ws5 duplicates -- an
 # unclassified PS typeface ID, not a placement bug -- Jon's ruling 2026-09-08
@@ -222,20 +222,25 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # of the 42 byte-identical pairs recorded in the corpus's own
 # ws7-prints/v4/exclusions.json -- the other 23 pairs' duplicate half was
 # already one of the 48 merge files, or is one of the 5 postscript/freeze
-# names above, so isn't repeated here). Full detail (sha256, which half was
-# kept, cross-references) lives in the PRIVATE corpus repo's own
-# ws7-prints/v4/exclusions.json -- this dict only carries what this PUBLIC
-# repo needs: the doc_name these tests already use (real key or public_alias,
-# same resolution CAPTURED_DOCS_V4 itself uses) and a reason safe to publish
-# (a fixtures-ws5/jon-floppies/ws7-private document's OWN real path never
-# appears here -- only the public sawyer/ document it duplicates, same privacy
-# rule PRINTS_SUBDIR_V4's docstring states for divergence reports).
+# names above, so isn't repeated here), 'formfeed-off' (2 documents that turn
+# form feeds off with the .xl dot command, so real WS7 overprints multiple
+# pages onto one physical sheet -- unrepresentable as PDF pages; standing
+# parked issue planning #15, this exclusion does not open a new issue -- see
+# EXCLUDED_V4's own two entries for which two documents and how they were
+# found). Full detail (sha256, which half was kept, cross-references) lives
+# in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this dict
+# only carries what this PUBLIC repo needs: the doc_name these tests already
+# use (real key or public_alias, same resolution CAPTURED_DOCS_V4 itself
+# uses) and a reason safe to publish (a fixtures-ws5/jon-floppies/ws7-private
+# document's OWN real path never appears here -- only the public sawyer/
+# document it duplicates, same privacy rule PRINTS_SUBDIR_V4's docstring
+# states for divergence reports).
 #
 # These names STAY in CAPTURED_DOCS_V4/CAPTURED_DOCS (the pytest tier still
 # collects a case for each -- 261 total, unchanged) so the gate skips them BY
 # NAME with this reason printed, every run, rather than silently shrinking the
 # parametrize list. The ACTIVE tier size (the denominator that matters for a
-# pass-rate claim) is 261 - 26 = 235 -- regenerate_manifest below writes a
+# pass-rate claim) is 261 - 28 = 233 -- regenerate_manifest below writes a
 # verdict='excluded' placeholder for each (never a real doc_report()), so a
 # future `--record` run reproduces the skip without recomputing anything, and
 # a future v4 capture round finds these names pre-excluded rather than
@@ -267,6 +272,8 @@ EXCLUDED_V4 = {
     'sawyer__PRINTERS__FONTCRIB_EXT_PS': "duplicate: byte-identical duplicate of sawyer/PRINTER.PS (sawyer/PRINTERS/FONTCRIB.PS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__REF__BOOKLET_EXT_RJS': "duplicate: byte-identical duplicate of sawyer/REF/-HOW-TO.RJS (sawyer/REF/BOOKLET.RJS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__TAGS__OK': "duplicate: byte-identical duplicate of sawyer/TAGS/CHECKED (sawyer/TAGS/OK is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__ARTICLES__FORMFEED_EXT_WS': "formfeed-off: turns form feeds off with .xl 00 (and back on with .xl 0c) -- real WS7 overprints multiple pages onto one physical sheet, unrepresentable as PDF pages; standing parked issue planning #15, Jon's ruling 2026-09-08",
+    'sawyer__REF__ROUNDED_EXT_BRD': "formfeed-off: sets .xl 00 (form feeds off) at the top of the document -- a continuous-label/border template for unbroken stationery, found by scanning the rest of the v4 batch for the same dot command; standing parked issue planning #15, Jon's ruling 2026-09-08",
 }
 
 MANIFEST_PATH = os.path.join(

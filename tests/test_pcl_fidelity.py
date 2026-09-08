@@ -48,20 +48,23 @@ repo's own committed file, because a real report for one of them can
 embed literal document text in `divergences` (see pcl_tolerance.
 _v4_private_placeholder's own docstring).
 
-EXCLUSIONS (planning #224/#226, ruled 2026-09-08): 26 more of the 243 are
+EXCLUSIONS (planning #224/#226, ruled 2026-09-08): 28 more of the 243 are
 committed as 'excluded' placeholders (pt.EXCLUDED_V4) -- 3 PostScript-
 targeted documents whose typeface IDs the tier's font table has never
-classified (planning #224), plus 21 duplicate/freeze documents excluded
-so the same byte-identical content, or a document WordStar itself refuses
-to print, isn't judged twice or gated at all (planning #226). Also SKIP
-here, same as source-missing, but with verdict 'excluded' and a distinct
-reason (see the `recorded['verdict'] == 'excluded'` branch below) so the
-two skip causes never get confused in the output. The ACTIVE tier size --
-what actually gets a doc_report() and either fails-by-name or runs in
-inventory mode -- is 261 - 26 = 235: the 18 original + 217 of the 243 v4
-documents. `pt.CAPTURED_DOCS`/`pt.CAPTURED_DOCS_V4` themselves are
+classified (planning #224), 21 duplicate/freeze documents excluded so the
+same byte-identical content, or a document WordStar itself refuses to
+print, isn't judged twice or gated at all (planning #226), and 2 documents
+that turn form feeds off (.xl 00), which WS7 prints as multiple pages
+overprinted onto one physical sheet -- unrepresentable as PDF pages, a
+standing parked issue (planning #15, no new issue opened for this).
+Also SKIP here, same as source-missing, but with verdict 'excluded' and a
+distinct reason (see the `recorded['verdict'] == 'excluded'` branch below)
+so the two skip causes never get confused in the output. The ACTIVE tier
+size -- what actually gets a doc_report() and either fails-by-name or runs
+in inventory mode -- is 261 - 28 = 233: the 18 original + 215 of the 243
+v4 documents. `pt.CAPTURED_DOCS`/`pt.CAPTURED_DOCS_V4` themselves are
 UNCHANGED (still 261/243) -- this test still collects and skips-by-name
-the 26 excluded cases every run, rather than shrinking the parametrize
+the 28 excluded cases every run, rather than shrinking the parametrize
 list, so a live `pytest -m pcl -rA` always names every excluded document
 and its reason. Full detail (sha256, which half of a duplicate pair was
 kept) lives in the private corpus repo's ws7-prints/v4/exclusions.json.
