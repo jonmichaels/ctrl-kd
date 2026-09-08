@@ -9871,7 +9871,7 @@
       "n_engine_pages": 10,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 276,
+        "exact-drift": 330,
         "extra-word-in-engine": 85,
         "line-start-shift": 3,
         "page-count-mismatch": 1,
@@ -11924,7 +11924,7 @@
             128.6
           ],
           "pdf_pos": [
-            100.8,
+            162.0,
             129.0
           ],
           "font_class": "exact",
@@ -11944,7 +11944,7 @@
             128.6
           ],
           "pdf_pos": [
-            187.2,
+            370.8,
             129.0
           ],
           "font_class": "exact",
@@ -11964,7 +11964,7 @@
             128.6
           ],
           "pdf_pos": [
-            230.4,
+            475.2,
             129.0
           ],
           "font_class": "exact",
@@ -42535,7 +42535,8 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "baseline-shift": 36,
-        "exact-drift": 3
+        "exact-drift": 18,
+        "line-start-shift": 2
       },
       "divergences": [
         {
@@ -42851,7 +42852,7 @@
             156.0
           ],
           "pdf_pos": [
-            100.8,
+            116.1,
             156.0
           ],
           "font_class": "exact",
@@ -42871,7 +42872,7 @@
             156.0
           ],
           "pdf_pos": [
-            129.6,
+            160.2,
             156.0
           ],
           "font_class": "exact",
@@ -42891,7 +42892,7 @@
             156.0
           ],
           "pdf_pos": [
-            165.6,
+            211.5,
             156.0
           ],
           "font_class": "exact",
@@ -42911,7 +42912,7 @@
             156.0
           ],
           "pdf_pos": [
-            230.4,
+            291.6,
             156.0
           ],
           "font_class": "exact",
@@ -42931,7 +42932,7 @@
             156.0
           ],
           "pdf_pos": [
-            316.8,
+            408.6,
             156.0
           ],
           "font_class": "exact",
@@ -42951,7 +42952,7 @@
             156.0
           ],
           "pdf_pos": [
-            352.8,
+            459.9,
             156.0
           ],
           "font_class": "exact",
@@ -42991,7 +42992,7 @@
             240.0
           ],
           "pdf_pos": [
-            64.8,
+            273.6,
             264.0
           ],
           "font_class": "exact",
@@ -43011,7 +43012,7 @@
             252.0
           ],
           "pdf_pos": [
-            64.8,
+            273.6,
             276.0
           ],
           "font_class": "exact",
@@ -43031,7 +43032,7 @@
             264.0
           ],
           "pdf_pos": [
-            64.8,
+            277.2,
             288.0
           ],
           "font_class": "exact",
@@ -43051,7 +43052,7 @@
             276.0
           ],
           "pdf_pos": [
-            64.8,
+            270.0,
             300.0
           ],
           "font_class": "exact",
@@ -43071,7 +43072,7 @@
             276.0
           ],
           "pdf_pos": [
-            93.6,
+            504.0,
             300.0
           ],
           "font_class": "exact",
@@ -43091,7 +43092,7 @@
             288.0
           ],
           "pdf_pos": [
-            64.8,
+            504.0,
             312.0
           ],
           "font_class": "exact",
@@ -43131,7 +43132,7 @@
             312.0
           ],
           "pdf_pos": [
-            86.4,
+            124.8,
             336.0
           ],
           "font_class": "exact",
@@ -43151,7 +43152,7 @@
             312.0
           ],
           "pdf_pos": [
-            172.8,
+            326.4,
             336.0
           ],
           "font_class": "exact",
@@ -43171,7 +43172,7 @@
             312.0
           ],
           "pdf_pos": [
-            266.4,
+            496.8,
             336.0
           ],
           "font_class": "exact",
@@ -43317,12 +43318,352 @@
           "font_class": "exact",
           "reason": "exact-drift",
           "detail": "residual -345.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "command",
+            "command"
+          ],
+          "ws7_pos": [
+            115.2,
+            180.0
+          ],
+          "pdf_pos": [
+            165.6,
+            192.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "takes",
+            "takes"
+          ],
+          "ws7_pos": [
+            172.8,
+            180.0
+          ],
+          "pdf_pos": [
+            248.4,
+            192.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +75.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "precedence",
+            "precedence"
+          ],
+          "ws7_pos": [
+            216.0,
+            180.0
+          ],
+          "pdf_pos": [
+            316.8,
+            192.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "printing",
+            "printing"
+          ],
+          "ws7_pos": [
+            316.8,
+            180.0
+          ],
+          "pdf_pos": [
+            468.0,
+            192.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +151.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "command",
+            "command"
+          ],
+          "ws7_pos": [
+            122.4,
+            192.0
+          ],
+          "pdf_pos": [
+            172.8,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "takes",
+            "takes"
+          ],
+          "ws7_pos": [
+            180.0,
+            192.0
+          ],
+          "pdf_pos": [
+            255.6,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +75.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "precedence",
+            "precedence"
+          ],
+          "ws7_pos": [
+            223.2,
+            192.0
+          ],
+          "pdf_pos": [
+            324.0,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "editing",
+            "editing"
+          ],
+          "ws7_pos": [
+            324.0,
+            192.0
+          ],
+          "pdf_pos": [
+            475.2,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +151.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "will",
+            "will"
+          ],
+          "ws7_pos": [
+            93.6,
+            216.0
+          ],
+          "pdf_pos": [
+            104.8,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +11.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "print",
+            "print"
+          ],
+          "ws7_pos": [
+            129.6,
+            216.0
+          ],
+          "pdf_pos": [
+            152.0,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +22.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "fully",
+            "fully"
+          ],
+          "ws7_pos": [
+            172.8,
+            216.0
+          ],
+          "pdf_pos": [
+            206.4,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +33.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "justified",
+            "justified"
+          ],
+          "ws7_pos": [
+            216.0,
+            216.0
+          ],
+          "pdf_pos": [
+            260.8,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +44.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "but",
+            "but"
+          ],
+          "ws7_pos": [
+            288.0,
+            216.0
+          ],
+          "pdf_pos": [
+            344.0,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +56.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "edit",
+            "edit"
+          ],
+          "ws7_pos": [
+            316.8,
+            216.0
+          ],
+          "pdf_pos": [
+            384.0,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +67.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "ragged",
+            "ragged"
+          ],
+          "ws7_pos": [
+            374.4,
+            216.0
+          ],
+          "pdf_pos": [
+            464.0,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +89.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "First",
+            "First"
+          ],
+          "ws7_pos": [
+            72.0,
+            180.0
+          ],
+          "pdf_pos": [
+            97.2,
+            192.0
+          ],
+          "font_class": "exact",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +25.20pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "Second",
+            "Second"
+          ],
+          "ws7_pos": [
+            72.0,
+            192.0
+          ],
+          "pdf_pos": [
+            97.2,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +25.20pt (tolerance 2.5pt)"
         }
       ],
       "document_frame_offset_pt": {
         "n": 17,
         "median_dx": 0.0,
-        "iqr_dx": 0.0
+        "iqr_dx": 205.2
       }
     },
     "sawyer__REF__ROUNDED_EXT_BRD": {
