@@ -1819,42 +1819,50 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
 
 
 # --------------------------------------------------------------- manifest
-def _v1_private_non_clean_placeholder(doc_name: str, group: str, live: dict) -> dict:
-    """The COMMITTED manifest entry for one of v1's own six private-group
-    documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) once it stops being clean.
+def _v1_private_placeholder(doc_name: str, group: str, live: dict) -> dict:
+    """The COMMITTED manifest entry for any of v1's own six private-group
+    documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) -- UNCONDITIONALLY, regardless
+    of live verdict.
 
-    Found 2026-09-08 re-baselining planning #230's page-membership fix:
-    DOCA and DOCE, previously always 'clean' (nothing in `divergences` to
-    leak -- see `_v4_private_placeholder`'s own docstring on why v1's
-    real-verdicts-source-redacted precedent was ever considered safe),
-    turned up real page-membership divergences the moment that fix ran --
-    and doc_report()'s own `divergences` entries embed literal WORDS
-    from the source (`words: [ws7_text, engine_text]`). Committing them
-    as-is would put private document TEXT into this PUBLIC repo for the
-    first time, breaking the exact precondition ("happened to land on
-    all-clean") the old precedent depended on.
+    Found 2026-09-08 re-baselining planning #230's page-membership fix: DOCA
+    and DOCE, previously always 'clean' (nothing in `divergences` to leak --
+    see `_v4_private_placeholder`'s own docstring on why v1's real-verdicts-
+    source-redacted precedent was ever considered safe), turned up real
+    page-membership divergences the moment that fix ran -- and doc_report()'s
+    own `divergences` entries embed literal WORDS from the source (`words:
+    [ws7_text, engine_text]`). Committing them as-is would put private
+    document TEXT into this PUBLIC repo, breaking the exact precondition
+    ("happened to land on all-clean") the old precedent depended on.
 
-    `live` is the ALREADY-COMPUTED doc_report() result (computing it is
-    not new risk -- these six have always been fully evaluated locally,
-    every run, since before v4 existed; only WHAT GETS WRITTEN changes
-    here) -- this keeps its verdict/page counts (plain integers, nothing
-    to redact) but drops `counts_by_reason`/`divergences`/
-    `document_frame_offset_pt` entirely, converging to the exact same
-    'source-missing'-shaped skip test_pcl_fidelity.py already treats as
-    non-failing for a private-group v4 placeholder. Jon's ruling needed
-    on whether to harden ALL SIX this way pre-emptively rather than only
-    the two that have actually gone non-clean so far (flagged, not
-    decided here)."""
+    Planning #241 chore (2026-09-08): applied to all six now, not just the
+    two that had already gone non-clean -- the same review-does-not-scale
+    argument `_v4_private_placeholder` makes for its 64 already applies here;
+    a document that is clean TODAY has no guarantee of staying clean after
+    the next engine change, and the manifest should not depend on catching
+    that transition each time. So this is no longer conditioned on
+    `live['verdict']` at all -- every one of the six always gets this shape,
+    clean or not.
+
+    `live` is the ALREADY-COMPUTED doc_report() result (computing it is not
+    new risk -- these six have always been fully evaluated locally, every
+    run, since before v4 existed; only WHAT GETS WRITTEN changes here) --
+    this keeps its verdict/page counts (plain integers, nothing to redact)
+    but drops `counts_by_reason`/`divergences`/`document_frame_offset_pt`
+    entirely, converging to the exact same 'source-missing'-shaped skip
+    test_pcl_fidelity.py already treats as non-failing for a private-group
+    v4 placeholder. Real comparison against $CTRLKD_PRIVATE_CORPUS is
+    unaffected -- doc_report() still runs for real, locally, every time
+    (this function only decides what a --record run COMMITS); the private
+    Swift engine's own fidelity driver calls doc_report() directly and never
+    goes through this function or the committed manifest at all."""
     return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
             'capture_set': live.get('capture_set'), 'install': live.get('install'),
             'n_ws7_pages': live.get('n_ws7_pages'), 'n_engine_pages': live.get('n_engine_pages'),
             'counts_by_reason': {}, 'divergences': [],
-            'reason': (f'private corpus group ({group}) -- this document is no longer '
-                       f'all-clean (real verdict {live.get("verdict")!r}), so its real '
-                       f'counts/divergences are withheld the same way a private-group v4 '
-                       f'document always is (see _v1_private_non_clean_placeholder\'s own '
-                       f'docstring); resolved and compared for real only in a locally-armed '
-                       f'run against $CTRLKD_PRIVATE_CORPUS')}
+            'reason': (f'private corpus group ({group}) -- this repo never commits a real '
+                       f'verdict/divergence report for a private-group document, v1 or v4 '
+                       f'(see _v1_private_placeholder\'s own docstring); resolved and compared '
+                       f'for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS')}
 
 
 def _v4_private_placeholder(doc_name: str, group: str) -> dict:
@@ -1862,16 +1870,16 @@ def _v4_private_placeholder(doc_name: str, group: str) -> dict:
     (jon-floppies/fixtures-ws5/ws7-private -- see fg.PRINTS_SUBDIR_V4's
     own docstring): verdict 'source-missing', no counts, no divergences,
     same shape test_pcl_fidelity.py already treats as a clean skip for a
-    Sawyer-archive-only document. This is a DELIBERATELY STRICTER choice
-    than v1's own precedent (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF publish real
-    verdicts/counts, source_ws redacted) -- not because that precedent was
-    wrong, but because it was reviewed document-by-document (each entry's
-    own hand-written provenance note) and happened to land on all-clean
-    results with nothing in `divergences` to leak (UPDATE 2026-09-08: two
-    of those six no longer do -- see _v1_private_non_clean_placeholder,
-    called for those now instead of committing their real report). That
-    review does not scale to 64 documents, and doc_report()'s own
-    `divergences` entries embed literal WORDS from the source (`words:
+    Sawyer-archive-only document. This was originally a DELIBERATELY
+    STRICTER choice than v1's own precedent (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF
+    publishing real verdicts/counts, source_ws redacted) -- not because
+    that precedent was wrong at the time, but because it was reviewed
+    document-by-document (each entry's own hand-written provenance note)
+    and happened to land on all-clean results with nothing in `divergences`
+    to leak. UPDATE 2026-09-08: v1's own six now get this same unconditional
+    treatment too (see _v1_private_placeholder, planning #202 batch chore) --
+    review-by-hand does not scale to six any better than it does to 64, and
+    doc_report()'s own `divergences` entries embed literal WORDS from the source (`words:
     [ws7_text, engine_text]`) -- committing a real report for one of
     Jon's private WS4 papers or fixtures-ws5 test documents risks putting
     document TEXT into this PUBLIC repo the moment that document has even
@@ -1923,19 +1931,20 @@ def regenerate_manifest(doc_names=None) -> dict:
             continue
         print(f'pcl_tolerance: running {name}...', file=sys.stderr)
         live = doc_report(name)
-        # planning #230 re-baseline, 2026-09-08: one of v1's own six
-        # private-group documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) can stop
-        # being clean (see _v1_private_non_clean_placeholder's own
-        # docstring) -- when that happens, never commit its real
-        # counts/divergences, the same rule v4's own private-group
-        # documents already follow unconditionally.
-        if live.get('verdict') not in ('clean', 'source-missing'):
-            group = _doc_source_group(name)
-            if group is not None and group not in PUBLIC_SOURCE_GROUPS:
-                print(f'pcl_tolerance: {name}: private-group v1 document went non-clean -- '
-                      f'withholding its real report (see _v1_private_non_clean_placeholder)',
-                      file=sys.stderr)
-                live = _v1_private_non_clean_placeholder(name, group, live)
+        # planning #202 batch chore, 2026-09-08: v1's own six private-group
+        # documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) never commit a real
+        # verdict/counts/divergences, UNCONDITIONALLY -- not just once one
+        # goes non-clean (that was the interim rule after planning #230's
+        # re-baseline turned up DOCA/DOCE's first real divergences; see
+        # _v1_private_placeholder's own docstring for why "clean today"
+        # was never a safe-forever precondition). doc_report() still runs,
+        # for real, every time -- only what gets WRITTEN to the committed
+        # manifest changes here.
+        group = _doc_source_group(name)
+        if group is not None and group not in PUBLIC_SOURCE_GROUPS:
+            print(f'pcl_tolerance: {name}: private-group v1 placeholder (real report withheld)',
+                  file=sys.stderr)
+            live = _v1_private_placeholder(name, group, live)
         documents[name] = live
     manifest = {
         'generator': 'tools/pcl_tolerance.py --record',

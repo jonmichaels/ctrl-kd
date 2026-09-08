@@ -29,58 +29,43 @@
       "n_engine_pages": 6,
       "counts_by_reason": {},
       "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this document is no longer all-clean (real verdict 'divergent'), so its real counts/divergences are withheld the same way a private-group v4 document always is (see _v1_private_non_clean_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "DOCB": {
       "doc": "DOCB",
-      "verdict": "clean",
-      "source_ws": "DOCB: source path withheld (non-public corpus group)",
+      "verdict": "source-missing",
+      "source_ws": null,
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
-      "no_substitute_word_count": 0,
       "counts_by_reason": {},
       "divergences": [],
-      "document_frame_offset_pt": {
-        "n": 25,
-        "median_dx": -0.0,
-        "iqr_dx": 0.0
-      }
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "DOCC": {
       "doc": "DOCC",
-      "verdict": "clean",
-      "source_ws": "DOCC: source path withheld (non-public corpus group)",
+      "verdict": "source-missing",
+      "source_ws": null,
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 9,
       "n_engine_pages": 9,
-      "no_substitute_word_count": 0,
       "counts_by_reason": {},
       "divergences": [],
-      "document_frame_offset_pt": {
-        "n": 226,
-        "median_dx": 0.0,
-        "iqr_dx": 0.0
-      }
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "DOCD": {
       "doc": "DOCD",
-      "verdict": "clean",
-      "source_ws": "DOCD: source path withheld (non-public corpus group)",
+      "verdict": "source-missing",
+      "source_ws": null,
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 9,
       "n_engine_pages": 9,
-      "no_substitute_word_count": 0,
       "counts_by_reason": {},
       "divergences": [],
-      "document_frame_offset_pt": {
-        "n": 235,
-        "median_dx": 0.0,
-        "iqr_dx": 0.0
-      }
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "LJ6DTP": {
       "doc": "LJ6DTP",
@@ -2791,7 +2776,7 @@
       "n_engine_pages": 9,
       "counts_by_reason": {},
       "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this document is no longer all-clean (real verdict 'divergent'), so its real counts/divergences are withheld the same way a private-group v4 document always is (see _v1_private_non_clean_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "PREVIEW": {
       "doc": "PREVIEW",
@@ -2880,20 +2865,15 @@
     },
     "DOCF": {
       "doc": "DOCF",
-      "verdict": "clean",
-      "source_ws": "DOCF: source path withheld (non-public corpus group)",
+      "verdict": "source-missing",
+      "source_ws": null,
       "capture_set": "v3",
       "install": "pristine",
       "n_ws7_pages": 4,
       "n_engine_pages": 4,
-      "no_substitute_word_count": 0,
       "counts_by_reason": {},
       "divergences": [],
-      "document_frame_offset_pt": {
-        "n": 99,
-        "median_dx": 0.0,
-        "iqr_dx": 0.0
-      }
+      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "TWAINLET": {
       "doc": "TWAINLET",
