@@ -75,11 +75,36 @@ decoder. Teach it byte-count consumption before trusting it on those.
 A trailing empty page (produced by the FF that ejects the final sheet
 right before the closing ESC E / UEL) is dropped so page counts reflect
 actual printed pages, not the eject-to-cassette artifact.
+
+WRAPAROUND (planning #234, 2026-09-08): WS7's own LaserJet driver's
+internal position accumulator overflows past 2**15 (32768) decipoints
+and wraps back to a small value WHILE STILL ON THE SAME LOGICAL PAGE (no
+0x0C between) -- confirmed by raw byte inspection of sawyer/REF/
+-PATCHES.WS page 19: ESC&a#V values climb ..., 32520, 32760, then the
+VERY NEXT command in the stream is the literal ASCII bytes "232" -- the
+wrapped value is baked into WS7's own emitted bytes, not something this
+parser misreads (ruling out the alternative hypothesis that WS7 was
+using a relative move, ESC&a+nV, that this decoder truncated: no signed
++/- ESC&a#V field appears anywhere near either wrap in this document).
+Unwrapped here the same way as tools/pcl_render.py's apply_axis(): a
+fresh ABSOLUTE value that would move a cursor backward by more than half
+the wrap modulus (WRAP_HALF_DECIPT) is assumed to be one more wrap and
+corrected by adding WRAP_MODULUS_DECIPT (repeated, for a hypothetical
+multi-wrap case). A genuine same-page backward move (e.g. a footer set
+below a full page of body text) cannot exceed one real page's height
+(<=10080 decipoints even for legal paper) -- well under the 16384
+threshold -- so this never miscorrects real content. Applies to both
+axes uniformly (never observed on H in this corpus).
 """
 
 import argparse
 import json
 import sys
+
+# WS7 LaserJet driver ESC&a#H/#V absolute-position wraparound (planning
+# #234, 2026-09-08) -- see module docstring's WRAPAROUND section.
+WRAP_MODULUS_DECIPT = 32768
+WRAP_HALF_DECIPT = WRAP_MODULUS_DECIPT // 2
 
 
 def parse_pcl(data: bytes):
@@ -92,6 +117,8 @@ def parse_pcl(data: bytes):
     cur_runs = []
     cursor_x = None
     cursor_y = None
+    x_wrap = 0  # planning #234: cumulative WRAP_MODULUS_DECIPT correction, per axis
+    y_wrap = 0
 
     def parse_value(j):
         """Parse an optional signed decimal number starting at j.
@@ -115,15 +142,33 @@ def parse_pcl(data: bytes):
         except ValueError:
             return None
 
+    def apply_axis(current, v, axis):
+        """Absolute ESC&a#H/#V position, unwrapped -- see module docstring's
+        WRAPAROUND section. `v` here is already known to carry no +/- sign
+        (this decoder does not implement relative moves; see KNOWN LIMIT)."""
+        nonlocal x_wrap, y_wrap
+        raw = int(round(v))
+        offset = x_wrap if axis == "x" else y_wrap
+        candidate = raw + offset
+        if current is not None:
+            while candidate < current - WRAP_HALF_DECIPT:
+                offset += WRAP_MODULUS_DECIPT
+                candidate = raw + offset
+        if axis == "x":
+            x_wrap = offset
+        else:
+            y_wrap = offset
+        return candidate
+
     def handle_field(param, group, value_str, field_char):
         nonlocal cursor_x, cursor_y
         if param == "&" and group == "a":
             v = to_num(value_str)
             if v is not None:
                 if field_char == "H":
-                    cursor_x = int(round(v))
+                    cursor_x = apply_axis(cursor_x, v, "x")
                 elif field_char == "V":
-                    cursor_y = int(round(v))
+                    cursor_y = apply_axis(cursor_y, v, "y")
         # All other groups/fields (font selection, page setup, underline,
         # symbol set, PJL UEL, etc.) are intentionally not interpreted --
         # they were still correctly consumed by the generic grammar above.
@@ -194,6 +239,8 @@ def parse_pcl(data: bytes):
             flush_page()
             cursor_x = None
             cursor_y = None
+            x_wrap = 0
+            y_wrap = 0
             i += 1
         elif b in (0x0D, 0x0A):
             i += 1

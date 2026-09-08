@@ -145,6 +145,13 @@ DECIPT_PER_IN = 720
 PT_PER_IN = 72
 DECIPT_PER_PT = 10
 
+# WS7 LaserJet driver ESC&a#H/#V absolute-position wraparound (planning
+# #234, 2026-09-08): the driver's own internal accumulator overflows at
+# 2**15 decipoints and wraps -- see apply_axis()'s docstring for the
+# confirmed byte-level evidence (sawyer/REF/-PATCHES.WS page 19).
+WRAP_MODULUS_DECIPT = 32768
+WRAP_HALF_DECIPT = WRAP_MODULUS_DECIPT // 2
+
 # ---------------------------------------------------------------------
 # Typeface-ID -> AFM family mapping (see module docstring)
 # ---------------------------------------------------------------------
@@ -522,6 +529,8 @@ def parse_pcl_extended(data: bytes):
     underline = False
     cursor_x = None
     cursor_y = None
+    x_wrap = 0  # planning #234: cumulative WRAP_MODULUS_DECIPT correction, per axis
+    y_wrap = 0
     # sticky-within-this-parse font state (each observed font-select in
     # the corpus supplies all fields anyway; see module docstring)
     font_P, font_S, font_B, font_T, font_V = 0, 0, 0, None, 12.0
@@ -564,7 +573,7 @@ def parse_pcl_extended(data: bytes):
         except ValueError:
             return None
 
-    def apply_axis(current, val_str):
+    def apply_axis(current, val_str, axis):
         """ESC&a#H/#V / ESC*p#X/#Y share one PCL rule: an UNSIGNED value is
         an absolute position; a '+'/'-'-PREFIXED value is a relative move
         from the current position. Verified safe to apply generally (not
@@ -574,14 +583,47 @@ def parse_pcl_extended(data: bytes):
         end-of-page with no text drawn against them before the next
         (absolute) position command -- so this NEVER changes any existing
         text chunk's rendered position in this corpus.
+
+        WRAPAROUND (planning #234, 2026-09-08): WS7's own LaserJet driver's
+        internal position accumulator overflows past 2**15 (32768)
+        decipoints and wraps back to a small value WHILE STILL ON THE SAME
+        LOGICAL PAGE (no 0x0C between) -- confirmed by raw byte inspection
+        of sawyer/REF/-PATCHES.WS page 19: ESC&a#V values climb ...,
+        32520, 32760, then the VERY NEXT command in the stream is the
+        literal ASCII bytes "232" -- the wrapped value is baked into WS7's
+        own emitted bytes, not something this parser misreads. Detected
+        here as: a fresh ABSOLUTE value that would move the cursor
+        backward by more than half the wrap modulus (WRAP_HALF_DECIPT =
+        16384 decipoints = 22.75in) is assumed to be one more wrap and
+        corrected by adding WRAP_MODULUS_DECIPT (repeated, for the
+        hypothetical multi-wrap case) so the corrected position keeps
+        climbing with the page instead of falling back near zero. A
+        genuine same-page backward move (e.g. a footer set below a full
+        page of body text) cannot exceed one real page's height (<=10080
+        decipoints even for legal paper) -- well under the 16384
+        threshold -- so this never miscorrects real content. Applies to
+        both axes uniformly (never observed on H in this corpus, but nothing
+        PCL-specific ties the overflow to V alone).
         """
+        nonlocal x_wrap, y_wrap
         v = to_num(val_str)
         if v is None:
             return current
         if val_str[:1] in ("+", "-"):
             base = current if current is not None else 0
             return int(round(base + v))
-        return int(round(v))
+        raw = int(round(v))
+        offset = x_wrap if axis == "x" else y_wrap
+        candidate = raw + offset
+        if current is not None:
+            while candidate < current - WRAP_HALF_DECIPT:
+                offset += WRAP_MODULUS_DECIPT
+                candidate = raw + offset
+        if axis == "x":
+            x_wrap = offset
+        else:
+            y_wrap = offset
+        return candidate
 
     def handle_group(param, group, toks, pos):
         nonlocal cursor_x, cursor_y, font_P, font_S, font_B, font_T, font_V, underline
@@ -590,9 +632,9 @@ def parse_pcl_extended(data: bytes):
         if param == "&" and group == "a":
             for val, fc in toks:
                 if fc == "H":
-                    cursor_x = apply_axis(cursor_x, val)
+                    cursor_x = apply_axis(cursor_x, val, "x")
                 elif fc == "V":
-                    cursor_y = apply_axis(cursor_y, val)
+                    cursor_y = apply_axis(cursor_y, val, "y")
             return pos
         if param == "&" and group == "p":
             # Transparent Print Data (ESC & p <count> X, HP PCL5 spec): the
@@ -867,6 +909,8 @@ def parse_pcl_extended(data: bytes):
             flush_page()
             cursor_x = None
             cursor_y = None
+            x_wrap = 0
+            y_wrap = 0
             i += 1
         elif b in (0x0D, 0x0A):
             i += 1
