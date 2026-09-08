@@ -212,6 +212,63 @@ CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 # unruled" bar is different.
 INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
+# ----------------------------------------------------------- v4 exclusions
+# (planning #224/#226, ruled 2026-09-08). Three classes beyond the 48 merge
+# files already absent from CAPTURED_DOCS_V4 above: 'postscript' (3 real
+# PostScript-targeted documents + their 2 fixtures-ws5 duplicates -- an
+# unclassified PS typeface ID, not a placement bug -- Jon's ruling 2026-09-08
+# 06:13), 'freeze' (OLDTIMES.WS + its fixtures-ws5 duplicate -- WordStar itself
+# freezes printing this document), 'duplicate' (the non-canonical half of 19
+# of the 42 byte-identical pairs recorded in the corpus's own
+# ws7-prints/v4/exclusions.json -- the other 23 pairs' duplicate half was
+# already one of the 48 merge files, or is one of the 5 postscript/freeze
+# names above, so isn't repeated here). Full detail (sha256, which half was
+# kept, cross-references) lives in the PRIVATE corpus repo's own
+# ws7-prints/v4/exclusions.json -- this dict only carries what this PUBLIC
+# repo needs: the doc_name these tests already use (real key or public_alias,
+# same resolution CAPTURED_DOCS_V4 itself uses) and a reason safe to publish
+# (a fixtures-ws5/jon-floppies/ws7-private document's OWN real path never
+# appears here -- only the public sawyer/ document it duplicates, same privacy
+# rule PRINTS_SUBDIR_V4's docstring states for divergence reports).
+#
+# These names STAY in CAPTURED_DOCS_V4/CAPTURED_DOCS (the pytest tier still
+# collects a case for each -- 261 total, unchanged) so the gate skips them BY
+# NAME with this reason printed, every run, rather than silently shrinking the
+# parametrize list. The ACTIVE tier size (the denominator that matters for a
+# pass-rate claim) is 261 - 26 = 235 -- regenerate_manifest below writes a
+# verdict='excluded' placeholder for each (never a real doc_report()), so a
+# future `--record` run reproduces the skip without recomputing anything, and
+# a future v4 capture round finds these names pre-excluded rather than
+# rediscovering the same ruling.
+EXCLUDED_V4 = {
+    'sawyer__REF__PS_EXT_TST': "postscript: PostScript-targeted document (sawyer/REF/PS.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
+    'privgroup-c-v4-007': "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/REF/PS.TST -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
+    'sawyer__PSPRINT_EXT_TST': "postscript: PostScript-targeted document (sawyer/PSPRINT.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
+    'sawyer__RTF-RJS__NOVEL_EXT_WS': "postscript: PostScript-targeted document (sawyer/RTF-RJS/NOVEL.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
+    'privgroup-c-v4-005': "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/RTF-RJS/NOVEL.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
+    'sawyer__OLDTIMES_EXT_WS': "freeze: WordStar itself freezes printing sawyer/OLDTIMES.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)",
+    'privgroup-c-v4-006': "freeze: WordStar itself freezes printing this document (byte-identical duplicate of sawyer/OLDTIMES.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)",
+    'privgroup-c-v4-001': "duplicate: byte-identical duplicate of sawyer/REF/-ATTRIB.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'privgroup-c-v4-003': "duplicate: byte-identical duplicate of sawyer/RTF-RJS/MARKUP.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'privgroup-c-v4-004': "duplicate: byte-identical duplicate of sawyer/REF/NOTES.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'privgroup-c-v4-008': "duplicate: byte-identical duplicate of sawyer/RTF-RJS/RTFDS.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'privgroup-c-v4-009': "duplicate: byte-identical duplicate of sawyer/REF/SUB-SUPE.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'privgroup-c-v4-011': "duplicate: byte-identical duplicate of sawyer/REF/WSFORMAT.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__BOX': "duplicate: byte-identical duplicate of sawyer/BOX.WS (sawyer/DEFAULT/BOX is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__DEFAULT_EXT_WS': "duplicate: byte-identical duplicate of sawyer/REGULAR.WS (sawyer/DEFAULT/DEFAULT.WS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__INSET__GRAPHICS_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/INSET/GRAPHICS.DOC (sawyer/DEFAULT/INSET/GRAPHICS.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__LIST_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/LIST.DOC (sawyer/DEFAULT/LIST.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__MAILING_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/MAILING.DOC (sawyer/DEFAULT/MAILING.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__PLAYBILL_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/PLAYBILL.DOC (sawyer/DEFAULT/PLAYBILL.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__PLAYS_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/PLAYS.DOC (sawyer/DEFAULT/PLAYS.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__REVIEW_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/REVIEW.DOC (sawyer/DEFAULT/REVIEW.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__SHAKE_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/SHAKE.DOC (sawyer/DEFAULT/SHAKE.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__DEFAULT__SPELL_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/SPELL.DOC (sawyer/DEFAULT/SPELL.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__PRINTERS__FONTCRIB_EXT_PS': "duplicate: byte-identical duplicate of sawyer/PRINTER.PS (sawyer/PRINTERS/FONTCRIB.PS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__REF__BOOKLET_EXT_RJS': "duplicate: byte-identical duplicate of sawyer/REF/-HOW-TO.RJS (sawyer/REF/BOOKLET.RJS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+    'sawyer__TAGS__OK': "duplicate: byte-identical duplicate of sawyer/TAGS/CHECKED (sawyer/TAGS/OK is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
+}
+
 MANIFEST_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'tests', 'pcl_fidelity_manifest.json')
@@ -1671,10 +1728,28 @@ def _v4_private_placeholder(doc_name: str, group: str) -> dict:
                        f'real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS')}
 
 
+def _excluded_placeholder(doc_name: str, reason: str) -> dict:
+    """The COMMITTED manifest entry for a document in EXCLUDED_V4 (planning
+    #224/#226, ruled 2026-09-08): verdict 'excluded', no counts, no
+    divergences -- doc_report() is never called for these during --record,
+    same reasoning _v4_private_placeholder gives for source-missing (no live
+    recomputation needed to know a document is excluded; excluding it is the
+    ruling, not a measurement). Distinct verdict from 'source-missing' so the
+    two skip reasons never get confused reading the manifest: 'source-missing'
+    means "not resolvable in this environment", 'excluded' means "resolvable,
+    but Jon ruled this document out of the tier" (postscript/freeze/duplicate
+    -- see EXCLUDED_V4's own docstring for which)."""
+    return {'doc': doc_name, 'verdict': 'excluded', 'source_ws': None,
+            'counts_by_reason': {}, 'divergences': [], 'reason': reason}
+
+
 def regenerate_manifest(doc_names=None) -> dict:
     doc_names = doc_names or CAPTURED_DOCS
     documents = {}
     for name in doc_names:
+        if name in EXCLUDED_V4:
+            documents[name] = _excluded_placeholder(name, EXCLUDED_V4[name])
+            continue
         v4_group = fg.v4_doc_group(name) if name in CAPTURED_DOCS_V4 else None
         if v4_group is not None and v4_group not in PUBLIC_SOURCE_GROUPS:
             print(f'pcl_tolerance: {name}: private-group v4 placeholder (not run)',
