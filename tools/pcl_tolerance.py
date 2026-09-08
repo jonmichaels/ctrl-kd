@@ -1406,6 +1406,28 @@ def _relative_source(path):
 PUBLIC_SOURCE_GROUPS = {'sawyer', 'pd-samples'}
 
 
+def _doc_source_group(doc_name: str):
+    """The corpus 'group' for ANY captured document, v1 or v4 -- checks
+    v1's own sources.json index first (doc_name as a direct key), then
+    v4's (fg.v4_doc_group). None if unresolvable (index unavailable, or
+    doc_name matches neither) -- callers must treat None as "unknown, not
+    provably public" rather than assuming public. Factored out of
+    `_source_ws_for_report` (planning #235/#230 re-baseline, 2026-09-08)
+    so `regenerate_manifest` can gate ALL private-group documents through
+    the same placeholder mechanism, not just v4's (see
+    `_private_placeholder`'s own docstring for why that gate needs to
+    cover v1 too now)."""
+    if not fg._PRIVATE_CORPUS_ROOT:
+        return None
+    prints_dir = os.path.join(fg._PRIVATE_CORPUS_ROOT, 'ws7-prints', fg.PRINTS_SUBDIR)
+    index = fg._load_sources_index(prints_dir)
+    if index is not None:
+        entry = index.get('captures', {}).get(doc_name)
+        if entry is not None:
+            return entry.get('group')
+    return fg.v4_doc_group(doc_name)
+
+
 def _source_ws_for_report(doc_name: str, ws_path):
     """The 'source_ws' value safe to put in a report/manifest for
     `doc_name`, resolved via ws_path. When the corpus's sources.json index
@@ -1425,16 +1447,9 @@ def _source_ws_for_report(doc_name: str, ws_path):
     fg.resolve_v4_capture's caller having to remember to ask twice)."""
     if ws_path is None:
         return None
-    if fg._PRIVATE_CORPUS_ROOT:
-        prints_dir = os.path.join(fg._PRIVATE_CORPUS_ROOT, 'ws7-prints', fg.PRINTS_SUBDIR)
-        index = fg._load_sources_index(prints_dir)
-        if index is not None:
-            entry = index.get('captures', {}).get(doc_name)
-            if entry is not None and entry.get('group') not in PUBLIC_SOURCE_GROUPS:
-                return f'{doc_name}: source path withheld (non-public corpus group)'
-        v4_group = fg.v4_doc_group(doc_name)
-        if v4_group is not None and v4_group not in PUBLIC_SOURCE_GROUPS:
-            return f'{doc_name}: source path withheld (non-public corpus group)'
+    group = _doc_source_group(doc_name)
+    if group is not None and group not in PUBLIC_SOURCE_GROUPS:
+        return f'{doc_name}: source path withheld (non-public corpus group)'
     return _relative_source(ws_path)
 
 
@@ -1804,6 +1819,44 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
 
 
 # --------------------------------------------------------------- manifest
+def _v1_private_non_clean_placeholder(doc_name: str, group: str, live: dict) -> dict:
+    """The COMMITTED manifest entry for one of v1's own six private-group
+    documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) once it stops being clean.
+
+    Found 2026-09-08 re-baselining planning #230's page-membership fix:
+    DOCA and DOCE, previously always 'clean' (nothing in `divergences` to
+    leak -- see `_v4_private_placeholder`'s own docstring on why v1's
+    real-verdicts-source-redacted precedent was ever considered safe),
+    turned up real page-membership divergences the moment that fix ran --
+    and doc_report()'s own `divergences` entries embed literal WORDS
+    from the source (`words: [ws7_text, engine_text]`). Committing them
+    as-is would put private document TEXT into this PUBLIC repo for the
+    first time, breaking the exact precondition ("happened to land on
+    all-clean") the old precedent depended on.
+
+    `live` is the ALREADY-COMPUTED doc_report() result (computing it is
+    not new risk -- these six have always been fully evaluated locally,
+    every run, since before v4 existed; only WHAT GETS WRITTEN changes
+    here) -- this keeps its verdict/page counts (plain integers, nothing
+    to redact) but drops `counts_by_reason`/`divergences`/
+    `document_frame_offset_pt` entirely, converging to the exact same
+    'source-missing'-shaped skip test_pcl_fidelity.py already treats as
+    non-failing for a private-group v4 placeholder. Jon's ruling needed
+    on whether to harden ALL SIX this way pre-emptively rather than only
+    the two that have actually gone non-clean so far (flagged, not
+    decided here)."""
+    return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
+            'capture_set': live.get('capture_set'), 'install': live.get('install'),
+            'n_ws7_pages': live.get('n_ws7_pages'), 'n_engine_pages': live.get('n_engine_pages'),
+            'counts_by_reason': {}, 'divergences': [],
+            'reason': (f'private corpus group ({group}) -- this document is no longer '
+                       f'all-clean (real verdict {live.get("verdict")!r}), so its real '
+                       f'counts/divergences are withheld the same way a private-group v4 '
+                       f'document always is (see _v1_private_non_clean_placeholder\'s own '
+                       f'docstring); resolved and compared for real only in a locally-armed '
+                       f'run against $CTRLKD_PRIVATE_CORPUS')}
+
+
 def _v4_private_placeholder(doc_name: str, group: str) -> dict:
     """The COMMITTED manifest entry for a private-group v4 document
     (jon-floppies/fixtures-ws5/ws7-private -- see fg.PRINTS_SUBDIR_V4's
@@ -1814,20 +1867,22 @@ def _v4_private_placeholder(doc_name: str, group: str) -> dict:
     verdicts/counts, source_ws redacted) -- not because that precedent was
     wrong, but because it was reviewed document-by-document (each entry's
     own hand-written provenance note) and happened to land on all-clean
-    results with nothing in `divergences` to leak. That review does not
-    scale to 64 documents, and doc_report()'s own `divergences` entries
-    embed literal WORDS from the source (`words: [ws7_text, engine_text]`)
-    -- committing a real report for one of Jon's private WS4 papers or
-    fixtures-ws5 test documents risks putting document TEXT into this
-    PUBLIC repo the moment that document has even one real divergence.
-    So this function is called INSTEAD OF doc_report() for these 64 --
-    doc_report() is never even invoked for them during --record, and no
-    real content from the private corpus enters this process's memory on
-    the path that writes the committed file. (A locally-armed live
-    `pt.doc_report(doc_name)` call still computes the real thing -- see
-    fg.resolve_v4_capture -- for the private workshop driver
-    and for Jon's own vault-side analysis, neither of which commits its
-    output here.)"""
+    results with nothing in `divergences` to leak (UPDATE 2026-09-08: two
+    of those six no longer do -- see _v1_private_non_clean_placeholder,
+    called for those now instead of committing their real report). That
+    review does not scale to 64 documents, and doc_report()'s own
+    `divergences` entries embed literal WORDS from the source (`words:
+    [ws7_text, engine_text]`) -- committing a real report for one of
+    Jon's private WS4 papers or fixtures-ws5 test documents risks putting
+    document TEXT into this PUBLIC repo the moment that document has even
+    one real divergence. So this function is called INSTEAD OF doc_report()
+    for these 64 -- doc_report() is never even invoked for them during
+    --record, and no real content from the private corpus enters this
+    process's memory on the path that writes the committed file. (A
+    locally-armed live `pt.doc_report(doc_name)` call still computes the
+    real thing -- see fg.resolve_v4_capture -- for the private Swift
+    engine's own fidelity driver and for Jon's own vault-side analysis,
+    neither of which commits its output here.)"""
     capture = fg.resolve_v4_capture(doc_name)
     return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
             'counts_by_reason': {}, 'divergences': [],
@@ -1867,7 +1922,21 @@ def regenerate_manifest(doc_names=None) -> dict:
             documents[name] = _v4_private_placeholder(name, v4_group)
             continue
         print(f'pcl_tolerance: running {name}...', file=sys.stderr)
-        documents[name] = doc_report(name)
+        live = doc_report(name)
+        # planning #230 re-baseline, 2026-09-08: one of v1's own six
+        # private-group documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) can stop
+        # being clean (see _v1_private_non_clean_placeholder's own
+        # docstring) -- when that happens, never commit its real
+        # counts/divergences, the same rule v4's own private-group
+        # documents already follow unconditionally.
+        if live.get('verdict') not in ('clean', 'source-missing'):
+            group = _doc_source_group(name)
+            if group is not None and group not in PUBLIC_SOURCE_GROUPS:
+                print(f'pcl_tolerance: {name}: private-group v1 document went non-clean -- '
+                      f'withholding its real report (see _v1_private_non_clean_placeholder)',
+                      file=sys.stderr)
+                live = _v1_private_non_clean_placeholder(name, group, live)
+        documents[name] = live
     manifest = {
         'generator': 'tools/pcl_tolerance.py --record',
         'note': ('Checked-in answer key for tests/test_pcl_fidelity.py (the `pcl` pytest '

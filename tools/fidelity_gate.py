@@ -409,7 +409,7 @@ def resolve_v4_capture(doc_name: str) -> dict:
     'source_ws' string, regenerate_manifest for whether a real verdict is
     committed at all), never to whether this function can resolve the
     document, so a locally-armed live run (this repo's own `pcl` tier, or
-    the private workshop driver) always sees the real
+    the private Swift engine's own fidelity driver) always sees the real
     comparison. `install` is per-document here (unlike
     DEFAULT_INSTALL_BY_SUBDIR's one-per-capture-set default): v4's own
     'tree' field ('pristine' or 'sawyer') names which install captured
