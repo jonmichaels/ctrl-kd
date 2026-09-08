@@ -27,47 +27,49 @@ evidence -- it does not go green just because the number was written down
 once (see tests/conftest.py's "a skipped check is not a passing check"
 doctrine, same spirit applied to a failing one).
 
-TIER SIZE (planning #180 phase 2, "tests expanded", 2026-09-08):
-pt.CAPTURED_DOCS carries 261 documents -- the original 18 (pt.
+TIER SIZE (planning #180 phase 2, "tests expanded", 2026-09-08;
+re-scoped to PUBLIC documents only by planning #243, 2026-09-08 --
+Jon's ruling: "Sawyer docs all must be in tier 2"): pt.CAPTURED_DOCS
+carries 194 documents -- the original 12 public ones (pt.
 CAPTURED_DOCS_V1V3, v1/v2/v3 captures, the fail-by-name law above applies
-to these UNCHANGED) plus 243 from the ws7-prints/v4/ expansion (pt.
-CAPTURED_DOCS_V4 -- 291 real captures minus 48 mail-merge files that print
-empty by design). The 243 run in a different, deliberately looser bar
-(pt.INVENTORY_MODE_DOCS): every one still executes doc_report() and still
-PRINTS every named divergence (see the real_bugs branch below), but does
-not pytest.fail on them -- untriaged, pending Jon's per-cause ruling. A
-manifest DRIFT (a live run disagreeing with the checked-in answer key)
-still fails for every document in both sets, unconditionally: this is
-inventory, not a suppression -- see that branch's own comment. 64 of the
-243 (the private-corpus-group documents: jon-floppies, fixtures-ws5,
-ws7-private) are committed as 'source-missing' placeholders in THIS
-PUBLIC manifest and therefore SKIP here even when armed (same as any
-other source-missing document) -- their real comparison only ever runs
-against a locally-armed $CTRLKD_PRIVATE_CORPUS, never lands in this
-repo's own committed file, because a real report for one of them can
-embed literal document text in `divergences` (see pcl_tolerance.
-_v4_private_placeholder's own docstring).
+to these UNCHANGED) plus 182 PUBLIC (Sawyer-group) documents from the
+ws7-prints/v4/ expansion (pt.CAPTURED_DOCS_V4). The 182 run in a
+different, deliberately looser bar (pt.INVENTORY_MODE_DOCS): every one
+still executes doc_report() and still PRINTS every named divergence (see
+the real_bugs branch below), but does not pytest.fail on them --
+untriaged, pending Jon's per-cause ruling. A manifest DRIFT (a live run
+disagreeing with the checked-in answer key) still fails for every
+document in both sets, unconditionally: this is inventory, not a
+suppression -- see that branch's own comment. Private-corpus-group
+documents are Tier 3 (planning #243): not enumerated, aliased, or
+resolved anywhere in this public repo at all any more -- tested
+exclusively from the private engine repo's own driver, against the
+private corpus's own index directly, never landing in this repo's
+committed manifest (a real report for one of them can embed literal
+document text in `divergences`, exactly the risk Tier 3 exists to avoid).
 
-EXCLUSIONS (planning #224/#226, ruled 2026-09-08): 28 more of the 243 are
-committed as 'excluded' placeholders (pt.EXCLUDED_V4) -- 3 PostScript-
-targeted documents whose typeface IDs the tier's font table has never
-classified (planning #224), 21 duplicate/freeze documents excluded so the
-same byte-identical content, or a document WordStar itself refuses to
-print, isn't judged twice or gated at all (planning #226), and 2 documents
-that turn form feeds off (.xl 00), which WS7 prints as multiple pages
-overprinted onto one physical sheet -- unrepresentable as PDF pages, a
-standing parked issue (planning #15, no new issue opened for this).
-Also SKIP here, same as source-missing, but with verdict 'excluded' and a
-distinct reason (see the `recorded['verdict'] == 'excluded'` branch below)
-so the two skip causes never get confused in the output. The ACTIVE tier
-size -- what actually gets a doc_report() and either fails-by-name or runs
-in inventory mode -- is 261 - 28 = 233: the 18 original + 215 of the 243
-v4 documents. `pt.CAPTURED_DOCS`/`pt.CAPTURED_DOCS_V4` themselves are
-UNCHANGED (still 261/243) -- this test still collects and skips-by-name
-the 28 excluded cases every run, rather than shrinking the parametrize
-list, so a live `pytest -m pcl -rA` always names every excluded document
-and its reason. Full detail (sha256, which half of a duplicate pair was
-kept) lives in the private corpus repo's ws7-prints/v4/exclusions.json.
+EXCLUSIONS (planning #224/#226, ruled 2026-09-08; re-scoped to public
+documents only by #243): 20 of the 182 are committed as 'excluded'
+placeholders (pt.EXCLUDED_V4) -- 3 PostScript-targeted documents whose
+typeface IDs the tier's font table has never classified (planning #224),
+13 duplicate documents + 1 freeze document excluded so the same
+byte-identical content, or a document WordStar itself refuses to print,
+isn't judged twice or gated at all (planning #226), 2 documents that turn
+form feeds off (.xl 00), which WS7 prints as multiple pages overprinted
+onto one physical sheet -- unrepresentable as PDF pages, a standing
+parked issue (planning #15, no new issue opened for this), and 1 further
+'parked' document (planning #228). Also SKIP here, same
+as source-missing, but with verdict 'excluded' and a distinct reason (see
+the `recorded['verdict'] == 'excluded'` branch below) so the two skip
+causes never get confused in the output. The ACTIVE tier size -- what
+actually gets a doc_report() and either fails-by-name or runs in
+inventory mode -- is 194 - 20 = 174. `pt.CAPTURED_DOCS`/
+`pt.CAPTURED_DOCS_V4` themselves are UNCHANGED (still 194/182) -- this
+test still collects and skips-by-name the 20 excluded cases every run,
+rather than shrinking the parametrize list, so a live `pytest -m pcl -rA`
+always names every excluded document and its reason. Full detail (sha256,
+which half of a duplicate pair was kept) lives in the private corpus
+repo's ws7-prints/v4/exclusions.json.
 
 The test also fails if a LIVE run's divergence set has drifted from the
 manifest -- regenerate with `python3 tools/pcl_tolerance.py --record` and
@@ -149,7 +151,7 @@ def test_pcl_fidelity(doc_name):
         msg = (f'{doc_name}: {len(real_bugs)} non-font-substitution divergence(s) recorded '
                f'(counts_by_reason={live["counts_by_reason"]}):\n{lines}{tail}')
         # planning #180 phase 2 ("tests expanded", 2026-09-08), Task 6: the v4
-        # expansion (243 documents, pt.CAPTURED_DOCS_V4/pt.INVENTORY_MODE_DOCS)
+        # expansion (182 public documents, pt.CAPTURED_DOCS_V4/pt.INVENTORY_MODE_DOCS)
         # runs in INVENTORY mode -- printed (still names every divergent
         # document, still visible in `pytest -rA`/a failed run's captured
         # stdout) but NON-FAILING, until Jon rules on each cause. This is NOT
@@ -158,9 +160,9 @@ def test_pcl_fidelity(doc_name):
         # branch still executes doc_report() and inspects every divergence --
         # nothing here is bypassed or hidden) -- it is a deliberately
         # different BAR for a batch that hasn't been triaged yet, same
-        # distinction the original 18's own "clean vs divergent, never
+        # distinction the original 12's own "clean vs divergent, never
         # silently accepted" law draws for font-substitution vs everything
-        # else. The original 18 are UNCHANGED: still fail by name here.
+        # else. The original 12 are UNCHANGED: still fail by name here.
         if doc_name in pt.INVENTORY_MODE_DOCS:
             print(f'{doc_name}: INVENTORY (v4 expansion, non-failing pending Jon\'s ruling on '
                   f'each cause) -- {msg}')

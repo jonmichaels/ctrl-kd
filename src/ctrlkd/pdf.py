@@ -552,7 +552,7 @@ def _pgnum_checkpoints(doc):
     the automatic page number ON, centered at the bottom margin, unless
     `.op` turns it off). REVERSED 2026-09-07 (ws7-prints/v3, the
     PRISTINE.EXE recapture, finding #2 -- v3/README.md): every one of
-    BOXES/DOCA/DOCB/DOCD/DOCE/SAWYER/DOCF/VERSIONS/-README, none of which
+    BOXES/SAWYER/VERSIONS/-README plus several private-corpus documents, none of which
     touch `.pn`/`.pg`/`.op`/`.pc`, prints a bottom-of-page "1"/"2"/"3"...
     under a genuinely stock (PRISTINE.EXE) install, confirmed at the raw
     PCL byte level -- and the engine's OWN existing `.po`/`.pc`-derived x
@@ -4567,7 +4567,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
 # reduced size is "the x-height... of the original height" and gives ONE
 # worked example -- 12pt Times Roman -> 8.1pt (ratio 0.675) -- but that ratio
 # is Times Roman's own, not a universal constant: raw PCL from two
-# independent real WS7 captures (DOCC.pcl, -SCREEN.pcl -- byte-identical
+# independent real WS7 captures (a private paper's own .pcl, -SCREEN.pcl -- byte-identical
 # `ESC(sp9.25v13.04hsb4099T` font-select command in both, typeface 4099 =
 # Courier) measures Courier's own ratio at 9.25pt from a 12pt body = 0.7708,
 # a DIFFERENT number. Confirms the manual's own wording: this is a real,
@@ -4706,7 +4706,7 @@ def _span_pitch(entry, pt):
 #     REDUCED sup/sub size (`_sized`'s own return) -- narrowing the cell
 #     TWICE (once for the smaller drawn glyph, a second time implicitly via
 #     `pt`) to 4.8pt, 0.7pt narrower than WS7's real 5.5pt, landing
-#     everything after it that same 0.7pt too far LEFT (DOCC). Passing
+#     everything after it that same 0.7pt too far LEFT (a private paper). Passing
 #     `body_pt` (the span's own UNREDUCED declared size, `size_here` at the
 #     call site) rather than the already-reduced `pt` fixes both shapes with
 #     the one call: `_span_pitch(entry, body_pt)` always answers "the span's

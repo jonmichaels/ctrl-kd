@@ -122,10 +122,10 @@ def test_ruler_marks_columnar():
 # ---------------------------------------------------------------- print streams
 
 def test_printstream_superscript_and_ff():
-    data = b'treaties with Indians.\x181\x12  More text\r\n\x14page one\r\n\x0cpage two\r\n'
+    data = b'the notes say.\x181\x12  More text\r\n\x14page one\r\n\x0cpage two\r\n'
     doc = core.parse_printstream(data)
     txt = emit.emit_text(doc, 'printed')
-    assert 'treaties with Indians.1' in txt.replace('\n', ' ')
+    assert 'the notes say.1' in txt.replace('\n', ' ')
     spans = doc.blocks[0].lines[0].spans
     assert any(s.text == '1' and 'sup' in s.styles for s in spans)
     assert any(b.kind == 'pagebreak' for b in doc.blocks)
@@ -4466,7 +4466,7 @@ def _basefonts(pdf):
 # in a fixed-pitch document is not merely a smaller glyph at the ambient
 # pitch -- it is a DEDICATED, narrower pitch, an independent field of the
 # same font-select command, restored to the body's own values immediately on
-# exit. Two independent real WS7 captures (-SCREEN.pcl, DOCC.pcl -- both
+# exit. Two independent real WS7 captures (-SCREEN.pcl, a private paper's own .pcl -- both
 # Courier, typeface id 4099) carry the byte-identical font-select pair
 # `ESC(sp12v10.00hsb4099T` (body: 12pt, 10.00cpi = 7.2pt/char cell) /
 # `ESC(sp9.25v13.04hsb4099T` (sup/sub: 9.25pt, 13.04cpi = 5.5pt/char cell).
@@ -4500,18 +4500,18 @@ def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
 
 
 def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
-    """WS4 shape (DOCC.WS4's own oracle): a span with NO font block at all
+    """WS4 shape (a private WS4 paper's own oracle): a span with NO font block at all
     (`entry` is `None`). Before mechanism G, `_span_pitch(None, pt)` fell
     back to `pt * 0.6` where `pt` was already `_sized`'s REDUCED size (8, the
     old flat 2/3 ratio) -- narrowing the cell TWICE (once for the smaller
     drawn glyph, again via the reduced `pt`) to 4.8pt, 0.7pt narrower than
     WS7's real 5.5pt, landing everything after it 0.7pt too far LEFT --
-    exactly DOCC's own recorded residual sign and magnitude. `size_here`
+    exactly that paper's own recorded residual sign and magnitude. `size_here`
     (the span's UNREDUCED declared size) now drives the body-cell lookup
     instead, so a fontless span's own body cell (12pt document default * 0.6
     = 7.2pt) narrows ONCE, to the same 5.5pt the WS7-font-block shape gets.
     'cd.' (3 chars, no font block, no space before the toggle -- matching
-    DOCC's own 'Indians.^T1^T' shape exactly) ends its body run at
+    that paper's own equivalent shape exactly) ends its body run at
     left + 3*7.2; the sup '1' then occupies 5.5pt, not 4.8pt."""
     from ctrlkd.pdf import emit_pdf
     data = b'cd.' + bytes([0x14]) + b'1' + bytes([0x14 | 0x80]) + b'  ef' + HARD
@@ -5030,7 +5030,7 @@ def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
     full `fi` (test_pm_first_line_indent_still_applies_with_no_typed_
     indent, and this file's own test_pm_shifts_printed_pdf_first_line_
     start_x), a typed indent AT OR PAST `.pm`'s column adds nothing more
-    (this file's own new test above) -- a typed indent PART way there is
+    (this file's own new test above) -- a typed indent PARTWAY there is
     the one point on that line the pre-fix code never got right either
     (it always double-counted), so this pins the formula, not a specific
     oracle reading. Same fontless shape as the sibling test above: the

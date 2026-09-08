@@ -29,7 +29,20 @@ PAT_SHAPE='(~/[A-Za-z]|/home/[A-Za-z]|/Users/[A-Za-z]|/mnt/[A-Za-z]|/root/[A-Za-
 #    after `worker@<host>` sat in 319 commits unnoticed).
 PAT_HOSTS='(hum[u]ng\.us|chon[k]y|borg[c]ube|noi[s]y|hea[r]th|grogn[a]rd)'
 
-PAT="($PAT_NAMES|$PAT_SHAPE|$PAT_HOSTS)"
+# 4. Private WordStar document aliases (planning #243, 2026-09-08): six
+#    short v1/v3 aliases for Jon's own private WS4 papers -- \b-anchored
+#    because two of them (H[E]R, PA[R]T) are ordinary lowercase English
+#    words too; this pattern is uppercase-only (grep -E has no -i flag
+#    here) and boundary-anchored so it never fires on "their"/"depart" or
+#    on all-caps prose that merely CONTAINS one as a substring. Plus the
+#    private-corpus-group v4 alias SHAPE ('<group>-v4-<NNN>', tools/
+#    fidelity_gate.py's own public_alias convention) so a future re-
+#    introduction of the 64 removed jon-floppies/fixtures-ws5/ws7-private
+#    entries trips this guard immediately rather than needing rediscovery.
+PAT_DOCNAMES='\b(G[A]Y|H[E]R|IN[D]IAN|I[W]W|PA[R]T|SU[D]AN)\b'
+PAT_PRIVGROUP='(j[o]n-floppies|w[s]7-private|fixtures-w[s]5)-v4-[0-9]'
+
+PAT="($PAT_NAMES|$PAT_SHAPE|$PAT_HOSTS|$PAT_DOCNAMES|$PAT_PRIVGROUP)"
 
 # Files that carry the patterns by definition. Scanners must skip these rather
 # than the pattern being softened to accommodate them.

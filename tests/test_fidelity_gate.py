@@ -365,7 +365,7 @@ def test_engine_page_tokens_merges_a_superscript_inside_a_word():
     directly after a period, no typed space) -- this engine keeps ONE Td
     line and only applies a `Ts` rise for a raised character (mechanism
     G), so the two ops sit at zero gap and must merge into one word,
-    matching DOCC.WS's own real footnote-reference shape (WS7's own
+    matching a private WS4 paper's own real footnote-reference shape (WS7's own
     capture instead moves the PEN, landing the marker on a genuinely
     different y -- see tools/pcl_tolerance.py's own off-baseline
     stitching tests for that half, `_find_offbaseline_occupant`)."""

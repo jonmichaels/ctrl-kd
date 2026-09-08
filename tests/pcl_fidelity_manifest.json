@@ -19,54 +19,6 @@
         "iqr_dx": 0.0
       }
     },
-    "DOCA": {
-      "doc": "DOCA",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 6,
-      "n_engine_pages": 6,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "DOCB": {
-      "doc": "DOCB",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 1,
-      "n_engine_pages": 1,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "DOCC": {
-      "doc": "DOCC",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 9,
-      "n_engine_pages": 9,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "DOCD": {
-      "doc": "DOCD",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 9,
-      "n_engine_pages": 9,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
     "LJ6DTP": {
       "doc": "LJ6DTP",
       "verdict": "divergent",
@@ -2766,18 +2718,6 @@
         "iqr_dx": 0.0
       }
     },
-    "DOCE": {
-      "doc": "DOCE",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 9,
-      "n_engine_pages": 9,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
     "PREVIEW": {
       "doc": "PREVIEW",
       "verdict": "clean",
@@ -2862,18 +2802,6 @@
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
-    },
-    "DOCF": {
-      "doc": "DOCF",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "capture_set": "v3",
-      "install": "pristine",
-      "n_ws7_pages": 4,
-      "n_engine_pages": 4,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document, v1 or v4 (see _v1_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     },
     "TWAINLET": {
       "doc": "TWAINLET",
@@ -42002,6 +41930,23 @@
         "iqr_dx": 0.0
       }
     },
+    "sawyer__REF__PALATINO": {
+      "doc": "sawyer__REF__PALATINO",
+      "verdict": "clean",
+      "source_ws": "sawyer/REF/PALATINO",
+      "capture_set": "v4",
+      "install": "pristine",
+      "n_ws7_pages": 1,
+      "n_engine_pages": 1,
+      "no_substitute_word_count": 0,
+      "counts_by_reason": {},
+      "divergences": [],
+      "document_frame_offset_pt": {
+        "n": 0,
+        "median_dx": null,
+        "iqr_dx": null
+      }
+    },
     "sawyer__REF__PAPERPOR_EXT_EXT": {
       "doc": "sawyer__REF__PAPERPOR_EXT_EXT",
       "verdict": "clean",
@@ -46873,6 +46818,23 @@
         "n": 79,
         "median_dx": 0.0,
         "iqr_dx": 0.0
+      }
+    },
+    "sawyer__REF__U-UMLAUT_EXT_WS": {
+      "doc": "sawyer__REF__U-UMLAUT_EXT_WS",
+      "verdict": "clean",
+      "source_ws": "sawyer/REF/U-UMLAUT.WS",
+      "capture_set": "v4",
+      "install": "pristine",
+      "n_ws7_pages": 1,
+      "n_engine_pages": 1,
+      "no_substitute_word_count": 0,
+      "counts_by_reason": {},
+      "divergences": [],
+      "document_frame_offset_pt": {
+        "n": 0,
+        "median_dx": null,
+        "iqr_dx": null
       }
     },
     "sawyer__REF__WIN7MEM_EXT_WS": {
@@ -62623,6 +62585,23 @@
         "iqr_dx": 51.8
       }
     },
+    "sawyer__RTF-RJS__NOTITLE_EXT_WS": {
+      "doc": "sawyer__RTF-RJS__NOTITLE_EXT_WS",
+      "verdict": "clean",
+      "source_ws": "sawyer/RTF-RJS/NOTITLE.WS",
+      "capture_set": "v4",
+      "install": "pristine",
+      "n_ws7_pages": 1,
+      "n_engine_pages": 1,
+      "no_substitute_word_count": 0,
+      "counts_by_reason": {},
+      "divergences": [],
+      "document_frame_offset_pt": {
+        "n": 0,
+        "median_dx": null,
+        "iqr_dx": null
+      }
+    },
     "sawyer__RTF-RJS__NOVEL_EXT_WS": {
       "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
       "verdict": "excluded",
@@ -67001,628 +66980,6 @@
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
-    },
-    "privgroup-c-v4-001": {
-      "doc": "privgroup-c-v4-001",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/REF/-ATTRIB.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-c-v4-002": {
-      "doc": "privgroup-c-v4-002",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "sawyer-wschange",
-      "reason": "private corpus group (fixtures-ws5) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-c-v4-003": {
-      "doc": "privgroup-c-v4-003",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/RTF-RJS/MARKUP.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-c-v4-004": {
-      "doc": "privgroup-c-v4-004",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/REF/NOTES.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-c-v4-005": {
-      "doc": "privgroup-c-v4-005",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/RTF-RJS/NOVEL.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)"
-    },
-    "privgroup-c-v4-006": {
-      "doc": "privgroup-c-v4-006",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "freeze: WordStar itself freezes printing this document (byte-identical duplicate of sawyer/OLDTIMES.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)"
-    },
-    "privgroup-c-v4-007": {
-      "doc": "privgroup-c-v4-007",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/REF/PS.TST -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)"
-    },
-    "privgroup-c-v4-008": {
-      "doc": "privgroup-c-v4-008",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/RTF-RJS/RTFDS.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-c-v4-009": {
-      "doc": "privgroup-c-v4-009",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/REF/SUB-SUPE.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-c-v4-010": {
-      "doc": "privgroup-c-v4-010",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (fixtures-ws5) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-c-v4-011": {
-      "doc": "privgroup-c-v4-011",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "duplicate: byte-identical duplicate of sawyer/REF/WSFORMAT.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)"
-    },
-    "privgroup-a-v4-001": {
-      "doc": "privgroup-a-v4-001",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-002": {
-      "doc": "privgroup-a-v4-002",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-003": {
-      "doc": "privgroup-a-v4-003",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-004": {
-      "doc": "privgroup-a-v4-004",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-005": {
-      "doc": "privgroup-a-v4-005",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-006": {
-      "doc": "privgroup-a-v4-006",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-007": {
-      "doc": "privgroup-a-v4-007",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-008": {
-      "doc": "privgroup-a-v4-008",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-009": {
-      "doc": "privgroup-a-v4-009",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-010": {
-      "doc": "privgroup-a-v4-010",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-011": {
-      "doc": "privgroup-a-v4-011",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-012": {
-      "doc": "privgroup-a-v4-012",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-013": {
-      "doc": "privgroup-a-v4-013",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-014": {
-      "doc": "privgroup-a-v4-014",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-015": {
-      "doc": "privgroup-a-v4-015",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-016": {
-      "doc": "privgroup-a-v4-016",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-017": {
-      "doc": "privgroup-a-v4-017",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-018": {
-      "doc": "privgroup-a-v4-018",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-019": {
-      "doc": "privgroup-a-v4-019",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-020": {
-      "doc": "privgroup-a-v4-020",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-021": {
-      "doc": "privgroup-a-v4-021",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-022": {
-      "doc": "privgroup-a-v4-022",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-023": {
-      "doc": "privgroup-a-v4-023",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-024": {
-      "doc": "privgroup-a-v4-024",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-025": {
-      "doc": "privgroup-a-v4-025",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-026": {
-      "doc": "privgroup-a-v4-026",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-027": {
-      "doc": "privgroup-a-v4-027",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-028": {
-      "doc": "privgroup-a-v4-028",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-029": {
-      "doc": "privgroup-a-v4-029",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-030": {
-      "doc": "privgroup-a-v4-030",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-031": {
-      "doc": "privgroup-a-v4-031",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-032": {
-      "doc": "privgroup-a-v4-032",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-033": {
-      "doc": "privgroup-a-v4-033",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-034": {
-      "doc": "privgroup-a-v4-034",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-035": {
-      "doc": "privgroup-a-v4-035",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-036": {
-      "doc": "privgroup-a-v4-036",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-037": {
-      "doc": "privgroup-a-v4-037",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-038": {
-      "doc": "privgroup-a-v4-038",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-039": {
-      "doc": "privgroup-a-v4-039",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-040": {
-      "doc": "privgroup-a-v4-040",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-041": {
-      "doc": "privgroup-a-v4-041",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-042": {
-      "doc": "privgroup-a-v4-042",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-043": {
-      "doc": "privgroup-a-v4-043",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-044": {
-      "doc": "privgroup-a-v4-044",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-045": {
-      "doc": "privgroup-a-v4-045",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-046": {
-      "doc": "privgroup-a-v4-046",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-047": {
-      "doc": "privgroup-a-v4-047",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-048": {
-      "doc": "privgroup-a-v4-048",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-049": {
-      "doc": "privgroup-a-v4-049",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-050": {
-      "doc": "privgroup-a-v4-050",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-a-v4-051": {
-      "doc": "privgroup-a-v4-051",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (jon-floppies) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-b-v4-001": {
-      "doc": "privgroup-b-v4-001",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (ws7-private) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
-    },
-    "privgroup-b-v4-002": {
-      "doc": "privgroup-b-v4-002",
-      "verdict": "source-missing",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "capture_set": "v4",
-      "install": "pristine",
-      "reason": "private corpus group (ws7-private) -- this repo never commits a real verdict/divergence report for a private-group document (see _v4_private_placeholder's own docstring); resolved and compared for real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS"
     }
   }
 }

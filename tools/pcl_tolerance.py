@@ -182,22 +182,28 @@ import pcl_render as pr  # noqa: E402
 # as tests/SAWYER-CORPUS.md's tier-2 manifest. Update this list (and
 # regenerate the manifest, see `--record` below) only when planning #196
 # adds or removes a v1 capture; this file is the review point for that.
+#
+# Planning #243 (2026-09-08, Jon's ruling: "Sawyer docs all must be in
+# tier 2"): PUBLIC (Sawyer-group) v1/v3 documents only. Six private WS4
+# papers previously listed here by their own short aliases are Tier-3
+# only now -- tested exclusively from the private engine repo's own
+# driver, never enumerated, aliased, or resolved from this public repo.
 CAPTURED_DOCS_V1V3 = [
-    'BOXES', 'DOCA', 'DOCB', 'DOCC', 'DOCD', 'LJ6DTP', 'LYING', 'OCAPTAIN',
-    'DOCE', 'PREVIEW', '-README', 'SAWYER', '-SCREEN', 'SCRIPT', 'DOCF',
+    'BOXES', 'LJ6DTP', 'LYING', 'OCAPTAIN',
+    'PREVIEW', '-README', 'SAWYER', '-SCREEN', 'SCRIPT',
     'TWAINLET', 'VERSIONS', 'WARPRAYR',
 ]
-# planning #180 phase 2 ("tests expanded", 2026-09-08): the 243-document
-# ws7-prints/v4/ expansion -- single source of truth is
-# fg.CAPTURED_DOCS_V4 (fidelity_gate.py, alongside fg.resolve_v4_capture,
-# since that's where the v4 dispatch/resolution lives; this module just
-# re-exports it so every existing `pt.CAPTURED_DOCS_V4` reference some
-# callers may already expect from this module keeps working). CAPTURED_DOCS
-# below is the full 261-document pytest-parametrize list: the 18 original
-# v1/v3 documents (unchanged, still checked to the same fail-by-name
-# standard test_pcl_fidelity.py always has) PLUS the 243 v4 ones (run in
-# that same test's own "inventory" mode -- see INVENTORY_MODE_DOCS below
-# and that test file's own docstring update).
+# planning #180 phase 2 ("tests expanded", 2026-09-08): the ws7-prints/v4/
+# expansion -- single source of truth is fg.CAPTURED_DOCS_V4 (fidelity_
+# gate.py, alongside fg.resolve_v4_capture, since that's where the v4
+# dispatch/resolution lives; this module just re-exports it so every
+# existing `pt.CAPTURED_DOCS_V4` reference some callers may already
+# expect from this module keeps working). CAPTURED_DOCS below is the
+# full pytest-parametrize list: the 12 original v1/v3 documents
+# (unchanged, still checked to the same fail-by-name standard
+# test_pcl_fidelity.py always has) PLUS the (public-only, planning #243)
+# v4 ones (run in that same test's own "inventory" mode -- see
+# INVENTORY_MODE_DOCS below and that test file's own docstring update).
 CAPTURED_DOCS_V4 = fg.CAPTURED_DOCS_V4
 CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 # The set test_pcl_fidelity.py checks to decide whether a document's own
@@ -213,58 +219,49 @@ CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
 # ----------------------------------------------------------- v4 exclusions
-# (planning #224/#226, ruled 2026-09-08). Five classes beyond the 48 merge
-# files already absent from CAPTURED_DOCS_V4 above: 'postscript' (3 real
-# PostScript-targeted documents + their 2 fixtures-ws5 duplicates -- an
-# unclassified PS typeface ID, not a placement bug -- Jon's ruling 2026-09-08
-# 06:13), 'freeze' (OLDTIMES.WS + its fixtures-ws5 duplicate -- WordStar itself
-# freezes printing this document), 'duplicate' (the non-canonical half of 19
-# of the 42 byte-identical pairs recorded in the corpus's own
-# ws7-prints/v4/exclusions.json -- the other 23 pairs' duplicate half was
-# already one of the 48 merge files, or is one of the 5 postscript/freeze
-# names above, so isn't repeated here), 'formfeed-off' (2 documents that turn
-# form feeds off with the .xl dot command, so real WS7 overprints multiple
-# pages onto one physical sheet -- unrepresentable as PDF pages; standing
-# parked issue planning #15, this exclusion does not open a new issue -- see
-# EXCLUDED_V4's own two entries for which two documents and how they were
-# found), and 'parked' (planning #228, Jon's ruling 2026-09-08: an
-# investigated-but-unresolved single document, unconnected to any standing
-# parked issue -- see EXCLUDED_V4's own entry for detail. Named in every run,
-# same as the rest of this dict, so a future fix removes it from this list
-# rather than the gate silently going green on an unreviewed change).
+# (planning #224/#226, ruled 2026-09-08; re-scoped to PUBLIC documents only
+# by planning #243, 2026-09-08). Four classes beyond the 48 merge files
+# already absent from CAPTURED_DOCS_V4 above -- all PUBLIC (Sawyer-group)
+# documents; every exclusion whose duplicate half was itself a private-
+# corpus document was dropped along with #243's removal of the private v4
+# aliases, not just skipped: 'postscript' (2 real PostScript-targeted
+# documents -- an unclassified PS typeface ID, not a placement bug -- Jon's
+# ruling 2026-09-08 06:13), 'freeze' (OLDTIMES.WS -- WordStar itself
+# freezes printing this document), 'duplicate' (the non-canonical half of
+# byte-identical pairs recorded in the corpus's own ws7-prints/v4/
+# exclusions.json, both halves public), 'formfeed-off' (2 documents that
+# turn form feeds off with the .xl dot command, so real WS7 overprints
+# multiple pages onto one physical sheet -- unrepresentable as PDF pages;
+# standing parked issue planning #15, this exclusion does not open a new
+# issue -- see EXCLUDED_V4's own two entries for which two documents and
+# how they were found), and 'parked' (planning #228, Jon's ruling
+# 2026-09-08: an investigated-but-unresolved single document, unconnected
+# to any standing parked issue -- see EXCLUDED_V4's own entry for detail.
+# Named in every run, same as the rest of this dict, so a future fix
+# removes it from this list rather than the gate silently going green on
+# an unreviewed change).
 # Full detail (sha256, which half was kept, cross-references) lives
-# in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this dict
-# only carries what this PUBLIC repo needs: the doc_name these tests already
-# use (real key or public_alias, same resolution CAPTURED_DOCS_V4 itself
-# uses) and a reason safe to publish (a fixtures-ws5/jon-floppies/ws7-private
-# document's OWN real path never appears here -- only the public sawyer/
-# document it duplicates, same privacy rule PRINTS_SUBDIR_V4's docstring
-# states for divergence reports).
+# in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this
+# dict only carries what this PUBLIC repo needs: the doc_name these tests
+# already use (real key, same resolution CAPTURED_DOCS_V4 itself uses)
+# and a reason safe to publish (only public sawyer/ document names ever
+# appear here, per #243).
 #
-# These names STAY in CAPTURED_DOCS_V4/CAPTURED_DOCS (the pytest tier still
-# collects a case for each -- 261 total, unchanged) so the gate skips them BY
-# NAME with this reason printed, every run, rather than silently shrinking the
-# parametrize list. The ACTIVE tier size (the denominator that matters for a
-# pass-rate claim) is 261 - 29 = 232 (28 postscript/freeze/duplicate/
-# formfeed-off + 1 parked, as of planning #228) -- regenerate_manifest below writes a
-# verdict='excluded' placeholder for each (never a real doc_report()), so a
-# future `--record` run reproduces the skip without recomputing anything, and
-# a future v4 capture round finds these names pre-excluded rather than
-# rediscovering the same ruling.
+# These names STAY in CAPTURED_DOCS_V4/CAPTURED_DOCS (the pytest tier
+# still collects a case for each) so the gate skips them BY NAME with this
+# reason printed, every run, rather than silently shrinking the
+# parametrize list. The ACTIVE tier size (the denominator that matters
+# for a pass-rate claim) is len(CAPTURED_DOCS) - len(EXCLUDED_V4) --
+# regenerate_manifest below writes a verdict='excluded' placeholder for
+# each (never a real doc_report()), so a future `--record` run reproduces
+# the skip without recomputing anything, and a future v4 capture round
+# finds these names pre-excluded rather than rediscovering the same
+# ruling.
 EXCLUDED_V4 = {
     'sawyer__REF__PS_EXT_TST': "postscript: PostScript-targeted document (sawyer/REF/PS.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
-    'privgroup-c-v4-007': "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/REF/PS.TST -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
     'sawyer__PSPRINT_EXT_TST': "postscript: PostScript-targeted document (sawyer/PSPRINT.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
     'sawyer__RTF-RJS__NOVEL_EXT_WS': "postscript: PostScript-targeted document (sawyer/RTF-RJS/NOVEL.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
-    'privgroup-c-v4-005': "postscript: PostScript-targeted document, byte-identical duplicate of sawyer/RTF-RJS/NOVEL.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
     'sawyer__OLDTIMES_EXT_WS': "freeze: WordStar itself freezes printing sawyer/OLDTIMES.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)",
-    'privgroup-c-v4-006': "freeze: WordStar itself freezes printing this document (byte-identical duplicate of sawyer/OLDTIMES.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)",
-    'privgroup-c-v4-001': "duplicate: byte-identical duplicate of sawyer/REF/-ATTRIB.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
-    'privgroup-c-v4-003': "duplicate: byte-identical duplicate of sawyer/RTF-RJS/MARKUP.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
-    'privgroup-c-v4-004': "duplicate: byte-identical duplicate of sawyer/REF/NOTES.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
-    'privgroup-c-v4-008': "duplicate: byte-identical duplicate of sawyer/RTF-RJS/RTFDS.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
-    'privgroup-c-v4-009': "duplicate: byte-identical duplicate of sawyer/REF/SUB-SUPE.TST -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
-    'privgroup-c-v4-011': "duplicate: byte-identical duplicate of sawyer/REF/WSFORMAT.WS -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__DEFAULT__BOX': "duplicate: byte-identical duplicate of sawyer/BOX.WS (sawyer/DEFAULT/BOX is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__DEFAULT__DEFAULT_EXT_WS': "duplicate: byte-identical duplicate of sawyer/REGULAR.WS (sawyer/DEFAULT/DEFAULT.WS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__DEFAULT__INSET__GRAPHICS_EXT_DOC': "duplicate: byte-identical duplicate of sawyer/INSET/GRAPHICS.DOC (sawyer/DEFAULT/INSET/GRAPHICS.DOC is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
@@ -1051,15 +1048,15 @@ TRAILING_OCCUPANT_WINDOW_DP = 300  # 30pt -- how far past a printed line's own
                                    # last chunk to look for a footnote/
                                    # end-note reference marker that has no
                                    # following same-baseline chunk to bound
-                                   # a gap window against (DOCC.WS's own
+                                   # a gap window against (a private WS4 paper's own
                                    # footnote markers: 1-2 raised digits,
                                    # 9.25pt Courier, never wider than
                                    # ~11pt -- this is generous vs that,
                                    # while nowhere near a real word's own
                                    # width).
 SUPSUB_MAX_DY_DP = 80  # 8pt -- generous vs. every measured real WS7
-                       # super/subscript offset in this corpus (DOCC's
-                       # own footnote-reference superscript AND -SCREEN's
+                       # super/subscript offset in this corpus (a private WS4
+                       # paper's own footnote-reference superscript AND -SCREEN's
                        # own subscript demo both measure exactly 4.5pt of
                        # vertical offset from their line's own baseline),
                        # while comfortably short of a genuinely different
@@ -1071,8 +1068,8 @@ SUPSUB_MAX_DY_DP = 80  # 8pt -- generous vs. every measured real WS7
 def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp):
     """A super/subscript character sits on a DIFFERENT y than the line it
     visually belongs to -- WS7's own driver really does move the pen
-    vertically for it (confirmed directly: DOCC's own footnote-
-    reference '1' after 'Indians.' sits 4.5pt ABOVE its line's baseline;
+    vertically for it (confirmed directly: a private WS4 paper's own footnote-
+    reference sits 4.5pt ABOVE its line's baseline;
     -SCREEN's own subscript '2' in 'H2O' sits 4.5pt BELOW), unlike this
     engine's own PDF, which keeps the SAME Td line-position and only
     applies a `Ts` rise (mechanism G). Left un-stitched, a real super/
@@ -1263,7 +1260,7 @@ def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
         line_has_real_content = any(not _is_unreliable_to_align(pc['text'])
                                     for pc, _tc in normal_items)
         # A footnote/end-note reference at the very END of a printed line
-        # (DOCC.WS's own footnote markers, e.g. 'agreement.' + a raised
+        # (a private WS4 paper's own footnote markers, a raised
         # '2' with nothing else on that baseline after it) has no NEXT
         # same-baseline chunk to bound a gap window against at all -- the
         # loop above, which only ever looks BETWEEN two same-baseline
@@ -1821,11 +1818,11 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
 # --------------------------------------------------------------- manifest
 def _v1_private_placeholder(doc_name: str, group: str, live: dict) -> dict:
     """The COMMITTED manifest entry for any of v1's own six private-group
-    documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) -- UNCONDITIONALLY, regardless
+    documents -- UNCONDITIONALLY, regardless
     of live verdict.
 
-    Found 2026-09-08 re-baselining planning #230's page-membership fix: DOCA
-    and DOCE, previously always 'clean' (nothing in `divergences` to leak --
+    Found 2026-09-08 re-baselining planning #230's page-membership fix: two
+    of the six, previously always 'clean' (nothing in `divergences` to leak --
     see `_v4_private_placeholder`'s own docstring on why v1's real-verdicts-
     source-redacted precedent was ever considered safe), turned up real
     page-membership divergences the moment that fix ran -- and doc_report()'s
@@ -1867,24 +1864,23 @@ def _v1_private_placeholder(doc_name: str, group: str, live: dict) -> dict:
 
 def _v4_private_placeholder(doc_name: str, group: str) -> dict:
     """The COMMITTED manifest entry for a private-group v4 document
-    (jon-floppies/fixtures-ws5/ws7-private -- see fg.PRINTS_SUBDIR_V4's
-    own docstring): verdict 'source-missing', no counts, no divergences,
+    (see fg.PRINTS_SUBDIR_V4's own docstring): verdict 'source-missing', no counts, no divergences,
     same shape test_pcl_fidelity.py already treats as a clean skip for a
     Sawyer-archive-only document. This was originally a DELIBERATELY
-    STRICTER choice than v1's own precedent (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF
-    publishing real verdicts/counts, source_ws redacted) -- not because
-    that precedent was wrong at the time, but because it was reviewed
-    document-by-document (each entry's own hand-written provenance note)
-    and happened to land on all-clean results with nothing in `divergences`
-    to leak. UPDATE 2026-09-08: v1's own six now get this same unconditional
-    treatment too (see _v1_private_placeholder, planning #202 batch chore) --
-    review-by-hand does not scale to six any better than it does to 64, and
+    STRICTER choice than v1's own precedent (publishing real verdicts/
+    counts, source_ws redacted) -- not because that precedent was wrong
+    at the time, but because it was reviewed document-by-document (each
+    entry's own hand-written provenance note) and happened to land on
+    all-clean results with nothing in `divergences` to leak. UPDATE
+    2026-09-08: v1's own private-group documents now get this same
+    unconditional treatment too (see _v1_private_placeholder, planning
+    #202 batch chore) -- review-by-hand does not scale, and
     doc_report()'s own `divergences` entries embed literal WORDS from the source (`words:
     [ws7_text, engine_text]`) -- committing a real report for one of
-    Jon's private WS4 papers or fixtures-ws5 test documents risks putting
+    a private WS4 paper or a private test document risks putting
     document TEXT into this PUBLIC repo the moment that document has even
     one real divergence. So this function is called INSTEAD OF doc_report()
-    for these 64 -- doc_report() is never even invoked for them during
+    for private-group documents -- doc_report() is never even invoked for them during
     --record, and no real content from the private corpus enters this
     process's memory on the path that writes the committed file. (A
     locally-armed live `pt.doc_report(doc_name)` call still computes the
@@ -1931,11 +1927,11 @@ def regenerate_manifest(doc_names=None) -> dict:
             continue
         print(f'pcl_tolerance: running {name}...', file=sys.stderr)
         live = doc_report(name)
-        # planning #202 batch chore, 2026-09-08: v1's own six private-group
-        # documents (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF) never commit a real
+        # planning #202 batch chore, 2026-09-08: v1's own private-group
+        # documents never commit a real
         # verdict/counts/divergences, UNCONDITIONALLY -- not just once one
         # goes non-clean (that was the interim rule after planning #230's
-        # re-baseline turned up DOCA/DOCE's first real divergences; see
+        # re-baseline turned up the first real divergences on two of them; see
         # _v1_private_placeholder's own docstring for why "clean today"
         # was never a safe-forever precondition). doc_report() still runs,
         # for real, every time -- only what gets WRITTEN to the committed

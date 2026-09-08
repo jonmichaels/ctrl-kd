@@ -323,24 +323,23 @@ PRIVATE_DOCS = {
 # PUBLIC-REPO PRIVACY (the reason this needs its own resolution path, not
 # just a v3-shaped fallback): a v4 key for a PUBLIC_SOURCE_GROUPS member
 # (sawyer/pd-samples) is fine to publish verbatim -- it's already exactly
-# the shape sawyer-group v1 source_ws values take. A v4 key for anything
-# else (jon-floppies/ws7-private/fixtures-ws5, all private -- see
-# PUBLIC_SOURCE_GROUPS's own docstring in tools/pcl_tolerance.py) is NOT:
-# unlike v1's small, hand-curated, already-reviewed short aliases (DOCA,
-# DOCB, ...), the raw v4 key for one of these groups encodes the real
-# subdirectory/filename structure of Jon's private corpus directly in the
-# string (e.g. 'jon-floppies__WORK__HAMLET_EXT_WS4' -- a literal private
-# path with '/' swapped for '__'), which PUBLIC_SOURCE_GROUPS/
-# _source_ws_for_report exist specifically to keep out of this repo. So
-# every private-group v4 capture also carries a 'public_alias' field in
-# the corpus's own ws7-prints/v4/sources.json (added alongside this
-# change, not renaming/moving anything already there) -- a
-# content-free, sequential '<group>-v4-<NNN>' name (sorted by the real
-# key within its group, so it's reproducible from the corpus alone) that
-# THIS repo's CAPTURED_DOCS_V4 uses in place of the real key. Resolution
-# below checks both: a direct key hit (public groups, and any future
-# public-group v4 addition needs no further code change here) or an
-# alias hit via 'public_alias' (private groups).
+# the shape sawyer-group v1 source_ws values take. A v4 key for any other
+# (private) corpus group is NOT: the raw v4 key for one of those groups
+# encodes the real subdirectory/filename structure of a private corpus
+# directly in the string (e.g. group '__' subpath '__' name, '/' swapped
+# for '__'), which PUBLIC_SOURCE_GROUPS/_source_ws_for_report exist
+# specifically to keep out of this repo. Planning #243 (2026-09-08):
+# private-group v4 documents are not enumerated, aliased, or resolved by
+# this PUBLIC repo's own CAPTURED_DOCS_V4/regenerate_manifest at all any
+# more -- Tier 3 (the private corpus's own name/document list, and any
+# comparison against it) lives ONLY in the private engine repo's own
+# driver, which calls this module's functions directly with names it
+# already knows privately. A private-group capture MAY still carry a
+# content-free 'public_alias' field in the corpus's own ws7-prints/v4/
+# sources.json (a sequential '<group>-v4-<NNN>' name) for that private
+# driver's own convenience -- `_v4_lookup` below still resolves either a
+# direct key or an alias hit, but this repo's own CAPTURED_DOCS_V4 never
+# lists one, so neither is ever reached from a public run.
 PRINTS_SUBDIR_V4 = 'v4'
 
 
@@ -404,7 +403,7 @@ def resolve_v4_capture(doc_name: str) -> dict:
     never fire for a name that was never a v1 capture to begin with).
     Always resolves the REAL ws_path/measurements_path/pcl_path, public
     group or private -- exactly like v1 already does for its own private-
-    group members (DOCA, DOCB, ...): the privacy decision belongs to the
+    group members: the privacy decision belongs to the
     REPORT this data feeds (pcl_tolerance._source_ws_for_report for the
     'source_ws' string, regenerate_manifest for whether a real verdict is
     committed at all), never to whether this function can resolve the
@@ -438,18 +437,21 @@ def resolve_v4_capture(doc_name: str) -> dict:
 
 # A committed, explicit list -- same convention CAPTURED_DOCS (tools/
 # pcl_tolerance.py) already follows for v1/v2/v3, never a directory sweep.
-# 243 documents: the 291 ws7-prints/v4/ planned captures minus the 48
-# mail-merge DATA/FORMAT files that print empty by WordStar's own design
-# (excluded by Jon's ruling 2026-09-08 -- ws7-prints/v4/README.md's own
-# "Rulings" section). 179 are the real corpus-relative key from v4's own
-# sources.json (group in PUBLIC_SOURCE_GROUPS -- sawyer here, no
-# pd-samples group exists in this capture round); the remaining 64 are
-# the content-free 'public_alias' this repo's own privacy rule requires
-# for the three private groups (jon-floppies 51, fixtures-ws5 11,
-# ws7-private 2) -- see PRINTS_SUBDIR_V4's own docstring above. Generated
-# once from the corpus's own v4/sources.json (planning #180 phase 2); a
-# future v4 recapture needs a reviewed diff here, same as any other
-# CAPTURED_DOCS change.
+# Planning #243 (2026-09-08, Jon's ruling: "Sawyer docs all must be in
+# tier 2"): PUBLIC (Sawyer-group) v4 captures ONLY -- every one of the
+# real corpus-relative keys from v4's own sources.json whose group is in
+# PUBLIC_SOURCE_GROUPS (sawyer here; no pd-samples group exists in this
+# capture round), minus the 48 mail-merge DATA/FORMAT files that print
+# empty by WordStar's own design (excluded by Jon's ruling 2026-09-08 --
+# ws7-prints/v4/README.md's own "Rulings" section). Private-group v4
+# captures (previously listed here as content-free 'public_alias' names)
+# are NOT enumerated in this public repo at all any more -- Tier 3 (the
+# private documents) is tested exclusively from the private engine
+# repo's own driver, which resolves them directly against the private
+# corpus's own sources.json without this list ever naming or counting
+# them. Generated once from the corpus's own v4/sources.json (planning
+# #180 phase 2, re-scoped to public-only by #243); a future v4 recapture
+# needs a reviewed diff here, same as any other CAPTURED_DOCS change.
 CAPTURED_DOCS_V4 = [
     'sawyer__APP__-README_EXT_WS',
     'sawyer__APP__vDosPlus__-README_EXT_WS',
@@ -558,6 +560,7 @@ CAPTURED_DOCS_V4 = [
     'sawyer__REF__NOTES_EXT_TST',
     'sawyer__REF__Notes__690_EXT_TXT',
     'sawyer__REF__PAGESIZE_EXT_WS',
+    'sawyer__REF__PALATINO',
     'sawyer__REF__PAPERPOR_EXT_EXT',
     'sawyer__REF__PARAGRAP_EXT_NUM',
     'sawyer__REF__PDF_EXT_HOW',
@@ -574,6 +577,7 @@ CAPTURED_DOCS_V4 = [
     'sawyer__REF__SYMBOL_EXT_CHT',
     'sawyer__REF__TEMPFILE_EXT_WS',
     'sawyer__REF__TOCTRICK_EXT_WS',
+    'sawyer__REF__U-UMLAUT_EXT_WS',
     'sawyer__REF__WIN7MEM_EXT_WS',
     'sawyer__REF__WIN7_EXT_ETC',
     'sawyer__REF__WINDOS_EXT_HOW',
@@ -595,6 +599,7 @@ CAPTURED_DOCS_V4 = [
     'sawyer__RTF-RJS__2-DOUBLE_EXT_WS',
     'sawyer__RTF-RJS__LINKS_EXT_WS',
     'sawyer__RTF-RJS__MARKUP_EXT_WS',
+    'sawyer__RTF-RJS__NOTITLE_EXT_WS',
     'sawyer__RTF-RJS__NOVEL_EXT_WS',
     'sawyer__RTF-RJS__RTFDS_EXT_WS',
     'sawyer__RTF-RJS__RTF_EXT_WS',
@@ -630,70 +635,6 @@ CAPTURED_DOCS_V4 = [
     'sawyer__UTIL__DOSYMSEQ_EXT_WS',
     'sawyer__WORDSTAR_EXT_WS',
     'sawyer__WS-CON__SAMPLE_EXT_WS',
-    'privgroup-c-v4-001',
-    'privgroup-c-v4-002',
-    'privgroup-c-v4-003',
-    'privgroup-c-v4-004',
-    'privgroup-c-v4-005',
-    'privgroup-c-v4-006',
-    'privgroup-c-v4-007',
-    'privgroup-c-v4-008',
-    'privgroup-c-v4-009',
-    'privgroup-c-v4-010',
-    'privgroup-c-v4-011',
-    'privgroup-a-v4-001',
-    'privgroup-a-v4-002',
-    'privgroup-a-v4-003',
-    'privgroup-a-v4-004',
-    'privgroup-a-v4-005',
-    'privgroup-a-v4-006',
-    'privgroup-a-v4-007',
-    'privgroup-a-v4-008',
-    'privgroup-a-v4-009',
-    'privgroup-a-v4-010',
-    'privgroup-a-v4-011',
-    'privgroup-a-v4-012',
-    'privgroup-a-v4-013',
-    'privgroup-a-v4-014',
-    'privgroup-a-v4-015',
-    'privgroup-a-v4-016',
-    'privgroup-a-v4-017',
-    'privgroup-a-v4-018',
-    'privgroup-a-v4-019',
-    'privgroup-a-v4-020',
-    'privgroup-a-v4-021',
-    'privgroup-a-v4-022',
-    'privgroup-a-v4-023',
-    'privgroup-a-v4-024',
-    'privgroup-a-v4-025',
-    'privgroup-a-v4-026',
-    'privgroup-a-v4-027',
-    'privgroup-a-v4-028',
-    'privgroup-a-v4-029',
-    'privgroup-a-v4-030',
-    'privgroup-a-v4-031',
-    'privgroup-a-v4-032',
-    'privgroup-a-v4-033',
-    'privgroup-a-v4-034',
-    'privgroup-a-v4-035',
-    'privgroup-a-v4-036',
-    'privgroup-a-v4-037',
-    'privgroup-a-v4-038',
-    'privgroup-a-v4-039',
-    'privgroup-a-v4-040',
-    'privgroup-a-v4-041',
-    'privgroup-a-v4-042',
-    'privgroup-a-v4-043',
-    'privgroup-a-v4-044',
-    'privgroup-a-v4-045',
-    'privgroup-a-v4-046',
-    'privgroup-a-v4-047',
-    'privgroup-a-v4-048',
-    'privgroup-a-v4-049',
-    'privgroup-a-v4-050',
-    'privgroup-a-v4-051',
-    'privgroup-b-v4-001',
-    'privgroup-b-v4-002',
 ]
 
 
@@ -1241,7 +1182,7 @@ def _is_box_drawing_text(text: str) -> bool:
 # rise directly into each glyph's own text-matrix translation reports a
 # raised/lowered character's TRUE, physically offset baseline -- which
 # would otherwise become its own one/two-character "line" with no
-# dominant-baseline counterpart to align against at all (DOCC's footnote
+# dominant-baseline counterpart to align against at all (a private WS4 paper's footnote
 # digits, -SCREEN's H2O subscript, a TrekTM-style superscript -- see
 # PCL-DIVERGENCE-TRIAGE.md's mechanism Z addendum). `snap_raised_baselines`
 # is this gate's OWN "the pen never actually moved" correction for exactly
@@ -1253,8 +1194,8 @@ def _is_box_drawing_text(text: str) -> bool:
 RISE_SNAP_WINDOW_PT = 8.0  # same magnitude, same reasoning as tools/
                            # pcl_tolerance.py's own SUPSUB_MAX_DY_DP (8pt):
                            # generous vs. the CONFIRMED real WS7 sup/sub
-                           # offset (4.5pt, both directions -- DOCC's own
-                           # footnote-reference superscript and -SCREEN's
+                           # offset (4.5pt, both directions -- a private WS4
+                           # paper's own footnote-reference superscript and -SCREEN's
                            # own subscript, per that module's own
                            # docstring) and the exact Ts value pdf.py's own
                            # default `.sr` roll writes (`_printed_roll_pt`'s
@@ -1267,7 +1208,7 @@ RISE_SNAP_MIN_DOMINANT_CHARS = 3  # a baseline carrying at least this many
                            # characters is a real page LINE, never a
                            # superscript/subscript run -- every confirmed
                            # real one in this corpus is 1-2 characters
-                           # (DOCC's '1'/'2', -SCREEN's '2', a 'TM'-style
+                           # (a private paper's '1'/'2', -SCREEN's '2', a 'TM'-style
                            # marker), comfortably under this floor, while a
                            # real printed line (even a short one) all but
                            # always clears it.

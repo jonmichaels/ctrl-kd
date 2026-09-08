@@ -490,7 +490,7 @@ def test_merge_zero_gap_cross_font_chunks_leaves_a_same_position_overlay_untouch
 
 
 def test_find_offbaseline_occupant_matches_a_raised_footnote_marker():
-    # DOCC.WS's own real measured shape: 'Indians.' ends at 216.0pt;
+    # A private WS4 paper's own real measured shape: a word ends at 216.0pt;
     # its footnote-reference '1' sits exactly there too, but 4.5pt ABOVE
     # the line's own baseline (WS7 really moves the pen for a super/
     # subscript character -- mechanism G).
@@ -513,13 +513,13 @@ def test_find_offbaseline_occupant_never_absorbs_a_real_checkable_word():
 
 
 def test_merge_zero_gap_cross_font_chunks_stitches_a_superscript_inside_a_word():
-    # Tier 1: superscript in a word. DOCC.WS's own real measured
-    # numbers: 'Indians.' (x=158.4pt, ends at 216.0pt) + a raised
+    # Tier 1: superscript in a word. A private WS4 paper's own real measured
+    # numbers: a word (x=158.4pt, ends at 216.0pt) + a raised
     # footnote '1' (x=216.0pt, y 4.5pt above the line) + 'The' (the next
-    # real word, x=235.9pt) -- the gap between 'Indians.' and 'The' looks
+    # real word, x=235.9pt) -- the gap between the two words looks
     # too wide to merge on its own, but is fully explained by the marker
     # sitting inside it.
-    word = _pc('Indians.', 1584, font='Courier', size=12)
+    word = _pc('Example.', 1584, font='Courier', size=12)
     word['y_decipoints'] = 1320
     nxt = _pc('The', 2359, font='Courier', size=12)
     nxt['y_decipoints'] = 1320
@@ -529,7 +529,7 @@ def test_merge_zero_gap_cross_font_chunks_stitches_a_superscript_inside_a_word()
     page_chunks = items + [(marker, _tc())]
     merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
     texts = [m[0]['text'] for m in merged]
-    assert 'Indians.1' in texts
+    assert 'Example.1' in texts
     assert 'The' in texts
 
 
@@ -550,18 +550,18 @@ def test_merge_zero_gap_cross_font_chunks_stitches_a_subscript_inside_a_word():
 
 
 def test_merge_zero_gap_cross_font_chunks_stitches_a_trailing_marker_at_line_end():
-    # The real DOCC.WS regression: a footnote reference at the very END
+    # A real private-corpus regression: a footnote reference at the very END
     # of a printed line has no FOLLOWING same-baseline chunk to bound a
     # gap window against at all -- must still be found via the trailing
     # window search past the line's own last chunk.
-    word = _pc('agreement.', 4176, font='Courier', size=12)
+    word = _pc('statement.', 4176, font='Courier', size=12)
     word['y_decipoints'] = 2520
     marker = _pc('2', 4896, size=9.25, font='Courier')
     marker['y_decipoints'] = 2475
     items = [(word, _tc())]
     page_chunks = items + [(marker, _tc())]
     merged = pt._merge_zero_gap_cross_font_chunks(items, page_chunks)
-    assert merged[0][0]['text'] == 'agreement.2'
+    assert merged[0][0]['text'] == 'statement.2'
 
 
 def test_merge_zero_gap_cross_font_chunks_a_lone_offbaseline_marker_runs_no_search_of_its_own():

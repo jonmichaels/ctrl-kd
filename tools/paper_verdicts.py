@@ -14,14 +14,18 @@ nobody had reviewed yet was indistinguishable from a defect nobody had
 found. See tools/PAPER-VERDICTS.md for the full schema, CLI reference, and
 the `paper` pytest tier this file backs (tests/test_paper_verdicts.py).
 
-THE CATALOG IS NOT PRIVATE. Document names, which scan PDF each is in, and
-per-document page counts are a page MAP, not a filesystem path -- and are
-already committed elsewhere in this repo (tools/pcl_tolerance.py's
-CAPTURED_DOCS, tests/SAWYER-CORPUS.md). CATALOG below reproduces the
-private corpus's own ws7-prints/paper-scans/README.md verbatim. Only the
-scan PDFs and rendered pages themselves stay outside this repo, reached
-only through $CTRLKD_PRIVATE_CORPUS (see tools/fidelity_gate.py's own
-doc-resolution docstring for the same discipline).
+THE CATALOG COVERS PUBLIC (Sawyer-group) DOCUMENTS ONLY. Planning #243
+(2026-09-08, Jon's ruling): a private-corpus document's own name and page
+map do not belong in this public repo at all, even alongside already-
+public entries -- CATALOG below is the private corpus's own ws7-prints/
+paper-scans/README.md filtered to its PUBLIC_SOURCE_GROUPS-member rows
+(see tools/pcl_tolerance.py's own PUBLIC_SOURCE_GROUPS); the private-
+corpus documents this catalog used to also list are tracked only in the
+private corpus's own README now, resolved by the private engine repo's
+own tooling. Only the scan PDFs and rendered pages themselves stay
+outside this repo either way, reached only through $CTRLKD_PRIVATE_CORPUS
+(see tools/fidelity_gate.py's own doc-resolution docstring for the same
+discipline).
 
 THE VERDICTS FILE ITSELF is private data (it's keyed to the private
 corpus) and is never written into this repo. It lives at
@@ -69,9 +73,6 @@ CATALOG = [
     ('SAWYER', 'doc88', 19, 4),
     ('SCRIPT', 'doc88', 23, 11),
     ('WARPRAYR', 'doc89', 1, 3),
-    ('DOCC', 'doc89', 4, 9),
-    ('DOCB', 'doc89', 13, 1),
-    ('DOCE', 'doc89', 14, 9),
 ]
 CATALOG_SOURCE = 'ws7-prints/paper-scans/README.md (M479fdw scan batches, 2026-08-20)'
 

@@ -364,9 +364,9 @@ def _pgnum_ops(pdf_bytes):
 def test_page_numbers_auto_default_silent_document_shows_stock_number():
     """A document with NO `.pn`/`.pg`/`.op`/`.pc` ever still gets the stock
     automatic number under `auto` (the default) -- REVERSED 2026-09-07
-    (ws7-prints/v3, the PRISTINE.EXE recapture, finding #2: BOXES/DOCA/DOCB/
-    DOCD/DOCE/SAWYER/DOCF/VERSIONS/-README, none of which touch any of
-    these four commands, all print a bottom-of-page "1"/"2"/"3"... under a
+    (ws7-prints/v3, the PRISTINE.EXE recapture, finding #2: BOXES/SAWYER/
+    VERSIONS/-README plus several private-corpus documents, none of which
+    touch any of these four commands, all print a bottom-of-page "1"/"2"/"3"... under a
     genuinely stock WS7 install, confirmed at the raw PCL byte level). The
     old BARE_PROBE/PC_PROBE evidence ("prints nothing at any column") was
     real, but measured against Robert J. Sawyer's own WSCHANGE-customized
