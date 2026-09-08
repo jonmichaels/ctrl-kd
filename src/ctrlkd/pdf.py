@@ -3183,12 +3183,20 @@ class PageLine(list):
     # None only for a PageLine this emitter MAKES rather than reads --
     # `_page_stream` falls back to the document-wide `roll_pt` parameter
     # for those, exactly as it already does for `left`.
+    # `justify_right_x` (planning #238, `.oj on` full justification): this
+    # line's own right text-margin, in ABSOLUTE points, or None for an
+    # unjustified line -- set by `_doc_to_pagelines` only on a line inside a
+    # `.oj on`/`align='justify'` block that is NOT that block's own last
+    # physical line (see `_line_ops_printed`'s own docstring for the
+    # measured rule). Consumed by `_line_ops_printed`; a PageLine this
+    # emitter MAKES rather than reads (furniture) leaves it None, same
+    # convention as `lead`/`bi`.
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
-                'kerning', 'left', 'roll')
+                'kerning', 'left', 'roll', 'justify_right_x')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
-                roll=None):
+                roll=None, justify_right_x=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -3201,6 +3209,7 @@ class PageLine(list):
         self.kerning = kerning
         self.left = left
         self.roll = roll
+        self.justify_right_x = justify_right_x
 
 
 class Page(list):
@@ -3734,12 +3743,37 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                         lines.append(pl)
                         first_line_of_block = False
                         continue
+                # Planning #238 (.oj on full justification, research/
+                # 2026-09-08_justification-rule.md): every line of a
+                # `align='justify'` block EXCEPT ITS OWN LAST is stretched to
+                # the block's resolved right margin -- measured directly
+                # against WS7 (sawyer/LSRBOX/LSRBOX.WS): the paragraph's
+                # final physical line sits short of the margin, ragged,
+                # while every line above it reaches the margin exactly.
+                # `right_margin` is `.rm` in print columns, measured from the
+                # SAME `.po` origin as the left edge (confirmed against two
+                # independent captures: LSRBOX's own explicit `.po .7"/.rm
+                # 6.5"` and CTRL-K.H1's all-defaults line, both landing on
+                # their real WS7 right edge as po_origin + rm_cols*7.2pt,
+                # never rm alone) -- 65.0 is WordStar's own factory default
+                # (WSFORMAT.TXT gives no numeric default; confirmed instead
+                # against CTRL-K_EXT_H1.pcl's real flush-right edge, 525.6pt
+                # = the same default .po 8 cols (57.6pt) + 65 cols (468pt)).
+                justify_right_x = None
+                if (printed and b.align == 'justify'
+                        and _idx < len(blk_lines) - 1):
+                    po_origin_pt = (own_left if own_left is not None
+                                    else _printed_left(doc, size_for_left))
+                    rm_cols = (b.right_margin if b.right_margin is not None
+                              else 65.0)
+                    justify_right_x = po_origin_pt + rm_cols * _PDF_PT_PER_COL
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
                              fi=(fi_pt if first_line_of_block else None), bi=bi,
                              ws4_spacing=ws4_spacing_line,
                              kerning=getattr(line, 'kerning', True),
-                             left=own_left, roll=own_roll)
+                             left=own_left, roll=own_roll,
+                             justify_right_x=justify_right_x)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -4967,8 +5001,41 @@ def _pcl_rect_ops(prog_ops, anchor_x, anchor_y, page_h, restore_gray):
 def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
-                      kerning=True):
+                      kerning=True, justify_right_x=None):
     """One laid-out line, on the document's own horizontal grid.
+
+    `justify_right_x` (planning #238, `.oj on` full justification): the
+    ABSOLUTE x this line's own right text-margin sits at, or None for an
+    unjustified line -- `_doc_to_pagelines` sets it only on a PageLine it
+    already knows is (a) inside a `.oj on`/`align='justify'` block, (b) NOT
+    that block's own last physical line (WordStar never justifies a
+    paragraph's trailing line -- confirmed directly against
+    ws7-prints/v4/sawyer__LSRBOX__LSRBOX_EXT_WS.pcl, whose paragraph's own
+    final line sits short of the margin, ragged, while every line above it
+    reaches the margin exactly), and (c) resolves to exactly ONE coalesced
+    span (a styled/mixed line is left unjustified this pass -- narrow,
+    documented scope, see research/2026-09-08_justification-rule.md).
+    Applied only to a FIXED-PITCH span (a proportional line's own
+    per-word-natural-width path, just above, is unmodified -- no evidenced
+    proportional `.oj on` capture was found in the corpus this pass).
+
+    The measured rule (same research note): WS7 stretches ONLY the
+    single-character inter-word gaps of the line (a run of 2+ literal
+    blanks -- e.g. an author's own end-of-sentence double space -- is left
+    at its natural width), distributing the line's own total slack evenly
+    across those gaps so the line's last character lands exactly on
+    `justify_right_x`. The measured LSRBOX/CTRL-K.H1 captures show WS7's
+    own per-gap split is NOT perfectly flat even when the total divides
+    evenly (e.g. one 8-gap, 72dp-total line measured 7,7,10,9,10,9,10,10
+    decipoints rather than a flat 9 each) -- WS7's own internal rounding
+    for that split was not reverse-engineered to the decipoint this pass.
+    An even (self-consistent, always-flush) split is what ships here; the
+    residual sub-decipoint disagreement against WS7 is a known, documented
+    approximation, not a bug still being chased.
+
+    Every span gets its own text object at an ABSOLUTE x, and that x is
+    WordStar's: the characters before it, each at its own run's HMI advance
+    (_span_pitch). This replaced two paths -- a Courier one that did exactly
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
     WordStar's: the characters before it, each at its own run's HMI advance
@@ -5041,6 +5108,12 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     if fi and segs and segs[0][5]:            # segs[0][5] is that first
         fi = None                             # segment's own `indent` flag
     ops, x = [], left + (fi or 0)
+    # Justification only ever touches the ONE span that IS the whole line
+    # (see this function's own docstring, "justify_right_x") -- a line that
+    # split into several segs (a styled word mid-sentence, a leading indent,
+    # graphics) is left unjustified rather than guess how to divide the
+    # slack among them.
+    justify_eligible = justify_right_x is not None and len(segs) == 1
     # A pctl span whose display string carries a graphic char (box-drawing,
     # LJ6DTP's own «...┌─│...» labels) gets fragmented by _split_graphics
     # above into several pieces that all still carry the same 'pctl'/'pcl<N>'
@@ -5352,6 +5425,81 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # cell is not narrowed twice.
             pitch = (_sup_sub_span_pitch(entry, styles, family, size_here)
                      or _span_pitch(entry, pt))
+            if justify_eligible:
+                # Planning #238: this line IS the whole span (justify_eligible
+                # guarantees it) and it is fixed-pitch -- split it into word/
+                # gap pieces (same regex the proportional branch above uses)
+                # and stretch only the single-blank gaps. See this function's
+                # own docstring for the measured rule and its documented
+                # approximation.
+                pieces = _re.findall(r' +|[^ ]+', text)
+                elastic = [i for i, p in enumerate(pieces)
+                          if p == ' ']              # exactly one blank
+                natural_total = sum(len(p) * pitch for p in pieces)
+                stretch_total = justify_right_x - x - natural_total
+                if elastic and stretch_total > 0:
+                    n = len(elastic)
+                    base = stretch_total / n
+                    symbol_bold = family == 'Symbol' and 'b' in styles
+                    symbol_italic = family == 'Symbol' and 'i' in styles
+                    ul_x0 = ul_x1 = None
+                    span_ul = ul_continuous and 'u' in styles
+                    piece_styles = (styles - {'u'}) if span_ul else styles
+                    ei = 0
+                    for pi, piece in enumerate(pieces):
+                        pw = len(piece) * pitch
+                        is_elastic_gap = (piece == ' ' and ei < len(elastic)
+                                         and elastic[ei] == pi)
+                        if is_elastic_gap:
+                            pw += base
+                            ei += 1
+                        if is_elastic_gap:
+                            # `_tz_scale` width-matches a GLYPH's drawn shape
+                            # via percentage scaling -- sound for a word
+                            # whose natural width is close to its target, but
+                            # a stretched gap can need many hundreds of
+                            # percent, well outside `_tz_scale`'s own sanity
+                            # clamp (TZ_MIN/TZ_MAX), which would silently
+                            # reject it and keep the UNSTRETCHED width (the
+                            # bug this branch exists to avoid). Nothing is
+                            # drawn for a space piece anyway (`piece.strip()`
+                            # below), so the advance is simply `pw` itself --
+                            # no glyph-metric question to ask.
+                            pscale, actual_w = None, pw
+                        else:
+                            pscale, actual_w = _tz_scale(piece, basefont, pt, pw)
+                        pwant = TZ_DEFAULT if pscale is None else round(pscale, 2)
+                        if piece.strip():
+                            if symbol_bold or symbol_italic:
+                                ops.append(_symbol_style_op(
+                                    font, pt, rise, pwant, tz_state, x, y,
+                                    _esc(piece), symbol_bold, symbol_italic))
+                            elif pwant == tz_state[0]:
+                                ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td'
+                                          b' (%s) Tj ET' %
+                                          (font.encode(), pt, rise, x, y,
+                                           _esc(piece)))
+                            else:
+                                ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f'
+                                          b' %.1f Td (%s) Tj ET' %
+                                          (font.encode(), pt, rise, pwant, x,
+                                           y, _esc(piece)))
+                                tz_state[0] = pwant
+                            if ul_x0 is None:
+                                ul_x0 = x
+                            ul_x1 = x + actual_w
+                        ops += _rules(piece_styles, piece, x, y, actual_w,
+                                     ul_continuous)
+                        x += actual_w
+                    if span_ul and ul_x0 is not None:
+                        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
+                                  % (ul_x0, y - 1.5, ul_x1, y - 1.5))
+                    # Land EXACTLY on the margin regardless of any rounding
+                    # accumulated across the pieces above -- the one part of
+                    # the measured rule confirmed on every justified line in
+                    # the corpus, never left to float drift.
+                    x = justify_right_x
+                    continue
             target = len(text) * pitch
             scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
@@ -5534,7 +5682,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  col_state, colour_map or {}, roll_here,
                                  getattr(line, 'fi', None), ul_continuous,
                                  pcl_programs, page_h,
-                                 getattr(line, 'kerning', True))
+                                 getattr(line, 'kerning', True),
+                                 getattr(line, 'justify_right_x', None))
     return b'\n'.join(ops)
 
 
