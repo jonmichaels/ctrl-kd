@@ -1479,7 +1479,27 @@ def engine_page_tokens(page: dict, page_no: int) -> list:
             continue
         basefont = page['fonts'].get(op['font'])
         font_class = classify_font(basefont)
-        y = round(op['y'], 3)
+        # planning #202 batch (issue "superscript/subscript vertical rise
+        # not applied"): `op['rise']` (the PDF `Ts` operand, already parsed
+        # by parse_text_ops) was dropped here entirely -- `y = round(op['y'],
+        # 3)` used the RAW Td/Tm baseline only, so a genuinely-raised or
+        # -lowered sup/sub span (pdf.py DOES write a real, correct `Ts`,
+        # e.g. `4 Ts` for -ATTRIB.TST's "Superscript" -- confirmed directly
+        # in the emitted content stream) was tracked at its UNRAISED grid
+        # position regardless. WS7's own capture needs no such correction
+        # (`ws7_page_tokens` reads each chunk's own already-true
+        # `y_decipoints` straight from the PCL capture), so this gate
+        # compared a real rise against a flattened one and reported it as a
+        # baseline-shift divergence that was never in the rendered PDF at
+        # all -- confirmed on sawyer/REF/-ATTRIB.TST: `Ts 4` in the actual
+        # PDF bytes, `engine_y_top: 108.0` (the unraised grid line) in this
+        # gate's own prior report, `ws7_y_top: 103.5` (108 - 4.5, correctly
+        # raised) in WS7's. Adding `rise` folds the SAME correction into
+        # `y` that `Ts` already applies visually, in PDF's bottom-up sense
+        # (positive rise moves a glyph UP the page, which is a SMALLER
+        # `y_top` in this file's top-down convention -- `y_top = mb_h - y`
+        # falls exactly because `y` grew).
+        y = round(op['y'] + (op['rise'] or 0), 3)
         for c in _op_chars(op, basefont, font_class):
             c['y'] = y
             all_chars.append(c)

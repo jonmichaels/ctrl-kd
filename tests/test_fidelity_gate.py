@@ -371,13 +371,24 @@ def test_engine_page_tokens_merges_a_superscript_inside_a_word():
 
 
 # ------------------------------------- FIX 1: rise snapping (mechanism Z addendum)
-# ctrl-kd's own PDF never needs snap_raised_baselines to do any real work
-# (Ts never touches the tracked baseline y -- see that function's own
-# docstring, and every round-trip test above/below already proves it's a
-# no-op there). These tests exercise the load-bearing case directly: an
-# external reader (macOS Quartz, via --engine-chars) that bakes the rise
-# into each glyph's own y_top_pt, the shape `_external_chars_to_tokens`
-# actually has to correct.
+# UPDATE (planning #202 batch, "superscript/subscript vertical rise not
+# applied"): ctrl-kd's own PDF DOES now need snap_raised_baselines to do
+# real work -- `engine_page_tokens` used to compute its tracked `y` from
+# `op['y']` alone, so a real, correctly-written `Ts` never touched it and
+# this really was a no-op for this repo's own PDFs (confirmed empirically:
+# `sawyer/REF/-ATTRIB.TST`'s "Superscript" carried a genuine `4 Ts` in the
+# emitted content stream, but the gate tracked it at the UNRAISED grid
+# position anyway, reporting a false 4.5pt baseline-shift divergence
+# against WS7's own real, already-correct capture). `engine_page_tokens`
+# now folds `op['rise']` into `y` before grouping, exactly the same
+# correction `_external_chars_to_tokens` below always needed for an
+# external reader's pre-baked rise -- both paths converge on the same
+# snapping mechanism (see the two tests immediately above this comment
+# for confirmation neither the merge-into-one-word case nor the round-trip
+# tests elsewhere in this file changed behavior). These tests exercise the
+# other case directly: an external reader (macOS Quartz, via
+# --engine-chars) that bakes the rise into each glyph's own y_top_pt, the
+# shape `_external_chars_to_tokens` actually has to correct.
 def _char_dict(ch, x, x_end, y, size=12.0, font='Courier', font_class='fixed', page=1):
     return {'text': ch, 'x_pt': x, 'x_end_pt': x_end, 'y_top_pt': y,
             'size_pt': size, 'font': font, 'font_class': font_class, 'page': page}
@@ -423,6 +434,36 @@ def test_engine_chars_does_not_snap_a_raised_marker_across_a_real_gap():
     loaded = fg.load_engine_chars(data)
     texts = [t['text'] for t in loaded['eng_tokens']]
     assert texts == ['cat', '2'], texts
+
+
+def test_engine_page_tokens_folds_a_real_ts_rise_into_the_tracked_y():
+    """The actual fix (planning #202 batch): a genuinely-raised superscript
+    -- alone on its own printed line (a real word-gap on every side, well
+    outside RISE_SNAP_WINDOW_PT of the two ordinary lines around it, so
+    nothing here snaps) -- must be tracked at its TRUE, Ts-adjusted y, not
+    the raw Td baseline. Mirrors sawyer/REF/-ATTRIB.TST's own real shape:
+    a vertical grid of plain lines with one isolated raised/lowered word,
+    WS7's own capture landing it 4.5pt off the grid it visually sits on.
+
+    Before this fix, `engine_page_tokens` computed `y` from `op['y']`
+    alone (`Ts` never touched it), so a real `4 Ts` in the content stream
+    -- confirmed present, pdf.py writes it correctly -- was invisible to
+    this gate: it reported the raised word at the SAME y as an unraised
+    one, a false baseline-shift divergence against WS7's own real
+    (correctly raised) capture position that was never actually present
+    in the rendered PDF at all."""
+    content = (b'BT /F1 12 Tf 0 Ts 72.0 700.0 Td (Above) Tj ET\n'
+               b'BT /F1 9 Tf 5 Ts 72.0 685.0 Td (Raised) Tj ET\n'
+               b'BT /F1 12 Tf 0 Ts 72.0 670.0 Td (Below) Tj ET')
+    page = {'mediabox': (612, 792), 'fonts': {'F1': 'Courier'}, 'content': content}
+    tokens = {t['text']: t for t in fg.engine_page_tokens(page, 1)}
+    assert set(tokens) == {'Above', 'Raised', 'Below'}
+    # y_top = mediabox_h - (op_y + rise): 792 - (685.0 + 5) = 102.0, five
+    # points ABOVE (a smaller y_top than) the unraised 792 - 700.0 = 92.0
+    # an identical Td with no Ts would have landed at.
+    assert tokens['Raised']['y_top'] == 102.0, tokens['Raised']
+    assert tokens['Above']['y_top'] == 92.0
+    assert tokens['Below']['y_top'] == 122.0
 
 
 def test_engine_chars_does_not_snap_a_baseline_too_far_from_any_dominant_one():
