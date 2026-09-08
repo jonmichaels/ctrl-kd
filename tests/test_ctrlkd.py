@@ -2899,7 +2899,7 @@ def test_mid_document_po_repositions_the_running_head():
     `.pl`/`.hm`/`.fm` above (register b31-dot-command-sweep follow-up,
     SCRIPT-correction round, `tools/PCL-DIVERGENCE-TRIAGE.md` mechanism
     O). Real WS7 (SCRIPT.WS, sawyer archive): its own worked-example
-    figures reset `.po` to `.5"` (5 columns) alongside the `.mt`/`.hm`
+    figures reset `.po` to `.5"` (5 columns) ALONGSIDE the `.mt`/`.hm`
     changes `_mt_mb_checkpoints`/`_hm_fm_checkpoints` already track for
     the SAME figures, and the figure pages' own running head ("PROFILES
     MONTH '88 SCRIPT.001...") moves LEFT with it in WS7's real capture --
@@ -2911,13 +2911,32 @@ def test_mid_document_po_repositions_the_running_head():
     Body text already carried a mid-document `.po` change correctly
     (core.Line.po_cols, applied per line in `_page_stream`) -- this pins
     the `_running_ops` (header/footer) side of the fix directly: a
-    document whose SECOND page moves `.po` to 5 columns must render that
-    page's own running head 21.6pt to the LEFT of the first page's,
-    matching WS7, not at the document's unchanged global offset."""
+    document whose SECOND page moves `.po` to 5 columns AND resets `.mt`
+    must render that page's own running head 21.6pt to the LEFT of the
+    first page's, matching WS7, not at the document's unchanged global
+    offset.
+
+    UPDATE 2026-09-08 (#241, MACROS/HOLYMAC/-HOLYMAC.WS): this fixture
+    used to change ONLY `.po`, with no `.mt`/`.mb`/`.hm`/`.fm` alongside
+    it -- SCRIPT.WS's real bytes were never actually isolated that way
+    (`.po.5"` sits immediately before `.mt1"` there, confirmed directly),
+    so this test could not distinguish "the header tracks `.po` alone"
+    from "the header tracks `.po` only when it accompanies a genuine
+    page-geometry reset." HOLYMAC.WS is the discriminating real-WS7 case
+    that reading never had: its own box-diagram examples set `.po .3i`
+    (paired only with `.rm`, widening the measure for the diagram) with
+    NO `.mt`/`.mb`/`.hm`/`.fm` change at all, and WS7's real capture
+    shows the running head does NOT move for it -- staying at the SAME
+    72pt left edge on every page, including the ones whose own page-open
+    `.po` snapshot happens to land mid-diagram. `_running_ops` now only
+    lets a page's own `.po` reposition the header/footer when that same
+    page ALSO carries an `.mt`/`.mb`/`.hm`/`.fm` change -- this fixture
+    gained its own `.mt1"` alongside `.po5` to keep matching SCRIPT.WS's
+    real construction instead of the narrower, now-corrected reading."""
     from ctrlkd.pdf import emit_pdf, _doc_to_pagelines, _po_checkpoints
     data = ('.he TITLE\r\n' +
             ''.join(f'Body line {i}.\r\n' for i in range(1, 21)) +
-            '.pa\r\n.po5\r\n' +
+            '.pa\r\n.po5\r\n.mt1"\r\n' +
             ''.join(f'Page2 line {i}.\r\n' for i in range(1, 21))).encode()
     doc = core.parse_ws(data)
     assert doc.meta['page']['po_cols'] == 8.0     # global: unaffected (pre-

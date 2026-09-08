@@ -3578,6 +3578,23 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # that knows how full the page is, can decide.
             lines.append(('cond', b.heading or 1))
             continue
+        if printed and b.origin == 'fi':
+            # #241: `.fi` (file insert) on a target this engine cannot
+            # resolve fabricates a visible `[insert: NAME]` placeholder
+            # paragraph (core.py's `_parse_collect_dot`/parse_ws, origin=
+            # 'fi') -- useful in Modern (an editorial note about what the
+            # source asked for), but WS7's real behaviour on an
+            # unresolvable `.fi` target is to print NOTHING: measured
+            # directly (sawyer/RTF-RJS's own `.fi C:\WS\RTF-RJS\LINKS.MRG`
+            # probes, a target that exists nowhere in the corpus) -- WS7's
+            # capture goes straight from the line before `.fi` to the
+            # document's own next real text, no gap, no placeholder line
+            # at all. Printed mode (this engine's WS7-emulation surface)
+            # skips the block entirely -- zero lines, zero page-advance --
+            # matching WS7; Modern is untouched (still shows the
+            # placeholder, per Jon's ruling: "report what Modern does and
+            # leave it").
+            continue
         fi_pt = _printed_pm_fi_pt(b) if printed else None
         first_line_of_block = True
         # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
@@ -6286,8 +6303,29 @@ def _emit_pdf_inner(doc, printed, options):
             # capture moves the running head's own left edge with it --
             # 21.6pt (3 columns) this engine used to leave on the table.
             page_po = getattr(pl, 'po_cols', None)
+            # #241 (MACROS/HOLYMAC/-HOLYMAC.WS): SCRIPT.WS's own oracle
+            # above ALWAYS pairs its `.po .5"` reset with an `.mt`/`.mb`
+            # change on the very same page (measured: `.po.5"` immediately
+            # followed by `.mt1`/`.mb0`, twice) -- a genuine page-geometry
+            # reset. HOLYMAC's box-diagram examples set `.po .3i` (with
+            # `.rm 79`, widening the measure for the diagram) and revert
+            # it a few lines later WITHOUT ever touching `.mt`/`.mb`/`.hm`/
+            # `.fm` -- a purely local body-margin excursion for one
+            # figure, not a page-layout change. Measured directly: WS7's
+            # running head sits at the SAME 72pt left edge on every page
+            # of this document (12, 13, 16, 17...), even the three (12,
+            # 13, 17) where this engine's own `cur_po` snapshot -- taken
+            # at PAGE OPEN, `_recompute_geom` -- happens to land mid-
+            # diagram (`.po .3i` already set, its own revert not yet
+            # reached). Gating `running_left` on a genuine geometry change
+            # co-occurring (mt/mb/hm/fm) keeps SCRIPT.WS's own confirmed
+            # behaviour unchanged while no longer letting a diagram's own
+            # transient `.po` leak into the header/footer position.
+            page_geom_changed = (page_mt is not None or page_mb is not None
+                                 or page_hm is not None or page_fm is not None)
             running_left = (_resolve_left_pt(page_po, size)
-                            if page_po is not None else left)
+                            if page_po is not None and page_geom_changed
+                            else left)
             saved_pg = None
             if (page_mt is not None or page_mb is not None or page_pl is not None
                     or page_hm is not None or page_fm is not None):
