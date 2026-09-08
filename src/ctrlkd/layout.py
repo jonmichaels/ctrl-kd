@@ -153,12 +153,67 @@ def rm_indent_cols(rm):
 _DEFLIST_RE = re.compile(r'^(\S+:)( {2,})(\S.*)$')
 
 
+def _is_tab_run_span(text, styles):
+    return text.strip(' ') == '' and any(
+        t.startswith('tabhmi') or t.startswith('tableader') for t in styles)
+
+
+def has_internal_tab_run(spans):
+    """True if a row's own WordStar tab-stop (a `tabhmi<N>`/`tableader<N>`
+    styled span -- the "Tabs and dot leaders" symmetrical sequence, type 9
+    in core.py's `_symmetric_blocks`) lands somewhere OTHER than the row's
+    own leading edge -- i.e. splits the row into two-or-more tab-
+    positioned pieces (a table row: "label <tab jump> value") rather than
+    merely nudging the whole line's start column rightward once (a title
+    or byline typed AT a tab stop chosen, by the original author, to look
+    roughly centered -- WordStar's own leading-space-only shape, no
+    different in kind from a hand-typed indent). `spans` is an ordered
+    sequence of (text, styles) pairs -- a Span's own `.text`/`.styles`, or
+    a `layout.py` 'run' dict's 'text'/'styles'.
+
+    Planning #206: `classify_rows`' own spaces-centering heuristic reads
+    'symmetric leading/trailing padding' as evidence a human typed spaces
+    to hand-center a short line -- and a chain of tab-stop spans sitting
+    entirely BEFORE the row's first real character reads exactly like
+    that same evidence (found against ARTICLES/FORMFEED.WS's own title
+    and byline lines, each a single leading tab-run with no other tab
+    jump in the row -- correctly still centered here). A SECOND tab-run,
+    appearing only AFTER real content has already been seen, is a
+    different thing entirely: WSFORMAT.WS's own Symmetric-Sequences table
+    rows ('4'+tab+'Endnote', 'Bit #:'+tab+'Usage:', '02h ^B'+tab+
+    'Boldface type...', ...) each carry exactly this shape, real
+    two-column table structure a symmetric leading-space check can't tell
+    apart from a title's own single centering tab without it -- WS7's own
+    print (paper-scan-verified) and this engine's own Printed PDF both
+    show these rows left-aligned, never centered. See classify_rows' own
+    caller for how this gates the 'spaces' branch."""
+    seen_content = False
+    for text, styles in spans:
+        if not text:
+            continue
+        if _is_tab_run_span(text, styles):
+            if seen_content:
+                return True
+            continue
+        seen_content = True
+    return False
+
+
 def classify_rows(entries):
     """Structure classification for a sequence of rows, one call per
     document (bullet-marker discovery and nesting both need the WHOLE
     row order, not one paragraph in isolation). `entries` is, per row in
     document order:
-      ('para', indent_cols, cut_cols, align, text)  a candidate row
+      ('para', indent_cols, cut_cols, align, text, internal_tab_run)
+                                                      a candidate row --
+                                                      internal_tab_run is
+                                                      `has_internal_tab_run`'s
+                                                      own return for this
+                                                      row (False if the row
+                                                      carries no real
+                                                      WordStar tab-stop
+                                                      span past its own
+                                                      leading edge)
       ('hard',)                                     a real break in flow
                                                       (heading, page break,
                                                       multi-column block) --
@@ -188,10 +243,10 @@ def classify_rows(entries):
         if e[0] != 'para':
             rows.append(None)
             continue
-        _, indent_cols, cut_cols, align, text = e
+        _, indent_cols, cut_cols, align, text, internal_tab_run = e
         lead = len(text) - len(text.lstrip(' '))
         rows.append({'indent_cols': indent_cols, 'cut_cols': cut_cols,
-                     'align': align, 'lead': lead,
+                     'align': align, 'lead': lead, 'internal_tab_run': internal_tab_run,
                      'col': indent_cols + lead, 'text': text[lead:],
                      'raw': text})
 
@@ -289,7 +344,8 @@ def classify_rows(entries):
             # wants one uniform 'centered' signal for both.
             r['centered'], r['center_via'], r['center_text'] = \
                 True, 'tag', content
-        elif r['align'] == 'left' and len(re.findall(r' {3,}', content)) < 2:
+        elif (r['align'] == 'left' and len(re.findall(r' {3,}', content)) < 2
+                and not r['internal_tab_run']):
             # Undeclared centering: no tag at all, just spaces padding the
             # line so it SITS centred within this row's own printable
             # measure. Symmetric leading/trailing padding (within a little
@@ -307,6 +363,16 @@ def classify_rows(entries):
             # centered line carries at most one incidental wide gap (a
             # sentence-ending double-space); 2+ is a column layout, not
             # prose -- found the hard way against YOURWAY.WS/POWERUSE.WS.
+            #
+            # Planning #206: `internal_tab_run` (has_internal_tab_run,
+            # above) is that SAME "2+ gaps -> column layout" guard's own
+            # blind spot closed -- a two-column table row built from real
+            # WordStar tab stops ("4"+tab+"Endnote") often has only ONE
+            # internal gap post-strip (the findall guard alone lets it
+            # through), but the gap is a tab-stop's absolute-column jump,
+            # not typed padding; a title/byline whose OWN leading tab-run
+            # is its only tab-stop span (ARTICLES/FORMFEED.WS's own "-30-")
+            # is unaffected -- see that function's own docstring.
             width = FULL_COLS - r['indent_cols'] - r['cut_cols']
             slack = width - len(content)
             # A near-full measure leaves almost no room to be off-centre in
@@ -574,9 +640,12 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
     struct_entries, struct_idx = [], []
     for idx, it in enumerate(items):
         if it['kind'] == 'para':
+            internal_tab_run = has_internal_tab_run(
+                (r['text'], r.get('styles', ())) for r in it['runs'])
             struct_entries.append(('para', it['indent_cols'] or 0,
                                    it['cut_cols'] or 0, it['align'],
-                                   ''.join(r['text'] for r in it['runs'])))
+                                   ''.join(r['text'] for r in it['runs']),
+                                   internal_tab_run))
             struct_idx.append(idx)
         elif it['kind'] in ('break', 'cond'):
             struct_entries.append(('hard',))

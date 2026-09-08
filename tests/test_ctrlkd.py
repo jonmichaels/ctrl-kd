@@ -6415,22 +6415,37 @@ def test_centered_tag_also_classified_uniformly():
     assert s['centered'] and s['center_via'] == 'tag'
 
 
-def test_204_tab_run_in_a_centered_row_collapses_to_one_span_like_sr():
-    """Issue #204: WSFORMAT.WS's own Symmetric-Sequences table row ("4"
+def test_206_internal_tab_run_row_is_not_falsely_centered():
+    """Issue #206: WSFORMAT.WS's own Symmetric-Sequences table row ("4"
     + a WordStar tabs-and-dot-leaders symmetrical sequence + "Endnote",
-    spaces-centered, no `.oc` tag) used to render as THREE separate
-    `<span>`s -- "4", an all-`&nbsp;` run (the tab-run's own Printed-only
-    `tabhmi`/`tableader` tags fenced it off from its neighbours, and its
-    now-standalone all-spaces text tripped `_html_span`'s "typescript
-    indent" heuristic), "Endnote" -- a real browser then renders that
-    `&nbsp;` run as a wide, uncollapsed gap. sr's own Modern HTML instead
-    merges the tab-run into the SAME span as the surrounding text with
-    LITERAL space characters, which a browser's default whitespace
-    collapsing renders as a single space, matching real WS7's own plain
-    gap (paper-scan-verified, planning #204's own review pack: sr's
-    tracked cell is byte-for-byte `<span ...>4              Endnote</span>`,
-    reproduced here via a synthetic symmetric-sequence tab block, not the
-    real corpus file)."""
+    no `.oc` tag) used to false-positive `classify_rows`' spaces-
+    centering heuristic -- the row's own lead (all from the tab-run's
+    absolute-column jump, not typed spaces) happened to land close to
+    the row's arithmetic centre, so it read as hand-typed centering
+    padding. Real WS7 (paper-scan-verified) and this engine's own
+    Printed PDF both show the row LEFT-aligned, never centered.
+    `has_internal_tab_run` (layout.py) excludes any row whose tab-run
+    splits label from value -- a SECOND tab-run past the row's own
+    leading edge -- from `center_via='spaces'` entirely (a title/byline
+    with only a single LEADING tab-run, e.g. ARTICLES/FORMFEED.WS's own
+    "-30-", is unaffected -- see test_centered_by_spaces_detected_and_
+    rendered's sibling coverage and has_internal_tab_run's own
+    docstring). Reproduced here via a synthetic symmetric-sequence tab
+    block padded so the OLD heuristic would have called it centered --
+    not the real corpus file.
+
+    Issue #204's own history lives here too: this exact row used to be
+    (wrongly) treated as centered, and a since-removed
+    `merge_tab_position_tags` mechanism collapsed its tab-run into one
+    `<span>` purely to match sr's then-observed byte shape. Once the
+    row is correctly NOT centered, it renders through the ordinary
+    paragraph path instead -- which keeps the tab-run in its own
+    `&nbsp;`-converted run, unmerged, exactly like every other plain
+    paragraph's tab-run (see test_ordinary_tab_run_row_keeps_its_own_
+    nbsp_span below) -- sr does the identical thing once its own #206
+    fix lands, confirmed byte-for-byte against a live sr build during
+    this same round (not re-asserted here, since this repo cannot run
+    Swift)."""
     from ctrlkd.layout import modern_flow
     from ctrlkd.emit import emit_html
 
@@ -6443,23 +6458,60 @@ def test_204_tab_run_in_a_centered_row_collapses_to_one_span_like_sr():
     pad = (65 - len('4' + ' ' * 14 + 'Endnote')) // 2
     doc = core.parse(b' ' * pad + body + HARD)
     s = modern_flow(doc)['items'][0]['structure']
-    assert s['centered'] and s['center_via'] == 'spaces'
-    assert s['center_text'] == '4              Endnote'
+    assert not s['centered']
+    assert s['center_via'] is None
     html = emit_html(doc, mode='modern')
-    assert '&nbsp;' not in html
+    assert '<p style="text-align:center' not in html
+    # The tab-run keeps its own separate &nbsp; run -- an internal tab
+    # jump is real table structure, never merged into the surrounding
+    # text (the #204-era merge mechanism no longer exists at all).
+    assert '&nbsp;' * 14 in html
+
+
+def test_title_centered_via_a_single_leading_tab_run_still_centers():
+    """Regression guard for #206's own precision: a title/byline typed
+    AT a tab stop chosen to look centered -- WordStar's own leading-
+    space-only shape, no different in kind from a hand-typed indent --
+    must NOT lose its centering just because the padding happens to
+    come from a real tab-stop span rather than literal spaces. Found
+    against ARTICLES/FORMFEED.WS's own "TURNING OFF FORM FEEDS" title
+    and "-30-" end-of-article marker during #206's own corpus-wide
+    verification (both real, both tab-positioned, both correctly still
+    centered after the fix).
+    `has_internal_tab_run` only disqualifies a row whose tab-run splits
+    label from value -- a SECOND tab jump past the row's own leading
+    edge -- never a single leading one."""
+    from ctrlkd.layout import modern_flow
+    from ctrlkd.emit import emit_html
+
+    def tab_block(cols, abs_hmi=1000, tab_type=0x20):
+        size = cols * 180
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b'\r')
+
+    title = 'A Tab-Positioned Title'
+    pad_cols = (65 - len(title)) // 2
+    doc = core.parse(tab_block(pad_cols) + title.encode() + HARD)
+    s = modern_flow(doc)['items'][0]['structure']
+    assert s['centered'] and s['center_via'] == 'spaces'
+    assert s['center_text'] == title
+    html = emit_html(doc, mode='modern')
     assert ('<p style="text-align:center;line-height:1.15">'
-           '4              Endnote</p>') in html
+           'A Tab-Positioned Title</p>') in html
 
 
-def test_204_fix_is_scoped_to_centered_rows_only():
-    """The SAME merge tried in `_html_line` generally (not scoped to
-    `_html_centered_row`) additionally collapsed WSFORMAT.WS's OWN
-    unrelated "00h ^@ <tab-run> Fix the print position..." row -- a
-    plain, un-centered, `text-indent`d paragraph sr does NOT collapse
-    (confirmed against `4-html-sr.html`'s own tracked bytes: that row
-    keeps its `&nbsp;`-run as its own separate span). A plain paragraph
-    with the identical tab-run shape, long enough to never classify as a
-    centered row, must keep the pre-#204 `&nbsp;`-run behaviour exactly."""
+def test_ordinary_tab_run_row_keeps_its_own_nbsp_span():
+    """Regression guard, formerly "the #204 fix is scoped to centered
+    rows only": WSFORMAT.WS's OWN "00h ^@ <tab-run> Fix the print
+    position..." row -- a plain, un-centered, long paragraph carrying
+    the identical internal-tab-run SHAPE as the #206 table rows above --
+    keeps its `&nbsp;`-run exactly as before either issue was filed. Not
+    itself a false-centering case (it is far too long for `classify_
+    rows`' slack/ideal arithmetic to ever call it centered), so #206's
+    `has_internal_tab_run` guard never even has to act on it -- this
+    test exists purely so nobody widens that guard's SCOPE (e.g. "any
+    row with an internal tab-run never keeps `&nbsp;`") into touching a
+    row sr's own tracked bytes say must stay untouched."""
     def tab_block(cols, abs_hmi=1000, tab_type=0x20):
         size = cols * 180
         return ws7_block(0x09, size.to_bytes(2, 'little')

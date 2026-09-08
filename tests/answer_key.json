@@ -35,8 +35,8 @@
  },
  "engine_version": "4.5.1",
  "generator": {
-  "date": "2026-09-08T09:44:48-04:00",
-  "git_sha": "08db93fa6f0e6d1c2f185812ce955febf9349620",
+  "date": "2026-09-08T10:14:06-04:00",
+  "git_sha": "980c7e3d238486c4dae7097e3397352019f59ae6",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -18479,20 +18479,20 @@
     "REF/WSFORMAT.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 144576,
-       "sha256": "8443eb9beacb56f7080952233692a1eb8e36108bbeb74c9fece8ca9b8e57e9ef"
+       "bytes": 145026,
+       "sha256": "762c5091dd6e264b7b74d094ee19e9a203af37600e381db629e96399e8dbbac0"
       },
       "html.printed": {
        "bytes": 171241,
        "sha256": "032e9bea9b4815bc6c03a7d81cd0f012531ec0af9213e9fded525df785e8a06b"
       },
       "layout.modern": {
-       "bytes": 962523,
-       "sha256": "cf59217f5826e388f9722c9f09d3ed6d18e73cebfaa6e3b0e5ad03c05569ace4"
+       "bytes": 962419,
+       "sha256": "7c5f5d4a0dbf8555e2eebf6b6f5410ca799a0c1e3e6c21cc1fe4a1b78c94e71a"
       },
       "layout.printed": {
-       "bytes": 962523,
-       "sha256": "cf59217f5826e388f9722c9f09d3ed6d18e73cebfaa6e3b0e5ad03c05569ace4"
+       "bytes": 962419,
+       "sha256": "7c5f5d4a0dbf8555e2eebf6b6f5410ca799a0c1e3e6c21cc1fe4a1b78c94e71a"
       },
       "markdown.modern": {
        "bytes": 43873,
