@@ -149,6 +149,16 @@ class Line:
     # the file's FIRST `.po` as the whole document's only answer. Register
     # b31.
     po_cols: float = None
+    # `.poe`/`.poo` IN FORCE ON THIS LINE (planning #231), same print-columns
+    # unit as `po_cols` above, or None each for "no override in force yet."
+    # Unlike `po_cols`, there is NO document-wide default to back-date
+    # against -- a document that never uses `.poe`/`.poo` never sets either
+    # field on any line, zero cost. Which of the two (if either) actually
+    # governs a given line depends on the PARITY of the page it lands on,
+    # not knowable until pagination -- pdf.py's `_close_page` reads these
+    # once that is known; nothing here resolves a final left origin.
+    poe_cols: float = None
+    poo_cols: float = None
     # `.sr` IN FORCE ON THIS LINE, in 1/48in units (WordStar's own unit for
     # the command) -- STATEFUL exactly like `.lh`/`.po` above (register
     # b32-N10): a sub/superscript roll re-fires from where it sits onward,
@@ -2556,6 +2566,33 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 resolved = _resolve_cols_arg(value, m.group(2))
                 if resolved is not None:
                     state['po_cols'] = resolved
+    elif name in (b'POE', b'POO'):          # planning #231: even/odd page offset
+        # WSFORMAT.WS: ".PO can optionally specify even or odd number page
+        # offsets" -- `.poe`/`.poo` are independently STATEFUL, exactly like
+        # `.po` itself just above (same family, same "re-fires from where it
+        # sits onward" rule), but each governs only ONE page parity; a plain
+        # `.po` occurring later does not clear whichever of these is already
+        # in force (no corpus evidence either way -- the only real occurrence,
+        # sawyer/REF/-HOW-TO.RJS, never mixes `.po` with `.poe`/`.poo` in the
+        # same document -- so the conservative reading, "every dot command in
+        # this family is independently stateful," the one every sibling
+        # command here already follows, stands until evidence says
+        # otherwise). Carried per line (`Line.poe_cols`/`Line.poo_cols`,
+        # close_line() below) for the same reason `.po` itself is: which of
+        # the two ever applies to a given physical line depends on which
+        # PAGE it lands on, not known until pagination (pdf.py's
+        # `_close_page`) -- parse time can only record what was IN FORCE,
+        # never resolve the final answer.
+        m = _dot_num_match(arg)
+        if m:
+            try:
+                value = float(m.group(1))
+            except (TypeError, ValueError):
+                return
+            if math.isfinite(value):
+                resolved = _resolve_cols_arg(value, m.group(2))
+                if resolved is not None:
+                    state['poe_cols' if name == b'POE' else 'poo_cols'] = resolved
     elif name == b'PR':                     # printer control, incl. orientation
         # Real syntax, from the archive rather than the manual's prose: `.pr or=l`
         # / `.pr or=p`. 18 of the 22 files that use `.pr` set landscape this way.
@@ -4548,6 +4585,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             cur_line.lead_48 = fmt.get('lead_48', DEFAULT_LH_48)
             cur_line.kerning = fmt.get('kerning', True)
             cur_line.po_cols = fmt.get('po_cols', DEFAULT_PO_COLS)
+            cur_line.poe_cols = fmt.get('poe_cols')
+            cur_line.poo_cols = fmt.get('poo_cols')
             # register b32-N10: the `.sr` roll in force as this line ends --
             # same "read the running state at close time" capture as
             # lead_48/po_cols/kerning just above.
@@ -5049,6 +5088,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             blank.soft = (sep == 'blank-soft')
             blank.lead_48 = fmt.get('lead_48', DEFAULT_LH_48)
             blank.po_cols = fmt.get('po_cols', DEFAULT_PO_COLS)
+            blank.poe_cols = fmt.get('poe_cols')
+            blank.poo_cols = fmt.get('poo_cols')
             blank.roll_48 = fmt.get('sub_super_roll_48', DEFAULT_SR_48)
             cur_line = Line()
             if (not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para'

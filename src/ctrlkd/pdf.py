@@ -452,6 +452,52 @@ def _po_at(checkpoints, bi):
     return po
 
 
+_POE_CMD_RE = _re.compile(r'^\.POE\b', _re.IGNORECASE)
+_POO_CMD_RE = _re.compile(r'^\.POO\b', _re.IGNORECASE)
+
+
+def _poe_poo_checkpoints(doc, pattern):
+    """[(block_index, po_cols), ...] the `.poe`/`.poo` (page 231: even/odd
+    page-offset) override IN FORCE from that block onward, per `pattern`
+    (`_POE_CMD_RE`/`_POO_CMD_RE`) -- EMPTY if the document never uses that
+    command (unlike `_po_checkpoints`, no block-0 seed: WordStar has no
+    hardcoded default for a parity-specific offset, "never set" genuinely
+    means "no override," resolved by falling back to whichever of `.po`/
+    the other parity governs instead -- see `_left_for_parity`).
+
+    Uses `core._dot_num_match` (WordStar 4.0+'s own dot-command math,
+    WSFORMAT.TXT) rather than `_PO_CMD_RE`'s plain-decimal pattern: the one
+    real corpus document that depends on this (sawyer/REF/-HOW-TO.RJS)
+    writes both as arithmetic (`.poe 0.50-0.20"`, `.poo
+    0.50+4.50+1.00-0.20"`), never a bare number."""
+    from .core import _dot_num_match, _resolve_cols_arg
+    checkpoints = []
+    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+        m = pattern.match(cmd)
+        if not m:
+            continue
+        num = _dot_num_match(cmd[m.end():].encode('latin-1', 'replace'))
+        if not num or not num.group(1):
+            continue
+        resolved = _resolve_cols_arg(float(num.group(1)), num.group(2))
+        if resolved is None:
+            continue
+        if not checkpoints or resolved != checkpoints[-1][1]:
+            checkpoints.append((bi, resolved))
+    return checkpoints
+
+
+def _left_for_parity(po, poe, poo, is_even):
+    """The resolved `po_cols` for a page of the given parity (planning
+    #231): its OWN parity override if one is in force (`poe`/`poo`, each
+    already `_po_at`-resolved or None -- see `_poe_poo_checkpoints`), else
+    whatever plain `.po` governs. Brief's own rule: "odd pages use .poo
+    (or .po), even pages .poe (or .po)."""
+    if is_even:
+        return poe if poe is not None else po
+    return poo if poo is not None else po
+
+
 def _pn_checkpoints(doc):
     """[(block_index, pn_value), ...] in ascending block order -- a `.pn`
     RE-ANCHORS the automatic page-number sequence starting on the page it
@@ -2686,6 +2732,18 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # `line.lead_48` above already has (core.py's back-dating pass).
             own_left = (_resolve_left_pt(line.po_cols, size)
                        if getattr(line, 'po_cols', None) is not None else None)
+            # Planning #231 (.poe/.poo even/odd page offset): see
+            # `_doc_to_pagelines`'s own identical comment -- duplicated here
+            # for the same reason every other quantity in this sibling loop
+            # is (different local names for the same thing).
+            own_parity_left = None
+            poe_c = getattr(line, 'poe_cols', None)
+            poo_c = getattr(line, 'poo_cols', None)
+            if poe_c is not None or poo_c is not None:
+                fallback_pt = own_left if own_left is not None else _printed_left(doc, size)
+                own_parity_left = (
+                    _resolve_left_pt(poe_c, size) if poe_c is not None else fallback_pt,
+                    _resolve_left_pt(poo_c, size) if poo_c is not None else fallback_pt)
             # Fix C (b26-print-fidelity-2): same blank/entering-line split
             # as _doc_to_pagelines -- see its own comment, `_style_lead_pt`'s
             # `raw` note, and `_entering_lead_pt`.
@@ -2770,7 +2828,8 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                                     lead=own_lead,
                                     overprint=line.overprint,
                                     bi=bi, left=own_left,
-                                    justify_right_x=justify_right_x), refs))
+                                    justify_right_x=justify_right_x,
+                                    parity_left=own_parity_left), refs))
     return stream
 
 def _area_size(entries):
@@ -3216,12 +3275,22 @@ class PageLine(list):
     # measured rule). Consumed by `_line_ops_printed`; a PageLine this
     # emitter MAKES rather than reads (furniture) leaves it None, same
     # convention as `lead`/`bi`.
+    # `parity_left` (planning #231, `.poe`/`.poo` even/odd page offset):
+    # `(even_pt, odd_pt)` -- this line's own resolved left origin for EACH
+    # page parity, or None for a line no `.poe`/`.poo` ever governs.
+    # `_doc_to_pagelines`/`_body_stream_printed` cannot resolve which of
+    # the two applies at BUILD time (that depends on which page this line
+    # lands on, a pagination question); `left` stays None until the
+    # page-filling loop's own `_close_page` -- the one place that actually
+    # knows this line's page's parity -- picks the right member of the
+    # pair and overwrites it. A line neither `.poe` nor `.poo` ever
+    # touched leaves this None, zero behaviour change.
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
-                'kerning', 'left', 'roll', 'justify_right_x')
+                'kerning', 'left', 'roll', 'justify_right_x', 'parity_left')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
-                roll=None, justify_right_x=None):
+                roll=None, justify_right_x=None, parity_left=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -3235,6 +3304,7 @@ class PageLine(list):
         self.left = left
         self.roll = roll
         self.justify_right_x = justify_right_x
+        self.parity_left = parity_left
 
 
 class Page(list):
@@ -3675,6 +3745,26 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 own_left = (_resolve_left_pt(line.po_cols, size_for_left)
                            if getattr(line, 'po_cols', None) is not None
                            else None)
+                # Planning #231 (.poe/.poo even/odd page offset): which of
+                # the two ever governs a given line depends on the PARITY
+                # of the page it lands on -- not known at this build stage
+                # (pagination is a later, separate pass) -- so this only
+                # ever records a CANDIDATE `(even_pt, odd_pt)` pair;
+                # `_close_page` (the one place page parity is actually
+                # known) picks the real one once pagination assigns this
+                # line to a page. None (the overwhelming common case: a
+                # document that never uses `.poe`/`.poo`) costs nothing.
+                own_parity_left = None
+                poe_c = getattr(line, 'poe_cols', None)
+                poo_c = getattr(line, 'poo_cols', None)
+                if poe_c is not None or poo_c is not None:
+                    fallback_pt = (own_left if own_left is not None
+                                  else _printed_left(doc, size_for_left))
+                    own_parity_left = (
+                        _resolve_left_pt(poe_c, size_for_left) if poe_c is not None
+                        else fallback_pt,
+                        _resolve_left_pt(poo_c, size_for_left) if poo_c is not None
+                        else fallback_pt)
                 # register b32-N10: this line's own `.sr` roll, already
                 # resolved -- core.Line.roll_48 is never None on a real
                 # parsed line (its own docstring), so this is simply the
@@ -3798,7 +3888,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              ws4_spacing=ws4_spacing_line,
                              kerning=getattr(line, 'kerning', True),
                              left=own_left, roll=own_roll,
-                             justify_right_x=justify_right_x)
+                             justify_right_x=justify_right_x,
+                             parity_left=own_parity_left)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -3870,6 +3961,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     po_checkpoints = _po_checkpoints(doc) if printed else None
     global_po = _po_at(po_checkpoints, 0) if po_checkpoints else None
     cur_po = global_po
+    # planning #231: `.poe`/`.poo` -- see `_poe_poo_checkpoints`. No
+    # block-0 seed (unlike `po_checkpoints` above): "never used" is a real,
+    # different answer from "used at the document default," and
+    # `_left_for_parity` already treats an empty/None value as "fall back
+    # to `cur_po`" -- exactly what a document that never writes `.poe`/
+    # `.poo` needs, byte-identical to before this feature existed.
+    poe_checkpoints = _poe_poo_checkpoints(doc, _POE_CMD_RE) if printed else None
+    poo_checkpoints = _poe_poo_checkpoints(doc, _POO_CMD_RE) if printed else None
+    cur_poe = _po_at(poe_checkpoints, 0) if poe_checkpoints else None
+    cur_poo = _po_at(poo_checkpoints, 0) if poo_checkpoints else None
     # register b31-dot-command-sweep: `.hm`/`.fm` too -- see
     # `_hm_fm_checkpoints`. Neither feeds capacity/budget (only the
     # header/footer ROW and the notes-area bottom anchor read them), but
@@ -3971,8 +4072,28 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             pg.pl_lines = cur_pl
         if (cur_hm, cur_fm) != (doc_hm, doc_fm):
             pg.hm_lines, pg.fm_lines = cur_hm, cur_fm
-        if cur_po != doc_po:
-            pg.po_cols = cur_po
+        # planning #231: this page's own PARITY -- `len(pages)` is exactly
+        # the count of pages already closed, so the page closing right now
+        # is page number `len(pages) + 1`, known for the FIRST time here
+        # (nothing upstream of pagination can know it). `_left_for_parity`
+        # falls back to `cur_po` whenever neither `.poe` nor `.poo` is in
+        # force, so a document that never uses either resolves to `cur_po`
+        # on every page, byte-identical to before this feature existed.
+        is_even_page = (len(pages) + 1) % 2 == 0
+        parity_po = _left_for_parity(cur_po, cur_poe, cur_poo, is_even_page)
+        if parity_po != doc_po:
+            pg.po_cols = parity_po
+        # Body text: `_doc_to_pagelines`/`_body_stream_printed` could not
+        # resolve a `.poe`/`.poo`-governed line's own left origin at BUILD
+        # time (which page, and therefore which parity, a line lands on is
+        # a pagination question, not a parse-order one) -- they left a
+        # `(even_pt, odd_pt)` candidate pair on `.parity_left` instead.
+        # Resolved now, in place, the one moment this loop actually knows
+        # this page's parity.
+        for pl in pg:
+            parity_left = getattr(pl, 'parity_left', None)
+            if parity_left is not None:
+                pl.left = parity_left[0 if is_even_page else 1]
         pages.append(pg)
     def _recompute_geom(bi):
         """(mt, mb, pl, hm, fm, po) in force at block `bi`, for the page about
@@ -4000,7 +4121,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pl = _pl_at(pl_checkpoints, bi) if pl_checkpoints else global_pl
         hm, fm = _hm_fm_at(hm_fm_checkpoints, bi) if hm_fm_checkpoints else (global_hm, global_fm)
         po = _po_at(po_checkpoints, bi) if po_checkpoints else global_po
-        return mt, mb, pl, hm, fm, po
+        poe = _po_at(poe_checkpoints, bi) if poe_checkpoints else None
+        poo = _po_at(poo_checkpoints, bi) if poo_checkpoints else None
+        return mt, mb, pl, hm, fm, po, poe, poo
     # #228: True only in the gap between processing a forced pagebreak
     # (`l is None`) and either the next real line or the end of `lines`
     # -- set True right where the loop `continue`s on `l is None`, set
@@ -4032,7 +4155,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # page whose geometry never changes never recomputes to a
         # different number (see `_printed_cap_for`'s docstring).
         if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po = _recompute_geom(l.bi)
+            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
             budget = (cap - 1) * default_lead
         overflow = (spent + _cost(l) > budget + 1e-6) if printed \
@@ -4068,7 +4191,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # never reaches the top-of-loop `not page` gate, since it
                 # is already mid-iteration by the time `page` empties.
                 if printed and full and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po = _recompute_geom(l.bi)
+                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
                     budget = (cap - 1) * default_lead
             if l is None:
