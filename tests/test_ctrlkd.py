@@ -4420,7 +4420,16 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     every one of those 14 characters became '?'. Only the 12 that cp1252
     truly cannot carry route to Symbol -- ß (sharp s) and µ (micro sign)
     are genuine cp1252 characters in their own right (not this bug) and
-    stay on the plain Courier face."""
+    stay on the plain Courier face.
+
+    Round 2026-09-07 (Jon, ctrl-kd 4.5.1/sr 4.0.3 field report): Modern PDF
+    -- the CLI's own default mode -- had this exact bug too, and worse:
+    `--mode modern` runs unless a document requests Printed, so the
+    original b26 fix (Printed-only, `_line_ops_printed`'s
+    `_split_symbol_fallback`) left the DEFAULT export path emitting literal
+    '?' for this line. The fix (`_symbol_fallback_split`, shared by both
+    paths via `_modern_flow`'s per-token loop) makes Modern match Printed
+    exactly -- same Symbol face, same per-character split, same bytes."""
     from ctrlkd.pdf import emit_pdf
     line = 'αßΓπΣσµτΦΘΩδφε'
     data = (ws7_block(0x00)
@@ -4432,24 +4441,28 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     txt = emit.emit_text(doc, mode='printed')
     assert line in txt                             # text formats: untouched
 
-    pdf = emit_pdf(doc, mode='printed')
-    fonts = _basefonts(pdf)
-    assert b'Symbol' in fonts.values()
-    sym = next(n for n, b in fonts.items() if b == b'Symbol')
-    cour = next(n for n, b in fonts.items() if b == b'Courier')
-    shown = _content_text(pdf)
-    assert not any(b'?' in text for _, _, text in shown)  # the whole point
-    # split exactly at the cp1252-representable ß/µ, same order as the source
-    assert (sym, 12, b'a') in shown
-    assert (cour, 12, b'\xdf') in shown             # ss (sharp s) -- cp1252, untouched
-    assert (sym, 12, b'GpSs') in shown
-    assert (cour, 12, b'\xb5') in shown             # micro sign -- cp1252, untouched
-    assert (sym, 12, b'tFQWdfe') in shown
+    # Printed's fontless body face is Courier at the doc size (12); Modern's
+    # is Times at MODERN_BODY_PT (14) -- `_pdf_family`/`_modern_tok_font`'s
+    # own documented per-mode split, unrelated to this bug. The Symbol
+    # split itself (which pieces switch face, in what order) must be the
+    # SAME sequence either way, so check that at whichever size/body-face
+    # each mode actually uses.
+    for mode, body_font in (('printed', b'Courier'), ('modern', b'Times-Roman')):
+        pdf = emit_pdf(doc, mode=mode)
+        fonts = _basefonts(pdf)
+        assert b'Symbol' in fonts.values(), mode
+        sym = next(n for n, b in fonts.items() if b == b'Symbol')
+        body = next(n for n, b in fonts.items() if b == body_font)
+        shown = _content_text(pdf)
+        assert not any(b'?' in text for _, _, text in shown), mode  # the whole point
+        sz = next(s for f, s, t in shown if f == sym and t == b'a')
+        # split exactly at the cp1252-representable ß/µ, same order as the source
+        assert (sym, sz, b'a') in shown, mode
+        assert (body, sz, b'\xdf') in shown, mode   # ss (sharp s) -- cp1252, untouched
+        assert (sym, sz, b'GpSs') in shown, mode
+        assert (body, sz, b'\xb5') in shown, mode   # micro sign -- cp1252, untouched
+        assert (sym, sz, b'tFQWdfe') in shown, mode
 
-    # Modern PDF and both RTF modes are untouched -- this fix is Printed
-    # PDF only (pdf.py's _line_ops_printed, never shared with Modern/RTF).
-    pdf_modern = emit_pdf(doc, mode='modern')
-    assert b'Symbol' not in _basefonts(pdf_modern).values()
     r_printed = emit.emit_rtf(doc, mode='printed')
     r_modern = emit.emit_rtf(doc, mode='modern')
     # RTF was never routed through cp1252 at all (\uNNNN? unicode escapes,
@@ -4457,6 +4470,63 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     # either as \u945/\u915/\u931/\u937 escapes.
     assert '\\u945' in r_printed and '\\u915' in r_printed
     assert '\\u945' in r_modern and '\\u915' in r_modern
+    # HTML/markdown/text are Unicode-native too -- never touched this bug,
+    # verified rather than assumed.
+    h_printed = emit.emit_html(doc, mode='printed')
+    h_modern = emit.emit_html(doc, mode='modern')
+    assert 'α' in h_printed and 'α' in h_modern
+    md_printed = emit.emit_markdown(doc, mode='printed')
+    md_modern = emit.emit_markdown(doc, mode='modern')
+    assert 'α' in md_printed and 'α' in md_modern
+    txt_modern = emit.emit_text(doc, mode='modern')
+    assert line in txt_modern
+
+
+def test_symbol_fallback_split_generalises_to_zapfdingbats():
+    """`_symbol_fallback_split`/`symbolmap.symbol_fallback_kind` answer
+    'math' (Symbol) OR 'symbols' (ZapfDingbats), not just 'math' -- the
+    same fallback mechanism this round wired into Modern covers both faces
+    a genuine `.symbol`/`.dingbat` font block already covers, exactly as
+    the docstring claims. Exercised directly on the helper rather than
+    through a parsed WS document: cp437 (the only body encoding a real
+    WordStar document carries) has no Dingbats repertoire of its own
+    outside the four GRAPHIC_CHARS card-suit glyphs (♣♦♥♠, already vector
+    fills -- deliberately excluded from this path, see the docstring), so
+    there is no cp437 byte sequence that reaches `symbol_fallback_kind`
+    with a 'symbols' verdict via `core.parse_ws`. A real ZapfDingbats run
+    reaches PDF only through a document's own font block (`font_translit_
+    kind`, already covered by
+    test_pdf_symbol_run_sets_the_symbol_face_with_its_own_bytes for both
+    modes) -- this test is the fallback CODE PATH'S correctness, not a
+    claim that today's corpus can trigger it."""
+    from ctrlkd.pdf import _symbol_fallback_split, GRAPHIC_CHARS
+    from ctrlkd.symbolmap import symbol_fallback_kind, untransliterate
+    # U+2701 SCISSORS: a real ZapfDingbats glyph, no cp1252 code point, and
+    # not a GRAPHIC_CHARS member (the card-suit exceptions are).
+    scissors = '✁'
+    assert symbol_fallback_kind(scissors) == 'symbols'
+    assert scissors not in GRAPHIC_CHARS
+    # the four GRAPHIC_CHARS card-suit glyphs stay vector fills, never
+    # diverted here, even though _dingbat_code recognises their bytes too.
+    for suit in '♣♦♥♠':
+        assert suit in GRAPHIC_CHARS
+        assert _symbol_fallback_split(suit, 'Courier') == [(suit, 'Courier')]
+    text = 'ok' + scissors + 'done'
+    pieces = _symbol_fallback_split(text, 'Courier')
+    assert pieces == [
+        ('ok', 'Courier'),
+        (untransliterate(scissors, 'symbols'), 'ZapfDingbats'),
+        ('done', 'Courier'),
+    ]
+    # a piece mixing Symbol- and ZapfDingbats-fallback characters splits
+    # into three pieces, not two -- the two encodings never merge into one
+    # run even though both divert off the body face.
+    mixed = 'a' + 'α' + scissors        # 'a', alpha (Symbol), scissors
+    assert _symbol_fallback_split(mixed, 'Courier') == [
+        ('a', 'Courier'),
+        (untransliterate('α', 'math'), 'Symbol'),
+        (untransliterate(scissors, 'symbols'), 'ZapfDingbats'),
+    ]
 
 
 def test_pdf_symbol_run_styling_is_synthesized_bold_italic_bold_italic():

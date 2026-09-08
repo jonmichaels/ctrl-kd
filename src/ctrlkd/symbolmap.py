@@ -91,6 +91,26 @@ def _dingbat_code(ch):
         return chr(cp - 0x2700 + 0x20)
     return None
 
+def symbol_fallback_kind(ch):
+    """Which base-14 symbol face (if any) carries `ch` in its own byte
+    codes: 'math' for the Adobe Symbol encoding, 'symbols' for
+    ZapfDingbats (checked in that order -- the two encodings never
+    overlap, so order doesn't matter for correctness, only for which
+    check runs first). None if neither face has it.
+
+    For a caller deciding whether a character the body face (cp1252)
+    cannot carry has ANY substitute face at all -- the same question
+    `font_translit_kind` answers from a font block's own declared bits,
+    asked instead per character, for prose that carries a handful of
+    cp437 Greek/math or Dingbats bytes with no Symbol/Dingbats font
+    block in play at all (pdf.py's `_split_symbol_fallback`/
+    `_symbol_fallback_split`)."""
+    if ch in SYMBOL_REVERSE:
+        return 'math'
+    if _dingbat_code(ch) is not None:
+        return 'symbols'
+    return None
+
 def untransliterate(text, kind):
     """Inverse of transliterate: real Unicode -> the bytes to set in the
     Symbol/ZapfDingbats font itself. Unmappable characters -> '?'."""

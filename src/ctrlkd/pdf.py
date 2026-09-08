@@ -32,7 +32,8 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
 from . import layout as _layout
-from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE
+from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE, \
+    symbol_fallback_kind
 from .afm import string_width_pt as _natural_width_pt
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
@@ -1994,24 +1995,40 @@ def _split_graphics(segs):
     return out
 
 
-# ------------------------------------------------- cp437 Greek/math fallback
+# ---------------------------------------- cp437 Greek/math/Dingbats fallback
 #
-# cp1252 (Printed PDF's declared /WinAnsiEncoding, _esc) carries none of the
-# Greek/math repertoire cp437 puts at 0xE0-0xEE -- real WS7 prints this fine
-# (measured: jon_vault's -SCREEN.pcl + .measurements.json, the
-# "αßΓπ..." line), because the driver routed those bytes
-# through the Symbol PostScript font, not through the body face's own
-# encoding. `_pdf_family` already recognises a WHOLE span's font block as
-# 'math' (a real `.symbol`-typestyle font); this is the same face-bypass for
-# the common case, PLAIN COURIER PROSE that happens to carry a handful of
-# cp437 Greek/math bytes with no font block declaring Symbol at all. A
-# character cp1252 cannot carry but symbolmap.SYMBOL_REVERSE can (the same
-# Adobe Symbol repertoire the real `.math` path already writes) gets its own
-# segment, face switched to Symbol and untransliterated to the face's own
-# byte code -- everything else in the run (including cp1252-representable
-# look-alikes like micro sign / sharp-s, which are NOT this bug) stays on
-# its own declared face untouched. Mirrors _split_graphics's declared-font
-# bypass for box glyphs exactly.
+# cp1252 (Printed PDF's declared /WinAnsiEncoding, _esc; Modern PDF's body
+# faces the same) carries none of the Greek/math repertoire cp437 puts at
+# 0xE0-0xEE -- real WS7 prints this fine (measured: jon_vault's -SCREEN.pcl +
+# .measurements.json, the "αßΓπ..." line), because the driver routed those
+# bytes through the Symbol PostScript font, not through the body face's own
+# encoding. The same is true of cp437's own Dingbats repertoire wherever it
+# turns up outside GRAPHIC_CHARS' card-suit/smiley vector shapes (those stay
+# vectors -- see `_span_render`'s docstring and the GRAPHIC_CHARS guard
+# below). `_pdf_family` already recognises a WHOLE span's font block as
+# 'math'/'symbols' (a real `.symbol`/`.dingbat`-typestyle font); this is the
+# same face-bypass for the common case, PLAIN COURIER PROSE that happens to
+# carry a handful of cp437 Greek/math/Dingbats bytes with no Symbol/Dingbats
+# font block in play at all. A character cp1252 cannot carry but
+# symbolmap.symbol_fallback_kind can (the same Adobe Symbol/ZapfDingbats
+# repertoire the real `.math`/`.symbols` path already writes) gets its own
+# segment, face switched to Symbol or ZapfDingbats and untransliterated to
+# the face's own byte code -- everything else in the run (including
+# cp1252-representable look-alikes like micro sign / sharp-s, which are NOT
+# this bug) stays on its own declared face untouched. Mirrors
+# _split_graphics's declared-font bypass for box glyphs exactly, and (via
+# the GRAPHIC_CHARS check below) never fights it for the same character.
+#
+# `_split_symbol_fallback` is Printed's own seg-list shape; `_symbol_
+# fallback_split` is the same run-finding logic factored out to (text,
+# family) pairs so Modern's per-token loop in `_modern_flow` can call it too
+# (round 2026-09-07: Modern used to skip this fallback entirely -- every
+# cp437 Greek/math/Dingbats byte in a fontless or plain-body Modern span
+# rode straight to cp1252 encoding and came out '?'; Printed already had
+# this fix, Modern's own `_modern_tok_font` never called it).
+FALLBACK_FAMILY = {'math': 'Symbol', 'symbols': 'ZapfDingbats'}
+
+
 def _cp1252_ok(ch):
     try:
         ch.encode('cp1252')
@@ -2020,34 +2037,47 @@ def _cp1252_ok(ch):
         return False
 
 
+def _symbol_fallback_split(text, family):
+    """[(piece_text, piece_family), ...] for one already-resolved (text,
+    family) span/token: text broken at cp1252-fallback boundaries, a piece
+    that needs Symbol or ZapfDingbats peeled onto that face (untransliterated
+    to its own byte codes), everything else -- including any GRAPHIC_CHARS
+    member, which _split_graphics/_modern_w's own vector-fill path owns, not
+    this one -- staying on `family` untouched. A single-piece result with
+    the input text unchanged (same object) means no fallback was needed."""
+    if not text or all(_cp1252_ok(ch) or ch in GRAPHIC_CHARS for ch in text):
+        return [(text, family)]                # fast path: no fallback needed
+    runs, run_kind, buf_start, started = [], None, 0, False
+    for i, ch in enumerate(text):
+        kind = (None if (ch in GRAPHIC_CHARS or _cp1252_ok(ch))
+                else symbol_fallback_kind(ch))
+        if not started:
+            run_kind, started = kind, True
+        elif kind != run_kind:
+            runs.append((buf_start, i, run_kind))
+            buf_start, run_kind = i, kind
+    runs.append((buf_start, len(text), run_kind))
+    pieces = []
+    for start, end, kind in runs:
+        piece = text[start:end]
+        if kind is None:
+            pieces.append((piece, family))
+        else:
+            pieces.append((untransliterate(piece, kind), FALLBACK_FAMILY[kind]))
+    return pieces
+
+
 def _split_symbol_fallback(segs):
     out = []
     for seg in segs:
         text, styles, family, size_here, entry = seg
-        if family in ('Symbol', 'ZapfDingbats') or not text:
+        if family in ('Symbol', 'ZapfDingbats'):
             # already on the real Symbol/Dingbats face (untransliterated
-            # face codes, not Unicode -- nothing here could ever match), or
-            # empty -- nothing to split.
+            # face codes, not Unicode -- nothing here could ever match).
             out.append(seg)
             continue
-        if all(_cp1252_ok(ch) for ch in text):
-            out.append(seg)                    # fast path: no fallback needed
-            continue
-        run_is_symbol, buf_start = None, 0
-        for i, ch in enumerate(text):
-            is_symbol = (not _cp1252_ok(ch)) and ch in SYMBOL_REVERSE
-            if run_is_symbol is None:
-                run_is_symbol = is_symbol
-            elif is_symbol != run_is_symbol:
-                piece = text[buf_start:i]
-                out.append((untransliterate(piece, 'math'), styles, 'Symbol',
-                            size_here, entry) if run_is_symbol
-                           else (piece, styles, family, size_here, entry))
-                buf_start, run_is_symbol = i, is_symbol
-        piece = text[buf_start:]
-        out.append((untransliterate(piece, 'math'), styles, 'Symbol',
-                    size_here, entry) if run_is_symbol
-                   else (piece, styles, family, size_here, entry))
+        for piece, piece_family in _symbol_fallback_split(text, family):
+            out.append((piece, styles, piece_family, size_here, entry))
     return out
 
 
@@ -5537,8 +5567,18 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                 for m in _MODERN_TOK_RE.finditer(run_text):
                     written, family, pt, entry = _modern_tok_font(
                         m.group(0), styles, doc.fonts)
-                    w = _modern_w(written, styles, family, pt, entry)
-                    toks.append((written, styles, family, pt, entry, w))
+                    # b26-modern item 4 (2026-09-07): a token whose family
+                    # isn't already Symbol/ZapfDingbats may still carry
+                    # cp437 Greek/math/Dingbats bytes cp1252 can't encode --
+                    # same fallback Printed's _split_symbol_fallback applies,
+                    # factored out so both paths share one answer.
+                    if family in ('Symbol', 'ZapfDingbats'):
+                        fb_pieces = ((written, family),)
+                    else:
+                        fb_pieces = _symbol_fallback_split(written, family)
+                    for piece, piece_family in fb_pieces:
+                        w = _modern_w(piece, styles, piece_family, pt, entry)
+                        toks.append((piece, styles, piece_family, pt, entry, w))
             # b26-modern item 3 (screenplay ruling): only lines inside a
             # DETECTED screenplay region (or immediately preceding one,
             # for the page-marker case -- see screenplay_marker_bis
