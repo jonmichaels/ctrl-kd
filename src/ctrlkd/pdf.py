@@ -5237,16 +5237,27 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     The measured rule (same research note): WS7 stretches ONLY the
     single-character inter-word gaps of the line (a run of 2+ literal
     blanks -- e.g. an author's own end-of-sentence double space -- is left
-    at its natural width), distributing the line's own total slack evenly
-    across those gaps so the line's last character lands exactly on
+    at its natural width), distributing the line's own total slack across
+    those gaps so the line's last character lands exactly on
     `justify_right_x`. The measured LSRBOX/CTRL-K.H1 captures show WS7's
     own per-gap split is NOT perfectly flat even when the total divides
     evenly (e.g. one 8-gap, 72dp-total line measured 7,7,10,9,10,9,10,10
     decipoints rather than a flat 9 each) -- WS7's own internal rounding
-    for that split was not reverse-engineered to the decipoint this pass.
-    An even (self-consistent, always-flush) split is what ships here; the
-    residual sub-decipoint disagreement against WS7 is a known, documented
-    approximation, not a bug still being chased.
+    for that split was not reverse-engineered to the decipoint this pass
+    (research/2026-09-08_justification-gap-model.md). What ships here is
+    cumulative-floor Bresenham distribution across the elastic gaps,
+    computed in whole decipoints: `stretch[i] = floor((i+1)*S/G) -
+    floor(i*S/G)`, S = the line's total slack in decipoints, G = elastic
+    gap count. It reproduces every measured whole-column-slack gap
+    (including the 7,7,10,9,10,9,10,10 example above) exactly, and is a
+    measured improvement over flat-even-split everywhere else it was
+    tested (mean residual 0.43dp vs 0.49dp on whole-column slack, 0.80dp
+    vs 0.89dp on fractional slack, across 376 measured gaps) -- but it is
+    still a disclosed approximation, not a fidelity-gate pass: it does not
+    hit every gap to the decipoint, and the true algorithm remains
+    unidentified (candidates ruled out and still open are in the research
+    note). The split is done in integer decipoints deliberately, not
+    float points, so the result never depends on summation order.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
     WordStar's: the characters before it, each at its own run's HMI advance
@@ -5662,7 +5673,18 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                 stretch_total = justify_right_x - x - natural_total
                 if elastic and stretch_total > 0:
                     n = len(elastic)
-                    base = stretch_total / n
+                    # Cumulative-floor Bresenham (planning #238, research/
+                    # 2026-09-08_justification-gap-model.md): whole-decipoint
+                    # integer arithmetic -- stretch_dp[i] sums to exactly
+                    # stretch_total_dp by construction (telescoping floor
+                    # differences), so there is no float accumulation order
+                    # to get wrong and no compensated-sum needed.
+                    stretch_total_dp = round(stretch_total * 10)
+                    stretch_dp = [
+                        ((i + 1) * stretch_total_dp) // n
+                        - (i * stretch_total_dp) // n
+                        for i in range(n)
+                    ]
                     symbol_bold = family == 'Symbol' and 'b' in styles
                     symbol_italic = family == 'Symbol' and 'i' in styles
                     ul_x0 = ul_x1 = None
@@ -5674,7 +5696,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                         is_elastic_gap = (piece == ' ' and ei < len(elastic)
                                          and elastic[ei] == pi)
                         if is_elastic_gap:
-                            pw += base
+                            pw += stretch_dp[ei] / 10.0
                             ei += 1
                         if is_elastic_gap:
                             # `_tz_scale` width-matches a GLYPH's drawn shape

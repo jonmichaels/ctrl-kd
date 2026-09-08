@@ -35,8 +35,8 @@
  },
  "engine_version": "4.5.1",
  "generator": {
-  "date": "2026-09-08T17:54:15-04:00",
-  "git_sha": "60e4c8aca2c9cbba88ad36aa507c17b75e700cd8",
+  "date": "2026-09-08T18:23:54-04:00",
+  "git_sha": "81490d8c5fdbfb05506304cecd4334adb307b186",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -5866,7 +5866,7 @@
       "pdf.printed": {
        "bytes": 42340,
        "pages": 10,
-       "sha256": "c725e11399295ac257efdbb1245bfa2dfe09a13af63cb363665fe12469e66042"
+       "sha256": "eeba768279dbd69653b295130bdc594ea9ec11b0530d5a216205080a3f6b5f22"
       },
       "rtf.modern": {
        "bytes": 15430,
