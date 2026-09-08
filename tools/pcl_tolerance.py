@@ -1433,6 +1433,66 @@ def _divergence(doc, page, line_y, words, ws7_pos, pdf_pos, font_class, reason, 
     }
 
 
+def _page_calibration_items(items):
+    """Which of a page's matched (ws7_token, engine_token, delta) triples
+    calibrate that page's median dx/dy offset -- planning #235, 2026-09-08.
+
+    BEFORE: every matched word on the page fed the median, including
+    mid-line words. That's fine for ordinary prose (font-substitution
+    dx drift is bounded and roughly symmetric around the true offset),
+    but it breaks on a page carrying even ONE badly-behaved outlier
+    pair, because a page median has no protection against a single
+    dominant cluster of extreme values:
+
+    - `sawyer/RTF-RJS/1-SINGLE.WS`, `1-5LINES.WS`, `2-DOUBLE.WS`: each is
+      a line-spacing PROBE whose body is one long unbroken RTF-markup
+      token (`\\deff0\\deflang1033...`, 80+ characters with no spaces).
+      WS7 and the engine disagree about where such a token wraps, so
+      once it wraps, every later word on that same page inherits a
+      residual that grows smoothly (measured: 400-600pt) as the two
+      sides' wrap points diverge further -- and because most of each
+      page's word count sits inside or after that one bad wrap, the
+      MEDIAN itself lands near the outlier cluster, not near zero.
+      Confirmed directly (2026-09-08 triage): the page's genuine
+      line-start words measure raw dx=0.0 against WS7 in every case
+      checked, yet were flagged divergent against the contaminated
+      median.
+    - `sawyer/REF/FONTS.REF`: a font-sample-per-line document; ordinary
+      proportional-font-width drift (excluded corpus-wide by policy,
+      planning #210) accumulates across each sample line and pulls the
+      whole-page median off the true frame offset the same way.
+
+    AFTER: calibrate from LINE-START, FIXED-PITCH (`tier == TIER_EXACT`,
+    i.e. Courier) words only -- WordStar sets a fixed-pitch line-start
+    token's x/y from the page's own resolved margin and line leading,
+    nothing else, so it can never inherit a mid-line wrap-point
+    disagreement or a proportional-font width drift the way an
+    arbitrary word can. This is a STRICTER version of the same
+    reasoning `document_frame_offset_pt` above already uses for the
+    whole-document dx figure (line-start words only) -- narrowed
+    further to fixed-pitch, since a page can carry no Courier text at
+    all, in which case dy still needs SOME population.
+
+    Falls back, in order, to (1) every line-start word regardless of
+    tier, then (2) every matched word on the page (the pre-#235
+    behavor) -- so a page with no fixed-pitch line-start words (or, in
+    the extreme, no line-start words matched at all) still gets a
+    calibration figure instead of an empty one. Verified against the
+    four documents above (2026-09-08): all four now report their
+    genuine line-start words as clean, and the RTF-markup wrap
+    disagreement itself still surfaces on its own words (as intended --
+    this fix removes the MEDIAN CONTAMINATION, not the underlying wrap
+    divergence, which is real and stays reported)."""
+    exact_line_start = [it for it in items
+                        if it[0]['is_line_start'] and it[0]['tier'] == TIER_EXACT]
+    if exact_line_start:
+        return exact_line_start
+    any_line_start = [it for it in items if it[0]['is_line_start']]
+    if any_line_start:
+        return any_line_start
+    return items
+
+
 def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = None) -> dict:
     """The full named-divergence report for one captured document:
     {doc, verdict, source_ws, capture_set, install, counts_by_reason,
@@ -1646,8 +1706,8 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
 
     no_substitute_word_count = 0
     for page, items in sorted(by_page.items()):
-        page_deltas = [d for (_, _, d) in items]
-        offset = fg.frame_offset(page_deltas)
+        calibration_items = _page_calibration_items(items)
+        offset = fg.frame_offset([d for (_, _, d) in calibration_items])
         mx = offset['median_dx'] if offset['median_dx'] is not None else 0.0
         my = offset['median_dy'] if offset['median_dy'] is not None else 0.0
         for w, e, d in items:

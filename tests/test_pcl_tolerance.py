@@ -785,3 +785,83 @@ def test_reconcile_glued_ws7_chunks_only_consumes_each_token_once():
         eng_tokens, unmatched_ws7, unmatched_engine)
     assert new_ws7 == []
     assert new_eng == []
+
+
+# --------------------------------------------- per-page calibration (#235)
+def _cal_item(is_line_start, tier, dx=0.0, dy=0.0):
+    """One (ws7_token, engine_token, delta) triple, minimal enough for
+    _page_calibration_items -- it only reads w['is_line_start']/w['tier']
+    and the delta's own dx/dy."""
+    w = {'is_line_start': is_line_start, 'tier': tier}
+    e = {}
+    d = {'dx': dx, 'dy': dy, 'same_page': True}
+    return (w, e, d)
+
+
+def test_page_calibration_prefers_line_start_fixed_pitch_words():
+    # planning #235: a page dominated by contaminated (mid-line,
+    # font-substitution) words must not drag the calibration off the
+    # genuinely-correct line-start Courier words' own dx/dy.
+    items = [
+        _cal_item(True, pt.TIER_EXACT, dx=0.0, dy=0.0),
+        _cal_item(True, pt.TIER_EXACT, dx=0.0, dy=0.0),
+        _cal_item(False, pt.TIER_CGTIMES, dx=500.0, dy=500.0),
+        _cal_item(False, pt.TIER_CGTIMES, dx=520.0, dy=520.0),
+        _cal_item(False, pt.TIER_CGTIMES, dx=540.0, dy=540.0),
+    ]
+    chosen = pt._page_calibration_items(items)
+    assert chosen == items[:2]
+
+
+def test_page_calibration_falls_back_to_any_line_start_word():
+    # No fixed-pitch line-start word on this page (e.g. an all-proportional
+    # document) -- fall back to line-start words of any tier rather than
+    # letting mid-line words calibrate the page.
+    items = [
+        _cal_item(True, pt.TIER_CGTIMES, dx=1.0, dy=1.0),
+        _cal_item(False, pt.TIER_CGTIMES, dx=500.0, dy=500.0),
+    ]
+    chosen = pt._page_calibration_items(items)
+    assert chosen == items[:1]
+
+
+def test_page_calibration_falls_back_to_all_words_when_no_line_start_matched():
+    # Degenerate case: nothing on the page matched as a line-start word at
+    # all (e.g. every line-start token happened to land in unmatched_ws7/
+    # unmatched_engine instead) -- must not return an empty calibration
+    # set (frame_offset([]) reports n=0/median=None, silently disabling
+    # every check on the page); fall back to the pre-#235 behavior.
+    items = [
+        _cal_item(False, pt.TIER_CGTIMES, dx=1.0, dy=1.0),
+        _cal_item(False, pt.TIER_UNIVERS, dx=2.0, dy=2.0),
+    ]
+    chosen = pt._page_calibration_items(items)
+    assert chosen == items
+
+
+def test_page_calibration_rtf_wrap_probes_no_longer_contaminate_line_starts():
+    """End-to-end regression for the four documents planning #235 named
+    (sawyer/RTF-RJS/1-SINGLE.WS, 1-5LINES.WS, 2-DOUBLE.WS, REF/FONTS.REF):
+    a page shaped like their own failure -- a handful of correct
+    line-start Courier words, then many mid-line words all displaced by
+    the SAME large constant (an unbroken RTF/markup token wrapping
+    differently on each side, or accumulated proportional-width drift) --
+    must calibrate from the correct words, not the contaminated majority,
+    so the line-start words measure clean (resid_dx == 0) while the real
+    mid-line divergence still surfaces on its own words."""
+    items = [
+        _cal_item(True, pt.TIER_EXACT, dx=0.0, dy=0.0),
+        _cal_item(True, pt.TIER_EXACT, dx=0.0, dy=0.0),
+        _cal_item(True, pt.TIER_EXACT, dx=0.0, dy=0.0),
+    ] + [_cal_item(False, pt.TIER_CGTIMES, dx=450.0, dy=0.0) for _ in range(20)]
+    chosen = pt._page_calibration_items(items)
+    offset = pt.fg.frame_offset([d for (_, _, d) in chosen])
+    assert offset['median_dx'] == 0.0
+    # the line-start words themselves now measure a zero residual...
+    for w, e, d in chosen:
+        assert d['dx'] - offset['median_dx'] == 0.0
+    # ...while the contaminated mid-line words' own residual is untouched
+    # (still real, still reportable) -- calibration doesn't erase them.
+    contaminated = [it for it in items if it not in chosen]
+    for w, e, d in contaminated:
+        assert d['dx'] - offset['median_dx'] == 450.0
