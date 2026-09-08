@@ -2272,6 +2272,27 @@ _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
                   # author put it. Two separate mechanisms.
                   b'PC': 'pc_col'}
 
+# GAP, reported not implemented (planning #202 cause 6, 2026-09-08): `.POE`/
+# `.POO` (page offset for even/odd pages -- WSFORMAT.WS's own text: ".PO can
+# optionally specify even or odd number page offsets") and the matching
+# `.H1E`/`.H1O`/`.F1E`/`.F1O` family are real, distinct 3-letter dot commands
+# -- confirmed against sawyer/REF/-HOW-TO.RJS's own prose, which explains
+# using `.poe .8"` / `.poo 5.8"` together with `.h1e`/`.h1o` to print a
+# landscape "galleys" layout with different margins on facing pages. They
+# parse as ordinary unrecognized dot commands today (preserved verbatim in
+# doc.meta['dot_commands']/round-trip, but with no effect on layout at all)
+# because nothing in this engine's pagination model tracks a page's own
+# odd/even PARITY -- `_mt_mb_checkpoints`/`_hm_fm_checkpoints`/`_po_checkpoints`
+# (pdf.py) all resolve "what's in force by block index," never "and is this
+# page 3 or 4." Implementing `.poe`/`.poo` needs that parity threaded through
+# pagination as a NEW axis, not a one-line resolver addition like every other
+# entry in this dict -- ruled out of THIS round per the brief ("implement if
+# the layout already distinguishes odd/even pages ... else report the gap");
+# it does not. `sawyer/REF/-HOW-TO.RJS` (+ byte-identical duplicate
+# BOOKLET.RJS) is the corpus document that depends on it (12 WS7 pages vs 13
+# engine pages as of the cause-5 leading fix; every page after the first
+# renders at the ODD margin only).
+
 # Named page sizes at 6 LPI (WordStar 7.0 file format spec: ".PL ... assuming
 # 6 lines per inch. An eleven inch page contains 66 lines."): 66 lines/11in
 # Letter, 84 lines/14in Legal, 81 lines/13.5in Foolscap Folio (the pre-ISO UK
