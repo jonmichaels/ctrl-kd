@@ -2092,6 +2092,170 @@ def era_for(variant):
 _DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
 _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 
+# ------------------------------------------------------------ dot-command math
+#
+# WSFORMAT.TXT (the WordStar 7 file-format reference, sawyer/REF/WSFORMAT.TXT):
+# "Versions prior to 4.0 require whole numbers as arguments to dot commands
+# that require numbers (subscript roll, page offset). With version 4.0, math
+# was allowed in the arguments for easier entry of complex page layouts."
+# `_DOT_NUM_RE` above only ever matched a bare decimal -- it stops at the
+# first `/` or `(`, so a fraction or a parenthesized expression silently fell
+# back to being read as whatever bare digits happened to precede it (planning
+# #202 residuals round). Two real corpus documents confirm this is still live
+# in WS7: `sawyer/UTIL/DOSYMSEQ.WS`'s `.lh 12/72"` (12/72 inch = 12pt --
+# confirmed directly against its own WS7 capture, whose `baseline_gaps_pt`
+# most common value is exactly 12.0pt; `_DOT_NUM_RE` read this as the bare
+# integer 12, resolved to 18pt in 1/48in units -- 1.5x too tall) and
+# `sawyer/RTF-RJS/NOVEL.WS`'s `.po ((8.5-7.8)/2)i` / `.po ((8.5-7.8)/2)-.3`
+# (strong circumstantial evidence, not independently confirmed to the exact
+# page -- see research/2026-09-08_page-count-triage.md cause 5).
+#
+# `_dot_num_match` is the ONE parse this module now shares: every one of its
+# ~13 call sites already does nothing but `_DOT_NUM_RE.match(arg)` followed
+# by `float(m.group(1))`/`m.group(2)`/`m.end()`, so `_DotNumMatch` mimics
+# that same three-method surface and every call site is a drop-in rename,
+# not a rewrite -- see the class's own docstring.
+#
+# Grammar (no unary sign -- see `_parse_dot_expr`'s own docstring for why):
+#   expr    := term (('+' | '-') term)*
+#   term    := primary (('*' | '/') primary)*
+#   primary := NUMBER | '(' expr ')'
+# NUMBER is exactly `_DOT_NUM_RE`'s own digit grammar (`_DOT_BARE_NUM_RE`),
+# so the plain bare-number case -- the overwhelming majority of every dot
+# command in the corpus -- parses to the identical float it always has;
+# only a document that actually contains a `/` or `(` in a numeric argument
+# takes a different path at all.
+_DOT_BARE_NUM_RE = re.compile(rb'[0-9]*\.?[0-9]+')
+_DOT_UNIT_RE = re.compile(rb'\s*("|[A-Za-z]{1,2})')
+_DOT_EXPR_WS = frozenset(b' \t\n\r\x0b\x0c')
+
+
+def _skip_dot_ws(s: bytes, i: int) -> int:
+    while i < len(s) and s[i] in _DOT_EXPR_WS:
+        i += 1
+    return i
+
+
+def _parse_dot_number(s: bytes, i: int):
+    m = _DOT_BARE_NUM_RE.match(s, i)
+    if not m:
+        return None
+    try:
+        return float(m.group(0)), m.end()
+    except ValueError:
+        return None
+
+
+def _parse_dot_primary(s: bytes, i: int):
+    i = _skip_dot_ws(s, i)
+    if i < len(s) and s[i:i + 1] == b'(':
+        r = _parse_dot_expr(s, i + 1)
+        if r is None:
+            return None
+        value, j = r
+        j = _skip_dot_ws(s, j)
+        if j < len(s) and s[j:j + 1] == b')':
+            return value, j + 1
+        return None                     # unbalanced paren: not a valid expression
+    return _parse_dot_number(s, i)
+
+
+def _parse_dot_term(s: bytes, i: int):
+    r = _parse_dot_primary(s, i)
+    if r is None:
+        return None
+    value, j = r
+    while True:
+        k = _skip_dot_ws(s, j)
+        if k < len(s) and s[k:k + 1] in b'*/':
+            op = s[k:k + 1]
+            r2 = _parse_dot_primary(s, _skip_dot_ws(s, k + 1))
+            if r2 is None:
+                break
+            value2, j2 = r2
+            if op == b'*':
+                value *= value2
+            elif value2:
+                value /= value2
+            else:
+                return None              # division by zero: reject, never crash
+            j = j2
+        else:
+            break
+    return value, j
+
+
+def _parse_dot_expr(s: bytes, i: int):
+    """WordStar's own documented dot-command math (see module note above) --
+    a fraction (`12/72`) or a parenthesized `+`/`-`/`*`/`/` expression
+    (`((8.5-7.8)/2)`). No unary sign: `_DOT_NUM_RE` never accepted a leading
+    `+`/`-` either (its own pattern starts `[0-9]*\\.?[0-9]+`), and admitting
+    one here would be a real, un-evidenced behaviour change for any document
+    that happens to follow a dot command with a literal minus sign the old
+    parser just failed to match and silently left at the default -- neither
+    confirmed case (DOSYMSEQ.WS, NOVEL.WS) needs one. Returns (value,
+    position after the expression) or None if `s[i:]` has no number at all
+    (the everyday case: callers fall back to treating the argument as
+    whatever it already was)."""
+    r = _parse_dot_term(s, i)
+    if r is None:
+        return None
+    value, j = r
+    while True:
+        k = _skip_dot_ws(s, j)
+        if k < len(s) and s[k:k + 1] in b'+-':
+            op = s[k:k + 1]
+            r2 = _parse_dot_term(s, _skip_dot_ws(s, k + 1))
+            if r2 is None:
+                break
+            value2, j2 = r2
+            value = value + value2 if op == b'+' else value - value2
+            j = j2
+        else:
+            break
+    return value, j
+
+
+class _DotNumMatch:
+    """`_DOT_NUM_RE.match(...)`-compatible result for a value `_parse_dot_expr`
+    resolved. `.group(1)` is the evaluated value's own `repr()` -- every call
+    site immediately does `float(m.group(1))`, and `float(repr(x)) == x`
+    exactly for any float, so this is a lossless drop-in. `.group(2)`/`.end()`
+    behave like the real thing."""
+    __slots__ = ('_value', '_unit', '_end')
+
+    def __init__(self, value: float, unit, end: int):
+        self._value = value
+        self._unit = unit
+        self._end = end
+
+    def group(self, n: int):
+        if n == 1:
+            return repr(self._value).encode('ascii')
+        if n == 2:
+            return self._unit
+        raise IndexError(n)
+
+    def end(self) -> int:
+        return self._end
+
+
+def _dot_num_match(arg: bytes):
+    """`_DOT_NUM_RE.match(arg)`, extended ONCE for every dot command that
+    takes a measurement (planning #202 residuals round, cause 5) to accept
+    WordStar's own documented math -- see the module note above this
+    section. The plain bare-number case parses byte-for-byte as before
+    (`_parse_dot_expr` bottoms out at `_DOT_NUM_RE`'s own digit grammar), so
+    every document that never writes a `/` or `(` into a numeric dot-command
+    argument is completely unaffected by this function existing."""
+    r = _parse_dot_expr(arg, 0)
+    if r is None:
+        return None
+    value, end = r
+    um = _DOT_UNIT_RE.match(arg, end)
+    return _DotNumMatch(value, um.group(1) if um else None,
+                        um.end() if um else end)
+
 _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
                   b'MB': 'mb_lines', b'PO': 'po_cols',
                   b'HM': 'hm_lines', b'FM': 'fm_lines',
@@ -2361,7 +2525,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # LINE (Line.po_cols) for the same reason `.lh` is carried per line --
         # the left origin is a property of where a line's own text starts, not
         # of the document as a whole. Register b31.
-        m = _DOT_NUM_RE.match(arg)
+        m = _dot_num_match(arg)
         if m:
             try:
                 value = float(m.group(1))
@@ -2393,7 +2557,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # per LINE (Line.lead_48) because that is the granularity it acts at --
         # a lead is the distance to the next baseline, not a property of a
         # paragraph. Register C24.
-        m = _DOT_NUM_RE.match(arg)
+        m = _dot_num_match(arg)
         if m:
             try:
                 value = float(m.group(1))
@@ -2406,7 +2570,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
     elif name in (b'LM', b'RM', b'PM'):     # left / right / paragraph margin
         # Print columns at 10 CPI, matching `.po`; a unit suffix converts. The
         # archive writes both (`.rm 65` and `.rm 6.5"`).
-        m = _DOT_NUM_RE.match(arg)
+        m = _dot_num_match(arg)
         if m:
             try:
                 value = float(m.group(1))
@@ -2441,7 +2605,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # document turns columns on for a section and off again after.
         # Register C5.
         body = arg.strip()
-        m = _DOT_NUM_RE.match(body)
+        m = _dot_num_match(body)
         if not m:
             return
         try:
@@ -2450,7 +2614,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
             return
         state['columns'] = max(1, cols)
         rest = body[m.end():].lstrip(b' \t,')
-        g = _DOT_NUM_RE.match(rest)
+        g = _dot_num_match(rest)
         if g:
             try:
                 value = float(g.group(1))
@@ -2507,7 +2671,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # carried per-block for the layout contract and a future editor.
         stops = []
         for tok in arg.replace(b',', b' ').split():
-            m2 = _DOT_NUM_RE.match(tok)
+            m2 = _dot_num_match(tok)
             if m2:
                 try:
                     stops.append(_resolve_cols_arg(float(m2.group(1)), m2.group(2)))
@@ -2554,7 +2718,7 @@ def _parse_sr_arg(arg: bytes):
         # A unit-less fraction is already a fraction OF AN INCH (`3/48` == 3/48in),
         # which is what the 48ths unit expresses, so both paths multiply by 48.
         return inches * 48.0
-    m = _DOT_NUM_RE.match(arg)
+    m = _dot_num_match(arg)
     if not m:
         return None
     try:
@@ -2653,7 +2817,7 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
     m = _L_HASH_RE.match(cmd)
     if m:
         # `.l# 0` turns line numbering OFF; any other number is the interval.
-        n = _DOT_NUM_RE.match(m.group(1))
+        n = _dot_num_match(m.group(1))
         if n:
             try:
                 value = int(float(n.group(1)))
@@ -2738,7 +2902,7 @@ def _cp_lines(cmd: bytes) -> int:
     Stored on the block so the paginator can apply the rule measured on
     WordStar 4 on 2026-08-03: break only when the lines REMAINING are strictly
     fewer than n. Exactly n remaining is enough room and does not break."""
-    m = _DOT_NUM_RE.match(cmd[3:])
+    m = _dot_num_match(cmd[3:])
     if not m:
         return 1
     try:
@@ -2803,7 +2967,7 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
         key = which + '_number_start'
         rest = cmd[3:]
         if key not in meta_extra:
-            num = _DOT_NUM_RE.match(rest)
+            num = _dot_num_match(rest)
             if num and num.group(1):
                 meta_extra[key] = int(float(num.group(1)))
         # C12: the MODE, which was read past and dropped. A numeric argument sets
@@ -2835,7 +2999,7 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
             # `doc.meta['dot_positions']` directly and picks this up on its
             # own; it never needed this dict to see mid-document changes.
             return
-        num = _DOT_NUM_RE.match(arg)
+        num = _dot_num_match(arg)
         if not num or not num.group(1):
             return
         value = float(num.group(1))
@@ -2850,7 +3014,7 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
         # their presence IS the producer signal. `variant` stays what it is
         # (the ENCODING, still WS5+/7); this is provenance, not format.
         meta_extra['producer'] = 'wordtsar'
-        num = _DOT_NUM_RE.match(arg)
+        num = _dot_num_match(arg)
         value = float(num.group(1)) if num and num.group(1) else None
         if name == b'PSA' and value is not None and 'space_after_lines' not in meta_extra:
             meta_extra['space_after_lines'] = value       # best-effort: honoured as

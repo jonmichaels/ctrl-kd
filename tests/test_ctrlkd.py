@@ -3010,6 +3010,66 @@ def test_op_does_not_suppress_a_hash_in_a_header_or_footer():
     assert re.search(rb'HEADER-TEXT PAGE \d', emit_pdf(doc, 'printed'))
 
 
+def test_dot_command_fractions_and_arithmetic():
+    """Planning #202 residuals round, cause 5. WSFORMAT.WS (the WordStar 7
+    file-format reference): "Versions prior to 4.0 require whole numbers as
+    arguments to dot commands that require numbers (subscript roll, page
+    offset). With version 4.0, math was allowed in the arguments for
+    easier entry of complex page layouts." `_DOT_NUM_RE` only ever matched
+    a bare decimal; `_dot_num_match` (used by every dot command that reads
+    a measurement, ONE shared parse) now also accepts a fraction and a
+    parenthesized `+`/`-`/`*`/`/` expression, with the SAME optional unit
+    suffix either way.
+
+    sawyer/UTIL/DOSYMSEQ.WS's `.lh 12/72"` is the confirmed real-world
+    case: WS7's own capture measures 12.0pt as the page's most common
+    baseline gap (12/72 inch IS 12pt), and the PCL fidelity gate goes
+    fully clean (9/9 pages, zero divergences) with this fix -- see the
+    commit message for the tolerance-tool numbers. sawyer/REF/-HOW-TO.RJS
+    (and its byte-identical duplicate BOOKLET.RJS) independently confirm
+    the SAME fraction grammar with a mid-document `.lh14/72"` (no space) --
+    the resulting 14pt leading matches the 14pt Helvetica heading WS7's
+    own capture uses at that exact spot."""
+    from ctrlkd.core import _dot_num_match, DEFAULT_LH_48
+
+    # the confirmed real case: a fraction with an inch unit suffix
+    m = _dot_num_match(b'12/72"')
+    assert abs(float(m.group(1)) - 12 / 72) < 1e-9
+    assert m.group(2) == b'"'
+
+    # every bare-number case parses to the identical float as before --
+    # `_dot_num_match` bottoms out at `_DOT_NUM_RE`'s own digit grammar
+    for arg in (b'66', b'6.5"', b'12.5C', b'.5', b'0'):
+        old = re.match(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?', arg)
+        new = _dot_num_match(arg)
+        assert float(new.group(1)) == float(old.group(1))
+        assert new.group(2) == old.group(2)
+        assert new.end() == old.end()
+
+    # a parenthesized expression, WordStar's own documented "math" feature
+    m = _dot_num_match(b'((8.5-7.8)/2)i')
+    assert abs(float(m.group(1)) - (8.5 - 7.8) / 2) < 1e-9
+    assert m.group(2) == b'i'
+    m = _dot_num_match(b'((8.5-7.8)/2)-.3')
+    assert abs(float(m.group(1)) - ((8.5 - 7.8) / 2 - 0.3)) < 1e-9
+    assert m.group(2) is None
+
+    # division by zero is rejected, never crashes
+    assert _dot_num_match(b'1/0') is None
+    # unbalanced parens are rejected, not partially matched
+    assert _dot_num_match(b'(1+2') is None
+    # no leading unary sign -- matches `_DOT_NUM_RE`'s own restriction, and
+    # a document that follows a dot command with a literal minus the old
+    # parser used to just skip must keep being skipped, not newly negated
+    assert _dot_num_match(b'-5') is None
+
+    # end to end: `.lh 12/72"` resolves to WordStar's own 12pt, not the
+    # pre-fix bug's 18pt (12 read as a bare integer, at the 6-LPI default)
+    doc = core.parse_ws(b'.lh 12/72"\r\nT.\r\n')
+    assert doc.meta['page']['lh_48'] == 8.0                  # 12pt in 1/48in units
+    assert doc.meta['page']['lh_48'] != DEFAULT_LH_48 * 1.5  # not the old 18pt bug
+
+
 def test_op_and_pg_are_a_stateful_pair():
     """".PG  Number pages ... Usually used to restore page numbering after being
     turned off with .OP." Front matter turns it off, the body turns it back on --
