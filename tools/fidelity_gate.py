@@ -304,6 +304,398 @@ PRIVATE_DOCS = {
     'LJ6DTP': 'LJ6DTP.WS',
 }
 
+# ------------------------------------------------------ v4 (planning #180
+# phase 2, "tests expanded", 2026-09-08) -- the full-remaining-corpus
+# capture round, ws7-prints/v4/. Structurally DIFFERENT from v1/v2/v3
+# (which all resolve an already-known short doc name, e.g. 'BOXES',
+# through v1/sources.json): v4 covers 243 NEW documents at once (291
+# planned minus 48 mail-merge/label captures that print empty by design,
+# excluded by Jon's ruling 2026-09-08 -- see ws7-prints/v4/README.md), so
+# its own sources.json is the ONLY naming authority; there is no v1 entry
+# for any of these names to fall back to, and the RuntimeError below (a
+# missing v1 measurements.json) must never fire for one of them. v4's own
+# capture keys are already flat/filesystem-safe (group + relative source
+# path, '/' -> '__', '.' -> '_EXT_' -- e.g. 'sawyer/REF/64BIT.WS' ->
+# 'sawyer__REF__64BIT_EXT_WS') and ARE the NAME.measurements.json/.pcl
+# basenames on disk, same flat-file convention v1/v3 use, just a longer
+# name.
+#
+# PUBLIC-REPO PRIVACY (the reason this needs its own resolution path, not
+# just a v3-shaped fallback): a v4 key for a PUBLIC_SOURCE_GROUPS member
+# (sawyer/pd-samples) is fine to publish verbatim -- it's already exactly
+# the shape sawyer-group v1 source_ws values take. A v4 key for anything
+# else (jon-floppies/ws7-private/fixtures-ws5, all private -- see
+# PUBLIC_SOURCE_GROUPS's own docstring in tools/pcl_tolerance.py) is NOT:
+# unlike v1's small, hand-curated, already-reviewed short aliases (DOCA,
+# DOCB, ...), the raw v4 key for one of these groups encodes the real
+# subdirectory/filename structure of Jon's private corpus directly in the
+# string (e.g. 'jon-floppies__WORK__HAMLET_EXT_WS4' -- a literal private
+# path with '/' swapped for '__'), which PUBLIC_SOURCE_GROUPS/
+# _source_ws_for_report exist specifically to keep out of this repo. So
+# every private-group v4 capture also carries a 'public_alias' field in
+# the corpus's own ws7-prints/v4/sources.json (added alongside this
+# change, not renaming/moving anything already there) -- a
+# content-free, sequential '<group>-v4-<NNN>' name (sorted by the real
+# key within its group, so it's reproducible from the corpus alone) that
+# THIS repo's CAPTURED_DOCS_V4 uses in place of the real key. Resolution
+# below checks both: a direct key hit (public groups, and any future
+# public-group v4 addition needs no further code change here) or an
+# alias hit via 'public_alias' (private groups).
+PRINTS_SUBDIR_V4 = 'v4'
+
+
+def _load_v4_index():
+    """The parsed ws7-prints/v4/sources.json, or None if unavailable
+    (CTRLKD_PRIVATE_CORPUS unset, or an older corpus clone predating v4).
+    Thin wrapper over _load_sources_index -- v4's index is the SAME
+    {"captures": {key: {...}}} shape v1/v3 already use, just with more
+    per-entry fields ('group', 'tree', 'printer_driver', 'route',
+    'public_alias' for private-group entries) that this module reads
+    directly rather than through pcl_tolerance's PUBLIC_SOURCE_GROUPS
+    (which stays the single source of truth for WHICH groups are public;
+    this file only reads that decision's already-applied consequence, the
+    public_alias field, never re-derives which groups are private)."""
+    if not _PRIVATE_CORPUS_ROOT:
+        return None
+    v4_dir = os.path.join(_PRIVATE_CORPUS_ROOT, 'ws7-prints', PRINTS_SUBDIR_V4)
+    return _load_sources_index(v4_dir)
+
+
+def _v4_lookup(doc_name: str):
+    """(real_key, entry) for `doc_name` in ws7-prints/v4/sources.json --
+    tries a direct key hit first (public-group v4 docs use their real key
+    as doc_name directly), then a 'public_alias' hit (private-group v4
+    docs, see PRINTS_SUBDIR_V4's own docstring above). (None, None) if the
+    index is unavailable or doc_name matches neither."""
+    index = _load_v4_index()
+    if index is None:
+        return None, None
+    captures = index.get('captures', {})
+    entry = captures.get(doc_name)
+    if entry is not None:
+        return doc_name, entry
+    for real_key, candidate in captures.items():
+        if candidate.get('public_alias') == doc_name:
+            return real_key, candidate
+    return None, None
+
+
+def v4_doc_group(doc_name: str):
+    """The corpus 'group' (see ws7-prints/v4/sources.json) for a
+    CAPTURED_DOCS_V4 name, or None if it isn't a resolvable v4 doc at all
+    (index unavailable, or doc_name matches no direct key or alias) --
+    used by pcl_tolerance.regenerate_manifest to decide whether a v4 doc's
+    committed manifest entry may carry real counts/divergences (public
+    group) or must stay a content-free placeholder (private group, see
+    PRINTS_SUBDIR_V4's own docstring: a real doc_report() for one of these
+    can embed literal WORDS from Jon's private documents in `divergences`,
+    which must never reach this public repo's committed manifest)."""
+    _real_key, entry = _v4_lookup(doc_name)
+    return entry.get('group') if entry is not None else None
+
+
+def resolve_v4_capture(doc_name: str) -> dict:
+    """resolve_doc_capture's own return shape ({'ws_path',
+    'measurements_path', 'pcl_path', 'capture_set', 'install'}), for a v4
+    CAPTURED_DOCS_V4 name specifically -- see PRINTS_SUBDIR_V4's own
+    docstring for the direct-key/public_alias resolution and why this is
+    a separate function rather than a fallback tier inside
+    resolve_doc_capture (that function's v1-required RuntimeError must
+    never fire for a name that was never a v1 capture to begin with).
+    Always resolves the REAL ws_path/measurements_path/pcl_path, public
+    group or private -- exactly like v1 already does for its own private-
+    group members (DOCA, DOCB, ...): the privacy decision belongs to the
+    REPORT this data feeds (pcl_tolerance._source_ws_for_report for the
+    'source_ws' string, regenerate_manifest for whether a real verdict is
+    committed at all), never to whether this function can resolve the
+    document, so a locally-armed live run (this repo's own `pcl` tier, or
+    the private workshop driver) always sees the real
+    comparison. `install` is per-document here (unlike
+    DEFAULT_INSTALL_BY_SUBDIR's one-per-capture-set default): v4's own
+    'tree' field ('pristine' or 'sawyer') names which install captured
+    THIS document, since a handful of v4 captures (LJ6DTP-driver
+    documents) used the Sawyer-tree install for the same reason v1/v2
+    did, inside a capture round that is otherwise uniformly pristine."""
+    if not _PRIVATE_CORPUS_ROOT:
+        raise RuntimeError(
+            f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures for {doc_name} are '
+            f'expected at ${PRIVATE_CORPUS_ENV}/ws7-prints/{PRINTS_SUBDIR_V4}/ -- set '
+            f'{PRIVATE_CORPUS_ENV} to the private corpus root.')
+    real_key, entry = _v4_lookup(doc_name)
+    if entry is None:
+        raise RuntimeError(
+            f'{doc_name}: not found in ws7-prints/{PRINTS_SUBDIR_V4}/sources.json (checked '
+            f'both a direct key and every capture\'s own public_alias)')
+    v4_dir = os.path.join(_PRIVATE_CORPUS_ROOT, 'ws7-prints', PRINTS_SUBDIR_V4)
+    measurements_path = os.path.join(v4_dir, f'{real_key}.measurements.json')
+    pcl_path = os.path.join(v4_dir, f'{real_key}.pcl')
+    ws_path = os.path.join(_PRIVATE_CORPUS_ROOT, entry['source'])
+    tree = entry.get('tree')
+    install = {'pristine': 'pristine', 'sawyer': 'sawyer-wschange'}.get(tree, 'unknown')
+    return {'ws_path': ws_path, 'measurements_path': measurements_path,
+            'pcl_path': pcl_path, 'capture_set': PRINTS_SUBDIR_V4, 'install': install}
+
+
+# A committed, explicit list -- same convention CAPTURED_DOCS (tools/
+# pcl_tolerance.py) already follows for v1/v2/v3, never a directory sweep.
+# 243 documents: the 291 ws7-prints/v4/ planned captures minus the 48
+# mail-merge DATA/FORMAT files that print empty by WordStar's own design
+# (excluded by Jon's ruling 2026-09-08 -- ws7-prints/v4/README.md's own
+# "Rulings" section). 179 are the real corpus-relative key from v4's own
+# sources.json (group in PUBLIC_SOURCE_GROUPS -- sawyer here, no
+# pd-samples group exists in this capture round); the remaining 64 are
+# the content-free 'public_alias' this repo's own privacy rule requires
+# for the three private groups (jon-floppies 51, fixtures-ws5 11,
+# ws7-private 2) -- see PRINTS_SUBDIR_V4's own docstring above. Generated
+# once from the corpus's own v4/sources.json (planning #180 phase 2); a
+# future v4 recapture needs a reviewed diff here, same as any other
+# CAPTURED_DOCS change.
+CAPTURED_DOCS_V4 = [
+    'sawyer__APP__-README_EXT_WS',
+    'sawyer__APP__vDosPlus__-README_EXT_WS',
+    'sawyer__ARTICLES__FORMFEED_EXT_WS',
+    'sawyer__ARTICLES__POWERUSE_EXT_WS',
+    'sawyer__ARTICLES__YOURWAY_EXT_WS',
+    'sawyer__BOX_EXT_WS',
+    'sawyer__CONVERT_EXT_WS',
+    'sawyer__DEFAULT__BOX',
+    'sawyer__DEFAULT__DEFAULT_EXT_WS',
+    'sawyer__DEFAULT__INSET__GRAPHICS_EXT_DOC',
+    'sawyer__DEFAULT__LIST_EXT_DOC',
+    'sawyer__DEFAULT__MAILING_EXT_DOC',
+    'sawyer__DEFAULT__PLAYBILL_EXT_DOC',
+    'sawyer__DEFAULT__PLAYS_EXT_DOC',
+    'sawyer__DEFAULT__PRINT_EXT_TST',
+    'sawyer__DEFAULT__REVIEW_EXT_DOC',
+    'sawyer__DEFAULT__SHAKE_EXT_DOC',
+    'sawyer__DEFAULT__SPELL_EXT_DOC',
+    'sawyer__DICT__-README_EXT_WS',
+    'sawyer__DISPLAY_EXT_WS',
+    'sawyer__FONTS__PS__ERROR_EXT_WS',
+    'sawyer__HIJAAK__PEANUTS_EXT_WS',
+    'sawyer__INSET__CHART_EXT_WS',
+    'sawyer__INSET__GRAPHICS_EXT_DOC',
+    'sawyer__INTERVU_EXT_WS',
+    'sawyer__LAYOUT_EXT_WS',
+    'sawyer__LIST_EXT_DOC',
+    'sawyer__LSRBOX__ASC256_EXT_TXT',
+    'sawyer__LSRBOX__CHECKER_EXT_BRD',
+    'sawyer__LSRBOX__LSRBOX_EXT_WS',
+    'sawyer__LSRBOX__MAXIMUM_EXT_BOX',
+    'sawyer__LSRBOX__OHBORD_EXT_DBL',
+    'sawyer__LSRBOX__OHBORD_EXT_THI',
+    'sawyer__LSRBOX__OHBORD_EXT_THK',
+    'sawyer__LSRBOX__OHSHADED_EXT_BOX',
+    'sawyer__LSRBOX__OHTQBORD_EXT_SHD',
+    'sawyer__LSRBOX__PAGE_EXT_RND',
+    'sawyer__LSRBOX__TEXTLINE_EXT_SHD',
+    'sawyer__LSRBOX__TOP&BOT_EXT_LIN',
+    'sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS',
+    'sawyer__MACROS__HOLYMAC__-README_EXT_WS',
+    'sawyer__MACROS__HOLYMAC__1-3MAC',
+    'sawyer__MACROS__HOLYMAC__4MAC1',
+    'sawyer__MACROS__HOLYMAC__4MAC2',
+    'sawyer__MACROS__HOLYMAC__4MAC3',
+    'sawyer__MACROS__HOLYMAC__5-6MAC',
+    'sawyer__MACROS__HOLYMAC__7MAC1',
+    'sawyer__MACROS__HOLYMAC__7MAC2',
+    'sawyer__MACROS__HOLYMAC__7MAC3',
+    'sawyer__MACROS__HOLYMAC__8MAC',
+    'sawyer__MACROS__HOLYMAC__WOMBAT',
+    'sawyer__MACROS__SAWYER__-MACROS_EXT_DOC',
+    'sawyer__MACROS__SAWYER__-MAKEDTP_EXT_WS',
+    'sawyer__MAILING_EXT_DOC',
+    'sawyer__MICKEE__MICKEE_EXT_WS',
+    'sawyer__OLDTIMES_EXT_WS',
+    'sawyer__PLAYBILL_EXT_DOC',
+    'sawyer__PLAYS_EXT_DOC',
+    'sawyer__PRINTERS__FONTCRIB_EXT_PS',
+    'sawyer__PRINTERS__PS__PSSAMPLE_EXT_WS',
+    'sawyer__PRINTERS__fontcrib_EXT_ws',
+    'sawyer__PRINTER_EXT_PS',
+    'sawyer__PRINT_EXT_TST',
+    'sawyer__PSPRINT_EXT_TST',
+    'sawyer__REF__-ATTRIB_EXT_TST',
+    'sawyer__REF__-HOW-TO_EXT_RJS',
+    'sawyer__REF__-INDEX_EXT_HOW',
+    'sawyer__REF__-LASERJE_EXT_FNT',
+    'sawyer__REF__-PATCHES_EXT_WS',
+    'sawyer__REF__-SHOW-PP_EXT_WS',
+    'sawyer__REF__-TOC-TAG_EXT_WS',
+    'sawyer__REF__64BIT_EXT_WS',
+    'sawyer__REF__ACROBAT_EXT_FIX',
+    'sawyer__REF__ADVANCE_EXT_DOT',
+    'sawyer__REF__ANDROID_EXT_WS',
+    'sawyer__REF__ASCIITAB_EXT_WS',
+    'sawyer__REF__BOOKLET_EXT_HOW',
+    'sawyer__REF__BOOKLET_EXT_RJS',
+    'sawyer__REF__BOOKLET_EXT_WS',
+    'sawyer__REF__BUGS_EXT_WS',
+    'sawyer__REF__BULLET_EXT_WS',
+    'sawyer__REF__CHECKBOX_EXT_WS',
+    'sawyer__REF__CLIPBOAR_EXT_HOW',
+    'sawyer__REF__CODES',
+    'sawyer__REF__COMMENT_EXT_BUG',
+    'sawyer__REF__COURIER_EXT_WS',
+    'sawyer__REF__CREDITS_EXT_WS',
+    'sawyer__REF__CTRL-K_EXT_H1',
+    'sawyer__REF__DELAYS_EXT_WS',
+    'sawyer__REF__DICT_EXT_WS',
+    'sawyer__REF__DOT-WI_EXT_WS',
+    'sawyer__REF__DOTCMDNS_EXT_WS',
+    'sawyer__REF__DOTS_EXT_IF',
+    'sawyer__REF__DPI_EXT_TAG',
+    'sawyer__REF__DVORAK_EXT_WS',
+    'sawyer__REF__EMS_EXT_FIX',
+    'sawyer__REF__FONT-TAG_EXT_CMP',
+    'sawyer__REF__FONTS_EXT_REF',
+    'sawyer__REF__FUZZY_EXT_FIX',
+    'sawyer__REF__GALLEYS_EXT_DOT',
+    'sawyer__REF__HIGHLIGH_EXT_WS',
+    'sawyer__REF__Keyboard scancode specification - Microsoft_EXT_doc',
+    'sawyer__REF__MACBOOK_EXT_AIR',
+    'sawyer__REF__MAC_EXT_OSX',
+    'sawyer__REF__NOTES_EXT_TST',
+    'sawyer__REF__Notes__690_EXT_TXT',
+    'sawyer__REF__PAGESIZE_EXT_WS',
+    'sawyer__REF__PAPERPOR_EXT_EXT',
+    'sawyer__REF__PARAGRAP_EXT_NUM',
+    'sawyer__REF__PDF_EXT_HOW',
+    'sawyer__REF__PP_EXT_WS',
+    'sawyer__REF__PS-FONTS_EXT_REF',
+    'sawyer__REF__PS_EXT_TST',
+    'sawyer__REF__REFORM_EXT_DOT',
+    'sawyer__REF__ROUNDED_EXT_BRD',
+    'sawyer__REF__ROUNDING_EXT_HOW',
+    'sawyer__REF__SCREEN_EXT_WS',
+    'sawyer__REF__SHADES_EXT_WS',
+    'sawyer__REF__STYLESHE_EXT_WS',
+    'sawyer__REF__SUB-SUPE_EXT_TST',
+    'sawyer__REF__SYMBOL_EXT_CHT',
+    'sawyer__REF__TEMPFILE_EXT_WS',
+    'sawyer__REF__TOCTRICK_EXT_WS',
+    'sawyer__REF__WIN7MEM_EXT_WS',
+    'sawyer__REF__WIN7_EXT_ETC',
+    'sawyer__REF__WINDOS_EXT_HOW',
+    'sawyer__REF__WINDOWS7_EXT_SWP',
+    'sawyer__REF__WINDOWS7_EXT_WS',
+    'sawyer__REF__WINDOWS_EXT_8',
+    'sawyer__REF__WINGDING_EXT_CHT',
+    'sawyer__REF__WORTHING_EXT_TON',
+    'sawyer__REF__WSFORMAT_EXT_WS',
+    'sawyer__REF___TABS_EXT_RR',
+    'sawyer__REF__wordstar-file-format_EXT_ws',
+    'sawyer__REGULAR_EXT_WS',
+    'sawyer__REVIEW_EXT_DOC',
+    'sawyer__RJS_EXT_WS',
+    'sawyer__RTF-RJS__-README2_EXT_WS',
+    'sawyer__RTF-RJS__-README_EXT_WS',
+    'sawyer__RTF-RJS__1-5LINES_EXT_WS',
+    'sawyer__RTF-RJS__1-SINGLE_EXT_WS',
+    'sawyer__RTF-RJS__2-DOUBLE_EXT_WS',
+    'sawyer__RTF-RJS__LINKS_EXT_WS',
+    'sawyer__RTF-RJS__MARKUP_EXT_WS',
+    'sawyer__RTF-RJS__NOVEL_EXT_WS',
+    'sawyer__RTF-RJS__RTFDS_EXT_WS',
+    'sawyer__RTF-RJS__RTF_EXT_WS',
+    'sawyer__RTF-RJS__SKIPTEST_EXT_WS',
+    'sawyer__SCREEN_EXT_WS',
+    'sawyer__SHAKE_EXT_DOC',
+    'sawyer__SPELL_EXT_DOC',
+    'sawyer__STRENGTH_EXT_WS',
+    'sawyer__TAGS__-README_EXT_WS',
+    'sawyer__TAGS__CHECK',
+    'sawyer__TAGS__CHECKED',
+    'sawyer__TAGS__CLARIFY',
+    'sawyer__TAGS__CONDENSE',
+    'sawyer__TAGS__CUT',
+    'sawyer__TAGS__DW',
+    'sawyer__TAGS__ESTAB',
+    'sawyer__TAGS__EXPAND',
+    'sawyer__TAGS__FIX',
+    'sawyer__TAGS__HOW',
+    'sawyer__TAGS__HUH',
+    'sawyer__TAGS__OK',
+    'sawyer__TAGS__ONCF',
+    'sawyer__TAGS__ONFC',
+    'sawyer__TAGS__R',
+    'sawyer__TAGS__R1',
+    'sawyer__TAGS__R2',
+    'sawyer__TAGS__SHOW',
+    'sawyer__TAGS__SIMPLIFY',
+    'sawyer__TAGS__SPLIT',
+    'sawyer__TAGS__TRANSIT',
+    'sawyer__TAGS__WHEN',
+    'sawyer__TAGS__WHY',
+    'sawyer__UTIL__DOSYMSEQ_EXT_WS',
+    'sawyer__WORDSTAR_EXT_WS',
+    'sawyer__WS-CON__SAMPLE_EXT_WS',
+    'privgroup-c-v4-001',
+    'privgroup-c-v4-002',
+    'privgroup-c-v4-003',
+    'privgroup-c-v4-004',
+    'privgroup-c-v4-005',
+    'privgroup-c-v4-006',
+    'privgroup-c-v4-007',
+    'privgroup-c-v4-008',
+    'privgroup-c-v4-009',
+    'privgroup-c-v4-010',
+    'privgroup-c-v4-011',
+    'privgroup-a-v4-001',
+    'privgroup-a-v4-002',
+    'privgroup-a-v4-003',
+    'privgroup-a-v4-004',
+    'privgroup-a-v4-005',
+    'privgroup-a-v4-006',
+    'privgroup-a-v4-007',
+    'privgroup-a-v4-008',
+    'privgroup-a-v4-009',
+    'privgroup-a-v4-010',
+    'privgroup-a-v4-011',
+    'privgroup-a-v4-012',
+    'privgroup-a-v4-013',
+    'privgroup-a-v4-014',
+    'privgroup-a-v4-015',
+    'privgroup-a-v4-016',
+    'privgroup-a-v4-017',
+    'privgroup-a-v4-018',
+    'privgroup-a-v4-019',
+    'privgroup-a-v4-020',
+    'privgroup-a-v4-021',
+    'privgroup-a-v4-022',
+    'privgroup-a-v4-023',
+    'privgroup-a-v4-024',
+    'privgroup-a-v4-025',
+    'privgroup-a-v4-026',
+    'privgroup-a-v4-027',
+    'privgroup-a-v4-028',
+    'privgroup-a-v4-029',
+    'privgroup-a-v4-030',
+    'privgroup-a-v4-031',
+    'privgroup-a-v4-032',
+    'privgroup-a-v4-033',
+    'privgroup-a-v4-034',
+    'privgroup-a-v4-035',
+    'privgroup-a-v4-036',
+    'privgroup-a-v4-037',
+    'privgroup-a-v4-038',
+    'privgroup-a-v4-039',
+    'privgroup-a-v4-040',
+    'privgroup-a-v4-041',
+    'privgroup-a-v4-042',
+    'privgroup-a-v4-043',
+    'privgroup-a-v4-044',
+    'privgroup-a-v4-045',
+    'privgroup-a-v4-046',
+    'privgroup-a-v4-047',
+    'privgroup-a-v4-048',
+    'privgroup-a-v4-049',
+    'privgroup-a-v4-050',
+    'privgroup-a-v4-051',
+    'privgroup-b-v4-001',
+    'privgroup-b-v4-002',
+]
+
 
 # --------------------------------------------------------------- PDF parsing
 _OBJ_RE = re.compile(rb'(\d+)\s+0\s+obj\s*(.*?)\s*endobj', re.DOTALL)
@@ -2022,7 +2414,16 @@ def resolve_doc_capture(doc_name: str) -> dict:
     naming instead (see PRINTS_SUBDIR_V3), so it's checked directly by
     doc_name, independent of whether the index resolves anything at all.
     Either one only ever REPLACES which measurements_path/pcl_path/
-    capture_set this function returns, never which doc names are known."""
+    capture_set this function returns, never which doc names are known.
+
+    A v4 name (CAPTURED_DOCS_V4, see that constant's own docstring) is
+    dispatched to resolve_v4_capture() FIRST, before any of the above --
+    those 243 documents were never in v1 at all (v4 is a disjoint,
+    all-at-once capture round, not an incremental v1 recapture), so the
+    v1-required RuntimeError just below must never see one of their
+    names."""
+    if doc_name in CAPTURED_DOCS_V4:
+        return resolve_v4_capture(doc_name)
     if not _PRIVATE_CORPUS_ROOT:
         raise RuntimeError(
             f'{PRIVATE_CORPUS_ENV} is not set. Ground-truth PCL captures '

@@ -182,11 +182,35 @@ import pcl_render as pr  # noqa: E402
 # as tests/SAWYER-CORPUS.md's tier-2 manifest. Update this list (and
 # regenerate the manifest, see `--record` below) only when planning #196
 # adds or removes a v1 capture; this file is the review point for that.
-CAPTURED_DOCS = [
+CAPTURED_DOCS_V1V3 = [
     'BOXES', 'DOCA', 'DOCB', 'DOCC', 'DOCD', 'LJ6DTP', 'LYING', 'OCAPTAIN',
     'DOCE', 'PREVIEW', '-README', 'SAWYER', '-SCREEN', 'SCRIPT', 'DOCF',
     'TWAINLET', 'VERSIONS', 'WARPRAYR',
 ]
+# planning #180 phase 2 ("tests expanded", 2026-09-08): the 243-document
+# ws7-prints/v4/ expansion -- single source of truth is
+# fg.CAPTURED_DOCS_V4 (fidelity_gate.py, alongside fg.resolve_v4_capture,
+# since that's where the v4 dispatch/resolution lives; this module just
+# re-exports it so every existing `pt.CAPTURED_DOCS_V4` reference some
+# callers may already expect from this module keeps working). CAPTURED_DOCS
+# below is the full 261-document pytest-parametrize list: the 18 original
+# v1/v3 documents (unchanged, still checked to the same fail-by-name
+# standard test_pcl_fidelity.py always has) PLUS the 243 v4 ones (run in
+# that same test's own "inventory" mode -- see INVENTORY_MODE_DOCS below
+# and that test file's own docstring update).
+CAPTURED_DOCS_V4 = fg.CAPTURED_DOCS_V4
+CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
+# The set test_pcl_fidelity.py checks to decide whether a document's own
+# non-font-substitution divergences fail the tier by name (the original
+# 18's own law, unchanged) or are report-only pending Jon's per-cause
+# ruling (every v4 document -- planning #180 phase 2 Task 6: "do not mark
+# anything as expected/known/skipped to make a suite green ... run in
+# inventory mode ... but the test output must still name every divergent
+# document"). A manifest DRIFT (live != recorded) still fails for BOTH
+# sets unconditionally -- that catches an engine regression regardless of
+# which set a document is in; only the "real bug already known and
+# unruled" bar is different.
+INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
 MANIFEST_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -1180,6 +1204,18 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             items = _merge_kerning_split_chunks(items)    # mechanism C
             items = _merge_trailing_punctuation_chunks(items)  # mechanism K
             items = _merge_zero_gap_cross_font_chunks(items, page_chunks)  # mechanism Z
+            if not items:
+                # planning #180 phase 2 (v4 expansion, 2026-09-08): a line
+                # whose chunks are ENTIRELY consumed by the merge passes
+                # above (found on sawyer/TAGS/ONCF -- a one-line symbol-only
+                # tag file where _strip_box_drawing_chunk_edges strips every
+                # chunk on the line, none of them real text). Nothing left
+                # to check on this line -- same "no checkable token" outcome
+                # a pure box/rule/shading line already has, just discovered
+                # via the merge passes instead of the box-drawing filter
+                # directly. Contributes zero tokens, same as the box-drawing/
+                # unreliable-to-align skip just below already does per-chunk.
+                continue
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0
             for pc, tc in items:
@@ -1248,7 +1284,15 @@ def _source_ws_for_report(doc_name: str, ws_path):
     reaches those same two groups), this is the real corpus-relative path,
     same as always. For any other group, the exact path is WITHHELD --
     this repo names only the (already-public, per CAPTURED_DOCS) doc name,
-    never a private corpus group's internal folder layout."""
+    never a private corpus group's internal folder layout.
+
+    Checks v1's own sources.json first (doc_name as a direct key -- the
+    only shape v1 ever had), THEN v4's (planning #180 phase 2: v4 doc
+    names/aliases live in a disjoint namespace from v1's, see
+    fg.PRINTS_SUBDIR_V4's own docstring, so a v4 name never matches a v1
+    entry and vice versa -- checking both costs nothing and keeps this one
+    function the single place that decides the redaction, instead of
+    fg.resolve_v4_capture's caller having to remember to ask twice)."""
     if ws_path is None:
         return None
     if fg._PRIVATE_CORPUS_ROOT:
@@ -1258,6 +1302,9 @@ def _source_ws_for_report(doc_name: str, ws_path):
             entry = index.get('captures', {}).get(doc_name)
             if entry is not None and entry.get('group') not in PUBLIC_SOURCE_GROUPS:
                 return f'{doc_name}: source path withheld (non-public corpus group)'
+        v4_group = fg.v4_doc_group(doc_name)
+        if v4_group is not None and v4_group not in PUBLIC_SOURCE_GROUPS:
+            return f'{doc_name}: source path withheld (non-public corpus group)'
     return _relative_source(ws_path)
 
 
@@ -1555,10 +1602,50 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
 
 
 # --------------------------------------------------------------- manifest
+def _v4_private_placeholder(doc_name: str, group: str) -> dict:
+    """The COMMITTED manifest entry for a private-group v4 document
+    (jon-floppies/fixtures-ws5/ws7-private -- see fg.PRINTS_SUBDIR_V4's
+    own docstring): verdict 'source-missing', no counts, no divergences,
+    same shape test_pcl_fidelity.py already treats as a clean skip for a
+    Sawyer-archive-only document. This is a DELIBERATELY STRICTER choice
+    than v1's own precedent (DOCA/DOCB/DOCC/DOCD/DOCE/DOCF publish real
+    verdicts/counts, source_ws redacted) -- not because that precedent was
+    wrong, but because it was reviewed document-by-document (each entry's
+    own hand-written provenance note) and happened to land on all-clean
+    results with nothing in `divergences` to leak. That review does not
+    scale to 64 documents, and doc_report()'s own `divergences` entries
+    embed literal WORDS from the source (`words: [ws7_text, engine_text]`)
+    -- committing a real report for one of Jon's private WS4 papers or
+    fixtures-ws5 test documents risks putting document TEXT into this
+    PUBLIC repo the moment that document has even one real divergence.
+    So this function is called INSTEAD OF doc_report() for these 64 --
+    doc_report() is never even invoked for them during --record, and no
+    real content from the private corpus enters this process's memory on
+    the path that writes the committed file. (A locally-armed live
+    `pt.doc_report(doc_name)` call still computes the real thing -- see
+    fg.resolve_v4_capture -- for the private workshop driver
+    and for Jon's own vault-side analysis, neither of which commits its
+    output here.)"""
+    capture = fg.resolve_v4_capture(doc_name)
+    return {'doc': doc_name, 'verdict': 'source-missing', 'source_ws': None,
+            'counts_by_reason': {}, 'divergences': [],
+            'capture_set': capture['capture_set'], 'install': capture['install'],
+            'reason': (f'private corpus group ({group}) -- this repo never commits a real '
+                       f'verdict/divergence report for a private-group document (see '
+                       f'_v4_private_placeholder\'s own docstring); resolved and compared for '
+                       f'real only in a locally-armed run against $CTRLKD_PRIVATE_CORPUS')}
+
+
 def regenerate_manifest(doc_names=None) -> dict:
     doc_names = doc_names or CAPTURED_DOCS
     documents = {}
     for name in doc_names:
+        v4_group = fg.v4_doc_group(name) if name in CAPTURED_DOCS_V4 else None
+        if v4_group is not None and v4_group not in PUBLIC_SOURCE_GROUPS:
+            print(f'pcl_tolerance: {name}: private-group v4 placeholder (not run)',
+                  file=sys.stderr)
+            documents[name] = _v4_private_placeholder(name, v4_group)
+            continue
         print(f'pcl_tolerance: running {name}...', file=sys.stderr)
         documents[name] = doc_report(name)
     manifest = {
