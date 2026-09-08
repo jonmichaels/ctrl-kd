@@ -391,6 +391,18 @@ REASON_EXACT_DRIFT = 'exact-drift'
 REASON_CGTIMES_DRIFT_EXCEEDS_TOLERANCE = 'cgtimes-drift-exceeds-tolerance'
 REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE = 'univers-drift-exceeds-tolerance'
 REASON_UNCLASSIFIED_FONT_TIER = 'unclassified-font-tier'
+# Planning #230, 2026-09-08: a WS7 word matched (by text, via match_doc) to
+# an engine word on a DIFFERENT page number is real evidence of a
+# placement defect -- WordStar decided this content belongs on a specific
+# page, and the engine put it somewhere else -- never something to treat
+# as clean just because the two sides' TOTAL page counts happen to agree
+# (page-count-mismatch is a document-level count; two documents can have
+# the identical total while individual content is on the wrong page of
+# it, e.g. DISPLAY.WS's endnote sharing WS7's page 1 with its footnote
+# instead of sitting alone on WS7's own page 2 -- planning #228's own
+# trial fix). Never a FONT_SUBSTITUTION_REASONS member: this is a
+# structural placement fact, not a font-metric tolerance question.
+REASON_PAGE_MEMBERSHIP = 'page-membership'
 # A pristine-install (PRISTINE.EXE, no WSCHANGE customization) capture's
 # own absolute, line-start, same-page frame offset should be 0.0pt against
 # this engine's stock-default rendering -- unlike a sawyer-wschange
@@ -417,6 +429,7 @@ ALL_REASONS = frozenset({
     REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, REASON_UNCLASSIFIED_FONT_TIER,
     REASON_PRISTINE_FRAME_OFFSET, REASON_RASTER_POSITION_SHIFT,
     REASON_RASTER_SIZE_MISMATCH, REASON_RASTER_COUNT_MISMATCH,
+    REASON_PAGE_MEMBERSHIP,
 })
 
 # Mechanism I (tools/PCL-DIVERGENCE-TRIAGE.md): real CG-Times/Univers
@@ -1711,14 +1724,26 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
         mx = offset['median_dx'] if offset['median_dx'] is not None else 0.0
         my = offset['median_dy'] if offset['median_dy'] is not None else 0.0
         for w, e, d in items:
-            if not d['same_page']:
-                continue  # pagination drift; already reflected in page-count-mismatch above
-            resid_dx = d['dx'] - mx
-            resid_dy = d['dy'] - my
             tier = w['tier']
             ws7_pos = [round(w['x'], 2), round(w['y_top'], 2)]
             pdf_pos = [round(e['x'], 2), round(e['y_top'], 2)]
             words = [w['text'], e['text']]
+
+            if not d['same_page']:
+                # Planning #230: a word matched to a WS7 word on a
+                # DIFFERENT page is a real placement divergence, its own
+                # reason code -- NEVER folded into "clean" just because
+                # this cascades from (and is already counted once,
+                # document-wide, by) page-count-mismatch. A document's
+                # WS7/engine page TOTALS can agree while individual
+                # content still lands on the wrong page (see this
+                # reason's own module-level docstring).
+                add(REASON_PAGE_MEMBERSHIP, page, round(w['y_top'], 1), words, ws7_pos,
+                    pdf_pos, tier, detail=f"WS7 page {d['ws7_page']} word matched an engine "
+                                 f"word on page {d['engine_page']} instead")
+                continue
+            resid_dx = d['dx'] - mx
+            resid_dy = d['dy'] - my
 
             # Baseline exactness applies to EVERY font (layout, not glyph width).
             if abs(resid_dy) > BASELINE_EPS_PT:
