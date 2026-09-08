@@ -1103,13 +1103,32 @@ def _entering_lead_pt(block, doc, prev_block):
     the discriminating case this floor must NOT fire for: Author(auto,
     16.0; was 19.2) -> Subtitle(auto,12.0; was 14.4) measures 28.0 (was
     33.6) = 16.0 + 12.0 -- Subtitle's OWN entering gap, NOT floored up to
-    Author's outgoing 16.0 (which would give 32.0, wrong). The floor
-    therefore only applies when the block being ENTERED has an EXPLICIT
-    vmi (this function's own `vmi>0` guard below) -- a genuinely auto
-    style already computes generously relative to its own font and needs
-    no protection against the block before it; this is the ONE rule
-    shape that fits every transition in both measured styled documents,
-    in both directions, with no unexplained gap, at either factor.
+    Author's outgoing 16.0 (which would give 32.0, wrong).
+
+    UPDATE 2026-09-08 (#236, INTERVU.WS/WORDSTAR.WS title blocks): the
+    ABOVE cross-check and the "auto never needs the floor" conclusion it
+    supported only ever exercised a transition with a BLANK line between
+    the two blocks (Author's own trailing blank separates it from
+    Subtitle) -- the blank line already provides real separation, at ITS
+    OWN (outgoing) block's lead, before Subtitle's first real line is
+    even reached, so no extra floor is needed there. INTERVU.WS's title
+    block is the discriminating case that reading never covered: three
+    single-line AUTO-style paragraphs stacked with NO blank line between
+    them at all (H1 "Why I Still Use WordStar:" directly followed by H2
+    "An Interview...", no intervening blank). Measured directly against
+    WS7's own capture: H1(18pt)->H2(16pt) advances 18.0pt (H1's OWN
+    outgoing size, not H2's entering 16.0), and H2->H3(14pt) advances
+    16.0pt (H2's own outgoing size) -- the identical floor this function
+    already applies for an explicit vmi, engaging for auto too, but ONLY
+    when the line above is REAL (no blank line already did the job).
+    The floor therefore applies whenever the block being ENTERED has an
+    EXPLICIT vmi (unconditionally, as before), OR an auto (-2) vmi AND
+    the previous block's own LAST line still carries real content (no
+    blank line intervening) -- a genuinely auto style needs no
+    protection when a blank line already separated it from what came
+    before, but does need it butted directly against another real line,
+    for the same ascender/descender-clipping reason Finding B's own
+    fallback exists.
 
     NOT independently confirmed: a SECOND real (non-blank) line inside a
     too-small-vmi style also getting the fallback rather than the raw
@@ -1120,7 +1139,12 @@ def _entering_lead_pt(block, doc, prev_block):
     from a second measurement."""
     own = _style_lead_pt(block, doc, raw=False)
     vmi = getattr(block, 'line_height_vmi', None)
-    if own is None or vmi is None or vmi <= 0 or prev_block is None:
+    if own is None or prev_block is None:
+        return own
+    explicit = vmi is not None and vmi > 0
+    auto_adjacent = (vmi == -2 and prev_block.lines
+                     and prev_block.lines[-1].spans)
+    if not (explicit or auto_adjacent):
         return own
     prev_raw = _style_lead_pt(prev_block, doc, raw=True)
     if prev_raw is None:

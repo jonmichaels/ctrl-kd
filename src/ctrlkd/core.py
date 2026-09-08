@@ -4858,6 +4858,16 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         if carried_marks:                 # see the dot-command branch above
             line_marks = [(0, m) for m in carried_marks] + list(line_marks)
             carried_marks = []
+        # #236: did a style-select mark on THIS physical entry just force a
+        # close_block() below, before this entry's own separator (blank/line/
+        # para) is handled? Reset per entry. See the blank-line branch's own
+        # use of this flag for why it matters -- a style change can land on
+        # an otherwise-blank line (WORDSTAR.WS/INTERVU.WS's title blocks:
+        # the paragraph style is re-selected on the SOURCE line immediately
+        # after a title line's own text, before that line's trailing blank
+        # lines), and the blank-line branch must not mistake the block this
+        # just closed for an ordinary prior paragraph.
+        style_closed_here = False
         for rel, m in line_marks:
             if m[0] == 'softpage':
                 # NOT a block, NOT a break: the editor drops these wherever the
@@ -4880,6 +4890,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 if (w0 >> 8) == 0x02:
                     slot = w0 & 0xFF
                     entry = style_slots.get(slot)
+                    # #236 (WORDSTAR.WS/REF/wordstar-file-format.ws title
+                    # blocks): a style record's line_height_vmi of -1 means
+                    # INHERIT, already folded to None by `_parse_style_library`
+                    # (sword_none). Measured against WORDSTAR.WS's own capture
+                    # (Double-Indented Quote, a style with NO font of its own
+                    # AND an inherited line height): its body renders at
+                    # 16.0pt leading, not the document's 12pt default -- the
+                    # SAME 16.0pt the immediately preceding paragraph style
+                    # (MS Body Copy, explicit vmi=320) was already using.
+                    # 'Inherit' means carry the AMBIENT (previously active)
+                    # value forward, not reset to nothing -- style_fmt.clear()
+                    # below must not lose it.
+                    _prev_vmi = style_fmt.get('line_height_vmi')
                     style_fmt.clear()
                     style_fmt['style_id'] = slot
                     if entry is not None:
@@ -4921,6 +4944,10 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                         # never reaches this branch.
                         if entry.get('line_height_vmi') is not None:
                             style_fmt['line_height_vmi'] = entry['line_height_vmi']
+                        elif _prev_vmi is not None:
+                            # -1/inherit: carry the ambient value forward
+                            # (see the #236 comment above this block).
+                            style_fmt['line_height_vmi'] = _prev_vmi
                         # an all-zero triple records NO font (OLDTIMES's
                         # 'Double-Indented Quote'), distinct from the -1
                         # inherit sentinel only in never having been set
@@ -4936,10 +4963,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     # block keeps its old style, the fresh block picks the
                     # new one up from _new_block()
                     close_block()
+                    style_closed_here = True
                 else:
                     # 0x03xx temp-pool handle: unresolvable by design, but a
                     # selection is still a block boundary in the file
                     close_block()
+                    style_closed_here = True
             elif m[0] == 'fnref':
                 fnref_at.append(rel)
             elif m[0] == 'font':
@@ -5018,12 +5047,23 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             blank.po_cols = fmt.get('po_cols', DEFAULT_PO_COLS)
             blank.roll_48 = fmt.get('sub_super_roll_48', DEFAULT_SR_48)
             cur_line = Line()
-            if not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para':
+            if (not cur.lines and doc.blocks and doc.blocks[-1].kind == 'para'
+                    and not style_closed_here):
                 # The text line before this one carried 'para' and already
                 # closed its block, so `cur` is empty. On paper this blank
                 # FOLLOWS that paragraph -- attach it there, so a paragraph
                 # block still starts with text (which callers rely on) and the
                 # linear order is unchanged.
+                #
+                # #236: `cur` can ALSO be empty because a style-select mark
+                # on THIS SAME physical (blank) entry just closed the
+                # PREVIOUS block moments ago (WORDSTAR.WS/INTERVU.WS: the
+                # paragraph style is re-selected immediately after a title
+                # line's own text, before its trailing blank lines) -- that
+                # blank belongs to the block just OPENED by this entry's own
+                # style change, not to the one it closed. `style_closed_here`
+                # (set above, in the style-mark branch) distinguishes the two
+                # otherwise-identical "cur is empty" cases.
                 doc.blocks[-1].lines.append(blank)
             else:
                 cur.lines.append(blank)

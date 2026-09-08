@@ -410,17 +410,32 @@ def _rtf_sl_sequence(r):
 
 
 def test_auto_vmi_leading_reaches_printed_rtf_as_two_distinct_sl_values():
-    """The exact fixture behind `test_auto_vmi_leading_matches_measured_
-    lying_gap_profile` (16pt Title/Author style, 12pt Body style, both
-    auto/-2) -- the real LYING.WS/WARPRAYR.WS b33 clipping case: a 16pt
-    title on a document whose OWN plain default is 12pt. Pre-fix this was
-    a single `\\sl-240\\slmult0` throughout (12pt, clipping the 16pt
-    title in Word/TextEdit); now two distinct values, matching the PDF
-    gaps already proven above 1:1 (stock: 16.0pt/12.0pt * 20 twips/pt;
-    mechanism T -- was 19.2pt/14.4pt under Sawyer's install)."""
+    """The exact fixture behind `test_blank_line_between_styles_advances_
+    at_its_own_blocks_leading` (16pt Title/Author style, 12pt Body style,
+    both auto/-2, a blank line between them -- LYING.WS's own real shape)
+    -- the real LYING.WS/WARPRAYR.WS b33 clipping case: a 16pt title on a
+    document whose OWN plain default is 12pt. Pre-fix this was a single
+    `\\sl-240\\slmult0` throughout (12pt, clipping the 16pt title in
+    Word/TextEdit); now two distinct values, matching the PDF gaps
+    already proven above 1:1 (stock: 16.0pt/12.0pt * 20 twips/pt;
+    mechanism T -- was 19.2pt/14.4pt under Sawyer's install).
+
+    UPDATE 2026-09-08 (#236): this fixture used to butt "Second big
+    line." directly against "First body line." with NO blank line
+    between the two blocks. #236 (INTERVU.WS's title block, measured
+    directly against WS7's own capture) proved `_entering_lead_pt`'s
+    floor must ALSO engage for an auto (-2) entering block when the
+    line above is REAL and no blank line already provided separation --
+    exactly this fixture's old shape, which floored Body's entering gap
+    up to Big's own 16.0pt, legitimately collapsing both values to
+    -320 and defeating this test's own "two distinct values" proof. A
+    blank line between the two blocks (added below, matching LYING.WS's
+    real shape and the sibling PDF test's own fixture) sits BEFORE the
+    floor's real-adjacency condition, so it is unaffected by it and
+    still demonstrates genuine per-block differentiation."""
     lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
                           ('Big', _AUTO_16PT), ('Body', _AUTO_12PT)])
-    body = (_style_ref(2) + b'First big line.' + HARD + b'Second big line.' + HARD
+    body = (_style_ref(2) + b'First big line.' + HARD + b'Second big line.' + HARD + HARD
             + _style_ref(3) + b'First body line.' + HARD + b'Second body line.' + HARD)
     doc = core.parse_ws(_doc_with_style_library(body, lib))
     r = emit.emit_rtf(doc, mode='printed')
