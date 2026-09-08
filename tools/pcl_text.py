@@ -157,6 +157,25 @@ def parse_pcl(data: bytes):
                         if 0x60 <= fb <= 0x7A:
                             continue  # more fields in this group
                         else:
+                            # Transparent Print Data (ESC & p <count> X, HP
+                            # PCL5 spec): the next <count> bytes are OPAQUE
+                            # LITERAL data -- not PCL to parse, not a text
+                            # run to place at the cursor. Un-implemented
+                            # before this fix, so a literal 0x0C (form feed
+                            # byte) wrapped this way was misread as a real
+                            # page eject, and the escape sequence right
+                            # after it leaked into the next "text run" --
+                            # both measured directly against
+                            # sawyer/REF/ASCIITAB.WS's real WS7 capture
+                            # (2026-09-08): the WordStar LaserJet driver
+                            # wraps each 0x00-0x1F control-character glyph
+                            # in the ASCII-table document this way, one
+                            # byte at a time, and 0x0C (glyph "form feed")
+                            # is one of them.
+                            if param == "&" and group == "p" and field_char == "X":
+                                count = to_num(value_str)
+                                if count and count > 0:
+                                    i = min(n, i + int(count))
                             # terminator (0x40-0x5A, '@', or any other
                             # non-lowercase byte) ends the sequence
                             break

@@ -594,6 +594,29 @@ def parse_pcl_extended(data: bytes):
                 elif fc == "V":
                     cursor_y = apply_axis(cursor_y, val)
             return pos
+        if param == "&" and group == "p":
+            # Transparent Print Data (ESC & p <count> X, HP PCL5 spec): the
+            # next <count> bytes are OPAQUE LITERAL data -- not PCL to
+            # parse, not a text run to place at the cursor. Un-implemented
+            # before this fix, so a literal 0x0C (form feed byte) wrapped
+            # this way was misread by the main loop as a real page eject,
+            # and the escape sequence right after it leaked into the next
+            # "text" chunk -- both measured directly against
+            # sawyer/REF/ASCIITAB.WS's real WS7 capture (2026-09-08): the
+            # WordStar LaserJet driver wraps each 0x00-0x1F control-
+            # character glyph in the ASCII-table document this way, one
+            # byte at a time, and 0x0C ("form feed" glyph) is one of them.
+            # `graphics_counts` tallies it (not `unhandled`): the bytes
+            # ARE consumed correctly, just never rendered as anything --
+            # a control-character glyph has no PCL raster/text form here.
+            fc = toks[-1][1] if toks else ""
+            val = toks[-1][0] if toks else ""
+            if fc.upper() == "X":
+                count = to_num(val)
+                if count and count > 0:
+                    graphics_counts["ESC&p#X (transparent print data, skipped)"] += 1
+                    return min(n, pos + int(count))
+            return pos
         if param == "*" and group == "p":
             # ESC*p#X/#Y -- cursor position in PCL units (default 300/in;
             # see PCL_UNIT_PER_IN_DEFAULT). Same logical cursor as &a, just
