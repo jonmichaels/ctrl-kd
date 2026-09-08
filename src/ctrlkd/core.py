@@ -4616,6 +4616,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # LJ6DTP parity C1: modal marks rescued from CONSUMED lines (dot commands),
     # replayed at offset 0 of the next line that actually decodes spans.
     carried_marks = []
+    # #240: set by a bare `.rr` (no ruler image on its own line) -- the VERY
+    # NEXT physical entry is that ruler's image, swallowed whole (never
+    # decoded as content) the same way this entry itself is. See the `.RR`
+    # comment above (cmd[1:3].upper() == b'RR') for the full citation.
+    consume_next_as_ruler = False
     for _rt_idx, (raw, sep, line_marks) in enumerate(physical):
         # this entry's raw separator bytes, and the event count before it --
         # tasks #20/#21, stamped onto whichever Line closes the entry below
@@ -4632,6 +4637,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      if _rt_fidx is not None and _rt_fidx < len(doc.fonts)
                      else None)
         stripped = bytes(b & 0x7F for b in raw)
+        # #240: this entry is a bare `.rr`'s own ruler-image line (see the
+        # flag's own comment, set below) -- consume it whole, exactly like a
+        # dot-command line's own round-trip bookkeeping, and never let it
+        # reach `_decode_spans`/Block content.
+        if consume_next_as_ruler:
+            consume_next_as_ruler = False
+            cmd = raw.rstrip()
+            dots.append(cmd.decode(encoding, 'replace'))
+            _rt_dots.append((_rt_tally[0], bytes(raw),
+                             _rt_brk if _rt_brk is not None else b''))
+            dot_at.append((len(doc.blocks), len(cur.lines),
+                           cmd.decode(encoding, 'replace')))
+            continue
         # A line that BEGINS with a 0x0F print control's display string is
         # content, not a dot command -- but its first character is often «
         # (0xAE), which the WS4 bit-7 masking above turns into '.' (0x2E).
@@ -4726,6 +4744,36 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 doc.blocks.append(blk)
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
                 ruler = True
+            # #240 (REF/wordstar-file-format.ws): WSFORMAT.WS's own spec for
+            # `.RR` ("Ruler. Embeds a ruler line... The text following the
+            # .RR is the exact image of the ruler line... on the screen")
+            # documents TWO forms: the ruler image on `.rr`'s OWN line
+            # (`.rrP-----L-----R` / `.rr--!---...R` -- CONVERT.WS/-README.WS
+            # both use the bare `P...L...R` shape with NO `!` at all, so
+            # testing for `!`'s presence (the check just above, which only
+            # ever governs the unrelated `columnar` detection) would wrongly
+            # single out those two documents' perfectly ordinary same-line
+            # rulers -- already consumed whole as this dot command's own
+            # line, never printed) and a bare `.rr` with NOTHING after it on
+            # its own line, whose image is the NEXT physical line instead.
+            # wordstar-file-format.ws uses the second form (`.rr\rP----!...
+            # R\r\n`, a bare CR -- no LF -- between the command and its
+            # image) right before its own Command/Usage/Meaning table;
+            # nothing previously recognised that next line as part of the
+            # ruler, so it fell through to ordinary body-text decoding and
+            # PRINTED -- one extra visible line, pushing everything after it
+            # down by exactly one line (12pt) for the rest of the document
+            # (measured: WS7 goes straight from "...dot commands is:" to
+            # "Command Usage Meaning", a normal 24pt paragraph gap with no
+            # ruler line rendered in between at all). The distinguishing
+            # test is therefore whether `.rr`'s OWN line carries anything
+            # past the command itself, not whether that content has a `!`
+            # in it. `consume_next_as_ruler` swallows the next physical
+            # entry the same way this entry itself is swallowed
+            # (round-tripped, never decoded as content) -- see the check at
+            # the top of this loop.
+            elif cmd[1:3].upper() == b'RR' and not cmd[3:].strip():
+                consume_next_as_ruler = True
             # Header/footer TEXT is content, not command syntax: hand it the
             # UNMASKED line. The bit-7 mask that protects WS4 command letters
             # corrupts 8-bit argument text -- LJ6DTP's `.h1` carries a wrapped

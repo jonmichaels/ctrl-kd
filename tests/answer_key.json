@@ -35,8 +35,8 @@
  },
  "engine_version": "4.5.1",
  "generator": {
-  "date": "2026-09-08T12:55:37-04:00",
-  "git_sha": "2aff39b5b233cf80ff196089228e9e3c69d2f89d",
+  "date": "2026-09-08T13:37:04-04:00",
+  "git_sha": "f274d9bbc5ce14c47cace585289fcf367c21c7fb",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -5322,54 +5322,54 @@
     "INTERVU.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 17643,
-       "sha256": "039df839fcef8cc24745ed9c8f9bb88dd080471f38843d2fccbe570667438157"
+       "bytes": 17416,
+       "sha256": "15230053d66c00646b9953b867a7a279730d549e4d2a8a464931a9a35d368a00"
       },
       "html.printed": {
-       "bytes": 23898,
-       "sha256": "432f857876babcf1922140923babdd8c20f95a49a9e9d961271905430b45efb0"
+       "bytes": 23691,
+       "sha256": "00aaff2a826fe7d4b806bc5be60b19e6d665fe9353c5f04c74fca3da4c678789"
       },
       "layout.modern": {
-       "bytes": 97993,
-       "sha256": "019fa7a8e9c2f64f6e0381b72bd5f215806dcba2cc02eda04949e62dca7ed91f"
+       "bytes": 96717,
+       "sha256": "cf8517a181fb184cb8c376fc23c4c8da5a2042fb7458ee2485a032d20fa981e9"
       },
       "layout.printed": {
-       "bytes": 97993,
-       "sha256": "019fa7a8e9c2f64f6e0381b72bd5f215806dcba2cc02eda04949e62dca7ed91f"
+       "bytes": 96717,
+       "sha256": "cf8517a181fb184cb8c376fc23c4c8da5a2042fb7458ee2485a032d20fa981e9"
       },
       "markdown.modern": {
-       "bytes": 10497,
-       "sha256": "06d13d2bfd65f6825c57ba1cf054cb4d4c67ec331d004bb9d6cdac95af618de0"
+       "bytes": 10394,
+       "sha256": "7e695fe904dd6db46ec57c0b9feaff3f9a3dc3859b54f0b4f92cde906c2dc473"
       },
       "markdown.printed": {
-       "bytes": 10703,
-       "sha256": "81f4f867b804e200f9f42ed6cc346ba5678c27a797a2bebef1cb84f9a4541be2"
+       "bytes": 10606,
+       "sha256": "1066688628bebaa34d82fd24b4f4ace6113f86410846c8416d09c9d5f9435959"
       },
       "pdf.modern": {
-       "bytes": 88149,
+       "bytes": 87987,
        "pages": 5,
-       "sha256": "17801f5fb5185a2caffe3fa91cb1dfc04c79a0b656521be9945fee2ca42e242e"
+       "sha256": "d4e0d36740792bf09b7a11db77dd6df2a4df666ff96db8f4ecf0d528dd9561c1"
       },
       "pdf.printed": {
-       "bytes": 25071,
+       "bytes": 24895,
        "pages": 8,
-       "sha256": "1b30c2def77ee4d12943bf12ce39119128abe1be2daa1bffec92e6e5b8bcf26b"
+       "sha256": "7e1a5eab6a2177939d0e12bed1c0fa367712b50e16a1f60c9dcdaa8b68e18283"
       },
       "rtf.modern": {
-       "bytes": 12979,
-       "sha256": "22ade00d8aac0a03e00a15aea9480dcdc2846bc89a3588141b8bb0d377f1dd8a"
+       "bytes": 12814,
+       "sha256": "6eb54d0a801117ca619a7b09ccc6aab03f16ca6c3330ef315359b60bd35554cc"
       },
       "rtf.printed": {
-       "bytes": 15833,
-       "sha256": "5610d750f6bc0b92da389e094a792a3bdc70d11b28ae7ba2de583d449bceefd5"
+       "bytes": 15698,
+       "sha256": "e56ea264803bd8fa002a654774b14091f60e7ec44e692a259731be9bf31a3ffb"
       },
       "text.modern": {
-       "bytes": 10430,
-       "sha256": "345f3742890f14b461ead99e0d7fa2a73949e8d0a643b3822ebc3036931f6852"
+       "bytes": 10331,
+       "sha256": "98a72a4d0e34328571899eaca5a3d658f787235e15a3160866dc9a9ee749bcef"
       },
       "text.printed": {
-       "bytes": 10695,
-       "sha256": "eabdee79f24116594804b57ada59fd1a3f191d6f64e1f0a1f5ce0ddc8266d187"
+       "bytes": 10598,
+       "sha256": "4c7fd0096a1d346c880c3d7f7368be49dc27b68d75ee432e6485ff2e76af6848"
       }
      },
      "path": "INTERVU.WS",
@@ -18707,54 +18707,54 @@
     "REF/wordstar-file-format.ws": {
      "cells": {
       "html.modern": {
-       "bytes": 60530,
-       "sha256": "0a556aad6a27c0582aab9e21dabfbf44df56653cdebfc41ab7a9df57bac46d86"
+       "bytes": 59604,
+       "sha256": "d79ffcd90b7327d00bcdf66f28b6c85f2a4f71a84fefdecf96acc705204960e0"
       },
       "html.printed": {
-       "bytes": 61367,
-       "sha256": "9f543090dec839b0fb6c68821fc308edd7891f2953cbb660428b36952c2d1286"
+       "bytes": 60557,
+       "sha256": "bbcc490c298ee1e6fdfecf04a13d3e8bc74a52305e2975f7d2130ce40b4d3b4d"
       },
       "layout.modern": {
-       "bytes": 695805,
-       "sha256": "e7a4ea5718990bbff9e0e0148174bbe37fe7c5728adab4040bea1bd38b5c367c"
+       "bytes": 690885,
+       "sha256": "93bb8730465fa89b96939ed256e03636125134f9fa5108fe8a59bd2c04346541"
       },
       "layout.printed": {
-       "bytes": 695805,
-       "sha256": "e7a4ea5718990bbff9e0e0148174bbe37fe7c5728adab4040bea1bd38b5c367c"
+       "bytes": 690885,
+       "sha256": "93bb8730465fa89b96939ed256e03636125134f9fa5108fe8a59bd2c04346541"
       },
       "markdown.modern": {
-       "bytes": 44079,
-       "sha256": "edfe9e29d7f6b99e9e6f65a8183fa842c4b85c7aa6a28b6f8c808fc0b947b971"
+       "bytes": 43359,
+       "sha256": "2809970a7d696cde84dcbaf80a0c1575f5474fd134ceb39f1f3dcaef8265dfd7"
       },
       "markdown.printed": {
-       "bytes": 49799,
-       "sha256": "4f1a0a58c423ee0a34f5b7ccbcea0fd60b798e7429168f223256bcc0a813f26a"
+       "bytes": 49088,
+       "sha256": "5d808aed333d4f9ae989cfcb40f660f363371e961d21d9c451cd960c4e093ed6"
       },
       "pdf.modern": {
-       "bytes": 338493,
+       "bytes": 337423,
        "pages": 31,
-       "sha256": "0cef56ba3afe2ecdab746d54eebf0b2914b8b44391f1afdf951f6e97b49dabf2"
+       "sha256": "6be20b1b96dd8e559d85b1e0b871a3b9a67d8ea07e6a34e0ed423d5257613bb7"
       },
       "pdf.printed": {
-       "bytes": 101675,
-       "pages": 24,
-       "sha256": "31a55576e09a494a17a52356c16cdde6d9987392cb5aa42e18c9a093a97bac82"
+       "bytes": 100309,
+       "pages": 23,
+       "sha256": "fab5c74136bb62c592b4948663004b26a0797bbaed1a10272e38718960a8c06d"
       },
       "rtf.modern": {
-       "bytes": 51919,
-       "sha256": "d282ea7cc53c030d709f323d83645b0f7fa4f0fd27c3b5cd539b0ce526ffa8f7"
+       "bytes": 51055,
+       "sha256": "5bd38f06cbaf70563ecf83a4008e36c4ba1f8c49e84227752bc3444a675ecb1e"
       },
       "rtf.printed": {
-       "bytes": 59880,
-       "sha256": "440091ba0bc96ec66e41f7f5ad92e575c2e4218d3fb68d714948b3507ba49bd2"
+       "bytes": 59106,
+       "sha256": "dc8a1a61be2376ebf223be553023308910112b47862007137ca5147b2f7dcf58"
       },
       "text.modern": {
-       "bytes": 44737,
-       "sha256": "429e563b8a6d9aafdc94286d7fbba18d93ea698731aec03bbcac4fa7506ffa1b"
+       "bytes": 44025,
+       "sha256": "2ac75116ea52206f5fb565f2cd8fcf8915d068611deee2969d003d8ee97945c0"
       },
       "text.printed": {
-       "bytes": 49791,
-       "sha256": "dbdf680934d376459ce156b4e4ff5740482026a950a686b89aa31d3c84f2f8e2"
+       "bytes": 49080,
+       "sha256": "3c94c92e38c1e99267bf1d7c6177710a998e118a62b79d1a5ce845750251b300"
       }
      },
      "path": "REF/wordstar-file-format.ws",
