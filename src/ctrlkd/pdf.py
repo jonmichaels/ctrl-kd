@@ -2687,10 +2687,32 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     stream = []
+    # Planning #227: same region-boundary forced break as
+    # `_doc_to_pagelines`'s own plain-path block loop -- see its comment.
+    # `.cb`/`.cc` themselves are NOT supported on this path: this function
+    # (unlike `_doc_to_pagelines`) never handled `.cp` conditional breaks
+    # either -- a pre-existing gap, not a new one -- so their columnar
+    # siblings ('colbreak'/'condcolumn' blocks) fall through here as
+    # ordinary no-lines blocks, same as an unhandled `.cp` already did.
+    # Only sawyer/DEFAULT/PRINT.TST (the one `.co`-bearing corpus document
+    # with placeable notes) is affected; named in the columns-rule research
+    # note as an open scope gap rather than guessed at.
+    prev_cols = 1
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
+            if prev_cols > 1:
+                # Planning #227: absorbed, not honoured -- see
+                # `_doc_to_pagelines`'s own identical gate for the evidence
+                # (sawyer/REF/WINGDING.CHT's author-placed `.pa` markers
+                # inside its own active `.co5` region).
+                continue
             stream.append(None)
             continue
+        if b.kind == 'para':
+            cur_cols = b.columns or 1
+            if prev_cols > 1 and cur_cols != prev_cols and stream and stream[-1] is not None:
+                stream.append(None)
+            prev_cols = cur_cols
         # Fix C (b26-print-fidelity-2): same per-block lookup as
         # _doc_to_pagelines -- see its own comment and `_entering_lead_pt`.
         prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
@@ -3507,6 +3529,138 @@ def _ws4_spacing_blank_indices(doc, ls_confirmed):
     return spacing_map
 
 
+def _apply_columns(doc, pages, size):
+    """Planning #227 (research/2026-09-08_columns-rule.md): regroup a
+    finished, ordinary single-column `pages` list into real `.co n`
+    newspaper-column pages -- a POST-PASS over pagination's own output,
+    not a change to the pagination budget loop itself.
+
+    Why a post-pass works at all: a column is never vertically shorter
+    than the page it's on (measured: every `.co`-bearing document in the
+    corpus), so the ordinary single-column pagination loop, run unmodified,
+    already produces exactly the right BREAK POINTS for a columnar
+    region's content -- each "page" it closes is precisely one column's
+    worth of material, because column height and page height are the same
+    budget. `_doc_to_pagelines`'s own block loop guarantees (by forcing a
+    break on every `columns` state change, research §7) that a real page
+    coming out of that loop is either wholly non-columnar or wholly one
+    columnar region's own single N/gutter pair -- never a mix. All that is
+    left to do here is fold every N consecutive columnar "pages" into ONE
+    physical page, side by side, in fill order (down column 1, then column
+    2, ... -- research §4, confirmed directly against WINGDING.CHT/
+    SYMBOL.CHT/PRINT.TST's own real captures).
+
+    Column geometry (research §3): a column's own width is the block's
+    `.rm` minus `.po` -- the SAME number that already defines an ordinary
+    single-column line's own right edge, NOT the page width divided by n.
+    An author who wants 3 real columns sets `.rm` to ONE column's own
+    width first. Column i's left edge is therefore
+    `base_left + i * (column_width_pt + gutter_pt)`, where `base_left` is
+    whatever this line's own left origin already resolved to (its `.po`/
+    parity override if it has one, `_printed_left(doc, size)` otherwise --
+    the identical fallback every other per-line left computation in this
+    module uses).
+
+    No balancing (research §5): a trailing group of fewer than n columnar
+    pages is merged into one physical page using only the columns actually
+    present -- the remaining column slots are simply never drawn into,
+    matching WINGDING.CHT's own measurably short last column and
+    SYMBOL.CHT's own entirely-unused 5th column exactly."""
+    if not pages:
+        return pages
+    out = []
+    i = 0
+    n_pages = len(pages)
+    while i < n_pages:
+        pg = pages[i]
+        # A page's own columnar-ness is decided by the FIRST columnar block
+        # referenced ANYWHERE on it, not just its first line's -- a page can
+        # legitimately open with a non-columnar PREFIX (a title/ruler line
+        # ahead of the chart body) and then, on the SAME page, enter its
+        # `.co n` region with no break between them (research §7's own
+        # corrected finding: sawyer/REF/SYMBOL.CHT's real WS7 capture puts
+        # its title on the SAME page as its columnar chart, and 4 of the 9
+        # corpus documents share this shape -- SYMBOL.CHT, WINGDING.CHT, and
+        # all three FONTCRIB siblings). The prefix lines themselves stay
+        # exactly where the ordinary single-column pass already put them --
+        # they become column 0's own leading lines, unshifted, which is
+        # correct since column 0's own x IS the page's ordinary left origin.
+        first_col_bi = next((getattr(pl, 'bi', None) for pl in pg
+                             if getattr(pl, 'bi', None) is not None
+                             and 0 <= pl.bi < len(doc.blocks)
+                             and (doc.blocks[pl.bi].columns or 1) > 1), None)
+        cols = ((doc.blocks[first_col_bi].columns or 1)
+                if first_col_bi is not None else 1)
+        if not pg or cols <= 1:
+            out.append(pg)
+            i += 1
+            continue
+        blk = doc.blocks[first_col_bi]
+        gutter_cols = blk.column_gutter or 0.0
+        rm_cols = blk.right_margin if blk.right_margin is not None else 65.0
+        gutter_pt = gutter_cols * _PDF_PT_PER_COL
+        rm_pt = rm_cols * _PDF_PT_PER_COL
+        merged = Page([])
+        # Group metadata (headers/footers/margins/geometry) comes from the
+        # FIRST sub-page in the group -- "page just started" state, exactly
+        # what an ordinary page's own metadata already means. `getattr`
+        # with a default throughout: the notes-aware paginator
+        # (`_paginate_printed_notes`) builds some of ITS OWN pages as plain
+        # lists rather than `Page` instances (its footnote-area pages in
+        # particular) -- pre-existing, not something this pass changes --
+        # so a source page here is not guaranteed to carry these attributes.
+        merged.headers = getattr(pg, 'headers', {})
+        merged.footers = getattr(pg, 'footers', {})
+        merged.mt_lines = getattr(pg, 'mt_lines', None)
+        merged.mb_lines = getattr(pg, 'mb_lines', None)
+        merged.pl_lines = getattr(pg, 'pl_lines', None)
+        merged.hm_lines = getattr(pg, 'hm_lines', None)
+        merged.fm_lines = getattr(pg, 'fm_lines', None)
+        merged.po_cols = getattr(pg, 'po_cols', None)
+        merged.explicit_break = getattr(pg, 'explicit_break', False)
+        merged.explicit_break_bi = getattr(pg, 'explicit_break_bi', None)
+        group_end = min(i + cols, n_pages)
+        # A later sub-page belonging to a DIFFERENT columns/gutter pair (a
+        # new `.co` restatement) or a non-columnar page ends the group
+        # early -- the forced break on state-change (research §7) means
+        # this should only ever happen exactly at `i + cols`, never inside
+        # it, but the check is cheap insurance against a state change the
+        # forced-break guarantee somehow missed.
+        col_idx = 0
+        for j in range(i, group_end):
+            sub = pages[j]
+            sub_bi = next((getattr(pl, 'bi', None) for pl in sub
+                          if getattr(pl, 'bi', None) is not None
+                          and 0 <= pl.bi < len(doc.blocks)
+                          and (doc.blocks[pl.bi].columns or 1) > 1), None)
+            sub_cols = ((doc.blocks[sub_bi].columns or 1)
+                       if sub_bi is not None else 1)
+            sub_gutter = (doc.blocks[sub_bi].column_gutter or 0.0
+                         if sub_bi is not None else 0.0)
+            if sub_cols != cols or sub_gutter != gutter_cols:
+                break
+            for pl in sub:
+                if not hasattr(pl, 'left'):
+                    # A non-PageLine row (this notes-aware paginator's
+                    # footnote-area lines are sometimes plain lists/tuples,
+                    # never participants in a `.co` region in this corpus) --
+                    # pass through unshifted rather than guess at a shape it
+                    # doesn't have.
+                    merged.append(pl)
+                    continue
+                base_left = pl.left if pl.left is not None else _printed_left(doc, size)
+                # `rm_pt` is column 0's own right edge, measured from the
+                # SAME page-left origin `base_left` is -- so `rm_pt -
+                # base_left` is exactly one column's own width (docstring).
+                column_width_pt = rm_pt - base_left
+                pl.left = base_left + col_idx * (column_width_pt + gutter_pt)
+                merged.append(pl)
+            col_idx += 1
+        out.append(merged)
+        i += col_idx if col_idx else 1
+    return out
+
+
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                       sentence_spacing=False):
     """IR -> list of pages, each a list of segment-lines.
@@ -3578,6 +3732,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         while (len(pages) > 1 and not pages[-1]
                and not getattr(pages[-1], 'explicit_break', False)):
             pages.pop()
+        pages = _apply_columns(doc, pages, _printed_size(doc))
         return pages or [[]]
 
     refs_all = _ref_pairs(_annotated_notes(doc))
@@ -3667,19 +3822,65 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # thing AND doc.meta['pa_eof_blank_after'] is True; harmless
     # otherwise.
     last_pagebreak_bi = None
+    # Planning #227 (columns-rule research §7): entering or leaving a
+    # `.co n>1` region forces a page break if the current page already has
+    # real content -- measured directly against sawyer/DEFAULT/PRINT.TST's
+    # own capture (its `.co` off transition starts a fresh page, not a
+    # continuation of the last, still-partial column). `prev_cols` tracks
+    # the columns state of the most recently processed REAL ('para') block;
+    # sentinel blocks (pagebreak/condpage/colbreak/condcolumn) never change
+    # it, matching how `prev_para_block` below also skips them.
+    prev_cols = 1
     for bi, b in enumerate(doc.blocks):
         for ev in hf_by_block.get(bi, ()):
             lines.append(('hf',) + ev)
-        if b.kind == 'pagebreak':
+        if b.kind == 'pagebreak' and prev_cols > 1:
+            # Planning #227 (columns-rule research, corrected): a bare `.pa`
+            # occurring INSIDE an active `.co n>1` region is ABSORBED, not
+            # honoured as a real break. Measured directly against
+            # sawyer/REF/WINGDING.CHT's own real WS7 capture: its source
+            # carries `.pa` markers the AUTHOR placed between chart-entry
+            # groups (a manual column-simulation convention predating, or
+            # kept alongside, the real `.co5` that now governs the same
+            # content) -- honouring them as real page breaks fragmented one
+            # real ~47-line column into a 44-line page plus an orphaned
+            # 3-line page, inflating WINGDING.CHT to 2 engine pages against
+            # WS7's real 1. Columns fill by height alone once `.co n>1` is
+            # active (research §4); only `.cb` forces an early break inside
+            # one (handled below, unconditionally, regardless of this gate --
+            # confirmed live and DISTINCT from `.pa` on sawyer/DEFAULT/
+            # PRINT.TST, which uses `.cb` deliberately where `.pa` would not
+            # have fired at all).
+            last_pagebreak_bi = bi
+            continue
+        if b.kind in ('pagebreak', 'colbreak'):
+            # `.cb` (unconditional column break) maps onto the SAME forced-
+            # break sentinel `.pa` uses OUTSIDE a columnar region (or always,
+            # for `.cb` itself -- it never gets the absorption above). Inside
+            # an active `.co n>1` region, the column-grouping post-pass
+            # (`_apply_columns`) turns every Nth forced break into a real
+            # page break and the others into a column advance -- exactly
+            # what a column break means; outside any columnar region (`.cb`
+            # never appears there in this corpus -- research §7's own open
+            # point), there is nothing to group and it degrades to an
+            # ordinary forced page break, the documented fallback.
             lines.append(None)
             last_pagebreak_bi = bi
             continue
-        if b.kind == 'condpage':
+        if b.kind in ('condpage', 'condcolumn'):
             # `.cp n` -- a break ONLY if fewer than n lines remain. Measured on
             # WordStar 4 (2026-08-03): exactly n remaining is enough room and
             # does NOT break; the test is strictly `remaining < n`. Emitted as a
             # sentinel so the page-filling loop below, which is the only thing
             # that knows how full the page is, can decide.
+            #
+            # `.cc n` (planning #227) shares this sentinel for the identical
+            # reason `.cb` shares `.pa`'s above: "room remaining in the
+            # current column" and "room remaining in the current page" are
+            # the SAME question whenever a column's height equals a page's
+            # (always, in this engine -- a column is never vertically
+            # shorter than the page it's on), so the underlying budget check
+            # needs no column-aware variant at all.
             lines.append(('cond', b.heading or 1))
             continue
         if printed and b.origin == 'fi':
@@ -3699,6 +3900,18 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # placeholder, per Jon's ruling: "report what Modern does and
             # leave it").
             continue
+        cur_cols = (b.columns or 1) if printed else 1
+        # Planning #227 (columns-rule research §7, corrected): only LEAVING
+        # a columnar region forces a break -- confirmed against
+        # sawyer/DEFAULT/PRINT.TST's own `.co` off transition. ENTERING one
+        # does NOT: sawyer/REF/SYMBOL.CHT's own title line sits on the SAME
+        # page as its chart's columnar content in the real WS7 capture (1
+        # page total) -- an early version of this rule forced a break on
+        # ANY columns-state change and split SYMBOL.CHT onto 2 pages,
+        # contradicting that capture directly.
+        if printed and prev_cols > 1 and cur_cols != prev_cols and lines and lines[-1] is not None:
+            lines.append(None)
+        prev_cols = cur_cols
         fi_pt = _printed_pm_fi_pt(b) if printed else None
         first_line_of_block = True
         # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
@@ -4280,6 +4493,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # number prints even with no body -- and is exempt from this pop.
     while len(pages) > 1 and not pages[-1] and not pages[-1].explicit_break:
         pages.pop()
+    if printed:
+        pages = _apply_columns(doc, pages, size_for_left)
     return pages or [[]]
 
 

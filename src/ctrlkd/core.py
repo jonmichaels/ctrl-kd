@@ -216,13 +216,18 @@ class Line:
 
 @dataclass
 class Block:
-    kind: str            # 'para' | 'pagebreak' | 'condpage'
+    kind: str            # 'para' | 'pagebreak' | 'condpage' | 'colbreak' | 'condcolumn'
                          # ('softpage' RETIRED 2026-08-04: a 0x0B mark is
                          #  transient editor state, now Line.softpage -- it
                          #  never breaks a page and never splits a block)
+                         # ('colbreak'/'condcolumn' added planning #227: `.cb`/
+                         #  `.cc n`, the columnar siblings of `.pa`/`.cp` -- sentinel
+                         #  blocks, same shape as 'pagebreak'/'condpage', carrying
+                         #  no lines of their own)
     lines: list = field(default_factory=list)
     heading: int = 0     # 0 = body text; 1-3 = WS5+ title/header/subheading
-                         # (for 'condpage' it carries `.cp`'s requested line count)
+                         # (for 'condpage'/'condcolumn' it carries `.cp`/`.cc`'s
+                         #  requested line count)
     # Horizontal alignment in force when this block was opened: 'left' (WordStar's
     # default), 'center', 'right' or 'justify'. From `.oc` (centering on/off) and
     # `.oj` (justification off/on/c/r), which are STATEFUL -- they apply from where
@@ -1898,6 +1903,18 @@ DOT_PAGEBREAK = {b'PA'}                 # UNCONDITIONAL page break
 # -- `.cp` exists precisely so a heading does NOT get stranded, and firing it
 # unconditionally inserts the break it was there to prevent.
 DOT_CONDPAGE = b'CP'
+# Planning #227 (columns-rule research): `.cb`/`.cc` are the columnar
+# siblings of `.pa`/`.cp` -- `.cb` breaks to the next column (or the next
+# page's own column 1, if the current column is a region's last)
+# UNCONDITIONALLY; `.cc n` breaks only if fewer than n lines remain in the
+# CURRENT column (WSFORMAT.TXT: "Like the .CP command, but works with
+# columnar breaks instead"). `.cb` is undocumented in WSFORMAT.TXT's own
+# `.C*` alphabetical list (it runs CC, CO, CP, CS, CV, CW -- no CB) but is
+# real and live: confirmed against sawyer/DEFAULT/PRINT.TST's real WS7
+# capture, which jumps to the next column immediately at a `.cb`, mid-
+# column, well before that column's own vertical space ran out.
+DOT_COLBREAK = {b'CB'}                  # UNCONDITIONAL column break
+DOT_CONDCOLUMN = b'CC'
 
 # ------------------------------------------------------------ conditionals
 #
@@ -2662,9 +2679,23 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # and `.co1` (one column = columns off). Stateful like the margins: a
         # document turns columns on for a section and off again after.
         # Register C5.
+        #
+        # Planning #227 (columns-rule research, section 6): a BARE `.co`
+        # with no number at all -- undocumented in WSFORMAT.TXT's own
+        # prose, but real and live in the corpus (sawyer/DEFAULT/PRINT.TST,
+        # sawyer/PSPRINT.TST both use it to turn columns back off after a
+        # `.co3` section) -- means the same thing as the documented `.co1`:
+        # columns off. Previously this branch returned immediately on a
+        # failed number match, leaving `state['columns']` at whatever a
+        # PRIOR `.co N` had set it to -- a silent no-op that kept columns
+        # ON. Measured against PRINT.TST's real WS7 capture: the section
+        # after a bare `.co` prints as ordinary single-column body text,
+        # not a continuation of the narrower column width.
         body = arg.strip()
         m = _dot_num_match(body)
         if not m:
+            state['columns'] = 1
+            state['column_gutter'] = None
             return
         try:
             cols = int(float(m.group(1)))
@@ -4735,6 +4766,26 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 # remaining is enough room and does not break.
                 close_block()
                 blk = Block('condpage')
+                blk.heading = _cp_lines(cmd)
+                doc.blocks.append(blk)
+            elif cmd[1:3].upper() in DOT_COLBREAK:
+                # Planning #227: `.cb`, unconditional column break -- see
+                # DOT_COLBREAK's own comment. Only meaningful inside an
+                # active `.co n>1` region; the Printed paginator's own
+                # column-fill loop decides what "next column" means (or
+                # falls back to an ordinary page break if no column region
+                # is active, the safest reading for a command this corpus
+                # never exercises outside one).
+                close_block()
+                doc.blocks.append(Block('colbreak'))
+            elif cmd[1:3].upper() == DOT_CONDCOLUMN:
+                # `.cc n` -- a column break ONLY if fewer than n lines remain
+                # in the CURRENT column (WSFORMAT.TXT: "Like the .CP command,
+                # but works with columnar breaks instead"). Same strict-less-
+                # than test as `.cp`, scoped to one column's own remaining
+                # space instead of the page's.
+                close_block()
+                blk = Block('condcolumn')
                 blk.heading = _cp_lines(cmd)
                 doc.blocks.append(blk)
             if cmd[1:2].lower() == b'r' and b'!' in cmd:
