@@ -3073,6 +3073,13 @@ def _font_entry(w, h, style, offset):
     }
 
 
+# A bare 0x09 tab byte's print-time expansion target, in document columns
+# (WSFORMAT.WS's own file-format reference: "the number of hard spaces
+# required to reach a modulus 8 print position is generated" -- see
+# _decode_spans's own 0x09 branch, planning #202 batch).
+_TAB_MODULUS = 8
+
+
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
                   font_at=(), fonts=(), pctl_at=(), colour_at=(),
@@ -3088,6 +3095,19 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     that does not exist. `fn_counter` (ws5+ only) numbers them.
     """
     spans, buf = [], bytearray()
+    # Running document-COLUMN count since the start of THIS physical line
+    # (planning #202 batch, bare-0x09 tab-expansion fix): every character
+    # this function actually places -- in `buf` or as a directly-appended
+    # Span -- advances it by exactly its own length; a style toggle, font/
+    # colour change, or dropped control byte never does (zero print width).
+    # `raw` starts this line at column 0 by construction (`raw` is one
+    # CRLF-delimited content line -- see this function's own docstring and
+    # its caller); confirmed against WS7's own capture on a flush-left line
+    # (sawyer/REF/wordstar-file-format.ws's "00h ^@<TAB>Fix" -- 6 characters
+    # before the tab, WS7 places "Fix" at exactly column 8, the modulus-8
+    # stop `_TAB_MODULUS` below predicts). Only the bare-0x09 branch reads
+    # it; it exists for that one purpose.
+    col = 0
 
     def flush():
         if buf:
@@ -3166,6 +3186,7 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 if pcl_idx is not None:
                     tags.add('pcl%d' % pcl_idx)
                 spans.append(Span(text, frozenset(active | tags)))
+                col += len(text)
                 i += count
                 advanced = True
             while pending_pix and pending_pix[0][0] <= i < len(raw):
@@ -3173,6 +3194,7 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 flush()
                 text = raw[i:i + count].decode(encoding, 'replace')
                 spans.append(Span(text, frozenset(active | {'pix%d' % idx})))
+                col += len(text)
                 i += count
                 advanced = True
             while pending_fonts and pending_fonts[0][0] <= i:
@@ -3216,6 +3238,7 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 text = raw[i:i + cols].decode(encoding, 'replace')
                 tags = {'tabhmi%d' % hmi, 'tableader%d' % leader[0]}
                 spans.append(Span(text, frozenset(active | tags)))
+                col += len(text)
                 i += cols
                 advanced = True
             if not advanced:
@@ -3227,8 +3250,10 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             if fn_counter is not None:
                 flush()
                 fn_counter[0] += 1
-                spans.append(Span(str(fn_counter[0]),
+                fnref_text = str(fn_counter[0])
+                spans.append(Span(fnref_text,
                                   frozenset(active | {'sup', 'fnref'})))
+                col += len(fnref_text)
         if i >= len(raw):
             break
         # WS4's bit-7-on-last-letter applies to CONTROL TOGGLES too (a word ending
@@ -3248,6 +3273,7 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 spans.append(Span(CP437_GRAPHICS[x], frozenset(active)))
             else:
                 buf.append(x)
+            col += 1
             i += 2
             continue
         if b in WS_TOGGLES:
@@ -3262,12 +3288,28 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             active.discard('altfont')
         elif b == 0x0F:
             buf.append(0x20)                      # binding space
+            col += 1
         elif b == 0x1E:
             pass                                  # inactive soft hyphen
         elif b == 0x1F:
             buf.append(0x2D)                      # active soft hyphen
+            col += 1
         elif b == 0x09:
-            buf.append(b)
+            # A BARE tab byte (as opposed to a `.tb`-ruler type-9 tab block,
+            # the `pending_tab` mechanism above -- core.py's own note there:
+            # 46 archive files use `.tb`, ZERO contain a bare 0x09, the two
+            # never coexist on one line) expands at PRINT time to the next
+            # modulus-8 column, per WordStar's own file-format reference
+            # (WSFORMAT.WS: "09h ^I ... At print time the number of hard
+            # spaces required to reach a modulus 8 print position is
+            # generated") -- planning #202 batch. `col` is 0-indexed from
+            # this physical line's own start; a tab exactly ON a stop still
+            # advances a FULL 8 columns (the standard tab convention: it
+            # always moves at least one column), matching `% 8` giving 0
+            # -> `_TAB_MODULUS` needed rather than 0 needed.
+            needed = _TAB_MODULUS - (col % _TAB_MODULUS)
+            buf.extend(b' ' * needed)
+            col += needed
         elif b == 0xA0 and not strip_hibit:
             # WS5+ soft space: justification/alignment padding WordStar
             # re-stamps at print time (615 bare A0s across the corpus, all
@@ -3277,11 +3319,13 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             # WS4 needs nothing: its soft spaces are 0x20|0x80 and the bit-7
             # mask restores them.
             buf.append(0x20)
+            col += 1
         elif b < 0x20 or b == 0x7F:
             if b not in WS_DROP:
                 unknown[b] = unknown.get(b, 0) + 1
         else:
             buf.append(b)
+            col += 1
         i += 1
     flush()
     return spans

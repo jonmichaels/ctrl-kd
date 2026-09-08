@@ -13509,9 +13509,9 @@
       "n_engine_pages": 302,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 18,
+        "exact-drift": 17,
         "extra-word-in-engine": 194,
-        "line-start-shift": 9,
+        "line-start-shift": 8,
         "word-unmatched": 37
       },
       "divergences": [
@@ -13854,26 +13854,6 @@
           "font_class": "exact",
           "reason": "exact-drift",
           "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 297,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "(208)",
-            "(208)"
-          ],
-          "ws7_pos": [
-            309.6,
-            516.0
-          ],
-          "pdf_pos": [
-            259.2,
-            516.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
@@ -14674,26 +14654,6 @@
           "font_class": "exact",
           "reason": "line-start-shift",
           "detail": "line-start residual +10.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 297,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "LoCase-1,",
-            "LoCase-1,"
-          ],
-          "ws7_pos": [
-            216.0,
-            516.0
-          ],
-          "pdf_pos": [
-            165.6,
-            516.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -50.40pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
@@ -19983,32 +19943,11 @@
       "n_engine_pages": 10,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 1,
         "extra-word-in-engine": 10,
-        "line-start-shift": 2,
+        "line-start-shift": 1,
         "word-unmatched": 1
       },
       "divergences": [
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__8MAC",
-          "page": 5,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "(208)",
-            "(208)"
-          ],
-          "ws7_pos": [
-            295.2,
-            516.0
-          ],
-          "pdf_pos": [
-            244.8,
-            516.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
         {
           "doc": "sawyer__MACROS__HOLYMAC__8MAC",
           "page": 1,
@@ -20188,26 +20127,6 @@
           "font_class": "exact",
           "reason": "line-start-shift",
           "detail": "line-start residual +10.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__8MAC",
-          "page": 5,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "LoCase-1,",
-            "LoCase-1,"
-          ],
-          "ws7_pos": [
-            201.6,
-            516.0
-          ],
-          "pdf_pos": [
-            151.2,
-            516.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -50.40pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__8MAC",
@@ -43676,174 +43595,17 @@
     },
     "sawyer__REF__Notes__690_EXT_TXT": {
       "doc": "sawyer__REF__Notes__690_EXT_TXT",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/Notes/690.TXT",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 9,
       "n_engine_pages": 9,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "exact-drift": 6,
-        "extra-word-in-engine": 1,
-        "word-unmatched": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "DeskJet",
-            "DeskJet"
-          ],
-          "ws7_pos": [
-            252.0,
-            564.0
-          ],
-          "pdf_pos": [
-            151.2,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "550C",
-            "550C"
-          ],
-          "ws7_pos": [
-            309.6,
-            564.0
-          ],
-          "pdf_pos": [
-            208.8,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            345.6,
-            564.0
-          ],
-          "pdf_pos": [
-            244.8,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "Portable",
-            "Portable"
-          ],
-          "ws7_pos": [
-            374.4,
-            564.0
-          ],
-          "pdf_pos": [
-            273.6,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "from",
-            "from"
-          ],
-          "ws7_pos": [
-            439.2,
-            564.0
-          ],
-          "pdf_pos": [
-            338.4,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "*.DTE",
-            "*.DTE"
-          ],
-          "ws7_pos": [
-            475.2,
-            564.0
-          ],
-          "pdf_pos": [
-            374.4,
-            564.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "\t\tRemoved"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            564.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__Notes__690_EXT_TXT",
-          "page": 8,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "Removed"
-          ],
-          "ws7_pos": [
-            172.8,
-            564.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
-        "n": 220,
+        "n": 221,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -48847,12 +48609,12 @@
             72.0
           ],
           "pdf_pos": [
-            144.0,
+            180.0,
             72.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -43.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__WIN7_EXT_ETC",
@@ -48867,12 +48629,12 @@
             72.0
           ],
           "pdf_pos": [
-            223.2,
+            259.2,
             72.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -43.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__WIN7_EXT_ETC",
@@ -48887,12 +48649,12 @@
             72.0
           ],
           "pdf_pos": [
-            273.6,
+            309.6,
             72.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -43.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__WIN7_EXT_ETC",
@@ -48907,12 +48669,12 @@
             72.0
           ],
           "pdf_pos": [
-            324.0,
+            360.0,
             72.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -43.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__WIN7_EXT_ETC",
@@ -48967,12 +48729,12 @@
             96.0
           ],
           "pdf_pos": [
-            108.0,
+            122.4,
             96.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__WIN7_EXT_ETC",
@@ -50237,51 +49999,15 @@
     },
     "sawyer__REF__WINDOWS7_EXT_WS": {
       "doc": "sawyer__REF__WINDOWS7_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/WINDOWS7.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 2,
       "n_engine_pages": 2,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "extra-word-in-engine": 1,
-        "word-unmatched": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__WINDOWS7_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Reed\t"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            48.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__WINDOWS7_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Reed"
-          ],
-          "ws7_pos": [
-            86.4,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 32,
         "median_dx": 0.0,
@@ -54724,13 +54450,10 @@
       "n_engine_pages": 24,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 275,
-        "exact-drift": 248,
-        "extra-word-in-engine": 103,
-        "line-start-shift": 7,
+        "baseline-shift": 279,
+        "extra-word-in-engine": 9,
         "page-count-mismatch": 1,
-        "page-membership": 190,
-        "word-unmatched": 112
+        "page-membership": 194
       },
       "divergences": [
         {
@@ -55535,1398 +55258,6 @@
         },
         {
           "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            144.0,
-            252.0
-          ],
-          "pdf_pos": [
-            136.8,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            172.8,
-            252.0
-          ],
-          "pdf_pos": [
-            165.6,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "position.",
-            "position."
-          ],
-          "ws7_pos": [
-            216.0,
-            252.0
-          ],
-          "pdf_pos": [
-            208.8,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            316.8,
-            252.0
-          ],
-          "pdf_pos": [
-            309.6,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "time",
-            "time"
-          ],
-          "ws7_pos": [
-            360.0,
-            252.0
-          ],
-          "pdf_pos": [
-            352.8,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            396.0,
-            252.0
-          ],
-          "pdf_pos": [
-            388.8,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            424.8,
-            252.0
-          ],
-          "pdf_pos": [
-            417.6,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "head",
-            "head"
-          ],
-          "ws7_pos": [
-            468.0,
-            252.0
-          ],
-          "pdf_pos": [
-            460.8,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "moved",
-            "moved"
-          ],
-          "ws7_pos": [
-            525.6,
-            252.0
-          ],
-          "pdf_pos": [
-            518.4,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            590.4,
-            252.0
-          ],
-          "pdf_pos": [
-            583.2,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "font.",
-            "font."
-          ],
-          "ws7_pos": [
-            187.2,
-            312.0
-          ],
-          "pdf_pos": [
-            180.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            259.2,
-            312.0
-          ],
-          "pdf_pos": [
-            252.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "time",
-            "time"
-          ],
-          "ws7_pos": [
-            302.4,
-            312.0
-          ],
-          "pdf_pos": [
-            295.2,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            338.4,
-            312.0
-          ],
-          "pdf_pos": [
-            331.2,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "alternate",
-            "alternate"
-          ],
-          "ws7_pos": [
-            367.2,
-            312.0
-          ],
-          "pdf_pos": [
-            360.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "character",
-            "character"
-          ],
-          "ws7_pos": [
-            439.2,
-            312.0
-          ],
-          "pdf_pos": [
-            432.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "width",
-            "width"
-          ],
-          "ws7_pos": [
-            511.2,
-            312.0
-          ],
-          "pdf_pos": [
-            504.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "type",
-            "type"
-          ],
-          "ws7_pos": [
-            180.0,
-            384.0
-          ],
-          "pdf_pos": [
-            172.8,
-            384.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "ON/OFF",
-            "ON/OFF"
-          ],
-          "ws7_pos": [
-            216.0,
-            384.0
-          ],
-          "pdf_pos": [
-            208.8,
-            384.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "toggle.",
-            "toggle."
-          ],
-          "ws7_pos": [
-            266.4,
-            384.0
-          ],
-          "pdf_pos": [
-            259.2,
-            384.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            158.4,
-            408.0
-          ],
-          "pdf_pos": [
-            151.2,
-            408.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "user",
-            "user"
-          ],
-          "ws7_pos": [
-            187.2,
-            408.0
-          ],
-          "pdf_pos": [
-            180.0,
-            408.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "response",
-            "response"
-          ],
-          "ws7_pos": [
-            223.2,
-            408.0
-          ],
-          "pdf_pos": [
-            216.0,
-            408.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "during",
-            "during"
-          ],
-          "ws7_pos": [
-            288.0,
-            408.0
-          ],
-          "pdf_pos": [
-            280.8,
-            408.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "print.",
-            "print."
-          ],
-          "ws7_pos": [
-            338.4,
-            408.0
-          ],
-          "pdf_pos": [
-            331.2,
-            408.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "strike",
-            "strike"
-          ],
-          "ws7_pos": [
-            165.6,
-            432.0
-          ],
-          "pdf_pos": [
-            158.4,
-            432.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "printing",
-            "printing"
-          ],
-          "ws7_pos": [
-            216.0,
-            432.0
-          ],
-          "pdf_pos": [
-            208.8,
-            432.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "ON/OFF",
-            "ON/OFF"
-          ],
-          "ws7_pos": [
-            280.8,
-            432.0
-          ],
-          "pdf_pos": [
-            273.6,
-            432.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "toggle.",
-            "toggle."
-          ],
-          "ws7_pos": [
-            331.2,
-            432.0
-          ],
-          "pdf_pos": [
-            324.0,
-            432.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            165.6,
-            456.0
-          ],
-          "pdf_pos": [
-            158.4,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "control.",
-            "control."
-          ],
-          "ws7_pos": [
-            208.8,
-            456.0
-          ],
-          "pdf_pos": [
-            201.6,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            280.8,
-            456.0
-          ],
-          "pdf_pos": [
-            273.6,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "user",
-            "user"
-          ],
-          "ws7_pos": [
-            309.6,
-            456.0
-          ],
-          "pdf_pos": [
-            302.4,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "may",
-            "may"
-          ],
-          "ws7_pos": [
-            345.6,
-            456.0
-          ],
-          "pdf_pos": [
-            338.4,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "either",
-            "either"
-          ],
-          "ws7_pos": [
-            374.4,
-            456.0
-          ],
-          "pdf_pos": [
-            367.2,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "preinstall",
-            "preinstall"
-          ],
-          "ws7_pos": [
-            424.8,
-            456.0
-          ],
-          "pdf_pos": [
-            417.6,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            504.0,
-            456.0
-          ],
-          "pdf_pos": [
-            496.8,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            532.8,
-            456.0
-          ],
-          "pdf_pos": [
-            525.6,
-            456.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "space.",
-            "space."
-          ],
-          "ws7_pos": [
-            172.8,
-            504.0
-          ],
-          "pdf_pos": [
-            165.6,
-            504.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Primarily",
-            "Primarily"
-          ],
-          "ws7_pos": [
-            230.4,
-            504.0
-          ],
-          "pdf_pos": [
-            223.2,
-            504.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "^@\tFix"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            252.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "^A\tAlternate"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            312.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "^B\tBoldface"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "^C\tPause"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            408.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "^D\tDouble"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            432.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "^E\tCustom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            456.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "^F\tPhantom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            504.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "^G\tPhantom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            540.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 576.0,
-          "words": [
-            "^H\tOverprint"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            576.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 600.0,
-          "words": [
-            "^I\tTab"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            600.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 636.0,
-          "words": [
-            "^J\tLine"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            636.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 660.0,
-          "words": [
-            "^K\tWithin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            660.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "^L\tForm"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            48.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 84.0,
-          "words": [
-            "^M\tCarriage"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            84.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "^N\tReturn"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            108.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "^O\tBinding"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            144.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "^P\tReserved."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            180.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "^Q\tCustom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            204.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "^R\tCustom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            228.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "^S\tUnderline"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            252.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "^T\tSuperscript"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            276.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 300.0,
-          "words": [
-            "^U\tReserved."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            300.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "^V\tSubscript"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            324.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "^W\tCustom"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            348.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "^X\tStrikeout"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            372.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 420.0,
-          "words": [
-            "^Y\tItalics"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            420.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "^Z\tEnd"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            480.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "^[\tEscape."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            516.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "^\\\tReserved."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            564.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 600.0,
-          "words": [
-            "^]\tSymmetrical"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            600.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 624.0,
-          "words": [
-            "^^\tInactive"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            624.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 660.0,
-          "words": [
-            "^_\tActive"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            86.4,
-            660.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "\tM\tAffects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            156.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "\tI\tAffects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            168.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "\tT\tAffects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            180.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "\tP\tAffects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            192.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "\tE\tAffects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            204.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
           "page": 4,
           "line_y_top_pt": 504.0,
           "words": [
@@ -56959,15 +55290,15 @@
         },
         {
           "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 120.0,
+          "page": 16,
+          "line_y_top_pt": 696.0,
           "words": [
-            "0\tHeader:"
+            "P-------L--------------------------------------------------------------------R"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            120.0
+            696.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -56975,143 +55306,99 @@
         },
         {
           "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 120.0,
+          "page": 20,
+          "line_y_top_pt": 156.0,
           "words": [
-            "Release",
-            "Release"
+            "L----------------------------------------------------------------------------R"
           ],
-          "ws7_pos": [
-            172.8,
-            120.0
-          ],
-          "pdf_pos": [
-            172.8,
-            144.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "library",
-            "library"
-          ],
-          "ws7_pos": [
-            172.8,
-            168.0
-          ],
-          "pdf_pos": [
-            172.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "including",
-            "including"
-          ],
-          "ws7_pos": [
-            172.8,
-            192.0
-          ],
-          "pdf_pos": [
-            172.8,
-            216.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "Print",
-            "Print"
-          ],
-          "ws7_pos": [
-            57.6,
-            216.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            240.0
+            156.0
           ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 588.0,
+          "page": 20,
+          "line_y_top_pt": 204.0,
           "words": [
-            "partial",
-            "partial"
+            "P-------L--------------------------------------------------------------------R"
           ],
-          "ws7_pos": [
-            172.8,
-            588.0
-          ],
-          "pdf_pos": [
-            172.8,
-            612.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 624.0,
-          "words": [
-            "bits",
-            "bits"
-          ],
-          "ws7_pos": [
-            172.8,
-            624.0
-          ],
-          "pdf_pos": [
-            172.8,
-            648.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 660.0,
-          "words": [
-            "Bit",
-            "Bit"
-          ],
-          "ws7_pos": [
-            57.6,
-            660.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            684.0
+            204.0
           ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +100.80pt (tolerance 2.5pt)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 20,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "L----------------------------------------------------------------------------R"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            324.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 20,
+          "line_y_top_pt": 372.0,
+          "words": [
+            "P-------L--------------------------------------------------------------------R"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            372.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 21,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "L----------------------------------------------------------------------------R"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            456.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 22,
+          "line_y_top_pt": 72.0,
+          "words": [
+            "P-------L--------------------------------------------------------------------R"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            72.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
@@ -57629,6 +55916,26 @@
           "page": 11,
           "line_y_top_pt": 684.0,
           "words": [
+            "Proportional",
+            "Proportional"
+          ],
+          "ws7_pos": [
+            230.4,
+            684.0
+          ],
+          "pdf_pos": [
+            230.4,
+            48.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 11 word matched an engine word on page 12 instead"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 11,
+          "line_y_top_pt": 684.0,
+          "words": [
             "flag",
             "flag"
           ],
@@ -57637,8 +55944,28 @@
             684.0
           ],
           "pdf_pos": [
-            187.2,
+            324.0,
             48.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 11 word matched an engine word on page 12 instead"
+        },
+        {
+          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
+          "page": 11,
+          "line_y_top_pt": 696.0,
+          "words": [
+            "Letter",
+            "Letter"
+          ],
+          "ws7_pos": [
+            230.4,
+            696.0
+          ],
+          "pdf_pos": [
+            230.4,
+            60.0
           ],
           "font_class": "exact",
           "reason": "page-membership",
@@ -57657,7 +55984,7 @@
             696.0
           ],
           "pdf_pos": [
-            144.0,
+            280.8,
             60.0
           ],
           "font_class": "exact",
@@ -57677,7 +56004,7 @@
             696.0
           ],
           "pdf_pos": [
-            201.6,
+            338.4,
             60.0
           ],
           "font_class": "exact",
@@ -57883,690 +56210,10 @@
           "font_class": "exact",
           "reason": "page-membership",
           "detail": "WS7 page 14 word matched an engine word on page 15 instead"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 14,
-          "line_y_top_pt": 696.0,
-          "words": [
-            "BarCode",
-            "BarCode"
-          ],
-          "ws7_pos": [
-            86.4,
-            696.0
-          ],
-          "pdf_pos": [
-            86.4,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "page-membership",
-          "detail": "WS7 page 14 word matched an engine word on page 15 instead"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 15,
-          "line_y_top_pt": 684.0,
-          "words": [
-            "195",
-            "195"
-          ],
-          "ws7_pos": [
-            57.6,
-            684.0
-          ],
-          "pdf_pos": [
-            57.6,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "page-membership",
-          "detail": "WS7 page 15 word matched an engine word on page 16 instead"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "Fix"
-          ],
-          "ws7_pos": [
-            115.2,
-            252.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "Alternate"
-          ],
-          "ws7_pos": [
-            115.2,
-            312.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Boldface"
-          ],
-          "ws7_pos": [
-            115.2,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "Pause"
-          ],
-          "ws7_pos": [
-            115.2,
-            408.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 432.0,
-          "words": [
-            "Double"
-          ],
-          "ws7_pos": [
-            115.2,
-            432.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 456.0,
-          "words": [
-            "Custom"
-          ],
-          "ws7_pos": [
-            115.2,
-            456.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Phantom"
-          ],
-          "ws7_pos": [
-            115.2,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Phantom"
-          ],
-          "ws7_pos": [
-            115.2,
-            540.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 576.0,
-          "words": [
-            "Overprint"
-          ],
-          "ws7_pos": [
-            115.2,
-            576.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 600.0,
-          "words": [
-            "Tab"
-          ],
-          "ws7_pos": [
-            115.2,
-            600.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 636.0,
-          "words": [
-            "Line"
-          ],
-          "ws7_pos": [
-            115.2,
-            636.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 2,
-          "line_y_top_pt": 660.0,
-          "words": [
-            "Within"
-          ],
-          "ws7_pos": [
-            115.2,
-            660.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Form"
-          ],
-          "ws7_pos": [
-            115.2,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 84.0,
-          "words": [
-            "Carriage"
-          ],
-          "ws7_pos": [
-            115.2,
-            84.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Return"
-          ],
-          "ws7_pos": [
-            115.2,
-            108.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 144.0,
-          "words": [
-            "Binding"
-          ],
-          "ws7_pos": [
-            115.2,
-            144.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Reserved."
-          ],
-          "ws7_pos": [
-            115.2,
-            180.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "Custom"
-          ],
-          "ws7_pos": [
-            115.2,
-            204.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 228.0,
-          "words": [
-            "Custom"
-          ],
-          "ws7_pos": [
-            115.2,
-            228.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "Underline"
-          ],
-          "ws7_pos": [
-            115.2,
-            252.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "Superscript"
-          ],
-          "ws7_pos": [
-            115.2,
-            276.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 300.0,
-          "words": [
-            "Reserved."
-          ],
-          "ws7_pos": [
-            115.2,
-            300.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 324.0,
-          "words": [
-            "Subscript"
-          ],
-          "ws7_pos": [
-            115.2,
-            324.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "Custom"
-          ],
-          "ws7_pos": [
-            115.2,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "Strikeout"
-          ],
-          "ws7_pos": [
-            115.2,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 420.0,
-          "words": [
-            "Italics"
-          ],
-          "ws7_pos": [
-            115.2,
-            420.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 480.0,
-          "words": [
-            "End"
-          ],
-          "ws7_pos": [
-            115.2,
-            480.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "Escape."
-          ],
-          "ws7_pos": [
-            115.2,
-            516.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "Reserved."
-          ],
-          "ws7_pos": [
-            115.2,
-            564.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 600.0,
-          "words": [
-            "Symmetrical"
-          ],
-          "ws7_pos": [
-            115.2,
-            600.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 624.0,
-          "words": [
-            "Inactive"
-          ],
-          "ws7_pos": [
-            115.2,
-            624.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 3,
-          "line_y_top_pt": 660.0,
-          "words": [
-            "Active"
-          ],
-          "ws7_pos": [
-            115.2,
-            660.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "Affects"
-          ],
-          "ws7_pos": [
-            172.8,
-            156.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "Affects"
-          ],
-          "ws7_pos": [
-            172.8,
-            168.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Affects"
-          ],
-          "ws7_pos": [
-            172.8,
-            180.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Affects"
-          ],
-          "ws7_pos": [
-            172.8,
-            192.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 4,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "Affects"
-          ],
-          "ws7_pos": [
-            172.8,
-            204.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 96.0,
-          "words": [
-            "Header:"
-          ],
-          "ws7_pos": [
-            115.2,
-            96.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Byte:"
-          ],
-          "ws7_pos": [
-            172.8,
-            108.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__wordstar-file-format_EXT_ws",
-          "page": 11,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "107"
-          ],
-          "ws7_pos": [
-            172.8,
-            180.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 891,
+        "n": 948,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
