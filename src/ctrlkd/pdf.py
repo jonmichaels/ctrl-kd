@@ -2655,6 +2655,9 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
         # reserved for it -- see `_pix_reserved_advance`.
         _li = 0
         while _li < len(b.lines):
+            _idx = _li                          # planning #238 scope gap: same
+                                                 # pre-increment index _doc_to_pagelines
+                                                 # uses to spot a block's own last line
             line = b.lines[_li]
             _li += 1
             spans = []
@@ -2742,10 +2745,32 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # Swift port threads its own block index through the equivalent
             # call correctly, so only ctrl-kd's own Printed PDF was missing
             # the number and the two engines' answer-key cells diverged).
+            #
+            # Planning #238 scope gap: this function is `_doc_to_pagelines`'s
+            # own sibling for a document with placeable footnotes/endnotes
+            # (`_paginate_printed_notes` calls it, never `_doc_to_pagelines`),
+            # but it never set `justify_right_x` -- a `.oj on` paragraph that
+            # happens to carry a footnote reference (sawyer/REF/CTRL-K.H1)
+            # printed unjustified even though the SAME paragraph text through
+            # a notes-free document justified correctly. Same rule, same
+            # measured exception (a block's own last physical line stays
+            # ragged) -- see `_doc_to_pagelines`'s own comment for the
+            # captures this was measured against; duplicated rather than
+            # shared because the two functions' loops read from different
+            # local names (`b.lines`/`size` here, `blk_lines`/`size_for_left`
+            # there) for otherwise-identical quantities.
+            justify_right_x = None
+            if b.align == 'justify' and _idx < len(b.lines) - 1:
+                po_origin_pt = (own_left if own_left is not None
+                                else _printed_left(doc, size))
+                rm_cols = (b.right_margin if b.right_margin is not None
+                          else 65.0)
+                justify_right_x = po_origin_pt + rm_cols * _PDF_PT_PER_COL
             stream.append((PageLine(spans, soft=line.soft,
                                     lead=own_lead,
                                     overprint=line.overprint,
-                                    bi=bi, left=own_left), refs))
+                                    bi=bi, left=own_left,
+                                    justify_right_x=justify_right_x), refs))
     return stream
 
 def _area_size(entries):

@@ -182,3 +182,57 @@ def test_styled_mixed_line_is_left_unjustified_documented_scope():
     out = pdf.emit_pdf(doc, mode='printed')
     x_bb = _word_x(out, 'BB')
     assert x_bb == 2 * 7.2 + 7.2     # natural, not stretched to the 40-col margin
+
+
+# ------------------ notes-paginator scope gap (planning #238, cause 1) ------
+
+def _ws7_footnote_block(text):
+    """A minimal WS7 footnote block (type 0x03) -- same shape as
+    test_pictures.py's own helper of the same name, duplicated here rather
+    than imported (this module has no other cross-file test dependency and
+    the shape is tiny): line count 1, number 0, conversion flag 0x30
+    (number_format=3, convert_to=0)."""
+    content = ((1).to_bytes(2, 'little') + (0).to_bytes(2, 'little') +
+              bytes([0x30]) + text)
+    jump = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + jump + bytes([0x03]) + content + jump + b'\x1d'
+
+
+def test_justification_still_applies_when_the_document_has_a_real_footnote():
+    """Planning #238 scope gap: a document carrying a REAL footnote/
+    endnote/annotation anywhere routes its ENTIRE Printed body through
+    `_paginate_printed_notes` -> `_body_stream_printed`
+    (`_has_placeable_notes`, gating `_doc_to_pagelines`) instead of that
+    function's own plain per-block loop -- a SEPARATE PageLine-building
+    walk that, before this fix, never set `justify_right_x` at all, so
+    `.oj on` silently stopped stretching ANY line in such a document, not
+    just a line that itself carries the footnote reference. Two-line `.oj
+    on` block here carries no note reference of its own; the real
+    footnote sits in a second, unrelated paragraph purely to route the
+    whole document through the notes paginator and prove the FIRST
+    paragraph is still justified once it does."""
+    doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+              b'AA BB CC' + SOFT + b'DD.' + HARD +
+              b'\r\nElsewhere.' + _ws7_footnote_block(b'A note.') + HARD)
+    assert doc.notes and doc.notes[0].kind == 'footnote'
+    from ctrlkd import pdf as pdfmod
+    assert pdfmod._has_placeable_notes(doc), \
+        'fixture must route through _paginate_printed_notes'
+    b = doc.blocks[0]
+    assert b.align == 'justify'
+    out = pdf.emit_pdf(doc, mode='printed')
+    x_aa = _word_x(out, 'AA')
+    x_bb = _word_x(out, 'BB')
+    x_cc = _word_x(out, 'CC')
+    assert x_aa == 0.0
+    base = (144.0 - 8 * 7.2) / 2       # same arithmetic as the plain-path
+                                        # test above -- identical rule, only
+                                        # the pagination path differs
+    x_bb_expected = 2 * 7.2 + (7.2 + base)
+    x_cc_expected = x_bb_expected + 2 * 7.2 + (7.2 + base)
+    assert x_bb == round(x_bb_expected, 1)
+    assert x_cc == round(x_cc_expected, 1)
+    assert x_cc + 2 * 7.2 == 144.0
+    # The paragraph's own last line stays ragged here too (rule 1) --
+    # unaffected by which pagination path built it.
+    assert _word_x(out, 'DD.') == 0.0
