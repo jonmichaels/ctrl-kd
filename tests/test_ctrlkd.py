@@ -5352,6 +5352,69 @@ def test_modern_pdf_endnotes_collect_at_document_end():
     assert label_y > 300                              # not bottom-anchored
 
 
+def test_modern_pdf_endnote_appendix_starts_new_page_when_last_page_has_footnotes():
+    """Jon's ruling 2026-09-07 (RULINGS-LEDGER.md verbatim): "endnotes go
+    right at the end of text / image on the last page unless there are
+    footnotes on that page. Then the endnotes start on a new page."
+    Endnotes are never interleaved with a footnote block.
+
+    Real case: the Sawyer archive's -SCREEN.WS has exactly one footnote and
+    one endnote on what would otherwise be its only page -- before this fix
+    Modern PDF rendered ONE page with both the footnote (page-bottom) and
+    the endnote appendix (after the body) crammed onto it; after, the
+    footnote stays on page 1 and the endnote appendix is pushed to a fresh
+    page 2. This fixture is the same shape, synthetic and self-contained."""
+    from ctrlkd.pdf import emit_pdf
+    fn = ws7_note(0x03, b'A page-bottom footnote.', number=0)
+    en = ws7_note(0x04, b'The endnote text itself.', number=0)
+    data = (ws7_block(0x00) +
+            b'Prose padding so the detector reads this as a document, plainly.'
+            + HARD + b'A footnote line' + fn + b' and an endnote line' + en +
+            b' both here.' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    streams = re.findall(rb'stream\r?\n(.*?)endstream', pdf, re.S)
+    assert len(streams) == 2                          # the whole point: a new page
+    page1_ops = _td_ops6(streams[0])
+    page2_ops = _td_ops6(streams[1])
+    # the footnote stays on page 1, at the page bottom (below the body)
+    fn_y = next(y for _, y, t in page1_ops if t == b'footnote.')
+    body_y = next(y for _, y, t in page1_ops if t == b'honest.')
+    assert fn_y < body_y                              # footnote below body, same page
+    # the endnote appendix opens page 2 -- no footnote text there at all
+    assert not any(t == b'footnote.' for _, _, t in page2_ops)
+    assert any(t == b'i.' for _, _, t in page2_ops)    # end-matter entry label
+    assert any(t == b'itself.' for _, _, t in page2_ops)
+    sep_y = next(y for _, y, t in page2_ops if t == b'--------------------')
+    assert sep_y > 700                                 # separator opens the fresh page
+
+
+def test_modern_pdf_endnote_appendix_continues_last_page_with_no_footnotes():
+    """The other half of the same ruling: a multi-page document whose LAST
+    page carries no footnotes gets its endnote appendix directly after the
+    last text line, on that same page -- no forced break. The new-page rule
+    fires only when the page the appendix would land on already has a
+    footnote reserved; page count/position on EARLIER pages is irrelevant."""
+    from ctrlkd.pdf import emit_pdf
+    en = ws7_note(0x04, b'The endnote text itself.', number=0)
+    filler = (b'Filler line to consume vertical space on the page.' + HARD) * 60
+    data = (ws7_block(0x00) + filler +
+            b'The referenced line' + en + b' continues after.' + HARD +
+            b'A closing line of ordinary prose keeps the byte ratio honest.'
+            + HARD)
+    doc = core.parse_ws(data)
+    pdf = emit_pdf(doc, 'modern')
+    streams = re.findall(rb'stream\r?\n(.*?)endstream', pdf, re.S)
+    assert len(streams) == 2                          # filler alone forces page 2
+    last_ops = _td_ops6(streams[-1])
+    last_body_y = next(y for _, y, t in last_ops if t == b'honest.')
+    label_y = next(y for _, y, t in last_ops if t == b'i.')
+    assert 0 < last_body_y - label_y < 80             # flows just below body,
+                                                       # SAME page -- no forced break
+
+
 def test_modern_outputs_all_carry_the_footnote_marker_and_text():
     # b26 notes wave, Fix 1 (field-reported): "Modern outputs omit the
     # footnote text entirely." Cross-format pin, oracle-shaped (-SCREEN.WS:

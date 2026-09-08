@@ -5459,7 +5459,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
         ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt,
-         no_wrap, page_marker)
+         no_wrap, page_marker, end_notes_start)
         ('blank', height) | ('break',) | ('cond', n)
         ('hf', 'H'|'F', line_no, text)
         ('image', pix_index, w_pt, h_pt)
@@ -5527,15 +5527,20 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
         elif k == 'note-separator':
             sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
                                       MODERN_NOTE_PT)
+            # `end_notes_start=True`: this is the ONE item that opens the
+            # end-matter appendix (layout.py's `modern_flow` emits exactly
+            # one 'note-separator', always immediately before the first
+            # 'note' item, when `end_rows` is non-empty) -- Jon's ruling
+            # 2026-09-07 fires here, in `_modern_streams`.
             flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
                                    MODERN_NOTE_PT, None, sep_w)],
-                         'left', [], 0.0, 0.0, False, False))
+                         'left', [], 0.0, 0.0, False, False, True))
         elif k == 'note':
             note_text = (_sentence_spacing_texts([it['text']])[0]
                         if sentence_spacing else it['text'])
             flow.append(('para', _modern_note_toks(it['label'], note_text,
                                                     it['note_kind']),
-                         'left', [], 0.0, 0.0, False, False))
+                         'left', [], 0.0, 0.0, False, False, False))
         else:                                                   # para
             if embed_images and not any('ref' in r for r in it['runs']):
                 sub = _spans_pix_substitution(
@@ -5616,7 +5621,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             notes = [(note_rows[ni], label) for ni, label in it['footnotes']]
             flow.append(('para', toks, align, notes,
                          it['indent_cols'] * col_pt,
-                         it['cut_cols'] * col_pt, no_wrap, page_marker))
+                         it['cut_cols'] * col_pt, no_wrap, page_marker, False))
     return flow
 
 
@@ -5871,7 +5876,7 @@ def _modern_streams(doc, options, res):
             y -= h_pt
             body.append((y, item, 'left', 0.0, 0.0))
             continue
-        _, toks, align, notes, indent, cut, no_wrap, page_marker = item
+        _, toks, align, notes, indent, cut, no_wrap, page_marker, end_notes_start = item
         if page_marker and body:
             # b26-modern item 3, rule (a): a real screenplay page-number
             # marker starts a new real page -- if this Modern page already
@@ -5883,6 +5888,21 @@ def _modern_streams(doc, options, res):
             # `close()` on an empty page would just insert a spurious
             # blank one, so this only fires when there is something to
             # separate FROM.
+            close()
+        if end_notes_start and body and notes_lines:
+            # Jon's ruling 2026-09-07 (RULINGS-LEDGER.md verbatim): "endnotes
+            # go right at the end of text / image on the last page unless
+            # there are footnotes on that page. Then the endnotes start on a
+            # new page." Endnotes are never interleaved with a footnote
+            # block. `notes_lines` is exclusively footnote text here
+            # (layout.py's own M1 split: footnote -> the per-paragraph
+            # page-bottom area; endnote/annotation -> `end_rows`, collected
+            # into this ONE 'note-separator'-opened appendix) -- non-empty
+            # means the CURRENT page already carries at least one footnote,
+            # so the appendix starts fresh instead of continuing directly
+            # after the last body line/image. `body` guards the same way
+            # `page_marker`'s check does: a fresh, still-empty page needs no
+            # extra break (nothing to separate FROM).
             close()
         # rule (c): a screenplay slugline carrying its own right-hand scene
         # number never wraps -- an unbounded width means _modern_wrap's
