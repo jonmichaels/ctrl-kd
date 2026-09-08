@@ -52,6 +52,14 @@ FONT_ALTS = {
     'antique olive':          ['Optima', 'Verdana'],
     'cg times':               ['Times New Roman'],
     'cg triumvirate':         ['Arial', 'Helvetica'],
+    # WS typestyle 175's OWN name is plain "Triumvirate" (no parenthetical,
+    # so _font_family/`_font_family` never truncates it to 'cg triumvirate'
+    # above -- that key never actually fires from real data). Added planning
+    # #225 (2026-09-08): the LaserJet driver substitutes this typestyle with
+    # the printer's resident Arial (PCL typeface ID 16602, HP PCL5
+    # Comparison Guide + IBM technote + groff devlj4/AR, all citing this
+    # exact ID) -- same modern alternates as the 'cg triumvirate' entry.
+    'triumvirate':            ['Arial', 'Helvetica'],
     'garamond':               ['Garamond', 'EB Garamond'],
     'optima':                 ['Optima', 'Candara'],
     'clarendon':              ['Clarendon', 'Rockwell'],
@@ -188,7 +196,7 @@ TARGET_FONTS = {
         ('letter gothic|gothic',                 ('Consolas', 'Courier New')),
         ('prestige',                             ('Courier New', None)),
         ('univers',                              ('Arial', 'Helvetica Neue')),
-        ('cg triumvirate|ps sansser qual',       ('Arial', 'Helvetica')),
+        ('cg triumvirate|triumvirate|ps sansser qual',       ('Arial', 'Helvetica')),
         ('antique olive',                        ('Candara', 'Verdana')),
         ('optima',                               ('Candara', 'Optima')),
         ('garamond',                             ('Garamond', 'EB Garamond')),
@@ -225,7 +233,7 @@ TARGET_FONTS = {
         ('letter gothic|gothic',                 ('Menlo', 'Courier New')),
         ('prestige',                             ('Courier New', None)),
         ('univers',                              ('Helvetica Neue', 'Arial')),
-        ('cg triumvirate|ps sansser qual',       ('Helvetica', 'Arial')),
+        ('cg triumvirate|triumvirate|ps sansser qual',       ('Helvetica', 'Arial')),
         ('antique olive',                        ('Optima', 'Verdana')),
         ('optima',                               ('Optima', 'Candara')),
         ('garamond',                             ('Hoefler Text', 'Garamond')),
@@ -247,7 +255,7 @@ TARGET_FONTS = {
                                                  ('Georgia', 'Century Schoolbook')),
         ('american classic',                     ('Georgia', 'Century Schoolbook')),
         ('helv|helvetica|univers',               ('Arial', None)),
-        ('cg triumvirate|ps sansser qual',       ('Arial', None)),
+        ('cg triumvirate|triumvirate|ps sansser qual',       ('Arial', None)),
         ('helv narrow|helv cond.|helvetica narrow',
                                                  ('PT Sans Narrow', 'Arial Narrow')),
         ('palatino',                             ('Lora', 'Palatino Linotype')),
@@ -280,7 +288,7 @@ TARGET_FONTS = {
                                                  ('C059', 'DejaVu Serif')),
         ('american classic',                     ('C059', 'DejaVu Serif')),
         ('helv|helvetica|univers',               ('Nimbus Sans', 'Liberation Sans')),
-        ('cg triumvirate|ps sansser qual',       ('Nimbus Sans', 'Liberation Sans')),
+        ('cg triumvirate|triumvirate|ps sansser qual',       ('Nimbus Sans', 'Liberation Sans')),
         ('helv narrow|helv cond.|helvetica narrow',
                                                  ('Nimbus Sans Narrow', 'DejaVu Sans')),
         ('palatino',                             ('P052', 'DejaVu Serif')),

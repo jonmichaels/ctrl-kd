@@ -23,6 +23,30 @@ def test_tier_for_typeface_covers_every_documented_id():
         assert pt.tier_for_typeface(no_sub_id) == pt.TIER_NO_SUBSTITUTE
 
 
+def test_tier_for_typeface_covers_the_postscript_document_ids():
+    """planning #225 (2026-09-08): the v4 capture round hit four typeface
+    IDs -- 0, 16602, 16686, 31402 -- with no tier entry at all, which fell
+    through to TIER_UNKNOWN and produced the 'unclassified-font-tier'
+    divergence reason on any future document using them. Regression guard
+    for the fix: each is now a real, sourced tier (see
+    FONT_TIER_BY_TYPEFACE_ID's own comments for citations), never
+    TIER_UNKNOWN, and TYPEFACE_FAMILY carries the matching AFM family."""
+    assert pt.tier_for_typeface(0) == pt.TIER_EXACT           # LinePrinter
+    assert pt.tier_for_typeface(16602) == pt.TIER_UNIVERS     # Triumvirate -> Arial
+    assert pt.tier_for_typeface(16686) == pt.TIER_EXACT       # Symbol
+    assert pt.tier_for_typeface(31402) == pt.TIER_NO_SUBSTITUTE  # ZapfDingbats -> Wingdings
+    assert pt.pr.TYPEFACE_FAMILY.get(0) == 'Courier'
+    assert pt.pr.TYPEFACE_FAMILY.get(16602) == 'Helvetica'
+    assert pt.pr.TYPEFACE_FAMILY.get(16686) == 'Symbol'
+    assert pt.pr.TYPEFACE_FAMILY.get(31402) == 'ZapfDingbats'
+    # resolve_afm_basefont must hand back the literal, unstyled name for
+    # Symbol/ZapfDingbats -- afm.WIDTHS has exactly one (unstyled) entry
+    # for each, so a synthesized '-Bold'/'-Oblique' variant would be a
+    # KeyError waiting to happen downstream.
+    assert pt.pr.resolve_afm_basefont(1, 0, 3, 16686) == 'Symbol'
+    assert pt.pr.resolve_afm_basefont(1, 1, 3, 31402) == 'ZapfDingbats'
+
+
 def test_tier_for_typeface_unknown_and_none():
     assert pt.tier_for_typeface(None) == pt.TIER_UNKNOWN
     assert pt.tier_for_typeface(999999) == pt.TIER_UNKNOWN

@@ -240,6 +240,41 @@ FONT_TIER_BY_TYPEFACE_ID = {
     4168: TIER_NO_SUBSTITUTE,  # Antique Olive
     4113: TIER_NO_SUBSTITUTE,  # CG Omega
     4116: TIER_NO_SUBSTITUTE,  # Coronet
+    # ---- ADDED planning #225 (2026-09-08): the four PostScript-document IDs
+    # -- see pcl_render.TYPEFACE_FAMILY's own comments for the identity
+    # citations (IBM technote, groff devlj4, HP PCL5 TRM Part 1). Tier
+    # choice per research's own proposal (research/2026-09-08_ws7-
+    # postscript-typeface-ids-B.md "Tier-fit proposal"), ledger ruling
+    # "PostScript-document typefaces: mapping approved, all font targets".
+    0: TIER_EXACT,       # LinePrinter -- real resident fixed-pitch bitmap
+                          # font (not a substitution), same class as Courier
+                          # bitmap ID 3.
+    16602: TIER_UNIVERS,  # Arial, substituted for WS "Triumvirate" (175) --
+                          # Arial is a metric-compatible Helvetica clone
+                          # (Monotype, licensed to HP), the same
+                          # substitution-quality class this project already
+                          # accepts for Univers->Helvetica (ID 4148); shares
+                          # that tier's bound rather than a new curve (no
+                          # independent word-pair data for 16602 yet).
+    16686: TIER_EXACT,   # Symbol -- not a substitution at all: WordStar
+                          # requests the printer's real resident Symbol font
+                          # by this exact HP ID, and our own PDF draws the
+                          # project's real base-14 Symbol face (afm.py) --
+                          # same "requested face IS the rendered face" status
+                          # as ID 4 (Helvetica, real). Monotype's cut (this
+                          # PCL ID) vs. Adobe's base-14 cut are different
+                          # vendors' metrics for the same encoding -- flagged
+                          # by the research as unmeasured, same epistemic
+                          # status as ID 4's own "documented but unobserved"
+                          # note; revisit with real word-pair data once a
+                          # PostScript document re-enters the tier (#224).
+    31402: TIER_NO_SUBSTITUTE,  # Wingdings, substituted for WS
+                          # "ZapfDingbats" (82) -- a DIFFERENT pi-font from
+                          # WordStar's own name (different glyph-to-code
+                          # map); this project's PDF draws real ZapfDingbats,
+                          # not a Wingdings clone, so there is no honest
+                          # metric floor for a word-position check, same
+                          # reasoning as the existing no-substitute group.
 }
 
 

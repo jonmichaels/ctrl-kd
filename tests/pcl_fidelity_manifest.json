@@ -5181,7 +5181,7 @@
             57.6,
             48.0
           ],
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "baseline-shift",
           "detail": "baseline residual -3.00pt (tolerance 1.0pt)"
         },
@@ -5201,7 +5201,7 @@
             100.8,
             48.0
           ],
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "baseline-shift",
           "detail": "baseline residual -3.00pt (tolerance 1.0pt)"
         },
@@ -8766,7 +8766,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -8782,7 +8782,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -24367,7 +24367,7 @@
             316.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24383,7 +24383,7 @@
             356.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24399,7 +24399,7 @@
             396.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24415,7 +24415,7 @@
             436.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24431,7 +24431,7 @@
             556.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24447,7 +24447,7 @@
             556.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24463,7 +24463,7 @@
             596.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24479,7 +24479,7 @@
             596.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24495,7 +24495,7 @@
             636.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24511,7 +24511,7 @@
             636.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24527,7 +24527,7 @@
             676.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -24543,7 +24543,7 @@
             676.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -27254,7 +27254,7 @@
             57.6,
             48.0
           ],
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "baseline-shift",
           "detail": "baseline residual -3.00pt (tolerance 1.0pt)"
         },
@@ -27274,7 +27274,7 @@
             100.8,
             48.0
           ],
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "baseline-shift",
           "detail": "baseline residual -3.00pt (tolerance 1.0pt)"
         },
@@ -29347,9 +29347,9 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "baseline-shift": 115,
+        "exact-drift": 2,
         "extra-word-in-engine": 118,
         "page-count-mismatch": 1,
-        "unclassified-font-tier": 2,
         "word-unmatched": 199
       },
       "divergences": [
@@ -30156,6 +30156,46 @@
         {
           "doc": "sawyer__PSPRINT_EXT_TST",
           "page": 1,
+          "line_y_top_pt": 48.0,
+          "words": [
+            "and",
+            "and"
+          ],
+          "ws7_pos": [
+            96.4,
+            48.0
+          ],
+          "pdf_pos": [
+            100.8,
+            48.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +4.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__PSPRINT_EXT_TST",
+          "page": 1,
+          "line_y_top_pt": 48.0,
+          "words": [
+            "Printer",
+            "Printer"
+          ],
+          "ws7_pos": [
+            182.8,
+            48.0
+          ],
+          "pdf_pos": [
+            196.8,
+            48.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +14.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__PSPRINT_EXT_TST",
+          "page": 1,
           "line_y_top_pt": 114.0,
           "words": [
             "PSPRINT.TST"
@@ -30803,46 +30843,6 @@
           "font_class": null,
           "reason": "page-count-mismatch",
           "detail": "WS7 6 pages, engine 8 pages"
-        },
-        {
-          "doc": "sawyer__PSPRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            96.4,
-            48.0
-          ],
-          "pdf_pos": [
-            100.8,
-            48.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 0 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__PSPRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Printer",
-            "Printer"
-          ],
-          "ws7_pos": [
-            182.8,
-            48.0
-          ],
-          "pdf_pos": [
-            196.8,
-            48.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 0 has no tier mapping"
         },
         {
           "doc": "sawyer__PSPRINT_EXT_TST",
@@ -35033,7 +35033,7 @@
             759.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -46250,7 +46250,7 @@
             486.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -46266,7 +46266,7 @@
             759.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -47330,7 +47330,7 @@
             14.4,
             370.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47350,7 +47350,7 @@
             14.4,
             402.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47370,7 +47370,7 @@
             14.4,
             418.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47390,7 +47390,7 @@
             14.4,
             434.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47410,7 +47410,7 @@
             14.4,
             450.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47430,7 +47430,7 @@
             41.3,
             450.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -112.00pt (tolerance 1.0pt)"
         },
@@ -47558,7 +47558,7 @@
             146.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47574,7 +47574,7 @@
             178.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47590,7 +47590,7 @@
             194.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47606,7 +47606,7 @@
             210.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47622,7 +47622,7 @@
             226.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47638,7 +47638,7 @@
             226.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -47734,7 +47734,7 @@
             482.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -47757,9 +47757,8 @@
       "counts_by_reason": {
         "baseline-shift": 5,
         "cgtimes-drift-exceeds-tolerance": 5,
-        "exact-drift": 8,
+        "exact-drift": 10,
         "extra-word-in-engine": 72,
-        "unclassified-font-tier": 2,
         "univers-drift-exceeds-tolerance": 16,
         "word-unmatched": 82
       },
@@ -47780,7 +47779,7 @@
             72.0,
             260.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -16.00pt (tolerance 1.0pt)"
         },
@@ -47800,7 +47799,7 @@
             143.7,
             260.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -16.00pt (tolerance 1.0pt)"
         },
@@ -47820,7 +47819,7 @@
             182.1,
             260.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -16.00pt (tolerance 1.0pt)"
         },
@@ -47840,7 +47839,7 @@
             209.3,
             260.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -16.00pt (tolerance 1.0pt)"
         },
@@ -47860,7 +47859,7 @@
             72.0,
             260.0
           ],
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "baseline-shift",
           "detail": "baseline residual -16.00pt (tolerance 1.0pt)"
         },
@@ -48046,6 +48045,26 @@
         },
         {
           "doc": "sawyer__REF__PS_EXT_TST",
+          "page": 1,
+          "line_y_top_pt": 212.0,
+          "words": [
+            "12345",
+            "12345"
+          ],
+          "ws7_pos": [
+            217.9,
+            212.0
+          ],
+          "pdf_pos": [
+            208.2,
+            212.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -9.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__PS_EXT_TST",
           "page": 2,
           "line_y_top_pt": 164.0,
           "words": [
@@ -48123,6 +48142,26 @@
           "font_class": "exact",
           "reason": "exact-drift",
           "detail": "residual +77.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__PS_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 212.0,
+          "words": [
+            "12345",
+            "12345"
+          ],
+          "ws7_pos": [
+            217.9,
+            212.0
+          ],
+          "pdf_pos": [
+            208.2,
+            212.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -9.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__PS_EXT_TST",
@@ -48767,46 +48806,6 @@
         {
           "doc": "sawyer__REF__PS_EXT_TST",
           "page": 1,
-          "line_y_top_pt": 212.0,
-          "words": [
-            "12345",
-            "12345"
-          ],
-          "ws7_pos": [
-            217.9,
-            212.0
-          ],
-          "pdf_pos": [
-            208.2,
-            212.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16686 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__REF__PS_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 212.0,
-          "words": [
-            "12345",
-            "12345"
-          ],
-          "ws7_pos": [
-            217.9,
-            212.0
-          ],
-          "pdf_pos": [
-            208.2,
-            212.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16686 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__REF__PS_EXT_TST",
-          "page": 1,
           "line_y_top_pt": 52.0,
           "words": [
             "ABCDE",
@@ -49136,7 +49135,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49152,7 +49151,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49168,7 +49167,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49232,7 +49231,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49248,7 +49247,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49264,7 +49263,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49280,7 +49279,7 @@
             212.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49344,7 +49343,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49360,7 +49359,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49376,7 +49375,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -49392,7 +49391,7 @@
             276.0
           ],
           "pdf_pos": null,
-          "font_class": "unknown",
+          "font_class": "no_substitute",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -72564,8 +72563,7 @@
         "extra-word-in-engine": 1823,
         "line-start-shift": 24,
         "page-count-mismatch": 1,
-        "unclassified-font-tier": 7,
-        "univers-drift-exceeds-tolerance": 43,
+        "univers-drift-exceeds-tolerance": 47,
         "word-unmatched": 2122
       },
       "divergences": [
@@ -73145,7 +73143,7 @@
             232.1,
             84.0
           ],
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "baseline-shift",
           "detail": "baseline residual -48.00pt (tolerance 1.0pt)"
         },
@@ -73165,7 +73163,7 @@
             304.4,
             84.0
           ],
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "baseline-shift",
           "detail": "baseline residual -48.00pt (tolerance 1.0pt)"
         },
@@ -74065,7 +74063,7 @@
             143.7,
             180.0
           ],
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "line-start-shift",
           "detail": "line-start residual +6.50pt (tolerance 2.5pt)"
         },
@@ -74145,7 +74143,7 @@
             186.1,
             108.0
           ],
-          "font_class": "unknown",
+          "font_class": "univers",
           "reason": "line-start-shift",
           "detail": "line-start residual +3.00pt (tolerance 2.5pt)"
         },
@@ -74502,146 +74500,6 @@
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Request",
-            "Request"
-          ],
-          "ws7_pos": [
-            225.8,
-            180.0
-          ],
-          "pdf_pos": [
-            218.6,
-            180.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            324.2,
-            180.0
-          ],
-          "pdf_pos": [
-            309.2,
-            180.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Art",
-            "Art"
-          ],
-          "ws7_pos": [
-            356.4,
-            180.0
-          ],
-          "pdf_pos": [
-            338.8,
-            180.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Director",
-            "Director"
-          ],
-          "ws7_pos": [
-            387.3,
-            180.0
-          ],
-          "pdf_pos": [
-            367.4,
-            180.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            240.9,
-            108.0
-          ],
-          "pdf_pos": [
-            236.9,
-            108.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            270.0,
-            108.0
-          ],
-          "pdf_pos": [
-            263.7,
-            108.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Copyeditor",
-            "Copyeditor"
-          ],
-          "ws7_pos": [
-            302.1,
-            108.0
-          ],
-          "pdf_pos": [
-            293.3,
-            108.0
-          ],
-          "font_class": "unknown",
-          "reason": "unclassified-font-tier",
-          "detail": "WS7 typeface id 16602 has no tier mapping"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
           "page": 1,
           "line_y_top_pt": 732.0,
           "words": [
@@ -74719,6 +74577,66 @@
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
           "detail": "residual -207.30pt at 143.3pt into the line (tolerance 6.37pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            324.2,
+            180.0
+          ],
+          "pdf_pos": [
+            309.2,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -7.80pt at 197.8pt into the line (tolerance 7.46pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Art",
+            "Art"
+          ],
+          "ws7_pos": [
+            356.4,
+            180.0
+          ],
+          "pdf_pos": [
+            338.8,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -10.40pt at 230.0pt into the line (tolerance 8.10pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Director",
+            "Director"
+          ],
+          "ws7_pos": [
+            387.3,
+            180.0
+          ],
+          "pdf_pos": [
+            367.4,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -12.70pt at 260.9pt into the line (tolerance 8.72pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -74839,6 +74757,26 @@
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
           "detail": "residual -211.90pt at 143.3pt into the line (tolerance 6.37pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 108.0,
+          "words": [
+            "Copyeditor",
+            "Copyeditor"
+          ],
+          "ws7_pos": [
+            302.1,
+            108.0
+          ],
+          "pdf_pos": [
+            293.3,
+            108.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -6.20pt at 116.4pt into the line (tolerance 5.83pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -75359,86 +75297,6 @@
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
           "detail": "residual -13.65pt at 49.4pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            374.1,
-            12.0
-          ],
-          "pdf_pos": [
-            151.2,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -7.65pt at 72.2pt into the line (tolerance 4.94pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Alternative",
-            "Alternative"
-          ],
-          "ws7_pos": [
-            445.2,
-            12.0
-          ],
-          "pdf_pos": [
-            237.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.65pt at 143.3pt into the line (tolerance 6.37pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 732.0,
-          "words": [
-            "file",
-            "file"
-          ],
-          "ws7_pos": [
-            85.4,
-            732.0
-          ],
-          "pdf_pos": [
-            122.4,
-            732.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +252.25pt at 27.8pt into the line (tolerance 4.06pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 33,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            351.3,
-            12.0
-          ],
-          "pdf_pos": [
-            122.4,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -121.90pt at 49.4pt into the line (tolerance 4.49pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",

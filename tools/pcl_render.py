@@ -197,6 +197,55 @@ TYPEFACE_FAMILY = {
                         # checked), not a sans -- neither Times nor Helvetica is a good shape match;
                         # Helvetica kept as the less-wrong of the two. Never observed in this
                         # corpus (kept only so an unexpected script ID degrades to a named guess).
+    # ---- ADDED planning #225 (2026-09-08): the four PostScript-document IDs
+    # the v4 capture round found with no TYPEFACE_FAMILY entry (research
+    # jon_vault/.../research/2026-09-08_ws7-postscript-typeface-ids-{A,B}.md;
+    # ruling, RULINGS-LEDGER.md "PostScript-document typefaces: mapping
+    # approved, all font targets", 2026-09-08 06:40). These are HP's own
+    # vendor-less/16384-vendor typeface-family values -- NOT WordStar's own
+    # typestyle numbers (0/175/192/82); see the research docs' "two separate
+    # numbering schemes" section for why those are different fields.
+    0: "Courier",       # LinePrinter -- IBM's "Breakdown of HP PCL5 Font
+                        # Strings" technote ("LinePrinter... 0T") and HP PCL5
+                        # TRM Part 1 p.8-19 ("Sample Typeface Values": Family
+                        # Value 0 = Line Printer) agree; also
+                        # LASERJET.PDF byte offset 0x1552 ("LinePrinter... Line
+                        # Pr 17 PC..."). A real, always-resident PCL bitmap
+                        # font, not a substitution -- fixed-pitch, so Courier
+                        # is exact-class here (same reasoning as ID 3/4099).
+    16602: "Helvetica",  # Arial, substituted by LASERJET.PDF (byte offset
+                        # 0x7cbc: "Triumvirate\\0Arial PC...") for WS
+                        # typestyle 175 "Triumvirate". Confirmed externally:
+                        # IBM's technote and groff's devlj4/AR font file both
+                        # give `pcltypeface 16602` for Arial; HP PCL5 TRM
+                        # Part 1 p.8-19 lists FamilyValue 16602 = Arial.
+                        # Arial has no AFM table of its own here -- mapped to
+                        # Helvetica (its metric-compatible cousin), same
+                        # approximation class as ID 4148 (Univers).
+    16686: "Symbol",     # Symbol (Monotype), HP's own resident scalable
+                        # Symbol font -- HP PCL5 TRM Part 1 p.16-12's own
+                        # worked readback example uses this exact ID;
+                        # groff's devlj4/SYMBOL file gives `pcltypeface
+                        # 16686` with symbol set 19M, matching the captured
+                        # escape byte-for-byte (REF/PS.TST). WordStar's own
+                        # typestyle 192 is literally named "Symbol"
+                        # (symbol_map='math') -- not a name-based guess, a
+                        # real base-14 Symbol face this project already
+                        # ships (afm.py's 'Symbol' entry). See
+                        # resolve_afm_basefont below for the special-cased
+                        # (non-bold/italic) handling this family needs.
+    31402: "ZapfDingbats",  # Wingdings, substituted for WS typestyle 82
+                        # "ZapfDingbats" -- groff's devlj4/WINGDINGS file
+                        # gives `pcltypeface 31402` with symbol set 579L,
+                        # matching the captured escape byte-for-byte
+                        # (REF/PS.TST, "Zpf Dingbats:" caption). Wingdings
+                        # and ZapfDingbats are DIFFERENT pi-fonts (different
+                        # glyph-to-code maps) -- this project has no
+                        # metrically-honest Wingdings table, so the mapped
+                        # family is the project's own real base-14
+                        # ZapfDingbats face (afm.py's 'ZapfDingbats' entry),
+                        # the same "what WordStar's own typestyle names"
+                        # choice as ID 16686 above, not a Wingdings clone.
 }
 TYPEFACE_FAMILY_SOURCE_NOTE = (
     "SOURCED (HP 'PCL 5 Comparison Guide', HP P/N 5021-0378, Edition 1, "
@@ -238,7 +287,21 @@ TYPEFACE_FAMILY_SOURCE_NOTE = (
     "choice is the best available approximation, not a citation. A "
     "Garamond-shaped OTF (URW Garamond / EB Garamond) is not installed on "
     "this system and would be a strictly better glyph-shape match for "
-    "4197 while keeping Times-Roman AFM widths -- flagged, not done."
+    "4197 while keeping Times-Roman AFM widths -- flagged, not done. "
+    "ADDED planning #225 (2026-09-08, PostScript-document typeface research "
+    "jon_vault/.../research/2026-09-08_ws7-postscript-typeface-ids-{A,B}.md, "
+    "ledger ruling 'PostScript-document typefaces: mapping approved, all "
+    "font targets'): 0 LinePrinter (IBM technote + HP TRM Part 1 p.8-19, "
+    "real resident bitmap font, mapped Courier), 16602 Arial substituted "
+    "for WS typestyle 175 Triumvirate (IBM technote + groff devlj4/AR, HP "
+    "TRM Part 1 p.8-19, mapped Helvetica), 16686 Symbol substituted for WS "
+    "typestyle 192 Symbol (HP TRM Part 1 p.16-12 + groff devlj4/SYMBOL, "
+    "mapped to the project's own real base-14 Symbol face), 31402 Wingdings "
+    "substituted for WS typestyle 82 ZapfDingbats (groff devlj4/WINGDINGS, "
+    "mapped to the project's own real base-14 ZapfDingbats face -- Wingdings "
+    "and ZapfDingbats are different pi-fonts, no honest Wingdings clone "
+    "exists here). All four cited to the actual captured .pcl escape bytes "
+    "(ws7-prints/v4/) matching each source, not arithmetic alone."
 )
 
 FONT_DIR = "/usr/share/fonts/opentype/urw-base35"
@@ -255,6 +318,19 @@ FONT_TTF = {
     "Courier-Bold": f"{FONT_DIR}/NimbusMonoPS-Bold.otf",
     "Courier-Oblique": f"{FONT_DIR}/NimbusMonoPS-Italic.otf",
     "Courier-BoldOblique": f"{FONT_DIR}/NimbusMonoPS-BoldItalic.otf",
+    # ADDED planning #225: drawing-font shape for typeface ID 16686 (Symbol).
+    # StandardSymbolsPS is the URW base-35 clone in the SAME family as the
+    # Times/Helvetica/Courier Nimbus files above -- present on this system
+    # (checked: /usr/share/fonts/opentype/urw-base35/StandardSymbolsPS.otf).
+    "Symbol": f"{FONT_DIR}/StandardSymbolsPS.otf",
+    # No ZapfDingbats OTF/TTF is installed anywhere on this system (checked:
+    # no package provides one alongside the URW base-35 set) -- a
+    # "ZapfDingbats" basefont falls through to FONT_TTF.get's own default
+    # (Times-Roman) for the debug PNG's glyph SHAPE only. This does not
+    # affect the fidelity gate itself: afm.WIDTHS['ZapfDingbats'] (the
+    # measurement this project actually checks) is unaffected -- FONT_TTF
+    # is get_ttf's drawing-font table, consulted only by the optional PNG
+    # visualizer, never by pcl_tolerance.py's tier/width logic.
 }
 
 
@@ -265,6 +341,12 @@ def resolve_afm_basefont(spacing, style, weight, typeface):
     fam = TYPEFACE_FAMILY.get(typeface)
     if fam is None:
         fam = "Courier" if spacing == 0 else "Times"
+    # Symbol/ZapfDingbats (planning #225: typeface IDs 16686/31402) have no
+    # bold/italic variant in the base-14 set afm.py ships (afm.WIDTHS has
+    # exactly one entry for each, unstyled) -- return the literal name,
+    # never a synthesized '-Bold'/'-Oblique' name nothing would resolve.
+    if fam in ("Symbol", "ZapfDingbats"):
+        return fam
     if fam == "Times":
         if is_bold and is_italic:
             return "Times-BoldItalic"

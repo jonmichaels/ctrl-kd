@@ -4095,6 +4095,93 @@ def test_document_declaring_albertus_does_not_fall_through_to_generic():
     assert "font-family:'Albertus', 'Herculanum', 'Colonna MT', 'Rockwell', serif" in html
 
 
+def test_postscript_document_typefaces_map_to_correct_face_every_target():
+    """planning #225 (2026-09-08): the ws7-prints/v4 capture round hit four
+    WordStar typestyles the PostScript-targeted documents use -- LinePrinter
+    (0), Triumvirate (175), Symbol (192), ZapfDingbats (82) -- whose PCL
+    substitute typeface IDs (0, 16602, 16686, 31402) the fidelity gate's own
+    font table had never seen (see tests/test_pcl_tolerance.py's own
+    regression guard for that half). This is the OTHER half: WordStar's own
+    typestyle names, run through the --fonts render-target table
+    (fontmap.TARGET_FONTS), must resolve to the ruled family in EVERY
+    target the CLI offers -- never silently falling through to the
+    target's bare generic-style primary (RULINGS-LEDGER.md
+    'PostScript-document typefaces: mapping approved, all font targets',
+    2026-09-08 06:40: 'Make sure that the Font Table mapping includes all
+    outputs (Office, Linux, Google, etc.), not just Mac.').
+
+    Triumvirate (175) is the one that was a REAL gap: its own typestyle
+    name is the bare string 'Triumvirate' (no parenthetical for
+    _font_family to strip), which never matched fontmap.py's old
+    'cg triumvirate' key (that key is dead -- 'CG Triumvirate' only ever
+    appears as a parenthetical alias under typestyle 4 'Helv', which
+    _font_family truncates to 'Helv' before it ever reaches this table).
+    Before the fix, 'triumvirate' fell through to GENERIC_PRIMARY's sans
+    bucket -- which happens to already equal the ruled answer for
+    office/mac/google (a coincidence, not a mapped entry: see
+    test_albertus_and_marigold_resolve_to_glyphic_substitutes_not_generic's
+    own note on why a value match isn't proof) -- but is WRONG on linux
+    (DejaVu Sans instead of Nimbus Sans, the URW clone every other
+    Helvetica-family typestyle gets)."""
+    from ctrlkd.fontmap import rtf_fonts, TARGET_FONTS
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+
+    # (typestyle number, generic_style bit, proportional bit, expected
+    # primary per target) -- generic/proportional per each typestyle's own
+    # real WSFORMAT record (checked against doc.fonts in the research
+    # docs: LinePrinter fixed/no generic bucket, the other three
+    # proportional/sans or symbol-map).
+    cases = [
+        (0, 'LinePrinter', None, False,
+         {'office': 'Courier New', 'mac': 'Courier New',
+          'google': 'Courier New', 'linux': 'Nimbus Mono PS'}),
+        (175, 'Triumvirate', 'sans', True,
+         {'office': 'Arial', 'mac': 'Helvetica',
+          'google': 'Arial', 'linux': 'Nimbus Sans'}),
+        (192, 'Symbol', 'sans', True,
+         {'office': 'Symbol', 'mac': 'Symbol',
+          'google': 'Symbol', 'linux': 'Standard Symbols PS'}),
+        (82, 'ZapfDingbats', 'sans', True,
+         {'office': 'Zapf Dingbats', 'mac': 'Zapf Dingbats',
+          'google': 'Zapf Dingbats', 'linux': 'D050000L'}),
+    ]
+    for typestyle_num, expected_name, generic, proportional, per_target in cases:
+        # The typestyle NUMBER is real WSFORMAT, not a fixture invention.
+        assert TYPESTYLE_NAMES[typestyle_num] == expected_name
+        fam_key = expected_name.lower()
+        for target in ('office', 'mac', 'google', 'linux'):
+            # A dedicated TARGET_FONTS entry -- the same "not distinguishable
+            # from the generic by value alone" proof
+            # test_albertus_and_marigold_resolve_to_glyphic_substitutes_not_generic
+            # already establishes for Albertus/Marigold.
+            assert fam_key in TARGET_FONTS[target], (
+                f'{expected_name!r} has no dedicated {target} TARGET_FONTS '
+                f'entry -- falls through to the generic primary')
+            primary, _falt = rtf_fonts(fam_key, generic, target, proportional)
+            assert primary == per_target[target], (
+                f'{expected_name!r} on {target}: got {primary!r}, '
+                f'expected {per_target[target]!r}')
+
+    # End-to-end proof for one face (Triumvirate, the real gap) that a
+    # document actually carrying this typestyle flows the same answer
+    # through emit_rtf, on every target -- not just the table lookup.
+    def font(n, style_bits):
+        ts = (n & 0x01FF) | style_bits
+        return ws7_block(0x02, (180).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                         + ts.to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) +
+            b'Prose padding for detection, a perfectly ordinary sentence.\r\n' +
+            font(175, 0x8000) + b'Section heading text here.' + HARD +
+            b'Closing prose line keeps the byte ratio looking like text.\r\n')
+    doc = core.parse_ws(data)
+    assert doc.fonts[0]['typestyle_name'] == 'Triumvirate'
+    expected = {'office': 'Arial', 'mac': 'Helvetica', 'google': 'Arial',
+                'linux': 'Nimbus Sans'}
+    for target in ('office', 'mac', 'google', 'linux'):
+        rtf = emit.emit_rtf(doc, mode='modern', fonts_target=target)
+        assert '{\\f2 %s' % expected[target] in rtf, rtf
+
+
 def test_ws4_alternate_font_flag_is_stored_not_lost():
     # Jon, 2026-08-04: "Store that ws4 font switch flag. Don't lose it."
     # ^PA (0x01) / ^PN (0x0E) is the ONLY typeface signal a WS4 file can
