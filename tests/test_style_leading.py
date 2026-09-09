@@ -504,3 +504,60 @@ def test_mid_document_lh_change_produces_two_distinct_rtf_sl_values():
     r = emit.emit_rtf(doc, mode='printed')
     # default .lh 8 = 12pt = -240 twips; changed .lh 16 = 24pt = -480 twips
     assert _rtf_sl_sequence(r) == [-240, -480]
+
+
+# ---------------------------------------------------- page capacity vs. real lead
+
+def test_cp_prices_reserved_lines_at_their_own_lead_not_the_document_default():
+    """Planning #236 remainder (sawyer/INTERVU.WS): a page's capacity is
+    computed at the document's DEFAULT `.lh` (12pt here, never overridden
+    pre-text so `lh_source` stays 'default' -- see
+    `test_mid_document_lh_change_produces_two_distinct_rtf_sl_values` just
+    above), but a MID-DOCUMENT `.lh` change (or a style's own bigger VMI --
+    the real INTERVU.WS mechanism, reproduced here with the simpler `.lh`
+    lever since both feed the identical `PageLine.lead` this fix reads)
+    makes real lines cost MORE than that default. Two compounding bugs, both
+    fixed together here:
+
+    1. `_cost`'s "first line on a page is free" rule used to credit the
+       WHOLE line regardless of its real lead -- only `default_lead`'s (12pt)
+       worth should ever be free; the excess (12pt here, since the real
+       line costs 24pt) must still be charged.
+    2. `.cp n`'s room check used to price the n reserved lines at a flat
+       `n * default_lead` (2 * 12 = 24pt) instead of their REAL cost
+       (2 * 24 = 48pt).
+
+    55 `PAD` lines at the document default (12pt) exactly fill page 1
+    (budget 648pt = 54 chargeable lines * 12pt + 1 free). `.lh 16` (24pt)
+    then governs every real line on page 2: `LINE 100` opens page 2 and is
+    "free" but must still be charged `max(0, 24-12) = 12pt` (bug 1); 25 more
+    24pt lines bring page 2's spent to 612pt, leaving exactly 36pt of real
+    room. `.cp 2` then reserves `LINE 126`/`LINE 127` -- 48pt of real room,
+    which does NOT fit in the 36pt left, so WS7's rule (and this fix) must
+    push BOTH to page 3. Measured directly against this exact case: before
+    either fix, `_cost` credited `LINE 100` a full free 24pt (not 12), so
+    page 2 closed with only 600pt spent, leaving 48pt -- and the OLD flat
+    `.cp` check then read that as `48/12 = 4 >= 2` lines of room (even
+    starting from the CORRECT 612pt/36pt-remaining state, the flat check
+    reads `36/12 = 3 >= 2` and still wrongly admits both reserved lines) --
+    either bug alone was enough to let `LINE 126`/`LINE 127` print on page 2
+    instead of page 3."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    pad = [f'PAD {i:03d}'.encode() for i in range(1, 56)]
+    body_lines = [f'LINE {i:03d}'.encode() for i in range(100, 126)]
+    body = (HARD.join(pad) + HARD
+            + b'.lh 16' + HARD
+            + HARD.join(body_lines) + HARD
+            + b'.cp 2' + HARD
+            + b'LINE 126' + HARD + b'LINE 127' + HARD)
+    doc = core.parse_ws(body)
+    assert doc.meta['page']['lh_source'] == 'default'   # the trap: capacity stays at 12pt
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 3, f'expected 3 pages, got {len(pages)}'
+    page1 = [''.join(t for t, _ in ln) for ln in pages[0]]
+    page2 = [''.join(t for t, _ in ln) for ln in pages[1]]
+    page3 = [''.join(t for t, _ in ln) for ln in pages[2]]
+    assert any('PAD 055' in l for l in page1)
+    assert any('LINE 125' in l for l in page2)
+    assert not any('LINE 126' in l for l in page2), '.cp did not price its reserved lines at their real 24pt lead'
+    assert any('LINE 126' in l for l in page3) and any('LINE 127' in l for l in page3)

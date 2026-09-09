@@ -4411,9 +4411,22 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # embed's image-band cost matches off's natural per-line
             # accumulation exactly, regardless of where either mode's
             # break happens to fall.
-            if getattr(ln, 'image', None) is not None:
-                return max(0.0, lead - default_lead)
-            return 0.0
+            # planning #236 remainder (sawyer/INTERVU.WS): the credit
+            # above is scoped to `default_lead`'s OWN worth, same as the
+            # image case just above -- a page's first line was always
+            # free even when a STYLE (not `.lh`) gives it a bigger real
+            # lead than the document default, over-crediting the page by
+            # (real lead - default_lead) points of budget that were never
+            # actually free. INTERVU.WS's whole body runs at the "MS Body
+            # Copy" style's own 24pt VMI while the document's `.lh`
+            # (hence `default_lead`) stays the unset 12pt default -- every
+            # page opening on a body line pockets 12pt of phantom room
+            # this way, which is exactly the margin a later `.cp2` needed
+            # to correctly push a whole paragraph to the next page.
+            # Mathematically identical to the previous flat `0.0` for
+            # every document whose first line's lead already equals
+            # `default_lead` (the overwhelming common case).
+            return max(0.0, lead - default_lead)
         if getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
         return lead
@@ -4503,7 +4516,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # opens a page depends on doc.meta['pa_eof_blank_after'] (see the
     # post-loop branch below).
     trailing_pagebreak = False
-    for l in lines:
+    for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt = l
             (cur_hdrs if kind == 'H' else cur_ftrs)[lno] = txt
@@ -4511,10 +4524,43 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             continue
         if isinstance(l, tuple) and l and l[0] == 'cond':
-            # strictly fewer than n lines left -> break; exactly n is enough
-            room = (budget - spent) / default_lead if printed \
-                   else cap - len(page)
-            if room < l[1] and page:
+            # strictly fewer than n lines left -> break; exactly n is enough.
+            # planning #236 remainder (sawyer/INTERVU.WS): the same style-
+            # vs-document-default gap `_cost`'s first-line credit above was
+            # just fixed for. This document's body runs at the "MS Body
+            # Copy" style's own 24pt VMI while `.lh` (hence `default_lead`)
+            # stays the unset 12pt document default -- a flat `n *
+            # default_lead` room estimate prices the upcoming `.cp2`'s 2
+            # reserved lines at 2*12=24pt when they actually cost 2*24=48pt,
+            # so it measured `room == 3` (12pt-units) against `l[1] == 2`
+            # and let a `.cp2` sitting right after a Q&A paragraph break
+            # print its first reserved line on the closing page, when only
+            # 36pt of real room was left and both lines together need
+            # 48pt. Real WS7 pushes the WHOLE paragraph to a fresh page
+            # instead -- measured directly against the WS7 capture (page
+            # 2's last body line, 636pt, never advancing to the answer at
+            # all). Look ahead at the REAL cost of the next `l[1]`
+            # PageLines (skipping sentinels) instead of assuming each one
+            # is exactly `default_lead` tall -- confirmed necessary and not
+            # merely redundant with the `_cost` fix: without this lookahead
+            # too, the same document still mispaginates (page 2 keeps the
+            # answer's opening line after all, just elsewhere in the
+            # document happens to still total 9 pages by coincidence).
+            if printed:
+                needed, seen = 0.0, 0
+                for peek in lines[_li + 1:]:
+                    if peek is None:
+                        break
+                    if isinstance(peek, tuple) and peek and peek[0] in ('hf', 'cond'):
+                        continue
+                    needed += getattr(peek, 'lead', None) or default_lead
+                    seen += 1
+                    if seen >= l[1]:
+                        break
+                short = (budget - spent) < needed - 1e-6
+            else:
+                short = (cap - len(page)) < l[1]
+            if short and page:
                 _close_page(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
             continue
