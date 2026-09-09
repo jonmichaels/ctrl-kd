@@ -2687,26 +2687,48 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     stream = []
-    # Planning #227: same region-boundary forced break as
-    # `_doc_to_pagelines`'s own plain-path block loop -- see its comment.
-    # `.cb`/`.cc` themselves are NOT supported on this path: this function
-    # (unlike `_doc_to_pagelines`) never handled `.cp` conditional breaks
-    # either -- a pre-existing gap, not a new one -- so their columnar
-    # siblings ('colbreak'/'condcolumn' blocks) fall through here as
-    # ordinary no-lines blocks, same as an unhandled `.cp` already did.
-    # Only sawyer/DEFAULT/PRINT.TST (the one `.co`-bearing corpus document
-    # with placeable notes) is affected; named in the columns-rule research
-    # note as an open scope gap rather than guessed at.
+    # Planning #245 (columns-rule research §7, closing the scope gap named
+    # at planning #227): same region-boundary forced break AND the same
+    # `.cb`/`.cc`/`.cp` sentinel mechanism `_doc_to_pagelines`'s own
+    # plain-path block loop already uses -- see its comment for the full
+    # evidence (WINGDING.CHT's absorbed `.pa`, PRINT.TST's own live `.cb`/
+    # `.cc`). This function used to leave 'colbreak'/'condcolumn' (and
+    # 'condpage', `.cp` -- a pre-existing gap of its own, not new here)
+    # falling through as ordinary no-lines blocks, so a document routed
+    # through the notes-aware paginator (`_paginate_printed_notes`, the
+    # only caller) never saw them at all. `None` (unconditional break) and
+    # `('cond', n)` (conditional -- resolved by `_paginate_printed_notes`'s
+    # own fill loop, the only thing that knows how full the current
+    # column/page actually is, exactly mirroring the plain path's identical
+    # sentinel) now travel through `stream` the same way a real body line
+    # does. Only sawyer/DEFAULT/PRINT.TST (the one `.co`-bearing corpus
+    # document with placeable notes) exercises this in the current corpus.
     prev_cols = 1
     for bi, b in enumerate(doc.blocks):
-        if b.kind == 'pagebreak':
-            if prev_cols > 1:
-                # Planning #227: absorbed, not honoured -- see
-                # `_doc_to_pagelines`'s own identical gate for the evidence
-                # (sawyer/REF/WINGDING.CHT's author-placed `.pa` markers
-                # inside its own active `.co5` region).
-                continue
+        if b.kind == 'pagebreak' and prev_cols > 1:
+            # Planning #227 (columns-rule research §7): a bare `.pa` inside
+            # an active `.co n>1` region is absorbed, not honoured -- same
+            # gate as `_doc_to_pagelines`'s own, see its comment for the
+            # WINGDING.CHT evidence. `.cb` never gets this absorption
+            # (handled unconditionally just below, same as the plain path).
+            continue
+        if b.kind in ('pagebreak', 'colbreak'):
+            # `.cb` maps onto the same forced-break sentinel `.pa` uses
+            # outside a columnar region (or always, for `.cb` itself) --
+            # see `_doc_to_pagelines`'s identical comment. The column-
+            # grouping post-pass (`_apply_columns`) turns every Nth forced
+            # break into a real page break and the others into a column
+            # advance once this stream reaches it, same as the plain path.
             stream.append(None)
+            continue
+        if b.kind in ('condpage', 'condcolumn'):
+            # `.cp n`/`.cc n` -- a break ONLY if fewer than n lines remain
+            # in the current column/page. Emitted as a sentinel so
+            # `_paginate_printed_notes`'s own fill loop, the only thing
+            # that knows how full the page/column actually is, can decide
+            # -- identical contract to `_doc_to_pagelines`'s own `('cond',
+            # n)` sentinel (see its comment).
+            stream.append(('cond', b.heading or 1))
             continue
         if b.kind == 'para':
             cur_cols = b.columns or 1
@@ -3016,8 +3038,14 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
 
     last_idx = -1
     for i, item in enumerate(stream):
-        if item is not None and (item[0].image is not None
-                                 or any(t.strip() for t, _ in item[0])):
+        # planning #245: a `('cond', n)` sentinel (`.cp`/`.cc`, see
+        # `_body_stream_printed`) carries no real content of its own --
+        # `item[0]` is the literal string `'cond'`, not a PageLine, so it
+        # must be skipped here the same way `None` (a `.pa`/`.cb` forced
+        # break) already is, or `.image` below raises.
+        if item is None or (isinstance(item, tuple) and item[0] == 'cond'):
+            continue
+        if item[0].image is not None or any(t.strip() for t, _ in item[0]):
             last_idx = i
 
     pages = []
@@ -3040,6 +3068,21 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             if item is None:
                 i += 1
                 break                            # forced break: page ends here
+            if isinstance(item, tuple) and item[0] == 'cond':
+                # planning #245: `.cp`/`.cc` -- break only if STRICTLY
+                # FEWER than n lines remain in the current column/page
+                # (same strict-less-than test `.cp`'s own docstring and
+                # `_doc_to_pagelines`'s identical `('cond', n)` handling
+                # use). `body_len`/`cap`/`_area_size(entries)` are already
+                # the same "line units" quantities the natural-overflow
+                # check just below uses, so no column-aware variant of
+                # this room computation is needed (research §4: a
+                # column's own height always equals the page's).
+                room = cap - body_len - _area_size(entries)
+                i += 1
+                if room < item[1] and body:
+                    break                        # forced break: page ends here
+                continue
             spans, refs = item
             cost = _line_cost(spans)
             # `body` non-empty guard: an image taller than the whole page
