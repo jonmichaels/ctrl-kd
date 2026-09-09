@@ -3357,12 +3357,25 @@ class PageLine(list):
     # knows this line's page's parity -- picks the right member of the
     # pair and overwrites it. A line neither `.poe` nor `.poo` ever
     # touched leaves this None, zero behaviour change.
+    # `col` (planning #227 follow-up, 2026-09-09): this line's own 0-based
+    # column index within an active `.co n>1` region, or None for every
+    # ordinary (non-columnar) line -- same "furniture"/"document default"
+    # convention as `left`/`bi`. Set ONLY by `_apply_columns`, at the same
+    # site that already resolves this line's own `left` for its column
+    # (`base_left + col_idx * (column_width_pt + gutter_pt)`) -- `left`
+    # alone cannot tell a consumer THIS IS A NEW COLUMN, RESET Y apart from
+    # an ordinary mid-document `.po`/`.poe`/`.poo` left-edge change (which
+    # must NOT reset the vertical flow); `col` is the unambiguous signal
+    # `emit_layout` and Soft Return.app's Native view both need for that
+    # distinction. A page's own column COUNT/geometry lives on `Page`
+    # (`columns`/`column_gutter_pt`/`column_width_pt`) below, once per
+    # page rather than repeated on every line.
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
-                'kerning', 'left', 'roll', 'justify_right_x', 'parity_left')
+                'kerning', 'left', 'roll', 'justify_right_x', 'parity_left', 'col')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
-                roll=None, justify_right_x=None, parity_left=None):
+                roll=None, justify_right_x=None, parity_left=None, col=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -3377,6 +3390,7 @@ class PageLine(list):
         self.roll = roll
         self.justify_right_x = justify_right_x
         self.parity_left = parity_left
+        self.col = col
 
 
 class Page(list):
@@ -3397,7 +3411,8 @@ class Page(list):
 
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
-                'explicit_break', 'explicit_break_bi')
+                'explicit_break', 'explicit_break_bi',
+                'columns', 'column_gutter_pt', 'column_width_pt')
 
     def __init__(self, seq=()):
         super().__init__(seq)
@@ -3405,6 +3420,20 @@ class Page(list):
         self.footers = {}
         self.mt_lines = None
         self.mb_lines = None
+        # `columns`/`column_gutter_pt`/`column_width_pt` (planning #227
+        # follow-up, 2026-09-09): this page's own `.co n` geometry, set
+        # ONLY by `_apply_columns` on a page it actually merged from a
+        # columnar group -- None/None/None for every ordinary page, the
+        # same "no opinion" convention `po_cols` etc. already use. One
+        # page-level record rather than repeating gutter/width on every
+        # PageLine (`PageLine.col` carries the per-line column INDEX;
+        # this is the shared geometry every index on this page resolves
+        # against). `column_width_pt` is one column's own width -- the
+        # block's `.rm` minus `.po`, exactly the docstring on
+        # `_apply_columns` derives it, NOT the page width divided by n.
+        self.columns = None
+        self.column_gutter_pt = None
+        self.column_width_pt = None
         # #228 (research/2026-09-08_trailing-pa-rule.md, planning #228): a
         # trailing `.pa` followed by at least one more real content
         # paragraph -- even a blank one -- before EOF opens a final page
@@ -3703,6 +3732,18 @@ def _apply_columns(doc, pages, size):
         merged.po_parity = getattr(pg, 'po_parity', False)
         merged.explicit_break = getattr(pg, 'explicit_break', False)
         merged.explicit_break_bi = getattr(pg, 'explicit_break_bi', None)
+        # planning #227 follow-up (2026-09-09): this page's own column
+        # geometry, recorded once here rather than re-derived per line by
+        # every consumer -- `emit_layout` and Soft Return.app's Native view
+        # both need it to draw column boundaries/reset the vertical flow
+        # at each column change (see `PageLine.col`'s own comment).
+        # `column_width_pt` is captured from the FIRST real PageLine below
+        # (whichever column it's in -- the formula is the same for all of
+        # them), not re-derived from `_printed_left` here, so it agrees
+        # exactly with the per-line `left` values this same loop sets.
+        merged.columns = cols
+        merged.column_gutter_pt = gutter_pt
+        merged.column_width_pt = None
         group_end = min(i + cols, n_pages)
         # A later sub-page belonging to a DIFFERENT columns/gutter pair (a
         # new `.co` restatement) or a non-columnar page ends the group
@@ -3737,7 +3778,16 @@ def _apply_columns(doc, pages, size):
                 # SAME page-left origin `base_left` is -- so `rm_pt -
                 # base_left` is exactly one column's own width (docstring).
                 column_width_pt = rm_pt - base_left
+                if merged.column_width_pt is None:
+                    merged.column_width_pt = column_width_pt
                 pl.left = base_left + col_idx * (column_width_pt + gutter_pt)
+                # planning #227 follow-up: the unambiguous "which column,
+                # RESET Y" signal -- see PageLine.col's own comment. Every
+                # real line this loop touches belongs to a column (0 for
+                # the page's own non-columnar prefix lines too, per
+                # `_apply_columns`'s docstring: column 0's x IS the page's
+                # ordinary left origin).
+                pl.col = col_idx
                 merged.append(pl)
             col_idx += 1
         out.append(merged)

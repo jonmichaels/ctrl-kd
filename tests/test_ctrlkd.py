@@ -3713,6 +3713,70 @@ def test_columns_are_per_block_and_render_in_html():
     assert html.count('column-count') == 1
 
 
+def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
+    """Planning #227 follow-up (2026-09-09): `_apply_columns`'s own column
+    placement was real in the PDF bytes but invisible to every OTHER
+    consumer of `_doc_to_pagelines` -- this is the regression test for the
+    fix, a synthetic 2-column document sized to overflow one physical
+    page. `_printed_cap` for a silent (default Letter/margins) document is
+    55 lines/page, so 130 one-line `.co2` paragraphs need 130/2 = 65 lines
+    per column, more than one page's own 55-line column can hold: WordStar
+    fills column 1 top-to-bottom, then column 2, so overflow opens page 2
+    part-way through column 2's own content (110 lines -- 55+55 -- fit on
+    page 1; the remaining 20 open page 2, matching the "no balancing"
+    trailing-group rule -- see `_apply_columns`'s own docstring)."""
+    from ctrlkd import pdf as _pdf
+    doc = core.parse_ws(b'.co2, 0.3"\r\n' + (b'Body line here now.\r\n' * 130) +
+                        b'.co1\r\nBack to one column now, past the columns.\r\n')
+    pages = _pdf._doc_to_pagelines(doc, True)
+    assert len(pages) == 3                             # overflow opened a real page 2
+    page1, page2, page3 = pages
+    assert len(page1) == 110 and len(page2) == 20 and len(page3) == 1
+    # page 1: column 0 fills first (top to bottom), THEN column 1 -- never
+    # interleaved -- and every line's own `col` says which without having
+    # to infer it from an `left` change (an ordinary `.po` override looks
+    # identical to a column boundary by `left` alone).
+    assert [pl.col for pl in page1] == [0] * 55 + [1] * 55
+    col0_lefts = {pl.left for pl in page1 if pl.col == 0}
+    col1_lefts = {pl.left for pl in page1 if pl.col == 1}
+    assert len(col0_lefts) == 1 and len(col1_lefts) == 1
+    assert col0_lefts != col1_lefts                    # distinct x-origins
+    (left0,), (left1,) = col0_lefts, col1_lefts
+    assert left1 - left0 == page1.column_gutter_pt + page1.column_width_pt
+    assert page1.columns == 2
+    # the OVERFLOW page: both of page 1's columns filled completely (55 +
+    # 55 == 110), so the remaining 20 lines open a NEW physical page and
+    # start filling IT from column 0 again -- "no balancing" (the
+    # docstring's own trailing-group rule) means a partial trailing group
+    # is never split across the previous page's unfinished column; it
+    # gets its own fresh page, column 0 first, same as any other page.
+    assert {pl.col for pl in page2} == {0}
+    assert {pl.left for pl in page2} == col0_lefts
+    assert page2.columns == 2
+    # the page AFTER `.co1` is ordinary, single-column -- no column opinion.
+    assert page3[0].col is None and page3.columns is None
+
+    # The SAME geometry, end to end, through the public `layout` JSON a
+    # renderer in any language reads (planning #227's own bug report: the
+    # app's Native view was drawing all of page 1 down ONE column because
+    # this JSON never surfaced `left`/`col` at all).
+    from ctrlkd import layout as _layout
+    import json
+    out = json.loads(_layout.emit_layout(doc))
+    assert out['version'] == 2
+    jpages = out['printed']['pages']
+    assert len(jpages) == 3
+    jp1 = jpages[0]
+    assert jp1['columns'] == 2 and jp1['column_gutter_pt'] == page1.column_gutter_pt
+    assert jp1['column_width_pt'] == page1.column_width_pt
+    jcols = [ln['col'] for ln in jp1['lines']]
+    assert jcols == [0] * 55 + [1] * 55
+    jlefts = {ln['left'] for ln in jp1['lines']}
+    assert jlefts == col0_lefts | col1_lefts
+    assert 'columns' not in jpages[2]                  # omitted, not null
+    assert 'col' not in jpages[2]['lines'][0]
+
+
 def test_colour_and_font_changes_are_recorded():
     """C2/C3. Neither was ever at risk of losing TEXT, but both were invisible: a
     document that coloured a passage or set 9pt type rendered identically to one
@@ -6198,7 +6262,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 1
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 2
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])

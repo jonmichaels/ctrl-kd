@@ -679,7 +679,24 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     and the invisible layer (dot commands with anchors, running-head
     events) — so a renderer in any language can draw a WordStar file
     without linking an engine, and both engines' layout is comparable as
-    data. Format version bumps only on breaking shape changes."""
+    data. Format version bumps only on breaking shape changes.
+
+    version 2 (planning #227 follow-up, 2026-09-09): each printed line MAY
+    now carry 'left' (its own resolved left-edge origin in points) and
+    'col' (its 0-based column index inside an active `.co n>1` region) —
+    the same `PageLine.left`/`PageLine.col` `_apply_columns` already
+    resolves for the PDF writer, now surfaced here too. Each printed PAGE
+    MAY gain 'columns'/'column_gutter_pt'/'column_width_pt' — the shared
+    geometry every line's own 'col' on that page resolves against. Both
+    are OMITTED, not null, when this line/page has no opinion (the
+    document's own default applies) — a document with no `.po`/`.poe`/
+    `.poo` override and no `.co n>1` region anywhere emits byte-identical
+    JSON to version 1. `col` is the field a consumer MUST use to decide
+    "this line starts a new column, reset the vertical cursor to the page
+    top" — an ordinary `left` change (a mid-document `.po`/`.poe`/`.poo`
+    override) is NOT that signal and must not reset the flow; only a `col`
+    change is. Old fields ('segments', 'soft', 'overprint', 'lead') are
+    unchanged; this is purely additive."""
     import json
     from . import pdf as _pdf       # lazy: pdf imports this module's flow
 
@@ -687,22 +704,53 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     for page in _pdf._doc_to_pagelines(doc, True):
         lines = []
         for pl in page:
-            lines.append({
+            line = {
                 'segments': [{'text': t, 'styles': sorted(st)}
                              for t, st in pl],
                 'soft': bool(getattr(pl, 'soft', False)),
                 'overprint': bool(getattr(pl, 'overprint', False)),
                 'lead': getattr(pl, 'lead', None),
-            })
-        printed_pages.append({
+            }
+            # `left`/`col` (version 2): present ONLY when this line actually
+            # carries an opinion -- omitted, not null, when both are the
+            # document's own default -- so a document with no `.po`/`.poe`/
+            # `.poo` override and no `.co n>1` region anywhere (the
+            # overwhelming majority of the corpus) emits BYTE-IDENTICAL
+            # `layout` JSON to version 1. Keeping the key out entirely
+            # (rather than 'left': null, matching 'lead's own convention)
+            # is deliberate here: unlike `lead`, whose null IS load-bearing
+            # (it means "read the document's own default lead"), a
+            # consumer that has never seen `left`/`col` on a line has the
+            # exact same correct reading as one that saw them both null --
+            # so paying JSON bytes on every line of every document for a
+            # key that means nothing there would fail the "columned
+            # documents only" answer-key expectation for zero benefit.
+            pl_left = getattr(pl, 'left', None)
+            if pl_left is not None:
+                line['left'] = pl_left
+            pl_col = getattr(pl, 'col', None)
+            if pl_col is not None:
+                line['col'] = pl_col
+            lines.append(line)
+        pg = {
             'lines': lines,
             'headers': dict(getattr(page, 'headers', {}) or {}),
             'footers': dict(getattr(page, 'footers', {}) or {}),
-        })
+        }
+        # `columns`/`column_gutter_pt`/`column_width_pt` (version 2): same
+        # omit-unless-set convention as `left`/`col` above -- present only
+        # on a page `_apply_columns` actually merged from a `.co n>1`
+        # group.
+        pg_columns = getattr(page, 'columns', None)
+        if pg_columns is not None:
+            pg['columns'] = pg_columns
+            pg['column_gutter_pt'] = getattr(page, 'column_gutter_pt', None)
+            pg['column_width_pt'] = getattr(page, 'column_width_pt', None)
+        printed_pages.append(pg)
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 1,
+        'version': 2,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
