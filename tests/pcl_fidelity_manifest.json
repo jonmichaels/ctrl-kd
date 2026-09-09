@@ -4721,10 +4721,10 @@
       "n_engine_pages": 4,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 306,
+        "baseline-shift": 308,
         "exact-drift": 1,
         "extra-word-in-engine": 109,
-        "word-unmatched": 111
+        "word-unmatched": 108
       },
       "divergences": [
         {
@@ -6004,7 +6004,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             462.0
           ],
           "font_class": "fixed",
@@ -6020,7 +6020,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            129.6,
+            232.6,
             462.0
           ],
           "font_class": "fixed",
@@ -6036,7 +6036,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             474.0
           ],
           "font_class": "fixed",
@@ -6052,7 +6052,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            86.4,
+            189.4,
             498.0
           ],
           "font_class": "fixed",
@@ -6068,7 +6068,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            129.6,
+            232.6,
             498.0
           ],
           "font_class": "fixed",
@@ -6084,7 +6084,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             510.0
           ],
           "font_class": "fixed",
@@ -6100,7 +6100,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            211.0,
             510.0
           ],
           "font_class": "fixed",
@@ -6116,7 +6116,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             546.0
           ],
           "font_class": "fixed",
@@ -6132,7 +6132,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            211.0,
             546.0
           ],
           "font_class": "fixed",
@@ -6148,7 +6148,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            239.8,
             546.0
           ],
           "font_class": "fixed",
@@ -6164,7 +6164,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             558.0
           ],
           "font_class": "fixed",
@@ -6180,7 +6180,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            115.2,
+            218.2,
             558.0
           ],
           "font_class": "fixed",
@@ -6232,54 +6232,6 @@
           ],
           "pdf_pos": null,
           "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "WordStar"
-          ],
-          "ws7_pos": [
-            57.6,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "and"
-          ],
-          "ws7_pos": [
-            96.4,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "YourPrinter"
-          ],
-          "ws7_pos": [
-            113.7,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -6826,10 +6778,58 @@
           "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "column."
+          ],
+          "ws7_pos": [
+            93.6,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "This"
+          ],
+          "ws7_pos": [
+            158.4,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "The"
+          ],
+          "ws7_pos": [
+            246.9,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 84,
+        "n": 85,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -25970,10 +25970,10 @@
       "n_engine_pages": 4,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 306,
+        "baseline-shift": 308,
         "exact-drift": 1,
         "extra-word-in-engine": 109,
-        "word-unmatched": 111
+        "word-unmatched": 108
       },
       "divergences": [
         {
@@ -27253,7 +27253,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             462.0
           ],
           "font_class": "fixed",
@@ -27269,7 +27269,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            129.6,
+            232.6,
             462.0
           ],
           "font_class": "fixed",
@@ -27285,7 +27285,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             474.0
           ],
           "font_class": "fixed",
@@ -27301,7 +27301,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            86.4,
+            189.4,
             498.0
           ],
           "font_class": "fixed",
@@ -27317,7 +27317,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            129.6,
+            232.6,
             498.0
           ],
           "font_class": "fixed",
@@ -27333,7 +27333,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             510.0
           ],
           "font_class": "fixed",
@@ -27349,7 +27349,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            211.0,
             510.0
           ],
           "font_class": "fixed",
@@ -27365,7 +27365,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             546.0
           ],
           "font_class": "fixed",
@@ -27381,7 +27381,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            211.0,
             546.0
           ],
           "font_class": "fixed",
@@ -27397,7 +27397,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            239.8,
             546.0
           ],
           "font_class": "fixed",
@@ -27413,7 +27413,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
+            160.6,
             558.0
           ],
           "font_class": "fixed",
@@ -27429,7 +27429,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            115.2,
+            218.2,
             558.0
           ],
           "font_class": "fixed",
@@ -27481,54 +27481,6 @@
           ],
           "pdf_pos": null,
           "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "WordStar"
-          ],
-          "ws7_pos": [
-            57.6,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "and"
-          ],
-          "ws7_pos": [
-            96.4,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "YourPrinter"
-          ],
-          "ws7_pos": [
-            113.7,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -28075,10 +28027,58 @@
           "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "column."
+          ],
+          "ws7_pos": [
+            93.6,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "This"
+          ],
+          "ws7_pos": [
+            158.4,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "The"
+          ],
+          "ws7_pos": [
+            246.9,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 84,
+        "n": 85,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
