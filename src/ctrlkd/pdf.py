@@ -3389,8 +3389,8 @@ class Page(list):
     the same answer twice from doc.meta['dot_positions']."""
 
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
-                'hm_lines', 'fm_lines', 'po_cols', 'explicit_break',
-                'explicit_break_bi')
+                'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
+                'explicit_break', 'explicit_break_bi')
 
     def __init__(self, seq=()):
         super().__init__(seq)
@@ -3439,6 +3439,20 @@ class Page(list):
         # already carries a per-LINE `.po` override (core.Line.po_cols),
         # this is the page-granularity twin that mechanism was missing.
         self.po_cols = None
+        # planning #231/#241 follow-up (2026-09-08):
+        # whether `po_cols` above came from an ACTIVE `.poe`/`.poo` parity
+        # override, as opposed to a plain mid-document `.po` reset. #241's
+        # `page_geom_changed` gate exists to keep a HOLYMAC-style transient
+        # `.po` (a local body-margin excursion, no real page-layout change)
+        # from leaking into the running head/foot -- but `.poe`/`.poo` ARE
+        # themselves a page-layout decision by definition (WSFORMAT.WS:
+        # "specify even or odd number page offsets"), so they must bypass
+        # that gate rather than be silently caught by it. Measured: sawyer/
+        # MAILLIST/PHONE.LST (`.poo .20"`/`.poe .20"`, no plain `.po`) and
+        # its own running head, rendered at the document default 57.6pt
+        # instead of the declared 14.4pt -- same fallback, `_running_ops`
+        # reads `page_po`/`page_geom_changed` only.
+        self.po_parity = False
 
 
 def _is_blank_line(line):
@@ -3679,6 +3693,7 @@ def _apply_columns(doc, pages, size):
         merged.hm_lines = getattr(pg, 'hm_lines', None)
         merged.fm_lines = getattr(pg, 'fm_lines', None)
         merged.po_cols = getattr(pg, 'po_cols', None)
+        merged.po_parity = getattr(pg, 'po_parity', False)
         merged.explicit_break = getattr(pg, 'explicit_break', False)
         merged.explicit_break_bi = getattr(pg, 'explicit_break_bi', None)
         group_end = min(i + cols, n_pages)
@@ -4358,6 +4373,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         parity_po = _left_for_parity(cur_po, cur_poe, cur_poo, is_even_page)
         if parity_po != doc_po:
             pg.po_cols = parity_po
+            # #241 follow-up: mark that this override is a live `.poe`/
+            # `.poo` parity decision (not a plain mid-document `.po`
+            # excursion) so the running head/foot's own `page_geom_changed`
+            # gate -- correctly built to exclude a HOLYMAC-style transient
+            # `.po` -- lets it through regardless. See `Page.po_parity`.
+            pg.po_parity = cur_poe is not None or cur_poo is not None
         # Body text: `_doc_to_pagelines`/`_body_stream_printed` could not
         # resolve a `.poe`/`.poo`-governed line's own left origin at BUILD
         # time (which page, and therefore which parity, a line lands on is
@@ -6994,8 +7015,21 @@ def _emit_pdf_inner(doc, printed, options):
             # transient `.po` leak into the header/footer position.
             page_geom_changed = (page_mt is not None or page_mb is not None
                                  or page_hm is not None or page_fm is not None)
+            # #241 follow-up (2026-09-08, planning #231):
+            # `.poe`/`.poo` are themselves a page-layout decision (WSFORMAT.
+            # WS: "specify even or odd number page offsets"), not a
+            # HOLYMAC-style transient body-only `.po` excursion -- the one
+            # thing `page_geom_changed` above exists to filter out. A live
+            # parity override (`Page.po_parity`, set in `_close_page`) must
+            # reach the running head/foot regardless of whether `.mt`/`.mb`/
+            # `.hm`/`.fm` also changed on this page. Measured: sawyer/
+            # MAILLIST/PHONE.LST (`.poo .20"`/`.poe .20"`, no `.mt`/`.hm`
+            # change ever) -- running head was stuck at the document
+            # default 57.6pt instead of the declared 14.4pt.
+            page_po_parity = getattr(pl, 'po_parity', False)
             running_left = (_resolve_left_pt(page_po, size)
-                            if page_po is not None and page_geom_changed
+                            if page_po is not None
+                                and (page_geom_changed or page_po_parity)
                             else left)
             saved_pg = None
             if (page_mt is not None or page_mb is not None or page_pl is not None
