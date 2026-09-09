@@ -4723,7 +4723,7 @@
       "counts_by_reason": {
         "baseline-shift": 308,
         "exact-drift": 1,
-        "extra-word-in-engine": 109,
+        "extra-word-in-engine": 108,
         "word-unmatched": 108
       },
       "divergences": [
@@ -8987,7 +8987,7 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "exact-drift": 330,
-        "extra-word-in-engine": 85,
+        "extra-word-in-engine": 83,
         "line-start-shift": 3,
         "page-count-mismatch": 1,
         "page-membership": 917,
@@ -18015,7 +18015,7 @@
       "counts_by_reason": {
         "baseline-shift": 171,
         "exact-drift": 26,
-        "extra-word-in-engine": 395,
+        "extra-word-in-engine": 383,
         "line-start-shift": 12,
         "word-unmatched": 382
       },
@@ -18098,7 +18098,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18118,7 +18118,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18138,7 +18138,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18158,7 +18158,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18178,7 +18178,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18198,7 +18198,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18218,7 +18218,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18238,7 +18238,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18258,7 +18258,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18278,7 +18278,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18298,7 +18298,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18318,7 +18318,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18338,7 +18338,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18358,7 +18358,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18378,7 +18378,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18398,7 +18398,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18418,7 +18418,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18438,7 +18438,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18458,7 +18458,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18478,7 +18478,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18498,7 +18498,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18518,7 +18518,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18538,7 +18538,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18558,7 +18558,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18578,7 +18578,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18598,7 +18598,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18618,7 +18618,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18638,7 +18638,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18658,7 +18658,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18678,7 +18678,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18698,7 +18698,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18718,7 +18718,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18738,7 +18738,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18758,7 +18758,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18778,7 +18778,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18798,7 +18798,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -18818,7 +18818,7 @@
           ],
           "font_class": "exact",
           "reason": "baseline-shift",
-          "detail": "baseline residual -600.00pt (tolerance 1.0pt)"
+          "detail": "baseline residual -588.00pt (tolerance 1.0pt)"
         },
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
@@ -19345,11 +19345,11 @@
           "page": 11,
           "line_y_top_pt": 696.0,
           "words": [
-            ".rm"
+            "the"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            93.6,
             696.0
           ],
           "font_class": "fixed",
@@ -19361,11 +19361,75 @@
           "page": 11,
           "line_y_top_pt": 696.0,
           "words": [
-            "5.5\""
+            "Opening"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            100.8,
+            122.4,
+            696.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 696.0,
+          "words": [
+            "Menu,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            180.0,
+            696.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 696.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            223.2,
+            696.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 696.0,
+          "words": [
+            "selects"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            338.4,
+            696.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 696.0,
+          "words": [
+            "file"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            424.8,
             696.0
           ],
           "font_class": "fixed",
@@ -19377,108 +19441,12 @@
           "page": 11,
           "line_y_top_pt": 708.0,
           "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.6,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "Opening"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            122.4,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "Menu,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            180.0,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            223.2,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "selects"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            338.4,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "file"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            424.8,
-            708.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 720.0,
-          "words": [
             "pointing"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             288.0,
-            720.0
+            708.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19487,14 +19455,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 720.0,
+          "line_y_top_pt": 708.0,
           "words": [
             "to,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             352.8,
-            720.0
+            708.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19503,13 +19471,45 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 720.0,
+          "line_y_top_pt": 708.0,
           "words": [
             "or,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             381.6,
+            708.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 708.0,
+          "words": [
+            "you"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            432.0,
+            708.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 720.0,
+          "words": [
+            "are"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            72.0,
             720.0
           ],
           "font_class": "fixed",
@@ -19521,11 +19521,11 @@
           "page": 11,
           "line_y_top_pt": 720.0,
           "words": [
-            "you"
+            "not"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            432.0,
+            100.8,
             720.0
           ],
           "font_class": "fixed",
@@ -19535,46 +19535,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 732.0,
-          "words": [
-            "are"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            72.0,
-            732.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 732.0,
-          "words": [
-            "not"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            732.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 732.0,
+          "line_y_top_pt": 720.0,
           "words": [
             "pointing"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             129.6,
-            732.0
+            720.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19583,14 +19551,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 732.0,
+          "line_y_top_pt": 720.0,
           "words": [
             "file"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             230.4,
-            732.0
+            720.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19599,14 +19567,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 732.0,
+          "line_y_top_pt": 720.0,
           "words": [
             "subdirectory,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             288.0,
-            732.0
+            720.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19615,14 +19583,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 732.0,
+          "line_y_top_pt": 720.0,
           "words": [
             "then"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             410.4,
-            732.0
+            720.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19631,14 +19599,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "The"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             72.0,
-            792.0
+            780.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19647,14 +19615,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "Right"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             100.8,
-            792.0
+            780.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19663,14 +19631,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "button"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             144.0,
-            792.0
+            780.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19679,14 +19647,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "safely"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             194.4,
-            792.0
+            780.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19695,14 +19663,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "cancels."
           ],
           "ws7_pos": null,
           "pdf_pos": [
             244.8,
-            792.0
+            780.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19711,13 +19679,109 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 792.0,
+          "line_y_top_pt": 780.0,
           "words": [
             "your"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             338.4,
+            780.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 780.0,
+          "words": [
+            "cursor"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            374.4,
+            780.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            72.0,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "file"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            100.8,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "directory,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            136.8,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "jumps"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            237.6,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            280.8,
             792.0
           ],
           "font_class": "fixed",
@@ -19733,7 +19797,39 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            374.4,
+            309.6,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "back"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            360.0,
+            792.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            439.2,
             792.0
           ],
           "font_class": "fixed",
@@ -19745,140 +19841,12 @@
           "page": 11,
           "line_y_top_pt": 804.0,
           "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            72.0,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "file"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "directory,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "jumps"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            237.6,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            280.8,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "cursor"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            309.6,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "back"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            360.0,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 804.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            439.2,
-            804.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 816.0,
-          "words": [
             "pulldown"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             72.0,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19887,14 +19855,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "menu"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             136.8,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19903,14 +19871,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "bar."
           ],
           "ws7_pos": null,
           "pdf_pos": [
             172.8,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19919,14 +19887,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "menu"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             252.0,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19935,14 +19903,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "has"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             288.0,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19951,14 +19919,14 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "been"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             316.8,
-            816.0
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19967,14 +19935,46 @@
         {
           "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
           "page": 11,
-          "line_y_top_pt": 816.0,
+          "line_y_top_pt": 804.0,
           "words": [
             "pulled"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             352.8,
-            816.0
+            804.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 804.0,
+          "words": [
+            "down,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            403.2,
+            804.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__MICKEE__MICKEE_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 804.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            446.4,
+            804.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -25972,7 +25972,7 @@
       "counts_by_reason": {
         "baseline-shift": 308,
         "exact-drift": 1,
-        "extra-word-in-engine": 109,
+        "extra-word-in-engine": 108,
         "word-unmatched": 108
       },
       "divergences": [

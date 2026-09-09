@@ -195,6 +195,33 @@ def test_formfeed_pagebreak_byte_survives():
     assert rt(data) == data
 
 
+def test_dot_command_after_flagged_form_feed_roundtrips():
+    """Planning #246 round-trip companion to test_dot_command_after_a_flagged_
+    form_feed_is_not_printed_as_text (test_ctrlkd.py): same byte shape (an
+    End-of-page block's overprint-CR break, a bare 0x0D, a flagged form feed
+    0x8C, then a dot command with no space), now checked for exact reassembly.
+
+    The FF byte and the dot line's own bytes both land in the round-trip
+    ledger at that point (a pagebreak Block plus a separate dot-line entry) --
+    only the pagebreak's own event owns the flagged byte (patched back from
+    0x0C to 0x8C by the file-level offset-based `flagged_at` un-translate);
+    the dot line's own ledger entry must NOT also carry it, or the byte
+    doubles on write. (The Swift port had exactly this bug: its dot-command
+    ledger entry read the pre-mutation `physical.text` instead of the locally
+    peeled `raw`, so the flagged form feed was serialized twice -- once from
+    the pagebreak event, once folded into the dot line. Fixed alongside this
+    test, ParseWS.swift.)
+    """
+    end_of_page = ws7_block(0x0B, b'\x00' * 28)
+    data = (ws7_block(0x00) +
+            b'Set a paragraph margin to print in' + SOFT +
+            b'paragraph style.' + HARD +
+            b'.cc 19' + end_of_page +
+            b'\x0d' + b'\x8c' + b'.pm1' + HARD +
+            b'Hanging Indentation' + HARD + b'\x1a')
+    assert rt(data) == data
+
+
 def test_blank_lines_including_trailing_run_and_ctrlz_tail():
     # the trailing blank run is consumed by lines_pass without ever being
     # yielded (raw_extras['eof_tail'] carries it); the ^Z padding after the

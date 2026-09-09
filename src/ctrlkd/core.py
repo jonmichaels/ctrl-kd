@@ -4682,6 +4682,45 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # 33 of LJ6DTP's 41 rule-drawing controls sat line-initial and were
         # swallowed whole as unknown dot commands.
         pctl_leads = any(r == 0 and m[0] == 'pctl' for r, m in line_marks)
+        # #246 (sawyer/PRINT.TST, /PSPRINT.TST, /DEFAULT/PRINT.TST): a
+        # literal form feed can sit directly in front of a dot command on
+        # the SAME physical line -- WSFORMAT.TXT: "0Ch ^L  Form Feed.  At
+        # print time causes page to be ejected."  Measured shape (all three
+        # documents, byte-identical at the boundary): an End-of-page (0x0B)
+        # symmetrical sequence's transient overprint-CR break lands right
+        # before a bare 0x0C (0x8C, the flagged/soft form of ^L, already
+        # de-flagged to 0x0C by the `_FLAGGED` translate above), immediately
+        # followed by `.pm1` with no space and no separate line break of its
+        # own. Real WS7's own PCL capture (tools/pcl_text.py) prints no
+        # ".pm1" text at all -- only the page eject -- so WordStar treats
+        # whatever follows a form feed as being in the first position of a
+        # fresh line for dot-command purposes, the same way it already does
+        # after an ordinary hard/soft return.
+        #
+        # Previously `stripped[:1]` was the form feed itself, never '.', so
+        # the whole line -- form feed AND the dot-command text after it --
+        # fell through to body-text decoding below (the `0x0C in raw`
+        # branch), which prints the leading form feed as its own pagebreak
+        # block but has no way to re-test what follows it for dot-command-
+        # ness, so ".pm1" was decoded and printed as a literal span.
+        #
+        # Peel off each leading form feed as its own pagebreak block (same
+        # shape as the mid-line `_split_bare_ff` branch below: one
+        # close_block()+Block('pagebreak', origin='ff')+tally bump per byte)
+        # and re-test the remainder -- ONLY when it actually turns out to be
+        # a dot command, so an ordinary form-feed-then-body-text line (no
+        # evidence of that shape in this corpus, but not ruled out) still
+        # reaches the unchanged branch below untouched.
+        _ff_lead = 0
+        while stripped[_ff_lead:_ff_lead + 1] == b'\x0c':
+            _ff_lead += 1
+        if _ff_lead and stripped[_ff_lead:_ff_lead + 1] == b'.':
+            for _ in range(_ff_lead):
+                close_block()
+                doc.blocks.append(Block('pagebreak', origin='ff'))
+                _rt_tally[0] += 1
+            raw = raw[_ff_lead:]
+            stripped = stripped[_ff_lead:]
         if stripped[:1] == b'.' and not pctl_leads:  # dot command line
             cmd = stripped.rstrip()
             dots.append(cmd.decode(encoding, 'replace'))

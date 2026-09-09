@@ -3959,6 +3959,45 @@ def test_a_literal_form_feed_breaks_the_page_in_a_ws_document():
                                 b'\x0cPage two text here also with prose.\r\n')
     assert [b.kind for b in ps.blocks] == [b.kind for b in doc.blocks]
 
+def test_dot_command_after_a_flagged_form_feed_is_not_printed_as_text():
+    """Planning #246 (sawyer/PRINT.TST, /PSPRINT.TST, /DEFAULT/PRINT.TST): a
+    literal '.pm1' was printed as text next to '.cc 19' in all three documents,
+    both engines.
+
+    The measured byte shape (hexdump around '.cc 19', identical across all
+    three files): an End-of-page (0x0B) symmetrical sequence's own transient
+    'overprint line' break (a BARE 0x0D, not paired with 0x0A) is immediately
+    followed by 0x8C -- the flagged/soft form of ^L (Form Feed) that
+    `_FLAGGED` de-flags to a real 0x0C -- immediately followed by `.pm1` with
+    NO space and no separator of its own, then an ordinary hard return.
+
+    WSFORMAT.TXT: dot commands are recognised only when the period sits "in
+    the first position in the line". A literal ^L "causes page to be ejected"
+    at print time -- real WS7's own PCL capture (tools/pcl_text.py) prints no
+    '.pm1' text at all, only the page eject, so WordStar treats whatever
+    follows the form feed as the first position of a fresh line for
+    dot-command purposes, exactly as it already does after a hard/soft
+    return. `stripped[:1]` used to be the form feed itself, never '.', so the
+    whole line -- form feed AND '.pm1' -- fell through to body-text decoding
+    and printed literally.
+    """
+    end_of_page = ws7_block(0x0B, b'\x00' * 28)     # WSFORMAT.TXT 0Bh body: 28 bytes
+    data = (ws7_block(0x00) +                        # WS7 header block
+            b'Set a paragraph margin to print in' + SOFT +
+            b'paragraph style.' + HARD +
+            b'.cc 19' + end_of_page +                # overprint-CR 'over' break
+            b'\x0d' +                                # bare CR, no 0x0A follows
+            b'\x8c' + b'.pm1' +                       # flagged FF, then the dot cmd
+            HARD +
+            b'Hanging Indentation' + HARD)
+    doc = core.parse_ws(data)
+    txt = emit.emit_text(doc, mode='printed')
+    assert '.pm1' not in txt, 'the dot command leaked into printed text'
+    assert 'Hanging Indentation' in txt
+    # the flagged form feed still ejects the page, as a real 0x0C would
+    ff_blocks = [b for b in doc.blocks if b.kind == 'pagebreak']
+    assert ff_blocks and ff_blocks[0].origin == 'ff'
+
 
 def test_real_control_codes_are_not_mistaken_for_structure():
     """The sentinels were IN-BAND BYTES, and every byte available for one is a
