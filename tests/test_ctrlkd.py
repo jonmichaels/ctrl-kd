@@ -3580,6 +3580,53 @@ def test_margins_are_per_block_state_not_first_occurrence():
     assert (b.left_margin, b.right_margin, b.para_margin) == (None, None, None)
 
 
+def test_rr_ruler_pips_set_and_clear_margins():
+    """Planning #241 remainder (indent-state leak, sawyer/REF/WSFORMAT.WS):
+    `.RR`'s own spec ("Ruler. Embeds a ruler line ... The text following
+    the .RR is the exact image of the ruler line ... on the screen") means
+    the embedded ruler is the COMPLETE margin picture from that point on,
+    not a patch on top of whatever `.lm`/`.rm`/`.pm` set before it -- each
+    of `left_margin`/`para_margin`/`right_margin` becomes the 0-based
+    column of its own `L`/`P`/`R` pip, or gets CLEARED (None) when that
+    ruler's own image omits the pip, exactly like the command never having
+    been issued at all.
+
+    Measured mechanism: WSFORMAT.WS sets `.pm11` once for a control-code
+    table and never resets it before the next section's own bare
+    `.RR--!...--------R` (no `P` pip) -- WS7's real capture prints that
+    heading and its body paragraph at the plain page margin (no hanging
+    indent at all); this engine, before this fix, kept carrying the stale
+    `.pm11` column across the ruler and indented both 72pt too far right.
+    """
+    doc = core.parse_ws(
+        b'.RR L---P---R\r\n'
+        b'First line under the new ruler.\r\n'
+        b'.RR--!----!--------R\r\n'
+        b'Heading back at the plain margin.\r\n')
+    first, second = doc.blocks
+    assert (first.left_margin, first.para_margin, first.right_margin) == (1.0, 5.0, 9.0)
+    # The second ruler shows neither `L` nor `P` -- both clear, matching a
+    # document that never set `.lm`/`.pm` at all -- but DOES show `R`, so
+    # right_margin is set fresh from its own pip, not left stale either.
+    assert (second.left_margin, second.para_margin, second.right_margin) == (None, None, 16.0)
+
+
+def test_rr_bare_ruler_next_line_also_clears_para_margin():
+    """The OTHER `.RR` form -- a bare `.rr` on its own line, whose ruler
+    IMAGE is the next physical line instead (wordstar-file-format.ws's own
+    shape, planning #240) -- must apply the identical pip rule, not just
+    the same-line form."""
+    doc = core.parse_ws(
+        b'.pm11\r\n'
+        b'Hanging entry first line.\r\n'
+        b'.RR\r\n'
+        b'--!----!--------R\r\n'
+        b'Heading back at the plain margin.\r\n')
+    first, second = doc.blocks
+    assert first.para_margin == 10.0     # `.pm11` -> column 11 -> offset 10
+    assert second.para_margin is None    # cleared: the swallowed ruler image has no `P` pip
+
+
 def test_margins_accept_columns_and_inches():
     """The archive writes both `.rm 65` and `.rm 6.5"`."""
     assert core.parse_ws(b'.rm 65\r\nT.\r\n').blocks[0].right_margin == 65.0

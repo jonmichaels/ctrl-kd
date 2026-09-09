@@ -2502,6 +2502,62 @@ def _onoff(arg: bytes):
     return None
 
 
+# planning #241 remainder (indent-state leak, sawyer/REF/WSFORMAT.WS):
+# WSFORMAT.WS's own `.RR` spec -- "Ruler. Embeds a ruler line to be used
+# for subsequent typing and alignment. The text following the .RR is the
+# exact image of the ruler line... on the screen" -- means the embedded
+# image is the COMPLETE current margin picture, not a patch applied on
+# top of whatever was active before. `left_margin`/`para_margin`/
+# `right_margin` are each either the 0-based column of that pip's own
+# `L`/`P`/`R` character in the ruler string, or None (cleared, matching a
+# document that never set the command at all) when the pip is absent --
+# never "leave the prior value in force". Measured: WSFORMAT.WS sets
+# `.pm11` once for its first control-code table (`.rr L------R`, no `P`
+# pip -- the accompanying explicit `.pm11` line sets para_margin itself,
+# immediately after, so clearing it first here is a no-op there), then
+# never issues another `.pm`/`.RR` with a `P` pip before its next section
+# heading's own bare `.RR--!...--------R` (still no `P`, and this time
+# NOT followed by a `.pm` reset) -- WS7's real capture prints that
+# heading and its body paragraph at the plain page margin (no indent at
+# all), while this engine, before this fix, kept carrying `.pm11`'s
+# column forward across the ruler and indented both 72pt too far right.
+# A digit straight after `.RR` (`.rr9`, `.rr0`) is WordStar's OTHER `.RR`
+# form -- a reference to a PREFORMATTED ruler stored in the user area,
+# not an inline image -- and carries no pip characters to read here;
+# `_ruler_pips` is never called for that form (no ruler image reaches
+# this function), so state is left exactly as before, unevidenced either
+# way. Dispatched from TWO sites in `parse_ws` itself, both AFTER
+# `_parse_format_dot(cmd, fmt)` runs so the shared `_block_format`
+# before/after diff (which already closes a block on any `.lm`/`.pm`/
+# `.rm` change) sees this one too -- never from inside `_parse_format_
+# dot`, whose own `arg` has already had `_DOT_CMD_RE`'s `\s*` strip the
+# ruler's OWN leading spaces (which position its first pip): the same-
+# line form reads raw `cmd[3:]`, the bare form reads the swallowed next
+# physical line, whichever call site actually has the real bytes.
+def _ruler_pips(ruler: bytes):
+    """(left_col, para_col, right_col) -- the 0-based column index of the
+    `L`/`P`/`R` pip in a `.RR` ruler-line IMAGE, or None for a pip this
+    particular ruler doesn't show. Case-insensitive (the corpus only ever
+    writes them uppercase; the fill characters are `-`/`!`/`:`/`#`/digits,
+    none of which collide with L/P/R either way)."""
+    upper = ruler.upper()
+    l = upper.find(b'L')
+    p = upper.find(b'P')
+    r = upper.find(b'R')
+    return (l if l >= 0 else None, p if p >= 0 else None, r if r >= 0 else None)
+
+
+def _apply_ruler_margins(ruler: bytes, state: dict) -> None:
+    """Set/clear `state['left_margin']`/`['para_margin']`/`['right_margin']`
+    from one `.RR` ruler-line IMAGE -- see `_ruler_pips` and the module
+    comment just above it for the citation and the clear-when-absent
+    rule."""
+    l, p, r = _ruler_pips(ruler)
+    state['left_margin'] = float(l) if l is not None else None
+    state['para_margin'] = float(p) if p is not None else None
+    state['right_margin'] = float(r) if r is not None else None
+
+
 def _parse_format_dot(cmd: bytes, state: dict) -> None:
     """Update running FORMATTING state from one dot-command line.
 
@@ -4739,6 +4795,15 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                              _rt_brk if _rt_brk is not None else b''))
             dot_at.append((len(doc.blocks), len(cur.lines),
                            cmd.decode(encoding, 'replace')))
+            # This physical line IS the ruler image for the bare `.RR`
+            # that swallowed it (see that entry's own citation) -- apply
+            # its L/P/R pips exactly like the same-line form does, and
+            # close the block the same way a mid-paragraph `.lm`/`.pm`/
+            # `.rm` would (`_block_format` below covers all three).
+            _rr_before = _block_format(fmt)
+            _apply_ruler_margins(bytes(b & 0x7F for b in cmd), fmt)
+            if _block_format(fmt) != _rr_before:
+                close_block()
             continue
         # A line that BEGINS with a 0x0F print control's display string is
         # content, not a dot command -- but its first character is often «
@@ -4972,6 +5037,21 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # single block cannot hold both.
             before = _block_format(fmt)
             _parse_format_dot(cmd, fmt)
+            # #241 remainder: a same-line `.RR` ruler IMAGE (`.RR--!...R`)
+            # updates left_margin/para_margin/right_margin exactly like an
+            # explicit `.lm`/`.pm`/`.rm` would -- see `_apply_ruler_margins`'s
+            # own citation. Applied here, RAW (`cmd[3:]`, not `_parse_format_
+            # dot`'s own `arg`), because `_DOT_CMD_RE`'s `\s*` eats the
+            # leading spaces a real ruler uses to POSITION its pips (WSFORMAT.
+            # WS's own table rulers open with 20+ of them) -- stripping those
+            # before reading pip columns would silently shift every pip left.
+            # The OTHER `.RR` form -- a digit reference to a preformatted
+            # ruler (`.rr9`) -- carries no image and must not reach it; a
+            # BARE `.rr` (nothing after it at all) is handled where its own
+            # swallowed next-line image is consumed, not here.
+            if (cmd[1:3].upper() == b'RR' and cmd[3:].strip()
+                    and not cmd[3:].strip()[:1].isdigit()):
+                _apply_ruler_margins(cmd[3:], fmt)
             if _block_format(fmt) != before:
                 close_block()
             _parse_page_dot(cmd, page, meta_extra,
