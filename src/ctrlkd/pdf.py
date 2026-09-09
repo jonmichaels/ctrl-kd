@@ -6389,9 +6389,35 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     # (untested: no oracle exercises that), rather than counting from
     # the page's own top regardless of where the interval itself began.
     line_no_state = [None, 0]
+    # planning #227 follow-up (2026-09-09): `_apply_columns` concatenates
+    # every column's own lines into ONE flat `pagelines` list (column 0's,
+    # then column 1's, ...; PageLine.col records which) -- this loop must
+    # therefore reset Y when `col` climbs, the same way it already resets
+    # per PHYSICAL page (the `y = page_h - top - first_lead` line above).
+    # Never implemented: Y instead kept decrementing across every column
+    # in sequence, so column 1 continued DOWN from wherever column 0
+    # ended instead of restarting at the top -- harmless on a document
+    # whose columns happen to be nearly page-height (fontcrib.ws, where
+    # this went unnoticed), but on a document with materially shorter
+    # columns (sawyer/REF/WINGDING.CHT, 5 columns of ~45 lines on a page
+    # with room for far more) it walked later columns' text hundreds of
+    # points below the sheet -- confirmed via tools/fidelity_gate.py's
+    # own PG1_MED_DY metric (WINGDING.CHT: 1231.8pt median Y residual
+    # before this fix) and directly in the PDF's own text-positioning
+    # operators. `prev_col` starts at `pagelines[0]`'s own column (or
+    # None on a non-columnar page, where it can never differ from any
+    # later line's `None` either) so the FIRST line is never treated as
+    # a "new column" -- it already got its correct position from `y`'s
+    # initial assignment above.
+    prev_col = getattr(pagelines[0], 'col', None) if pagelines else None
     for n, line in enumerate(pagelines):
+        cur_col = getattr(line, 'col', None)
         if n and not prev_overprint:
-            y -= getattr(line, 'lead', None) or lead
+            if cur_col is not None and cur_col != prev_col:
+                y = page_h - top - (getattr(line, 'lead', None) or lead)
+            else:
+                y -= getattr(line, 'lead', None) or lead
+        prev_col = cur_col
         prev_overprint = getattr(line, 'overprint', False)
         # register b31: this line's own `.po` override (already resolved to
         # points -- PageLine.left, see its own docstring), or the document

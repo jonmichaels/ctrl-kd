@@ -3824,6 +3824,47 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     assert 'col' not in jpages[2]['lines'][0]
 
 
+def test_printed_column_start_resets_y_not_just_x():
+    """Planning #227 follow-up (2026-09-09): `_apply_columns` concatenates
+    every column's own lines into ONE flat per-page list (column 0's, then
+    column 1's, ...) for `_page_stream` to draw -- and THAT loop kept
+    decrementing Y for every line in sequence with no idea `col` had
+    changed, so column 1 continued DOWN from wherever column 0's own
+    content ended instead of restarting at the page's own top. Silent on
+    a document whose columns happen to run close to a full page (this
+    file's OWN prior regression test above: 55-line columns on a 55-line
+    page, so the "next sub-page" that provides column 1 also naturally
+    starts a fresh Y) -- real WS7 corpus documents whose columns are
+    SHORTER than a page (sawyer/REF/WINGDING.CHT: 5 columns of ~45 lines
+    each on a page with far more room) walked later columns hundreds of
+    points below the sheet (measured directly in the PDF's own `Td`
+    operators before this fix, and via tools/fidelity_gate.py's own
+    PG1_MED_DY metric: 1231.8pt median residual on WINGDING.CHT, -0.2pt
+    after). Reuses this file's own 130-line/.co2/55-line-page fixture
+    above (column 1 begins at physical-page-1 line index 55) rather than
+    inventing a second one."""
+    import re
+    from ctrlkd.pdf import emit_pdf
+    doc = core.parse_ws(b'.co2, 0.3"\r\n' + (b'Body line here now.\r\n' * 130) +
+                        b'.co1\r\nBack to one column now, past the columns.\r\n')
+    pdf = emit_pdf(doc, mode='printed')
+    # Filtered to this fixture's own repeated body text: the content stream
+    # also carries an auto page-number stamp ahead of the body -- a real
+    # Td/Tj pair, just not one of the 110 this test is about.
+    pairs = [(float(x), float(y)) for x, y, text in
+             re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', pdf)
+             if text.startswith(b'Body line')]
+    assert len(pairs) == 130                        # 110 on page 1 + 20 on page 2
+    page1_pairs = pairs[:110]
+    col0_ys = [y for _, y in page1_pairs[:55]]
+    col1_ys = [y for _, y in page1_pairs[55:110]]
+    assert col0_ys[0] == col1_ys[0]                 # SAME top -- the fix
+    assert col0_ys == col1_ys                       # both columns identically 55 lines tall
+    # within each column, Y still strictly decreases line to line (the
+    # ordinary case this fix must not disturb).
+    assert all(a > b for a, b in zip(col0_ys, col0_ys[1:]))
+
+
 def test_colour_and_font_changes_are_recorded():
     """C2/C3. Neither was ever at risk of losing TEXT, but both were invisible: a
     document that coloured a passage or set 9pt type rendered identically to one
