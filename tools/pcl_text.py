@@ -76,6 +76,43 @@ A trailing empty page (produced by the FF that ejects the final sheet
 right before the closing ESC E / UEL) is dropped so page counts reflect
 actual printed pages, not the eject-to-cassette artifact.
 
+PAGE SIZE / PAPER SOURCE ALSO EJECT (planning #227 residual, 2026-09-09):
+0x0C was never the only real page-eject trigger. Per the HP PCL5
+reference, `ESC & l # A` (Page Size) and `ESC & l # H` (Paper Source)
+ALSO eject the current physical page unconditionally when received --
+the printer can only format one page size/source per sheet. This decoder
+did not implement that until now, which mis-measured
+`sawyer/PRINTERS/fontcrib.ws`'s real WS7 page count as 1 instead of 2:
+its `.co5` region is restated mid-document (a second font-crib chart,
+"Normal Fonts", immediately follows the first, "WingDings"), and the
+`.pa` at that boundary is silently absorbed by WordStar's own driver
+while the columns state is still active (the SAME real behavior already
+established for WINGDING.CHT's own per-column `.pa` markers) -- so no
+literal 0x0C fires there. WordStar's driver still re-emits its per-page
+setup preamble (`ESC&l2a1h0E`, byte-identical to the one at true
+document start) at that internal page boundary, and THAT is what a real
+LaserJet treats as the eject signal in this document. This repo's own
+engine AND the Swift port already rendered this document as 2 pages --
+they were right; only this ground-truth decoder was wrong.
+
+Orientation (`ESC & l # O`) is deliberately EXCLUDED from this trigger:
+WordStar's driver re-issues an orientation reset at the top of every
+INTERNAL page regardless of whether a real eject already happened
+moments earlier via a literal 0x0C -- including it here spuriously
+inflated `sawyer/ARTICLES/FORMFEED.WS` from 5 to 6 pages, a document
+that deliberately suppresses form feeds with `.xl 00` (a KNOWN,
+already-excluded divergence -- ws7-prints/v4/README.md's own
+"formfeed-off" note, planning #15 -- real WS7 overprints multiple
+logical pages onto one physical sheet there, on purpose).
+
+Guarded on there being real content already on the current page
+(`cur_runs`): the SAME page-size/paper-source preamble is always present
+at the true start of every capture, before any text is drawn, and at
+the very start there is nothing to eject. Verified against the full
+corpus (291 v4 + 39 v1/v3/legacy captures, 2026-09-09): this change
+moves exactly ONE document's page count -- `sawyer/PRINTERS/fontcrib.ws`,
+1 -> 2 -- every other capture's page count is byte-for-byte unchanged.
+
 WRAPAROUND (planning #234, 2026-09-08): WS7's own LaserJet driver's
 internal position accumulator overflows past 2**15 (32768) decipoints
 and wraps back to a small value WHILE STILL ON THE SAME LOGICAL PAGE (no
@@ -161,7 +198,7 @@ def parse_pcl(data: bytes):
         return candidate
 
     def handle_field(param, group, value_str, field_char):
-        nonlocal cursor_x, cursor_y
+        nonlocal cursor_x, cursor_y, x_wrap, y_wrap
         if param == "&" and group == "a":
             v = to_num(value_str)
             if v is not None:
@@ -169,6 +206,16 @@ def parse_pcl(data: bytes):
                     cursor_x = apply_axis(cursor_x, v, "x")
                 elif field_char == "V":
                     cursor_y = apply_axis(cursor_y, v, "y")
+        elif param == "&" and group == "l" and field_char.upper() in ("A", "H"):
+            # Page Size (#A) / Paper Source (#H) -- see module docstring's
+            # "PAGE SIZE / PAPER SOURCE ALSO EJECT" section. `#O`
+            # (orientation) is deliberately not included here.
+            if cur_runs:
+                flush_page()
+                cursor_x = None
+                cursor_y = None
+                x_wrap = 0
+                y_wrap = 0
         # All other groups/fields (font selection, page setup, underline,
         # symbol set, PJL UEL, etc.) are intentionally not interpreted --
         # they were still correctly consumed by the generic grammar above.

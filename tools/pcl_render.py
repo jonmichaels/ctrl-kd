@@ -837,6 +837,7 @@ def parse_pcl_extended(data: bytes):
                 underline = True
             return pos
         if param == "&" and group == "l":
+            nonlocal x_wrap, y_wrap
             for val, fc in toks:
                 true_letter = fc.upper()
                 v = to_num(val)
@@ -846,8 +847,28 @@ def parse_pcl_extended(data: bytes):
                     else:
                         meta["orientation_portrait_confirmed"] = False
                         meta.setdefault("orientation_value_seen", v)
-                elif true_letter in ("A",):
+                elif true_letter in ("A", "H"):
                     meta["page_size_commands_seen"] = True
+                    # Page Size (#A) / Paper Source (#H) eject the current
+                    # physical page (HP PCL5 reference; see pcl_text.py's
+                    # module docstring, "PAGE SIZE / PAPER SOURCE ALSO
+                    # EJECT", for the full evidence -- this mirrors that
+                    # fix). Orientation (#O, above) is deliberately NOT
+                    # a trigger: it is re-issued at the top of every
+                    # internal page regardless of whether a real eject
+                    # already happened, and treating it as one spuriously
+                    # inflated sawyer/ARTICLES/FORMFEED.WS's page count (a
+                    # `.xl 00` formfeed-off document, already excluded --
+                    # planning #15). Guarded on real content already
+                    # present on the current page so the SAME preamble at
+                    # the true start of every capture never fabricates a
+                    # blank leading page.
+                    if cur_chunks:
+                        flush_page()
+                        cursor_x = None
+                        cursor_y = None
+                        x_wrap = 0
+                        y_wrap = 0
             unhandled[f"ESC&l group fields={tuple(t[1] for t in toks)}"] += 1
             return pos
         # anything else in a lowercase-group escape: log as unhandled

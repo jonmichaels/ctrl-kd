@@ -13,8 +13,11 @@ report ASCIITAB.WS's real capture as ONE page (matching ctrl-kd's own
 rendering exactly -- the fidelity gate goes fully clean), and three more
 Transparent-Print-bearing documents' ground-truth page counts corrected
 (sawyer/PRINTER.PS and its duplicate FONTCRIB.PS: 7 -> 3; sawyer/PRINTERS/
-fontcrib.ws: 4 -> 1). This was always a capture-decoder bug, never a
-WordStar-engine one -- ASCIITAB.WS's real page count was always 1."""
+fontcrib.ws: 4 -> 1 THIS pass -- superseded the next day: this decoder
+was still missing a different real page-eject trigger, corrected in
+tests/test_pcl_page_size_eject.py to 1 -> 2, its real, final count).
+This was always a capture-decoder bug, never a WordStar-engine one --
+ASCIITAB.WS's real page count was always 1."""
 import sys
 import os
 
