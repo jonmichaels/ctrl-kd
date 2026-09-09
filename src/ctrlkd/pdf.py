@@ -2882,6 +2882,13 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                             refs.append((label, note))
                         continue
                 spans.append((s.text, styles))
+            # Planning #251 (2026-09-09): same model-build-time bare-tab
+            # expansion as `_doc_to_pagelines`'s own plain path -- see its
+            # identical comment for why. This function is Printed-only by
+            # construction (`_paginate_printed_notes`'s only caller), so no
+            # `if printed:` guard is needed here the way the plain path
+            # needs one.
+            spans = _expand_bare_tabs_for_printed_layout(spans)
             # Same style-over-default precedence as the plain path
             # (_doc_to_pagelines) -- see _style_lead_pt. Computed BEFORE the
             # pix check (round 26, fidelity_gate.py Finding A) since the
@@ -4192,6 +4199,25 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             spans = [(t, _effective_span_styles(s, b, heading_bold=True))
                      for s, t in zip(kept, texts)]
             if printed:
+                # Planning #251 (2026-09-09): bare-tab expansion moves from
+                # RENDER time (`_line_ops_printed` used to call
+                # `_expand_bare_tabs_for_printed_layout` on a transient copy
+                # just before drawing) to MODEL-BUILD time, here -- the
+                # model's own segments now carry the expanded spaces
+                # directly, so `emit_layout`'s 'printed' pagelines (which
+                # read this PageLine's segments verbatim, never through the
+                # PDF writer) stop handing a raw, unexpanded 0x09 byte to
+                # any consumer (planning #251, item 9: the app's own
+                # docToPagelines inherited the same raw byte and mis-placed
+                # RNFOREST/RECYCLE/WETLAND by a full modulus-8 stop). Same
+                # column-counting semantics as before (one call = one
+                # physical printed line, col/space_run reset fresh) --
+                # `_expand_bare_tabs_for_printed_layout`'s own docstring for
+                # the rule itself, unchanged. Guarded inside `if printed:`
+                # (never in the `else:` wrap-for-Modern branch below) so
+                # Modern still sees the bare, un-expanded byte exactly as
+                # every other emitter does -- unaffected.
+                spans = _expand_bare_tabs_for_printed_layout(spans)
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
                 own_lead = _lead_pt(line.lead_48)
@@ -5876,13 +5902,26 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # double-count this fixes. A line with NO typed leading whitespace of
     # its own (indent never fires) is unaffected -- `fi` remains its only
     # indent source, unchanged.
-    # Planning #244 (the round-trip gauntlet fix): expand any bare 0x09 tab
-    # byte HERE, at render time, not in `_decode_spans` -- see
-    # `_expand_bare_tabs_for_printed_layout`'s own docstring. First
-    # transform on `segs`, ahead of even `_lj_substitute`, so the running
-    # column count matches `_decode_spans`'s own former semantics exactly:
-    # from the physical line's first character, before any drawing-time
-    # substitution.
+    # Planning #244 (the round-trip gauntlet fix) moved this expansion out
+    # of `_decode_spans` (parse time) into render time, here. Planning #251
+    # (2026-09-09) moved it AGAIN, one step earlier still: body text now
+    # arrives already expanded -- `_doc_to_pagelines`'s plain path and its
+    # notes-aware sibling `_body_stream_printed` both call
+    # `_expand_bare_tabs_for_printed_layout` themselves when they build each
+    # PageLine's segments, so the MODEL carries the expansion (consumers
+    # other than this writer -- `emit_layout`'s 'printed' pagelines chief
+    # among them -- stopped seeing a raw 0x09 byte). The call below is now a
+    # no-op for that text (no '\t' left to find, `_expand_bare_tabs_for_
+    # printed_layout`'s own fast path returns `segs` untouched) and is kept
+    # ONLY as the still-active path for footnote/endnote/annotation AREA
+    # text (`_render_area`/`_note_wrap`'s own word-wrapped lines) -- those
+    # do not yet build their segments through either model site above, so a
+    # bare tab inside note text (untested in the current corpus; no
+    # document exercises it) still depends on this call. Not migrated this
+    # round: note-area text is WRAPPED, not verbatim-physical like body
+    # text, so "one call = one physical line" column-counting would need
+    # its own rule first. Named here, not silently left unmentioned,
+    # planning #251 audit item (d).
     segs = _expand_bare_tabs_for_printed_layout(segs)
     if colour_map:
         # colour_map is non-empty exactly when the document declares driver
