@@ -195,6 +195,64 @@ def test_oj_off_default_text_mode_keeps_the_bare_tab_literal():
     assert '\t' in text_out, repr(text_out)
 
 
+def test_bare_tab_preceded_by_a_single_space_lands_one_column_further():
+    """Planning #237 remainder (probed 2026-09-09): a literal space
+    immediately before the tab shifts the modulus-8 stop by the length
+    of that trailing space run, confirmed against real WS7 print output
+    (8 probe docs, `research/2026-09-09_space-tab-lattice-shift.md`).
+    7 characters, the last one a space ("ABCDEF ") -- WITHOUT the space
+    quirk this would land on column 8, same as the 7-non-space-char case
+    above; WITH it, the driver computes the stop from column 6 (8) and
+    adds the 1-column space run back on top, landing on 9."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'ABCDEF \tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == 'ABCDEF ' + ' ' * 2 + 'Word.'
+
+
+def test_bare_tab_preceded_by_two_spaces_adds_the_whole_run_back():
+    """5 characters + 2 trailing spaces (column 7): the stop is computed
+    from column 5 (-> 8) and the FULL 2-space run is added back, landing
+    on column 10 -- not 9, ruling out a flat "+1" in favour of "+space
+    run length"."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'ABCDE  \tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == 'ABCDE  ' + ' ' * 3 + 'Word.'
+
+
+def test_bare_tab_preceded_by_space_exactly_on_a_stop_still_shifts():
+    """The shape the corpus had never exercised before this probe: 7
+    characters + 1 space puts the cursor AT column 8, already on a
+    modulus-8 stop. The old same-column rule's on-stop-advances-a-full-8
+    answer would land column 16; real WS7 instead computes the stop from
+    column 7 (the space stripped back off) -> 8, then adds the 1-column
+    space run back -> 9. If this regresses to 16, the fix has been
+    narrowed to only the below-a-stop case."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'ABCDEFG \tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == 'ABCDEFG ' + ' ' * 1 + 'Word.'
+
+
+def test_bare_tab_preceded_by_a_soft_space_shifts_the_same_as_a_literal_one():
+    """A WS5+ soft space (0xA0) decodes to plain ' ' (core.py's `0xA0`
+    branch) before this function ever sees the text, so it is
+    indistinguishable from an author-typed space here -- and real WS7
+    printed output treats it identically: the probe (`P6`) landed on the
+    same column as the literal-space case at the same starting column."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b'ABCDEF\xa0\tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == 'ABCDEF ' + ' ' * 2 + 'Word.'
+
+
+def test_win7_etc_subject_line_shape_lands_on_the_ws7_verified_column():
+    """The actual WIN7.ETC residual planning #237 left open: ` Subject: `
+    (10 characters, the last one a space) followed by a bare tab. Real
+    WS7's capture places the word after the tab at column 17 (WS7 x =
+    187.2pt over a 57.6pt/8-column default `.po` margin, i.e. 18 Courier
+    columns from the page edge, 17 from the tab's own landing before the
+    literal space WIN7.ETC's own source carries between the tab and the
+    word) -- this fix's `base = 10 - 1 = 9` -> modulus stop 16 -> `+1`
+    space run -> 17, matching exactly; the pre-fix same-column rule gave
+    16, one short, which is what planning #237 reported."""
+    pdf_bytes = _printed_pdf(b'.po 0"\r\n.lm 0\r\n' + b' Subject: \tWord.' + HARD)
+    assert _drawn_line(pdf_bytes, 'Word.') == ' Subject: ' + ' ' * 7 + 'Word.'
+
+
 def test_a_styled_mixed_line_with_a_bare_tab_is_still_drawn_correctly():
     """A line resolving to more than one styled span still reaches
     `_expand_bare_tabs_for_printed_layout` (it runs on the RAW `segs`,

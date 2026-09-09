@@ -5704,26 +5704,61 @@ def _expand_bare_tabs_for_printed_layout(segs):
     line, since Printed mode renders physical lines verbatim, never
     rewrapped). `segs` entries with no tab byte are returned unchanged --
     most printed lines never carry one, so this is a no-op scan for them,
-    not a copy."""
+    not a copy.
+
+    Planning #237 remainder (probed 2026-09-09, `research/2026-09-09_
+    space-tab-lattice-shift.md`): a literal space (or a WS5+ soft space,
+    0xA0 -- already collapsed to plain ' ' by decode, see `core.py`'s
+    `0xA0` branch) immediately preceding a bare 0x09 does NOT just occupy
+    its own column like any other character before the tab. WS7's
+    LaserJet driver computes the tab's modulus-8 stop from the column
+    BEFORE that trailing run of space(s) -- as if it had not yet flushed
+    them to its own column tracker -- then adds the run's length back on
+    top of that stop. Eight probe documents (four columns crossed with
+    space/no-space/on-stop, plus two documents reproducing WIN7.ETC's
+    exact ` Subject: <TAB>`/` To: <TAB>` shape) printed through real WS7
+    confirm this exactly, including a shape the corpus never previously
+    exercised (a trailing space run that itself lands EXACTLY on a
+    modulus-8 stop): probe `P4`, 7 characters then one space (column 8,
+    already on a stop) lands the next word at column 9, not the old
+    same-column rule's on-stop-advances-a-full-8 answer of 16. `space_run`
+    below tracks the length of the CONSECUTIVE run of literal space
+    characters immediately preceding the current position, across `segs`
+    entries; on a bare tab, the modulus lands on `col - space_run`,
+    falling back to the plain `col` when there is no preceding space run
+    (`space_run == 0`) -- the ORIGINAL rule, unchanged for every tab not
+    preceded by a space (confirmed clean by probes `P1`/`P3` and by the
+    already-fixed `wordstar-file-format.ws` case, neither of which has a
+    space before its tab)."""
     if not any('\t' in entry[0] for entry in segs):
         return segs
     col = 0
+    space_run = 0
     out = []
     for entry in segs:
         text = entry[0]
         if '\t' not in text:
             col += len(text)
+            trailing = len(text) - len(text.rstrip(' '))
+            space_run = space_run + trailing if trailing == len(text) else trailing
             out.append(entry)
             continue
         pieces = []
         for ch in text:
             if ch == '\t':
-                needed = _TAB_MODULUS - (col % _TAB_MODULUS)
+                base = col - space_run
+                needed = _TAB_MODULUS - (base % _TAB_MODULUS)
                 pieces.append(' ' * needed)
-                col += needed
+                col = base + needed + space_run
+                space_run = 0
+            elif ch == ' ':
+                pieces.append(ch)
+                col += 1
+                space_run += 1
             else:
                 pieces.append(ch)
                 col += 1
+                space_run = 0
         out.append((''.join(pieces),) + entry[1:])
     return out
 
