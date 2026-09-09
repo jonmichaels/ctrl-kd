@@ -28941,12 +28941,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -525.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -165.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -28961,12 +28961,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -525.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -165.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -28981,12 +28981,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -525.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -165.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -29001,12 +29001,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -525.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual -165.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -29017,7 +29017,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29033,7 +29033,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29049,7 +29049,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29065,7 +29065,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29081,7 +29081,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29097,7 +29097,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29113,7 +29113,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29129,7 +29129,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29177,7 +29177,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29193,7 +29193,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29273,7 +29273,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29289,7 +29289,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29385,7 +29385,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            36.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29401,7 +29401,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            100.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29497,7 +29497,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "fixed",
@@ -29513,7 +29513,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            496.8,
             48.0
           ],
           "font_class": "fixed",
@@ -29661,12 +29661,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "exact",
           "reason": "line-start-shift",
-          "detail": "line-start residual -525.60pt (tolerance 2.5pt)"
+          "detail": "line-start residual -165.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -29681,12 +29681,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "exact",
           "reason": "line-start-shift",
-          "detail": "line-start residual -525.60pt (tolerance 2.5pt)"
+          "detail": "line-start residual -165.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -29701,12 +29701,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "exact",
           "reason": "line-start-shift",
-          "detail": "line-start residual -525.60pt (tolerance 2.5pt)"
+          "detail": "line-start residual -165.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -29721,12 +29721,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            432.0,
             48.0
           ],
           "font_class": "exact",
           "reason": "line-start-shift",
-          "detail": "line-start residual -525.60pt (tolerance 2.5pt)"
+          "detail": "line-start residual -165.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
@@ -32660,7 +32660,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            28.8,
             48.0
           ],
           "font_class": "fixed",
@@ -32676,7 +32676,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            93.6,
             48.0
           ],
           "font_class": "fixed",
@@ -32692,7 +32692,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            28.8,
             48.0
           ],
           "font_class": "fixed",
@@ -32708,7 +32708,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            93.6,
             48.0
           ],
           "font_class": "fixed",
@@ -32724,7 +32724,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            28.8,
             48.0
           ],
           "font_class": "fixed",
@@ -32740,7 +32740,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            93.6,
             48.0
           ],
           "font_class": "fixed",
@@ -32756,7 +32756,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            72.0,
+            28.8,
             48.0
           ],
           "font_class": "fixed",
@@ -32772,7 +32772,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            136.8,
+            93.6,
             48.0
           ],
           "font_class": "fixed",
@@ -32792,12 +32792,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            424.8,
             48.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -556.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual -203.50pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32812,12 +32812,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            424.8,
             48.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -556.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual -203.50pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32832,12 +32832,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            424.8,
             48.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -556.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual -203.50pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32852,12 +32852,12 @@
             48.0
           ],
           "pdf_pos": [
-            72.0,
+            424.8,
             48.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -556.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual -203.50pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32872,12 +32872,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            489.6,
             48.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -541.60pt at 50.1pt into the line (tolerance 4.50pt)"
+          "detail": "residual -188.80pt at 50.1pt into the line (tolerance 4.50pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32892,12 +32892,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            489.6,
             48.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -541.60pt at 50.1pt into the line (tolerance 4.50pt)"
+          "detail": "residual -188.80pt at 50.1pt into the line (tolerance 4.50pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32912,12 +32912,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            489.6,
             48.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -541.60pt at 50.1pt into the line (tolerance 4.50pt)"
+          "detail": "residual -188.80pt at 50.1pt into the line (tolerance 4.50pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
@@ -32932,12 +32932,12 @@
             48.0
           ],
           "pdf_pos": [
-            136.8,
+            489.6,
             48.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -541.60pt at 50.1pt into the line (tolerance 4.50pt)"
+          "detail": "residual -188.80pt at 50.1pt into the line (tolerance 4.50pt)"
         },
         {
           "doc": "sawyer__REF__BOOKLET_EXT_HOW",
