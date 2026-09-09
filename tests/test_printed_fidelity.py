@@ -727,6 +727,11 @@ def test_sb_suppresses_leading_blank_lines_at_page_top():
 
 
 def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
+    # planning #247: labels are a SEQUENTIAL COUNT of numbered lines (1,
+    # 2, 3...), not the raw physical line index (2, 4, 6...) -- measured
+    # against a real WS7 capture (ws7-prints/v4/sawyer__PRINT_EXT_TST.pcl,
+    # pdf.py's own `LINE_NO_RIGHT_PT` comment). Six body lines, interval 2:
+    # lines 1, 3, 5 (0-based 0, 2, 4) are numbered, labelled 1, 2, 3.
     body = (b'.l# 2' + HARD
             + HARD.join(b'Line %d text.' % i for i in range(1, 7)) + HARD)
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
@@ -739,11 +744,63 @@ def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
     # line-number entry.
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
-    assert nums == [b'2', b'4', b'6']
+    assert nums == [b'1', b'2', b'3']
 
     r = emit.emit_rtf(doc, mode='printed')
-    assert r'2\tab' in r and r'4\tab' in r and r'6\tab' in r
-    assert r'1\tab' not in r and r'3\tab' not in r and r'5\tab' not in r
+    assert r'1\tab' in r and r'2\tab' in r and r'3\tab' in r
+    assert r'4\tab' not in r and r'5\tab' not in r and r'6\tab' not in r
+
+
+def test_l_hash_gutter_interval_1_numbers_every_line():
+    # planning #247: interval 1 numbers EVERY physical line, blank ones
+    # included -- the previous "blank lines are never numbered" guard was
+    # an unverified assumption; the real capture numbers a blank physical
+    # line exactly like a text-bearing one.
+    body = (b'.l# 1' + HARD
+            + b'One.' + HARD + HARD + b'Two.' + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    assert doc.meta['line_numbering'] == 1
+
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
+    assert nums == [b'1', b'2', b'3']
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r'1\tab' in r and r'2\tab' in r and r'3\tab' in r
+
+
+def test_l_hash_checkpoint_is_positional_not_last_command_wins():
+    # planning #247's actual bug: `doc.meta['line_numbering']` is a single
+    # flat value, so a document that turns `.l#` ON and then OFF again
+    # (exactly the sawyer/PRINT.TST, sawyer/DEFAULT/PRINT.TST shape) read
+    # the LAST command -- always off -- for the WHOLE document, and
+    # rendered no numbers anywhere, even in the span where it was on.
+    # A blank line separates the "on" and "off" paragraphs -- the parser
+    # merges hard-wrapped lines with no blank between them into ONE
+    # block (planning #247 checkpointing resolves per BLOCK, not per
+    # physical line), so a real block boundary at the toggle point is
+    # what makes this fixture actually exercise two different blocks --
+    # matching sawyer/PRINT.TST's own shape, where `.l#2`/`.l# 0` each
+    # sit at a genuine paragraph boundary, not mid-paragraph.
+    body = (b'.l# 2' + HARD
+            + HARD.join(b'On %d.' % i for i in range(1, 5)) + HARD + HARD
+            + b'.l# 0' + HARD
+            + HARD.join(b'Off %d.' % i for i in range(1, 5)) + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    # The flat, last-command-wins reading is off -- confirms the bug is
+    # real, not merely theoretical, on this exact fixture shape.
+    assert doc.meta['line_numbering'] is None
+
+    # The "on" block is 5 physical lines (4 sentences + the blank
+    # separator, itself numbered -- blank lines count): numbered at
+    # 0-based 0, 2, 4, labelled 1, 2, 3. The "off" block gets nothing.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
+    assert nums == [b'1', b'2', b'3']
+
+    r = emit.emit_rtf(doc, mode='printed')
+    assert r'1\tab' in r and r'2\tab' in r and r'3\tab' in r
+    assert r'4\tab' not in r
 
 
 def test_line_numbers_flag_off_suppresses_the_gutter():

@@ -17,7 +17,8 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    DEFAULT_LH_48, GRAPHIC_CHARS, split_graphic_spans,
                    compile_toc, compile_index, detect_screenplay_blocks,
                    sentence_spacing_texts, sentence_spacing_spans,
-                   resolve_sentence_spacing)
+                   resolve_sentence_spacing,
+                   line_numbering_checkpoints, line_numbering_at)
 from .fontmap import font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
@@ -2830,22 +2831,52 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                                  pix_map, pictures, ss_on)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
-    # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own gutter
-    # for Printed RTF -- flag-gated (default ON, same shape as `headers`;
-    # fires only when the document itself declared `.l#`). RTF has no page
-    # object of its own to reset a per-page count against (unlike PDF's
-    # separate Page streams), so numbering runs from the DOCUMENT'S start,
-    # a deliberate, simpler choice for this continuous-text format -- a
-    # true per-page reset would need RTF's own pagination model, which
-    # this format doesn't have and isn't being built here.
-    line_no_interval = (doc.meta.get('line_numbering')
-                        if printed and line_numbers else None)
-    line_no = [0]
+    # round 17b (RULINGS-LEDGER row 5/6, register C11), corrected by
+    # planning #247: `.l#`'s own gutter for Printed RTF -- flag-gated
+    # (default ON, same shape as `headers`; fires only when the document
+    # itself declared `.l#`). RTF has no page object of its own to reset
+    # a per-page count against (unlike PDF's separate Page streams), so
+    # numbering runs from the DOCUMENT'S start, a deliberate, simpler
+    # choice for this continuous-text format -- a true per-page reset
+    # would need RTF's own pagination model, which this format doesn't
+    # have and isn't being built here.
+    #
+    # `line_no_checkpoints` (`core.line_numbering_checkpoints`) replaces a
+    # single flat `doc.meta.get('line_numbering')` read, which is the
+    # LAST `.l#` in the whole document -- both real oracles (sawyer/
+    # PRINT.TST, sawyer/DEFAULT/PRINT.TST) turn numbering back OFF right
+    # after their demonstration section, so the flat reading was always
+    # off, everywhere, planning #247. `numbered()` now resolves the
+    # interval IN FORCE at each line's own block (`bi`), same mechanism
+    # PDF's per-page checkpoint uses, just walked per-block instead of
+    # per-page.
+    #
+    # `line_no_state` (mirrors pdf.py's `_page_stream`'s own
+    # `line_no_state` exactly): [0] is the interval most recently
+    # resolved, [1] is a 0-based count of physical lines since it last
+    # changed value. Labels are a SEQUENTIAL COUNT of numbered lines (1,
+    # 2, 3, ...), counted from whenever `.l#` last turned on (or changed
+    # interval), NOT from the document's own start -- see pdf.py's
+    # `LINE_NO_RIGHT_PT` comment for the real-capture evidence (labels
+    # run 1, 2, 3... starting the instant `.l#2` activates, never
+    # continuing some large running total). Blank physical lines are
+    # numbered exactly like text-bearing ones (measured; the previous
+    # `has_text` guard here was unverified).
+    line_no_checkpoints = line_numbering_checkpoints(doc) if printed else None
+    line_numbers_enabled = printed and line_numbers
+    line_no_state = [None, 0]
 
-    def numbered(rendered_line, has_text):
-        line_no[0] += 1
-        if line_no_interval and has_text and line_no[0] % line_no_interval == 0:
-            return ('{' + _rtf_escape(str(line_no[0]).rjust(4)) + r'\tab }'
+    def numbered(rendered_line, bi):
+        interval = (line_numbering_at(line_no_checkpoints, bi)
+                   if line_numbers_enabled and line_no_checkpoints else None)
+        if interval != line_no_state[0]:
+            line_no_state[0] = interval
+            line_no_state[1] = 0
+        k = line_no_state[1]
+        line_no_state[1] += 1
+        if interval and k % interval == 0:
+            label = k // interval + 1
+            return ('{' + _rtf_escape(str(label).rjust(4)) + r'\tab }'
                     + rendered_line)
         return rendered_line
 
@@ -2877,8 +2908,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 from .layout import rm_indent_cols
                 ri = rm_indent_cols(b.right_margin) * _RTF_TWIPS_PER_COL
             # physical lines: \line at every printed break, soft or hard
-            lines = [numbered(rtf_seg(line.spans, b),
-                             any(sp.text.strip() for sp in line.spans))
+            lines = [numbered(rtf_seg(line.spans, b), bi)
                     for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]

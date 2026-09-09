@@ -28,6 +28,8 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     detect_screenplay_blocks as _detect_screenplay_blocks, \
     sentence_spacing_texts as _sentence_spacing_texts, \
     resolve_sentence_spacing as _resolve_sentence_spacing, \
+    line_numbering_checkpoints as _line_numbering_checkpoints, \
+    line_numbering_at as _line_numbering_at, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
@@ -44,6 +46,21 @@ TOP_MODERN, TOP_PRINTED = 72, 36     # printed: default when a stream has no geo
                                      # meta (its margin blanks travel in-band); WS docs
                                      # get an .mt-derived top from _printed_top()
 LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
+# `.l#` line-numbering gutter (planning #247): right edge of the printed
+# label, ABSOLUTE from the true page edge (x=0) -- WordStar column 4, 0.4in
+# -- never relative to the document's own `.po`/left margin. Measured
+# against real WS7 (ws7-prints/v4/sawyer__PRINT_EXT_TST.pcl, dosbox-x): the
+# document's `.po .8"` (column 8, 57.6pt) puts body text at x=576 decipoints
+# while a single-digit label sits at x=216..288 decipoints and a two-digit
+# one at x=144..288 -- the SAME right edge (288 decipoints = 28.8pt) either
+# way, confirming right-alignment to a fixed column, not a `.po`-relative
+# one. WSFORMAT.TXT's own internal-format section (the 0Ch "Page offset"
+# printer-driver record) calls this field an "Absolute HMI spot for line
+# number", which is the same reading. One oracle value only (both real
+# `.l#` occurrences in the Sawyer archive share the same `.po .8"`) -- a
+# document with a narrower `.po` than this could in principle overlap its
+# own body text; not observed, not guarded against.
+LINE_NO_RIGHT_PT = 28.8
 # Printed capacity is per-document: _printed_cap() -- WordStar's own model
 # (.pl - .mt - .mb at the .lh line height; 55 for WordStar's defaults). The
 # old hardcoded (PAGE_H - 2*36)//LEAD = 60 was a naive Letter computation
@@ -6129,7 +6146,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
                  colour_map=None, roll_pt=None, ul_continuous=False,
-                 line_no_interval=None, pcl_programs=()):
+                 line_no_checkpoints=None, pcl_programs=()):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -6187,6 +6204,18 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     # LEAVING the colour1-7 family always needs one.
     col_state = [('g', 0.0), False]
     prev_overprint = False
+    # planning #247: `.l#`'s own running state -- `line_no_state[0]` is
+    # the interval MOST RECENTLY resolved (per line, below), and
+    # `line_no_state[1]` is a 0-based count of physical lines since it
+    # last changed value (including a change FROM or TO None/off). Local
+    # to this call, so it starts fresh at every page's own first line for
+    # free (`_page_stream` is invoked once per page) -- matching the one
+    # real oracle (sawyer/PRINT.TST: `.l#2` activates on a page's own
+    # first body line, `.l# 0` deactivates on its last) -- and ALSO
+    # restarts correctly if a checkpoint change ever lands mid-page
+    # (untested: no oracle exercises that), rather than counting from
+    # the page's own top regardless of where the interval itself began.
+    line_no_state = [None, 0]
     for n, line in enumerate(pagelines):
         if n and not prev_overprint:
             y -= getattr(line, 'lead', None) or lead
@@ -6261,21 +6290,61 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
             ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
                       % (w_pt, h_pt, left_here, img_y, pix_idx))
             continue
-        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
-        # gutter -- every Nth physical line on the page (1-based, N =
-        # doc.meta['line_numbering']'s interval, WordStar's own numbering
-        # convention -- `.l# 5` numbers lines 5, 10, 15...), right-aligned
-        # a few points left of the text margin. Blank lines are never
-        # numbered (nothing to count on paper). Printed only; the gutter
-        # itself never shifts `left` -- it draws in the margin WordStar's
-        # own `.po`/`.lm` already reserved, same as a running head does.
-        if (line_no_interval and (n + 1) % line_no_interval == 0
-                and any(t.strip() for t, _ in _coalesce(line))):
-            label = str(n + 1)
-            gutter_font = res.ref('Courier')
-            gx = left_here - 4 - len(label) * size * 0.6
+        # round 17b (RULINGS-LEDGER row 5/6, register C11), corrected by
+        # planning #247 against a real WS7 capture (LINE_NO_RIGHT_PT's own
+        # comment): `.l#`'s own gutter. N = the interval in force on THIS
+        # LINE (resolved from `line_no_checkpoints` just below) -- planning
+        # #247's actual bug: a flat document-wide value read the LAST
+        # `.l#` in the file, which in both real oracles is the one that
+        # turns numbering back OFF, so nothing ever rendered anywhere.
+        #
+        # `line_no_checkpoints` is resolved PER LINE, by that line's own
+        # `.bi`, not once for the whole page: PRINT.TST's own `.l#2`/
+        # `.l# 0` pair both land on the SAME page (the "Line Numbers"
+        # demo section opens the page and turns numbering on; a few
+        # lines later, at the very end of the SAME page, `.l# 0` turns
+        # it back off) -- a single per-page value (mirroring how `.mt`/
+        # `.hm` are resolved once at page-open) cannot represent that; a
+        # true per-line lookup, exactly like `left_here`'s own `.po`
+        # override just above, can.
+        #
+        # `line_no_state[1]` (a 0-based count of physical lines, BLANK
+        # ones included -- measured: the real capture numbers blank
+        # physical lines exactly like text-bearing ones, so the previous
+        # "blank lines are never numbered" guard here was an unverified
+        # assumption, not evidence -- since the interval last CHANGED
+        # value, its own comment above) stands in for a plain page-
+        # relative `n`: a physical line is numbered when that count is a
+        # multiple of N, and its label is a SEQUENTIAL COUNT of numbered
+        # lines so far (1, 2, 3, ...), not the raw line index: measured
+        # against the real capture, `.l#2`'s labels run 1, 2, 3, 4... one
+        # per numbered line, never 2, 4, 6, 8 (which a raw page-relative
+        # index would have printed). Right-aligned to `LINE_NO_RIGHT_PT`,
+        # an ABSOLUTE page position (see its own comment) -- never
+        # relative to `left_here`, so it draws in the margin WordStar's
+        # own `.po` already reserved without shifting `left` itself, same
+        # as a running head does. Rendered in the document's own default
+        # body font (`_span_render` with no styles -- the SAME resolution
+        # an ordinary unstyled span gets), not a hardcoded face: the one
+        # real oracle happens to be Courier, which is also this engine's
+        # own fallback, so this is untested against a document whose
+        # default body font is something else.
+        line_bi = getattr(line, 'bi', None)
+        line_no_interval = (_line_numbering_at(line_no_checkpoints, line_bi)
+                            if line_no_checkpoints is not None and line_bi is not None
+                            else None)
+        if line_no_interval != line_no_state[0]:
+            line_no_state[0] = line_no_interval
+            line_no_state[1] = 0
+        line_no_k = line_no_state[1]
+        line_no_state[1] += 1
+        if line_no_interval and line_no_k % line_no_interval == 0:
+            label = str(line_no_k // line_no_interval + 1)
+            _, gutter_family, gutter_size, _ = _span_render('', (), fonts, size)
+            gutter_font = res.ref(gutter_family)
+            gx = LINE_NO_RIGHT_PT - len(label) * gutter_size * 0.6
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET'
-                      % (gutter_font.encode(), size, gx, y, label.encode()))
+                      % (gutter_font.encode(), gutter_size, gx, y, label.encode()))
         segs = []
         for text, styles in _coalesce(line):
             if not text:
@@ -6980,14 +7049,20 @@ def _emit_pdf_inner(doc, printed, options):
         # breaks at spaces (the parser only records the key when the
         # command is present, so absent-vs-off is distinguishable).
         ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
-        # round 17b (RULINGS-LEDGER row 5/6, register C11): `.l#`'s own
-        # interval, flag-gated -- default ON (same shape as `--headers`),
-        # but the FEATURE only ever fires when the document itself
-        # declared `.l#` (line_numbering is None otherwise): the flag's
-        # job is letting a caller SUPPRESS what the file asked for, not
+        # round 17b (RULINGS-LEDGER row 5/6, register C11), corrected by
+        # planning #247: `.l#`'s own interval, flag-gated -- default ON
+        # (same shape as `--headers`), but the FEATURE only ever fires
+        # when the document itself declared `.l#` (line_numbering_checkpoints
+        # stays at its `(0, None)` seed otherwise): the flag's job is
+        # letting a caller SUPPRESS what the file asked for, not
         # inventing numbering a silent file never requested.
-        line_no_interval = (doc.meta.get('line_numbering')
-                            if options.get('line_numbers', True) else None)
+        # `line_no_checkpoints` carries the FULL positional answer
+        # (`core.line_numbering_checkpoints`) -- `_page_stream` resolves
+        # the interval in force PER LINE from it (a single per-page value
+        # cannot represent PRINT.TST's own `.l#2`/`.l# 0` pair, both of
+        # which land on the SAME page; see `_page_stream`'s own comment).
+        line_no_checkpoints = (_line_numbering_checkpoints(doc)
+                               if options.get('line_numbers', True) else None)
         page_h = _resolved_page_height(doc, printed)
         fonts = doc.fonts
         colour_map = _COLOUR_GRAY_LJ6DTP if (
@@ -7157,7 +7232,7 @@ def _emit_pdf_inner(doc, printed, options):
                 doc.meta['page'] = saved_pg
             streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
-                                        ul_continuous, line_no_interval,
+                                        ul_continuous, line_no_checkpoints,
                                         doc.pcl_programs))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
         # pages at the document's own end (Jon: "It should probably export

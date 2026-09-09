@@ -2915,6 +2915,70 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
             doc.meta['line_numbering'] = value if value > 0 else None
 
 
+_L_HASH_CKPT_RE = re.compile(r'^\.L#\s*([0-9.]*)', re.IGNORECASE)
+
+
+def line_numbering_checkpoints(doc):
+    """[(block_index, interval_or_None), ...] ascending -- the `.l#`
+    line-numbering interval IN FORCE from that block onward. Same
+    `dot_positions`-anchored shape pdf.py's `_pl_checkpoints`/
+    `_hm_fm_checkpoints` use (see either docstring for the mechanism) --
+    kept here in core.py, not pdf.py, because BOTH Printed renderers need
+    the positional answer: pdf.py's `_page_stream` resolves it PER LINE
+    (by that line's own block index -- a single per-page value cannot
+    represent a document whose `.l#` turns on and off again within one
+    page, exactly PRINT.TST's own shape) and emit.py's Printed-RTF
+    gutter resolves it PER BLOCK (RTF has no page object to reset
+    against, so its own numbering runs continuously from the document's
+    start; see emit.py's own note beside its `numbered()` closure).
+
+    Seeded at `(0, None)` ("off") -- unlike `_pl_checkpoints`'s WordStar-
+    hardcoded-default seed, there is no retroactive first-occurrence-wins
+    hazard to guard against here: line numbering's own real default IS
+    off, so a `.l#` whose only occurrence sits mid-document correctly
+    leaves every earlier block at None with no special-casing needed.
+
+    Planning #247 (found by the #245 job on PRINT.TST/PSPRINT.TST):
+    `doc.meta['line_numbering']` (set by `_parse_toc_ix_l_hash` above,
+    `.l#`'s own PARSE-time handler) is a single flat value, last-command-
+    wins for the WHOLE document -- both real oracles here (sawyer/
+    PRINT.TST, sawyer/DEFAULT/PRINT.TST) declare `.l#2` right before
+    their "Line Numbers" demonstration section and `.l# 0` right after
+    it, so the flat reading is always the OFF value and nothing ever
+    rendered anywhere, even on the one page that turned it on. This is
+    the `.mt`/`.mb`-shaped fix: a positional answer, not a single global
+    one. (sawyer/PSPRINT.TST's own `..l#2` is a DIFFERENT thing entirely
+    -- a leading `..` is WordStar's own `.IG`/comment shorthand
+    (DOTCMDNS.WS: ".IG or .."), so that occurrence never was a real dot
+    command; PSPRINT.TST's line numbering stays off throughout, correctly,
+    both before and after this fix.)"""
+    checkpoints = [(0, None)]
+    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+        m = _L_HASH_CKPT_RE.match(cmd)
+        if not m or not m.group(1):
+            continue
+        try:
+            value = int(float(m.group(1)))
+        except ValueError:
+            continue
+        interval = value if value > 0 else None
+        if interval != checkpoints[-1][1]:
+            checkpoints.append((bi, interval))
+    return checkpoints
+
+
+def line_numbering_at(checkpoints, bi):
+    """The `.l#` interval (or None) in force at block index `bi`, per
+    `checkpoints` (ascending, from `line_numbering_checkpoints`) -- the
+    LAST checkpoint at or before `bi`. Mirrors pdf.py's `_pl_at` exactly."""
+    interval = checkpoints[0][1]
+    for cp_bi, cp_interval in checkpoints:
+        if cp_bi > bi:
+            break
+        interval = cp_interval
+    return interval
+
+
 def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
                      tab_mark=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
