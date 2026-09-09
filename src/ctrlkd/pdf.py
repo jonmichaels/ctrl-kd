@@ -1535,7 +1535,14 @@ def _printed_left(doc, size):
     like `_printed_lead`'s document default. A line whose own `.po` differs
     (core.Line.po_cols, register b31 -- LJ6DTP.WS moves .po to 2.5" for its
     page-4 checkerboard) overrides this at render time in `_page_stream`,
-    the same `.lh`-stateful shape PageLine.lead already carries."""
+    the same `.lh`-stateful shape PageLine.lead already carries. It also
+    cannot carry a per-page `.poe`/`.poo` (planning #231) -- that's resolved
+    per-line by `PageLine.parity_left`/`left`, not here.
+
+    Twin: Swift's public `PrintedPageMetrics.left` (CtrlKD/PrintedGeometry.swift)
+    is this same document-default-only value, exposed to Soft Return.app -- its
+    doc comment carries the identical .poe/.poo caveat and points callers at
+    `PageLine.left` for anything page-specific."""
     page = doc.meta.get('page')
     if page is None:
         return float(MARGIN)
@@ -5120,7 +5127,12 @@ def _span_pitch(entry, pt):
     font), so the pitch here is that size's 0.6em. Written in POINTS rather
     than converted through HMI on purpose: it is arithmetically the same
     number and it is the same float this emitter has always produced, which is
-    what keeps a fontless PDF byte-identical."""
+    what keeps a fontless PDF byte-identical.
+
+    Twin: Swift's `spanPitch` (CtrlKD/PDFWriter.swift) is PUBLIC (2026-09-08) so
+    Soft Return.app's Native renderer can pin fixed-pitch advances to this same
+    number instead of deriving one of its own -- Python has no public/internal
+    split, so this docstring is that side's contract."""
     w = (entry or {}).get('width_1800')
     if w:
         return w / HMI_PER_POINT
