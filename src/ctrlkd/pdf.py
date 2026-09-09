@@ -3609,8 +3609,27 @@ def _apply_columns(doc, pages, size):
         # lists rather than `Page` instances (its footnote-area pages in
         # particular) -- pre-existing, not something this pass changes --
         # so a source page here is not guaranteed to carry these attributes.
-        merged.headers = getattr(pg, 'headers', {})
-        merged.footers = getattr(pg, 'footers', {})
+        # planning #245: the default here MUST be `None`, not `{}` --
+        # `_emit_pdf_inner`'s per-page loop (`getattr(pl, 'headers', None)`)
+        # treats `None` as "this page has no opinion, fall back to
+        # `doc.headers`" (`_running_ops`'s own `headers = doc.headers if
+        # headers is None else headers`) and treats a real (even empty)
+        # dict as an authoritative answer. A plain-list source page from
+        # `_paginate_printed_notes` was ALWAYS meant to fall back that way
+        # -- every non-columnar notes-path page already does, invisibly,
+        # because `getattr(pl, ...)` on a bare list hits ITS OWN default
+        # of `None` directly in `_emit_pdf_inner`. This merge function
+        # short-circuited that for any page a `.co` column group happened
+        # to land on: defaulting to `{}` here manufactures an explicit
+        # "no header" answer that skips `_running_ops`'s fallback,
+        # dropping a real running head from that one physical page.
+        # Measured on sawyer/DEFAULT/PRINT.TST (WS7 v4 capture): `.h1
+        # WordStar and Your Printer` (defined once, at the very top of the
+        # file, in force for the whole document) prints on all 4 real
+        # pages -- ctrl-kd was dropping it from page 2 alone, the one page
+        # `_apply_columns` merges from the document's `.co3` region.
+        merged.headers = getattr(pg, 'headers', None)
+        merged.footers = getattr(pg, 'footers', None)
         merged.mt_lines = getattr(pg, 'mt_lines', None)
         merged.mb_lines = getattr(pg, 'mb_lines', None)
         merged.pl_lines = getattr(pg, 'pl_lines', None)
