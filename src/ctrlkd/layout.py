@@ -695,7 +695,22 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     "this line starts a new column, reset the vertical cursor to the page
     top" — an ordinary `left` change (a mid-document `.po`/`.poe`/`.poo`
     override) is NOT that signal and must not reset the flow; only a `col`
-    change is. Old fields ('segments', 'soft', 'overprint', 'lead') are
+    change is.
+
+    version 3 (planning #251(b), 2026-09-09): each printed line MAY now
+    carry 'justify_word_x' — `[{'text': str, 'x': float, 'width': float},
+    ...]` — the per-word/per-gap Bresenham justification split
+    (`PageLine.justify_word_x`, set by `_attach_justify_word_x_printed`)
+    covering the WHOLE line left to right, in the SAME absolute points
+    `pdf.py`'s own writer draws from. Present only on a justified
+    (`.oj on`) line that resolves to exactly one fixed-pitch, untagged
+    span with real slack to distribute — every other justified line
+    (styled/mixed, proportional, a `pctl`/tab-marked span, or one with no
+    elastic gap or no slack) omits it, same "omitted, not null" and
+    "byte-identical to version 2 when unused" convention `left`/`col`
+    already use.
+
+    Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
     from . import pdf as _pdf       # lazy: pdf imports this module's flow
@@ -731,6 +746,11 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             pl_col = getattr(pl, 'col', None)
             if pl_col is not None:
                 line['col'] = pl_col
+            pl_justify_word_x = getattr(pl, 'justify_word_x', None)
+            if pl_justify_word_x is not None:
+                line['justify_word_x'] = [
+                    {'text': t, 'x': x, 'width': w}
+                    for t, x, w in pl_justify_word_x]
             lines.append(line)
         pg = {
             'lines': lines,
@@ -750,7 +770,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 2,
+        'version': 3,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],

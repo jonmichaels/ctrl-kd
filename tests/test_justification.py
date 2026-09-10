@@ -184,6 +184,65 @@ def test_styled_mixed_line_is_left_unjustified_documented_scope():
     assert x_bb == 2 * 7.2 + 7.2     # natural, not stretched to the 40-col margin
 
 
+def test_justify_word_x_lands_on_the_pageline_model():
+    """planning #251(b): the per-word/gap Bresenham split is no longer a
+    writer-only decision -- `_doc_to_pagelines` (and therefore `layout`
+    JSON) now carries it too, `PageLine.justify_word_x = [(piece, x_pt,
+    width_pt), ...]`, the exact values `_line_ops_printed` draws from.
+    Same fixture and arithmetic as
+    `test_justified_line_reaches_the_resolved_right_margin` above, checked
+    one level lower: on the model, not the content stream."""
+    doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+              b'AA BB CC' + SOFT + b'DD.' + HARD)
+    pieces = pdf._doc_to_pagelines(doc, True)[0][0].justify_word_x
+    assert pieces is not None
+    texts = [p[0] for p in pieces]
+    assert texts == ['AA', ' ', 'BB', ' ', 'CC']
+    base = (144.0 - 8 * 7.2) / 2
+    (t_aa, x_aa, w_aa), (t_g1, x_g1, w_g1), (t_bb, x_bb, w_bb), \
+        (t_g2, x_g2, w_g2), (t_cc, x_cc, w_cc) = pieces
+    assert x_aa == 0.0 and round(w_aa, 1) == 2 * 7.2
+    assert round(x_bb, 1) == round(2 * 7.2 + (7.2 + base), 1)
+    assert round(x_cc, 1) == round(x_bb + w_bb + (7.2 + base), 1)
+    assert round(x_cc + w_cc, 1) == 144.0    # lands exactly on the margin
+
+    # The last (unjustified) line of the SAME block carries no opinion --
+    # `.oj on` never stretches a paragraph's own trailing line (rule 1),
+    # so `_attach_justify_word_x_printed` never even attempts one: its own
+    # `justify_right_x` is already None (`_doc_to_pagelines`'s own gate).
+    dd_line = pdf._doc_to_pagelines(doc, True)[0][1]
+    assert dd_line.justify_right_x is None
+    assert dd_line.justify_word_x is None
+
+    # The same answer, one level up, through the public `layout` JSON.
+    from ctrlkd import layout as _layout
+    import json
+    out = json.loads(_layout.emit_layout(doc))
+    assert out['version'] == 3
+    jline = out['printed']['pages'][0]['lines'][0]
+    assert [p['text'] for p in jline['justify_word_x']] == ['AA', ' ', 'BB', ' ', 'CC']
+    assert jline['justify_word_x'][2]['x'] == x_bb
+    assert 'justify_word_x' not in out['printed']['pages'][0]['lines'][1]
+
+
+def test_justify_word_x_absent_for_styled_mixed_line():
+    """planning #251(b): the same narrow scope as the PDF-bytes test above
+    (`test_styled_mixed_line_is_left_unjustified_documented_scope`) --
+    `_attach_justify_word_x_printed` runs the SAME `_split_indent`/
+    `_split_symbol_fallback`/`_split_graphics` pipeline the writer does,
+    so a line that resolves to more than one span leaves the model's own
+    `justify_word_x` unset too, not just the PDF unstretched. A SECOND
+    line is needed so the styled one is not also the block's own LAST
+    physical line (rule 1 -- never justified regardless of shape, and
+    `justify_right_x` itself would already be None for that unrelated
+    reason)."""
+    doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 40\r\n.oj on\r\n'
+              b'AA \x02BB\x02 CC' + SOFT + b'DD.' + HARD)
+    line = pdf._doc_to_pagelines(doc, True)[0][0]
+    assert line.justify_right_x is not None      # still eligible BY POSITION
+    assert line.justify_word_x is None            # but not by SHAPE (2+ spans)
+
+
 # ------------------ notes-paginator scope gap (planning #238, cause 1) ------
 
 def _ws7_footnote_block(text):

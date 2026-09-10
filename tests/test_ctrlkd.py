@@ -3810,7 +3810,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 2
+    assert out['version'] == 3
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -6389,7 +6389,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 2
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 3
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])
