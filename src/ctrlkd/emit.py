@@ -3079,9 +3079,27 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # every other Printed-only geometry item).
     landscape = printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape'
     if landscape:
+        # planning #256 (sawyer/REF/-HOW-TO.RJS + the HP-ENV.LST/HP-ENVMM.LST
+        # mailing-label pair): a plain swap of `page['height_in']`/`pw_in`
+        # (core.py's PORTRAIT-convention resolution, which Modern's own
+        # page box ALSO reads directly and unswapped -- see that field's
+        # own call-site comment in core.py) only works when the document's
+        # `.pl` already snapped to a NAMED portrait height. A `.pl` that
+        # instead matches a named size's WIDTH column (every one of these
+        # real landscape templates: `.pl 8.5(i|")`/`8.33"`, none a portrait
+        # height) resolves to a bare, un-landscape-aware SQUARE Custom
+        # fallback there, and swapping two equal numbers changes nothing --
+        # `\paperw`/`\paperh` came out square, silently narrower than the
+        # real content (measured: HP-ENV.LST's own real WS7 layout needs
+        # ~8.7in of print width, further than a square-599pt canvas has
+        # room for). Same fix as `pdf._landscape_page`'s own docstring:
+        # recompute the pair fresh, orientation-aware, from `pl_lines`
+        # alone -- never from the cached, Modern-shared portrait pair.
+        from .core import _resolve_page_size, DEFAULT_PL_LINES
+        pl_lines = page.get('pl_lines', DEFAULT_PL_LINES)
+        height_in, _name, pw_in = _resolve_page_size(pl_lines, orientation='landscape')
         page = dict(page)
-        page['height_in'], page['pw_in'] = (
-            float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
+        page['height_in'], page['pw_in'] = pw_in, height_in
     def _twips_lines(key, default_lines):
         v = page.get(key, default_lines)
         return int(round(float(v) * 240))            # 1 line at 6 LPI = 240 twips

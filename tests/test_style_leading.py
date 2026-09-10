@@ -326,19 +326,23 @@ def test_style_auto_with_no_font_of_its_own_falls_back_to_document_size():
     assert _gaps(doc) == [12.0]              # AUTO_LEAD_FACTOR (1.0) x document default 12pt
 
 
-def test_lh_dot_command_overrides_style_auto_leading():
-    """No corpus evidence exists for how real WS7 arbitrates a style's own
-    vmi against an ACTIVE `.lh` dot command, so the fix stays conservative:
-    a document that uses `.lh` at all (core.meta['page']['lh_source'] ==
-    'file') keeps the pre-existing `.lh`-driven leading UNCHANGED, even
-    inside a styled block. `.lh 20` is 20/48in = 30pt, which must win over
-    the 16pt style's own 19.2pt auto leading."""
+def test_style_auto_leading_outranks_an_active_lh_dot_command():
+    """RESOLVED (planning #256, sawyer/REF/-HOW-TO.RJS) -- this test used to
+    be named `test_lh_dot_command_overrides_style_auto_leading` and pinned
+    the OPPOSITE result, on the stated reasoning "no corpus evidence exists
+    for how real WS7 arbitrates a style's own vmi against an ACTIVE `.lh`
+    dot command". -HOW-TO.RJS IS that evidence now (see `_style_lead_pt`'s
+    own docstring and `test_stale_lh_never_outranks_a_later_blocks_own_
+    style_vmi` below for the measured real-WS7 numbers): a paragraph
+    style's own leading governs OUTRIGHT once the block carries one --
+    `.lh 20` (30pt) no longer wins over the 16pt style's own 16.0pt auto
+    leading (stock AUTO_LEAD_FACTOR=1.0)."""
     lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
                           ('Big', _AUTO_16PT)])
     body = b'.lh 20' + HARD + _style_ref(2) + b'Line one.' + HARD + b'Line two.' + HARD
     doc = core.parse_ws(_doc_with_style_library(body, lib))
     assert doc.meta['page']['lh_source'] == 'file'
-    assert _gaps(doc) == [30.0]
+    assert _gaps(doc) == [16.0]
 
 
 def test_styleless_doc_leading_is_unchanged():
@@ -466,18 +470,20 @@ def test_explicit_vmi_too_small_for_font_reaches_printed_rtf_too():
     assert _rtf_sl_sequence(r) == [-320, -240]         # 16.0pt fallback, 12.0pt fits
 
 
-def test_lh_dot_command_overrides_style_auto_leading_in_rtf_too():
-    """RTF's own guard must match the PDF one exactly (same conservative
-    doctrine, no separate formula): `.lh 20` (30pt) wins over the 16pt
-    style's own 19.2pt auto leading -- mirrors
-    `test_lh_dot_command_overrides_style_auto_leading` at the PDF layer."""
+def test_style_auto_leading_outranks_an_active_lh_dot_command_in_rtf_too():
+    """RTF's own leading must match the PDF one exactly (same shared
+    mechanism, `_rtf_block_lead_48` -> `_style_lead_pt`/`_entering_lead_pt`,
+    no separate formula) -- planning #256, see `test_style_auto_leading_
+    outranks_an_active_lh_dot_command` at the PDF layer for the evidence:
+    `.lh 20` (30pt) no longer wins over the 16pt style's own 16.0pt auto
+    leading."""
     lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
                           ('Big', _AUTO_16PT)])
     body = b'.lh 20' + HARD + _style_ref(2) + b'Line one.' + HARD + b'Line two.' + HARD
     doc = core.parse_ws(_doc_with_style_library(body, lib))
     assert doc.meta['page']['lh_source'] == 'file'
     r = emit.emit_rtf(doc, mode='printed')
-    assert _rtf_sl_sequence(r) == [-600]               # 20/48in = 30pt = 600 twips
+    assert _rtf_sl_sequence(r) == [-320]               # 16.0pt AUTO_LEAD_FACTOR x 16pt
 
 
 def test_mid_document_lh_change_produces_two_distinct_rtf_sl_values():
@@ -561,3 +567,56 @@ def test_cp_prices_reserved_lines_at_their_own_lead_not_the_document_default():
     assert any('LINE 125' in l for l in page2)
     assert not any('LINE 126' in l for l in page2), '.cp did not price its reserved lines at their real 24pt lead'
     assert any('LINE 126' in l for l in page3) and any('LINE 127' in l for l in page3)
+
+
+# planning #256 (sawyer/REF/-HOW-TO.RJS): a 14pt style-governed heading
+# whose style vmi (240=12pt) is too small for its own font (Finding B
+# fallback -> 14pt) immediately followed by a 10pt style-governed body
+# paragraph whose SAME-shaped vmi (240=12pt) DOES fit its own font (direct,
+# no fallback -> 12pt) -- both AFTER a plain, unstyled `.lh 16` (24pt) sets
+# `Line.lead_48` stateful per-line leading (core.py, same mechanism
+# `test_lh_is_stateful_each_line_keeps_the_lead_it_was_set_at`,
+# tests/test_ctrlkd.py, exercises). Measured against the real capture: the
+# heading prints at 14.0pt and the body at 12.0pt -- NEITHER ever uses the
+# stale 24.0pt `.lh` value, even though `Line.lead_48` for both blocks'
+# lines carries it (core.py's stateful `.lh` has no reason to know a style
+# is about to supersede it). Before this fix, `own_lead = style_lead` in
+# every PDF page-line builder only fired when `line.lead_48 is None or ==
+# DEFAULT_LH_48` -- a line carrying ANY other explicit `.lh` value (stale
+# or not) locked out its own block's style entirely, silently reproducing
+# exactly this document's real bug (140+ compounding baseline-shift
+# divergences and an extra, wrongly-paginated 13th page against WS7's real
+# 12 -- see planning #256's own before/after).
+_HOWTO_HEADING_14PT = _style_record(font=(180, 280, 0), vmi=240)   # 14pt font
+_HOWTO_BODY_10PT = _style_record(font=(180, 200, 0), vmi=240)      # 10pt font
+
+
+def test_stale_lh_never_outranks_a_later_blocks_own_style_vmi():
+    lib = _style_library([('WordStar Defaults', None), ('WordStar Defaults', None),
+                          ('Heading', _HOWTO_HEADING_14PT), ('Body', _HOWTO_BODY_10PT)])
+    body = (b'Padding prose so the detector reads this as a document.' + HARD
+            + b'.lh 16' + HARD                       # stateful lead_48 = 16 (24pt)
+            + _style_ref(2) + b'First heading line.' + HARD + b'Second heading line.' + HARD
+            + _style_ref(3) + b'First body line.' + HARD + b'Second body line.' + HARD)
+    doc = core.parse_ws(_doc_with_style_library(body, lib))
+    # the document's OWN default stays untouched (matches -HOW-TO.RJS's own
+    # shape: this `.lh` sits after real text, so `_parse_page_dot`'s
+    # pre-text-last-wins rule never updates the page dict) -- this fix does
+    # NOT depend on `lh_source`; a stale `Line.lead_48` blocked the style
+    # regardless of it, which is exactly what made the old bug invisible to
+    # the (unrelated) `lh_source == 'file'` guard `_style_lead_pt` itself
+    # separately carries.
+    assert doc.meta['page']['lh_source'] == 'default'
+    for b in doc.blocks:
+        for ln in b.lines:
+            if ln.spans and ln.spans[0].text not in ('Padding prose so the detector '
+                                                      'reads this as a document.',):
+                assert ln.lead_48 == 16.0   # confirms the stale carry actually happened
+    gaps = _gaps(doc)
+    # heading line 1 -> line 2 (NOT first-line-of-block, plain _style_lead_pt):
+    # too-small vmi (12) for a 14pt font falls back to 14.0, never the stale 24.0.
+    assert 14.0 in gaps, gaps
+    # body line 1 -> line 2 (NOT first-line-of-block): vmi 12 fits a 10pt font
+    # directly, never the stale 24.0.
+    assert 12.0 in gaps, gaps
+    assert 24.0 not in gaps, gaps

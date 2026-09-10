@@ -89,10 +89,35 @@ def _landscape_page(page):
     SHORTER top-to-bottom (fewer text lines fit) as well as wider, exactly
     what real landscape printing does. `.mt`/`.mb`/`.po`-derived margins
     are left untouched -- still top/bottom/left relative to the text, same
-    as WordStar's own driver-level rotation never re-interpreted them."""
+    as WordStar's own driver-level rotation never re-interpreted them.
+
+    planning #256 (sawyer/REF/-HOW-TO.RJS): `page['height_in']`/`pw_in`
+    here are core.py's own PORTRAIT-convention resolution of the
+    document's `.pl` -- the SAME pair Modern PDF/RTF's own top-level page
+    box reads directly, unswapped ("the page is the document's declared
+    size (Letter/Legal/A4)", `emit_pdf`'s own comment, ruled 2026-08-06).
+    core.py's `_resolve_page_size` deliberately does NOT get told this
+    document is landscape (see its call site's own comment) precisely so
+    that pair -- and therefore Modern's page box -- stays byte-for-byte
+    unaffected by the fix below; only THIS function, called from the
+    `if printed:` branch alone, ever sees the correction. A landscape
+    `.pl` whose value doesn't match any NAMED_PAGE_SIZES portrait HEIGHT
+    (Letter's 8.5(i|"), every real booklet/label template measured:
+    GALLEYS.DOT/ADVANCE.DOT/BOOKLET.HOW/BOOKLET.RJS/-HOW-TO.RJS/HP-ENV.LST/
+    HP-ENVMM.LST) needs the SAME orientation-aware WIDTH-column match
+    `_resolve_page_size(orientation='landscape')` provides, recomputed
+    HERE, fresh, from the page's own `pl_lines` -- never cached from
+    `page['height_in']/pw_in`, which is the OLD, un-landscape-aware
+    portrait pair (a `.pl 8.5"` document's own height_in/pw_in both
+    resolve to a bare 8.5in Custom square before this correction -- see
+    `_resolve_page_size`'s own docstring for the full evidence: real WS7
+    prints "Making" at x>612pt on this exact document, which a page this
+    narrow silently clips)."""
+    from .core import _resolve_page_size, DEFAULT_PL_LINES
+    pl_lines = page.get('pl_lines', DEFAULT_PL_LINES)
+    height_in, _name, pw_in = _resolve_page_size(pl_lines, orientation='landscape')
     eff = dict(page)
-    eff['height_in'], eff['pw_in'] = (
-        float(page.get('pw_in', 8.5)), float(page.get('height_in', 11.0)))
+    eff['height_in'], eff['pw_in'] = pw_in, height_in
     return eff
 
 
@@ -1104,20 +1129,33 @@ def _style_lead_pt(block, doc, raw=False):
     OWN first line through this function, so this is the identical
     behaviour there) keeps the fallback.
 
-    Document-level guard: if the file EVER used a real `.lh` dot command
-    (doc.meta['page']['lh_source'] == 'file' -- core.py's own file-vs-default
-    tag), a style's own leading is NOT applied at all, even where a line's
-    own `.lh` state happens to equal the document default and so normalises
-    to None (core.py's Line.lead_48 normalisation pass, ~line 3960) --
-    indistinguishable, at the per-line level, from a line that never saw
-    `.lh` in the first place. No corpus evidence exists for how real WS7
-    arbitrates a style's vmi against an ACTIVE `.lh`, so this stays
-    conservative: an `.lh`-bearing document's leading is left exactly as
-    the pre-existing mechanism computed it, unconditionally."""
+    RESOLVED (planning #256, sawyer/REF/-HOW-TO.RJS): this function used to
+    return None outright for ANY document that ever used a real `.lh` dot
+    command (`doc.meta['page']['lh_source'] == 'file'`), on the stated
+    reasoning that "no corpus evidence exists for how real WS7 arbitrates a
+    style's vmi against an ACTIVE `.lh`". -HOW-TO.RJS IS that evidence: its
+    ONE `.lh14/72"` (14pt) sits immediately before a `.pa` page break's
+    heading paragraph, which -- like the numbered list that follows it --
+    carries the SAME real paragraph style ("Editing Defaults", vmi=240 =
+    12pt on its own font). Measured against the real WS7 v4 PCL capture:
+    the heading (14pt Univers) prints at a 14pt lead (vmi/20 = 12pt is
+    SMALLER than its own 14pt font -- the too-small-vmi fallback below,
+    `size * AUTO_LEAD_FACTOR`, already gives exactly this), and every
+    10pt-font list-item line prints at the style's own EXPLICIT 12pt
+    (vmi/20, no fallback needed -- 12 >= 10). The stale, document-global
+    `.lh14/72"` value (14pt) is what a bare `.lh`-wins-unconditionally
+    reading was producing for the list items instead -- wrong by 2pt per
+    line, compounding across the whole page (see `test_lh_is_stateful...`'s
+    own sibling test below and the call sites' own comments for the other
+    half of this fix: `own_lead` must let `style_lead` win outright, not
+    only when a line's own carried `.lh` happens to be unset). The style's
+    own vmi now governs whenever a block carries one -- exactly the
+    intent this function's own docstring already stated a few paragraphs
+    up ("a style's own leading... governs OVER the generic `.lh`/document
+    default") but a defensive, unevidenced document-wide veto silently
+    contradicted."""
     vmi = getattr(block, 'line_height_vmi', None)
     if vmi is None:
-        return None
-    if doc.meta.get('page', {}).get('lh_source') == 'file':
         return None
     if vmi == -2:
         size = getattr(block, 'style_font_pt', None)
@@ -1481,8 +1519,13 @@ def resolved_printed_leads_48(doc):
                 style_lead = _style_lead_pt(b, doc)
             if not is_blank:
                 first_line_of_block = False
-            if style_lead is not None and (
-                    line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+            # planning #256: a block's own paragraph-style leading, when it
+            # has one, governs OUTRIGHT -- no longer gated on whether this
+            # line's own carried `.lh` happens to be unset/default (see
+            # _style_lead_pt's own docstring for the -HOW-TO.RJS evidence: a
+            # stale, document-wide `.lh` must never outrank the style its own
+            # block actually carries).
+            if style_lead is not None:
                 own_lead = style_lead
             if own_lead is None and font_lead_ok:
                 own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
@@ -1499,8 +1542,13 @@ def resolved_printed_leads_48(doc):
                 line = b.lines[0]
                 own_lead = _lead_pt(line.lead_48)
                 style_lead = _style_lead_pt(b, doc, raw=True)
-                if style_lead is not None and (
-                        line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+                # planning #256: a block's own paragraph-style leading, when it
+                # has one, governs OUTRIGHT -- no longer gated on whether this
+                # line's own carried `.lh` happens to be unset/default (see
+                # _style_lead_pt's own docstring for the -HOW-TO.RJS evidence: a
+                # stale, document-wide `.lh` must never outrank the style its own
+                # block actually carries).
+                if style_lead is not None:
                     own_lead = style_lead
                 if own_lead is None and font_lead_ok:
                     own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
@@ -3142,8 +3190,13 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                 style_lead = _style_lead_pt(b, doc)
             if not is_blank:
                 first_line_of_block = False
-            if style_lead is not None and (
-                    line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+            # planning #256: a block's own paragraph-style leading, when it
+            # has one, governs OUTRIGHT -- no longer gated on whether this
+            # line's own carried `.lh` happens to be unset/default (see
+            # _style_lead_pt's own docstring for the -HOW-TO.RJS evidence: a
+            # stale, document-wide `.lh` must never outrank the style its own
+            # block actually carries).
+            if style_lead is not None:
                 own_lead = style_lead
             if own_lead is None and font_lead_ok:
                 own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
@@ -4583,8 +4636,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     style_lead = _entering_lead_pt(b, doc, prev_para_block)
                 else:
                     style_lead = _style_lead_pt(b, doc)
-                if style_lead is not None and (
-                        line.lead_48 is None or line.lead_48 == DEFAULT_LH_48):
+                # planning #256: a block's own paragraph-style leading, when it
+                # has one, governs OUTRIGHT -- no longer gated on whether this
+                # line's own carried `.lh` happens to be unset/default (see
+                # _style_lead_pt's own docstring for the -HOW-TO.RJS evidence: a
+                # stale, document-wide `.lh` must never outrank the style its own
+                # block actually carries).
+                if style_lead is not None:
                     own_lead = style_lead
                 # round 26 wave 3 (fidelity_gate.py Finding B): a WS5+
                 # FONT-BLOCK document with no style governing this line

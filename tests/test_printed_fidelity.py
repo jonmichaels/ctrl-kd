@@ -232,6 +232,49 @@ def test_pr_portrait_explicit_keeps_the_ordinary_mediabox():
     assert (int(m.group(1)), int(m.group(2))) == (612, 792)
 
 
+def test_pr_landscape_with_booklet_pl_gets_full_letter_companion_width():
+    """planning #256: sawyer/REF/-HOW-TO.RJS (+ BOOKLET.HOW/.RJS,
+    GALLEYS.DOT, ADVANCE.DOT) all declare `.pl 8.50"` under `.pr or=l` --
+    8.5in is Letter's own WIDTH, not any NAMED_PAGE_SIZES height, so the
+    old height-only match in `_resolve_page_size` fell to the portrait
+    'Custom' fallback (8.5in companion) even under landscape, producing a
+    SQUARE 612x612 MediaBox instead of the correct 792x612. Confirmed
+    against poppler (`pdftotext -bbox`): a word starting inside a
+    612-wide box but positioned to extend past it is silently truncated
+    mid-glyph on extraction ("Making" -> "Ma", "Robert" -> "Robe" at
+    exactly the 612pt edge) -- what a real 792pt-wide layout squeezed
+    into a 612pt MediaBox does to any MediaBox-respecting reader or
+    printer, not just this one text-extraction tool."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pr or=l' + HARD + b'.pl 8.50"' + HARD
+        + b'A booklet body paragraph.' + HARD)
+    assert doc.meta['formatting']['orientation'] == 'landscape'
+    assert doc.meta['page']['pl_lines'] == 51.0   # 8.5in * 6 LPI
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out)
+    assert m is not None
+    w, h = int(m.group(1)), int(m.group(2))
+    assert (w, h) == (792, 612), (w, h)   # NOT (612, 612) -- the old square bug
+
+
+def test_pr_portrait_explicit_pl_8_5in_keeps_the_old_square_custom_page():
+    """The same explicit 8.5in `.pl`, but portrait: the landscape-only
+    width-column reinterpretation must NOT fire here -- a portrait
+    document that genuinely wants an 8.5in-tall page keeps the plain
+    'Custom' 8.5in companion, unchanged from before this fix."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pl 8.50"' + HARD
+        + b'A short portrait page.' + HARD)
+    assert doc.meta['formatting'].get('orientation') != 'landscape'
+    out = pdf.emit_pdf(doc, mode='printed')
+    m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out)
+    assert m is not None
+    w, h = int(m.group(1)), int(m.group(2))
+    assert (w, h) == (612, 612), (w, h)   # unchanged Custom-square fallback
+
+
 def test_pr_landscape_flips_printed_rtf_paper_and_sets_landscape_keyword():
     doc = _landscape_doc()
     r = emit.emit_rtf(doc, mode='printed')

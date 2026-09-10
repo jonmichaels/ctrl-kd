@@ -2558,16 +2558,61 @@ def _text_lines_per_page(pl_lines: float, mt_lines: float, mb_lines: float,
         return 1
     return max(1, int(usable * 8.0 / lh_48))
 
-def _resolve_page_size(pl_lines: float):
+def _resolve_page_size(pl_lines: float, orientation: str = None):
     """pl_lines -> (height_in, size_name, width_in). Snaps to a named size
     when close; otherwise reports the raw geometry under 'Custom' (at the
     8.5in width -- see NAMED_PAGE_SIZES) rather than forcing a label that
-    doesn't fit."""
+    doesn't fit.
+
+    This function's own return convention is always PRE-rotation/"portrait"
+    (height_in is the tall edge, width_in the short one) -- `pdf.
+    _landscape_page` is the ONE place that later swaps the two for a
+    document whose `.pr or=l` is in force. Everything below picks the
+    (height_in, width_in) PAIR that swap needs to land correctly; it does
+    not itself decide what the final page looks like.
+
+    `orientation` (planning #256, sawyer/REF/-HOW-TO.RJS): a landscape
+    document's `.pl` describes the edge content flows along AFTER
+    rotation -- the sheet's SHORT edge (Letter's own 8.5in), not its
+    long one -- so it must be matched against NAMED_PAGE_SIZES's WIDTH
+    column (portrait short edge), not its HEIGHT column, and the PAIR
+    handed back to the pre-rotation convention above is (that size's
+    named HEIGHT, `pl`'s own value) -- i.e. exactly the shape a same-size
+    PORTRAIT document would have produced, so `_landscape_page`'s later
+    swap turns it into the correct wide-short landscape page. Measured
+    against a real WS7 capture (-HOW-TO.RJS, `.pr or=l` + `.pl 8.50"`):
+    the OLD code always matched the HEIGHT column regardless of
+    orientation, found nothing within tolerance for 8.5in, and fell to
+    the portrait 'Custom' fallback (width_in = 8.5in, same as the height
+    -- a SQUARE page after the swap, since swapping two equal numbers
+    changes nothing). A page narrower than the content it must hold
+    silently drops every word poppler (and any MediaBox-respecting
+    viewer/printer) finds past the true right edge -- confirmed:
+    "Making" truncated to "Ma", "Robert" to "Robe" at exactly the 612pt
+    boundary. The HEIGHT-column match is tried FIRST, unconditionally,
+    so a landscape document with no `.pl` override at all -- the far
+    more common case, DEFAULT_PL_LINES already matches Letter's own
+    height column exactly -- keeps its existing, already-tested, 792x612
+    landscape resolution unaffected; the width-column reinterpretation
+    only ever fires as a fallback, and only for orientation ==
+    'landscape'. Falls back to a full Letter-long-edge companion
+    (11.0in) rather than the portrait Custom default (8.5in) -- a
+    landscape page as narrow as it is tall is wrong for every real
+    landscape document measured (GALLEYS.DOT/ADVANCE.DOT/BOOKLET.HOW/
+    BOOKLET.RJS/-HOW-TO.RJS: every one carries `.pl 8.5(i|")`, none
+    matches a NAMED_PAGE_SIZES height, all five want Letter's long edge
+    as their companion)."""
     height_in = pl_lines / 6.0
     name, named_in, width_in = min(
         NAMED_PAGE_SIZES, key=lambda nhw: abs(nhw[1] - height_in))
     if abs(named_in - height_in) <= PAGE_SIZE_SNAP_IN:
         return named_in, name, width_in
+    if orientation == 'landscape':
+        name, named_h, named_w = min(
+            NAMED_PAGE_SIZES, key=lambda nhw: abs(nhw[2] - height_in))
+        if abs(named_w - height_in) <= PAGE_SIZE_SNAP_IN:
+            return named_h, name, height_in
+        return 11.0, 'Custom', height_in
     return height_in, 'Custom', 8.5
 
 # Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` are real 3-letter dot commands
@@ -5699,6 +5744,20 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     doc.meta['columnar'] = ruler and not ws5
 
     pl_lines = page.get('pl_lines')
+    # `orientation` is NOT passed here on purpose (planning #256): this
+    # resolved pair lands in doc.meta['page'], which BOTH Printed and
+    # Modern PDF/RTF read directly for their own top-level page box
+    # (`emit_pdf`'s own comment: "Modern: the page is the document's
+    # declared size (Letter/Legal/A4) -- ruled 2026-08-06"). Printed's own
+    # landscape swap (`pdf._landscape_page`) is gated `if printed` --
+    # applying the orientation-aware companion-width fix HERE would leak
+    # into Modern's page box too, unevidenced (no real WS7 capture exists
+    # for what Modern OUGHT to show for a landscape document; Printed's
+    # own fidelity fix is measured, Modern's is not). `pdf.py`'s printed
+    # rendering instead calls `_resolve_page_size(pl_lines, orientation=
+    # ...)` itself, fresh, for its OWN geometry only -- see
+    # `_printed_landscape_page_size`. Modern stays exactly as before this
+    # fix, byte-for-byte.
     height_in, size_name, pw_in = _resolve_page_size(
         pl_lines if pl_lines is not None else DEFAULT_PL_LINES)
     mt_lines = page.get('mt_lines')
