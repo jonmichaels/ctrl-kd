@@ -48,10 +48,31 @@ Grammar implemented
    EOF) are control bytes with no PCL meaning here; skipped.
 5. Any other byte (>= 0x20, including 0x80-0xFF "high" bytes for the
    PC-8/cp437-ish symbol set WordStar selects) is text: a *run* is the
-   longest contiguous span of such bytes, decoded with the cp437
-   codec (ASCII-compatible for 0x20-0x7E, WordStar's driver selects
-   symbol set "10U" = PC-8 which corresponds to code page 437 for the
-   upper half).
+   longest contiguous span of such bytes, decoded through whichever
+   symbol set (`ESC(<id><letter>`, e.g. `ESC(10U`, `ESC(7J`) was last
+   selected before the run started -- see SYMBOL SETS below. WordStar's
+   driver defaults to "10U" = PC-8 (code page 437) for ordinary body text.
+
+SYMBOL SETS (planning #260, 2026-09-10)
+----------------------------------------
+`ESC(<id><letter>` (the groupless "(" form, e.g. `ESC(10U`, `ESC(7J`,
+`ESC(5M`) IS given semantic meaning: it sets the CURRENT symbol set, sticky
+until the next such escape (PCL symbol-set selection is not reset by a form
+feed). Every text run is decoded through the table active at the moment the
+run's first byte was read -- see tools/pcl_symbol_sets.py for the tables
+themselves, their sourcing, and why this matters: WordStar 7's LJ6DTP-
+patched LaserJet driver switches OUT of PC-8 mid-line to reach curly quotes
+and the copyright/registered/trademark signs (bytes PC-8 has no slot for),
+and the PostScript-font-sampler documents switch to the Symbol set (19M) for
+the Greek alphabet and math operators. Decoding those runs through a fixed
+PC-8/cp437 table -- as this decoder did before this fix -- silently printed
+the wrong character (verified against Jon's paper scan of the real WS7
+LaserJet printout, ws7-prints/v1/LJ6DTP.pcl: the "Color" heading's curly
+quotes, the copyright bar's (c), and the curly apostrophe in "WordStar's").
+Symbol sets this module does NOT carry a table for (observed: "15U", "4U",
+"579L"/Wingdings) fall back to the same cp437 decode every byte got before
+this fix -- a documented, not silent, gap; see pcl_symbol_sets.py's "NOT
+COVERED" section for why each is low-risk to leave unimplemented for now.
 
 Only ESC&a<n>H / ESC&a<n>V are given semantic meaning (cursor position,
 decipoints). Every other escape sequence -- font selection ESC(s...,
@@ -138,6 +159,8 @@ import argparse
 import json
 import sys
 
+import pcl_symbol_sets
+
 # WS7 LaserJet driver ESC&a#H/#V absolute-position wraparound (planning
 # #234, 2026-09-08) -- see module docstring's WRAPAROUND section.
 WRAP_MODULUS_DECIPT = 32768
@@ -156,6 +179,7 @@ def parse_pcl(data: bytes):
     cursor_y = None
     x_wrap = 0  # planning #234: cumulative WRAP_MODULUS_DECIPT correction, per axis
     y_wrap = 0
+    symbol_set = None  # planning #260: current ESC(<id><letter>, sticky -- see SYMBOL SETS
 
     def parse_value(j):
         """Parse an optional signed decimal number starting at j.
@@ -198,7 +222,7 @@ def parse_pcl(data: bytes):
         return candidate
 
     def handle_field(param, group, value_str, field_char):
-        nonlocal cursor_x, cursor_y, x_wrap, y_wrap
+        nonlocal cursor_x, cursor_y, x_wrap, y_wrap, symbol_set
         if param == "&" and group == "a":
             v = to_num(value_str)
             if v is not None:
@@ -216,9 +240,14 @@ def parse_pcl(data: bytes):
                 cursor_y = None
                 x_wrap = 0
                 y_wrap = 0
+        elif param == "(" and group is None and value_str:
+            # Symbol set select, groupless form (ESC(10U, ESC(7J, ESC(5M,
+            # ESC(19M, ESC(8U, ...) -- planning #260, see module docstring's
+            # SYMBOL SETS section. Sticky until the next such escape.
+            symbol_set = (value_str + field_char).upper()
         # All other groups/fields (font selection, page setup, underline,
-        # symbol set, PJL UEL, etc.) are intentionally not interpreted --
-        # they were still correctly consumed by the generic grammar above.
+        # PJL UEL, etc.) are intentionally not interpreted -- they were
+        # still correctly consumed by the generic grammar above.
 
     def flush_page():
         nonlocal cur_runs
@@ -297,7 +326,7 @@ def parse_pcl(data: bytes):
             start = i
             while i < n and data[i] >= 0x20 and data[i] != 0x1B:
                 i += 1
-            text = bytes(data[start:i]).decode("cp437", "replace")
+            text = pcl_symbol_sets.decode_run(data[start:i], symbol_set)
             if cursor_x is not None and cursor_y is not None:
                 cur_runs.append(
                     {"x_decipoints": cursor_x, "y_decipoints": cursor_y, "text": text}

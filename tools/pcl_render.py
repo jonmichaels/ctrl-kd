@@ -110,6 +110,8 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 
+import pcl_symbol_sets
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from ctrlkd import afm  # noqa: E402
 
@@ -531,6 +533,7 @@ def parse_pcl_extended(data: bytes):
     cursor_y = None
     x_wrap = 0  # planning #234: cumulative WRAP_MODULUS_DECIPT correction, per axis
     y_wrap = 0
+    symbol_set = None  # planning #260: current ESC(<id><letter> -- see pcl_text.py's SYMBOL SETS
     # sticky-within-this-parse font state (each observed font-select in
     # the corpus supplies all fields anyway; see module docstring)
     font_P, font_S, font_B, font_T, font_V = 0, 0, 0, None, 12.0
@@ -876,8 +879,17 @@ def parse_pcl_extended(data: bytes):
         return pos
 
     def handle_groupless(param, val, fc):
-        if param == "(" and fc == "U":
-            recognized_not_rendered[f"ESC({val}U (symbol set select)"] += 1
+        nonlocal symbol_set
+        if param == "(" and val:
+            # Symbol set select (ESC(10U, ESC(7J, ESC(5M, ESC(19M, ESC(8U,
+            # ...) -- planning #260. Previously only the "U"-terminated form
+            # was even recognized (as unrendered); "J"/"M"-terminated forms
+            # (7J DeskTop, 5M PS Math, 19M Symbol) fell through to
+            # `unhandled` entirely. Now tracked as CURRENT STATE (see
+            # pcl_text.py's SYMBOL SETS section) and used to decode the
+            # text runs below, not just counted.
+            symbol_set = (val + fc).upper()
+            recognized_not_rendered[f"ESC({val}{fc} (symbol set select)"] += 1
             return
         if param == "%" and fc == "X":
             recognized_not_rendered["UEL ESC%-####X (job boundary)"] += 1
@@ -941,7 +953,7 @@ def parse_pcl_extended(data: bytes):
             start = i
             while i < n and data[i] >= 0x20 and data[i] != 0x1B:
                 i += 1
-            text = bytes(data[start:i]).decode("cp437", "replace")
+            text = pcl_symbol_sets.decode_run(data[start:i], symbol_set)
             if cursor_x is not None and cursor_y is not None:
                 basefont = resolve_afm_basefont(font_P, font_S, font_B, font_T)
                 cur_chunks.append(

@@ -143,6 +143,72 @@ def test_lj6dtp_document_kerning_lines_render_differently(require_sawyer_doc):
     assert b'(\x93But) Tj' in out
 
 
+# ------------------------------------- planning #260: cited-offset regression pins
+#
+# Three real, byte-verified spots in the real LJ6DTP.WS (offsets confirmed by direct
+# hex inspection, 2026-09-10, alongside the matching real WS7 LaserJet PCL capture
+# ws7-prints/v1/LJ6DTP.pcl and Jon's own paper scan of that printout -- see
+# tools/pcl_symbol_sets.py's docstring for the PCL-side half of this evidence). These
+# were ALREADY correctly handled by `_LJ_SUBST`/`_lj_substitute` before planning #260 --
+# these tests exist to LOCK that in against the exact cited bytes/offsets, not to fix a
+# new bug in this engine (the bug planning #260 actually found was in the PCL ground-
+# truth decoder, tools/pcl_text.py / pcl_render.py, fixed separately).
+
+@pytest.mark.sawyer
+def test_lj6dtp_color_heading_quotes_at_offset_0x4859(require_sawyer_doc):
+    """Offset 0x4859: `1B AE 1C 43 6F 6C 6F 72 1B AF 1C` -- the extended-character
+    triples <ESC><AE><FS> and <ESC><AF><FS> bracketing "Color" in the page-5 "Color
+    Mappings" heading. `_LJ_SUBST` maps cp437 '«'(AE)/'»'(AF) -> curly double
+    quotes; this heading is Univers (proportional), so the substitution must fire.
+    Matches the real WS7 LaserJet capture (ws7-prints/v1/LJ6DTP.pcl, ESC(7J<B0>/<B1>
+    bracketing "Color") and the paper scan (curly double quotes, not guillemets)."""
+    with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
+        data = fh.read()
+    assert data[0x4859 - 3:0x4859 + 8] == b'\x1b\xae\x1cColor\x1b\xaf\x1c', (
+        'fixture offset moved -- re-locate before trusting this test')
+    doc = core.parse_ws(data)
+    out = pdf.emit_pdf(doc, mode='printed')
+    # cp1252 0x93/0x94 = curly double open/close (/WinAnsiEncoding, see the kerning
+    # test above for the same encoding note).
+    assert b'(\x93Color\x94) Tj' in out
+
+
+@pytest.mark.sawyer
+def test_lj6dtp_copyright_cluster_at_offset_0x3da(require_sawyer_doc):
+    """Offset 0x3da+20 (right after "Copyright "): a font-change block then
+    `1B 02 1C` -- the extended-character triple wrapping cp437 0x02 (☻, the
+    smiley WordStar's own PC-8 screen glyph for this slot). `_LJ_SUBST` maps
+    '☻' -> '©' (c). This is the title bar's SANS copyright (Univers,
+    matching the real capture's `ESC(5M<E3>` sans-serif slot -- see
+    tools/pcl_symbol_sets.py's "5M's 0xE3 CORRECTION"); the body-text serif
+    occurrences (`ESC(5M<D3>`) go through the same '☻'->'©' substitution
+    and are covered implicitly by every other 'copyright' Tj this document emits."""
+    with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
+        data = fh.read()
+    assert data[0x3da:0x3da + 9] == b'Copyright', (
+        'fixture offset moved -- re-locate before trusting this test')
+    triple_at = data.index(b'\x1b\x02\x1c', 0x3da)
+    assert triple_at - 0x3da < 40, 'the (c) triple should follow "Copyright " closely'
+    doc = core.parse_ws(data)
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'(\xa9) Tj' in out  # cp1252 0xa9 == Latin-1 == (c), U+00A9
+
+
+@pytest.mark.sawyer
+def test_lj6dtp_wordstars_apostrophe_curly_on_proportional_face(require_sawyer_doc):
+    """"WordStar's" (plain typed apostrophe, 0x27) on a PROPORTIONAL face (Times/
+    Univers body text) prints curly -- matching the real WS7 capture, where the
+    driver brackets that one byte with `ESC(7J<27>` between two `ESC(10U` runs
+    (curly per the DeskTop symbol set's own $27 slot) rather than leaving it under
+    plain PC-8 (straight). `_LJ_SUBST` maps plain "'" -> U+2019 for any proportional
+    entry, matching this without needing per-symbol-set tracking on the .WS side."""
+    with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
+        data = fh.read()
+    doc = core.parse_ws(data)
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'(WordStar\x92s)' in out  # cp1252 0x92 == U+2019 RIGHT SINGLE QUOTATION MARK
+
+
 # --------------------------------------------------------- rounded corners
 
 def test_univers_substitution_targets_arc_corners_not_box_arms():
