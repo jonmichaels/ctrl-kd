@@ -3810,7 +3810,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 5
+    assert out['version'] == 6
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -6326,6 +6326,135 @@ def test_running_head_right_tab_leaves_a_fonted_header_alone():
     assert heads == [b' ' * 13 + b'TEST / 9', b' ' * 13 + b'TEST / 10']
 
 
+def test_head_foot_lines_land_on_the_model_matching_the_writer():
+    """Planning #251(d): `Page.header_lines`/`footer_lines`/`auto_pageno`
+    (set by `_attach_head_foot_lines_printed`, from the SAME `_resolve_
+    head_foot_lines` function `_running_ops` calls to render) carry the
+    resolved (text, x, y, font) the PDF writer actually draws -- checked
+    directly against the real content-stream ops for a document with a
+    plain header, a plain footer, AND (no real footer text on THAT line)
+    the automatic page number sharing the footer's own row on a later
+    page."""
+    from ctrlkd.pdf import emit_pdf, _doc_to_pagelines
+    data = (b'.h1 Header Text\r\n.f1 Footer Text\r\n' +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page two prose, also plain, ordinary, long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 2
+    p1, p2 = pages
+    assert p1.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
+    assert p1.footer_lines == [{'text': 'Footer Text', 'x': 57.6, 'y': 60.0, 'font': None}]
+    assert p1.auto_pageno is None            # a real footer is in force -> no auto number
+    assert p2.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
+
+    pdf = emit_pdf(doc, 'printed')
+    ops = _td_ops6(pdf)
+    assert (57.6, 780.0, b'Header Text') in ops
+    assert (57.6, 60.0, b'Footer Text') in ops
+
+
+def test_head_foot_lines_resolve_the_same_page_number_substitution_and_tab_bake():
+    """The model's own `header_lines[0]['text']` for -README's own right-
+    tab shape (see `test_running_head_right_tab_repositions_when_the_
+    page_number_widens`, the same synthetic fixture) carries BOTH the
+    `#` substitution and the fontless tab-realignment bake -- exactly the
+    string `_hf_line_ops` turns into the page's own Tj operand, proving
+    the model and the writer resolve identically rather than
+    independently."""
+    from ctrlkd.pdf import emit_pdf, _doc_to_pagelines
+
+    def tab_block(cols, abs_hmi, tab_type=0x5D):
+        size = cols * 180
+        return ws7_block(0x09, size.to_bytes(2, 'little')
+                         + abs_hmi.to_bytes(2, 'little') + bytes([tab_type]) + b' ')
+
+    tab = tab_block(13, 2340)
+    data = (b'.pn 9\r\n' +
+            b'.h1 ' + tab + b'TEST / #' + HARD +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page two prose, also plain, ordinary, long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    assert pages[0].header_lines[0]['text'] == ' ' * 13 + 'TEST / 9'
+    assert pages[1].header_lines[0]['text'] == ' ' * 12 + 'TEST / 10'
+
+    pdf = emit_pdf(doc, 'printed')
+    ops = _td_ops6(pdf)
+    heads = [t for x, y, t in ops if y > 720 and b'TEST' in t]
+    assert heads == [t.encode() for t in
+                     (pages[0].header_lines[0]['text'], pages[1].header_lines[0]['text'])]
+
+
+def test_head_foot_lines_track_a_mid_document_po_parity_left_edge():
+    """The model's own header `x` follows a live `.poe`/`.poo` parity
+    override the SAME way `_running_ops`'s own `running_left` already
+    does (planning #231/#241, `Page.po_parity`) -- checked against a
+    document that sets DIFFERENT odd/even offsets with no plain `.po`
+    at all (the PHONE.LST/-HOW-TO.RJS shape this issue's own oracle
+    documents cite)."""
+    from ctrlkd.pdf import emit_pdf, _doc_to_pagelines
+    data = (b'.h1 Running Head\r\n.poo 2\r\n.poe 6\r\n' +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page two prose, also plain, ordinary, long enough here.' + HARD +
+            b'.pa' + HARD +
+            b'Page three prose, also plain, ordinary, long enough.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    assert len(pages) == 3
+    # page 1/3 odd -> .poo 2 (14.4pt); page 2 even -> .poe 6 (43.2pt).
+    assert pages[0].header_lines[0]['x'] == 14.4
+    assert pages[1].header_lines[0]['x'] == 43.2
+    assert pages[2].header_lines[0]['x'] == 14.4
+
+    pdf = emit_pdf(doc, 'printed')
+    ops = _td_ops6(pdf)
+    heads_x = sorted({x for x, y, t in ops if t == b'Running Head'})
+    assert heads_x == [14.4, 43.2]
+
+
+def test_head_foot_lines_omitted_when_the_document_has_neither():
+    """A document with no `.h#`/`.f#` and no automatic number showing
+    (`.op`, no `#` anywhere) leaves `header_lines`/`footer_lines`/
+    `auto_pageno` at their `None` default -- omitted from `layout` JSON
+    too (version 6 emits byte-identical output to version 5 for a
+    document like this, aside from the version number itself)."""
+    import json
+    from ctrlkd.layout import emit_layout
+    from ctrlkd.pdf import _doc_to_pagelines
+    data = (b'.op\r\n' +
+            b'Ordinary prose, plain, with no header or footer at all here.' + HARD)
+    doc = core.parse_ws(data)
+    pages = _doc_to_pagelines(doc, True)
+    assert pages[0].header_lines is None
+    assert pages[0].footer_lines is None
+    assert pages[0].auto_pageno is None
+    out = json.loads(emit_layout(doc))
+    assert out['version'] == 6
+    jp = out['printed']['pages'][0]
+    assert 'header_lines' not in jp and 'footer_lines' not in jp
+    assert 'auto_page_number' not in jp
+
+
+def test_layout_json_carries_resolved_head_foot_lines():
+    """`layout` JSON (version 6, planning #251(d)) exposes the SAME
+    resolved header/footer/auto-number entries the model carries --
+    `text`/`x`/`y`/`font` per line, rounded to 1 decimal like every
+    other resolved-x field this issue's own earlier parts added."""
+    import json
+    from ctrlkd.layout import emit_layout
+    data = (b'.h1 Header Text\r\n' +
+            b'Page one prose, plain and ordinary and long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    out = json.loads(emit_layout(doc))
+    jp = out['printed']['pages'][0]
+    assert jp['header_lines'] == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
+    assert jp['auto_page_number'] == {'text': '1', 'x': 291.6, 'y': 60.0}
+
+
 def test_modern_draws_fontless_cp437_square_bullet_as_vector():
     """Round 3 (2026-08-06): -README's list bullets are cp437 0xFE black
     squares in FONTLESS spans -- no cp1252 slot, and the graphics vector
@@ -6389,7 +6518,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 5
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 6
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])

@@ -736,6 +736,34 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     consumer calls it directly, in either engine, keyed only by the
     character).
 
+    version 6 (planning #251(d), 2026-09-10): each printed PAGE MAY now
+    carry 'header_lines'/'footer_lines' — `[{'text': str, 'x': float,
+    'y': float, 'font': int|null}, ...]`, one entry per declared `.h#`/
+    `.f#` slot IN FORCE on this page, ascending slot order — the fully
+    RESOLVED running head/foot: `#` already substituted with THIS
+    page's own real page number, and (a fontless/Courier line with its
+    own right-align tab only) the print-time-baked realignment spacing
+    WS7 itself re-evaluates per page. `text` still carries WordStar's
+    own inline style TOGGLE BYTES — a consumer runs it through the SAME
+    `hf_runs`-shaped styling pass the raw `headers`/`footers` dict
+    (below, unchanged) already requires; this field adds WHERE and WHAT
+    TEXT, never how to draw it. `font` is the index into this document's
+    top-level `fonts` array (`doc.header_fonts`/`footer_fonts`'s own
+    value), or null for the fontless/Courier default. Also MAY carry
+    'auto_page_number' — `{'text': str, 'x': float, 'y': float}` — the
+    resolved WordStar AUTOMATIC page number (the one `.pc` positions,
+    completely separate from any `#` inside a real `.he`/`.fo`), present
+    exactly when the document's own `.pn`/`.pg`/`.op` state shows it on
+    THIS page and no real footer pre-empts it. All three fields are
+    resolved from `_resolve_head_foot_lines` -- the SAME function
+    `pdf.py`'s own `_running_ops` (the PDF writer) calls to render, so
+    the PDF bytes and this JSON always agree by construction, never by
+    parallel re-derivation. OMITTED, not null, when a page declares no
+    header/footer at all and no automatic number shows — a document with
+    neither anywhere emits byte-identical JSON to version 5. The raw
+    `headers`/`footers` dict (unsubstituted template strings) stays
+    exactly as it was; this is purely additive.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -805,6 +833,29 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             'headers': dict(getattr(page, 'headers', {}) or {}),
             'footers': dict(getattr(page, 'footers', {}) or {}),
         }
+        # `header_lines`/`footer_lines`/`auto_page_number` (version 6,
+        # planning #251(d)): resolved by `_attach_head_foot_lines_printed`
+        # -- see `emit_layout`'s own docstring for the field shapes. Same
+        # omit-unless-set convention as `columns`/`left`/`col` above.
+        pg_header_lines = getattr(page, 'header_lines', None)
+        if pg_header_lines is not None:
+            pg['header_lines'] = [
+                {'text': e['text'], 'x': round(e['x'], 1), 'y': round(e['y'], 1),
+                 'font': e['font']}
+                for e in pg_header_lines]
+        pg_footer_lines = getattr(page, 'footer_lines', None)
+        if pg_footer_lines is not None:
+            pg['footer_lines'] = [
+                {'text': e['text'], 'x': round(e['x'], 1), 'y': round(e['y'], 1),
+                 'font': e['font']}
+                for e in pg_footer_lines]
+        pg_auto_pageno = getattr(page, 'auto_pageno', None)
+        if pg_auto_pageno is not None:
+            pg['auto_page_number'] = {
+                'text': pg_auto_pageno['text'],
+                'x': round(pg_auto_pageno['x'], 1),
+                'y': round(pg_auto_pageno['y'], 1),
+            }
         # `columns`/`column_gutter_pt`/`column_width_pt` (version 2): same
         # omit-unless-set convention as `left`/`col` above -- present only
         # on a page `_apply_columns` actually merged from a `.co n>1`
@@ -818,7 +869,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 5,
+        'version': 6,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],

@@ -3681,12 +3681,28 @@ class Page(list):
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
                 'explicit_break', 'explicit_break_bi',
-                'columns', 'column_gutter_pt', 'column_width_pt')
+                'columns', 'column_gutter_pt', 'column_width_pt',
+                'header_lines', 'footer_lines', 'auto_pageno')
 
     def __init__(self, seq=()):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
+        # `header_lines`/`footer_lines`/`auto_pageno` (planning #251(d),
+        # 2026-09-10): this page's own RESOLVED running head/foot -- `#`
+        # substituted, fontless right-tab realignment baked, `y`/`x`/
+        # `font` attached -- set ONLY by `_attach_head_foot_lines_printed`
+        # (`_doc_to_pagelines`'s own post-pagination pass), from
+        # `_resolve_head_foot_lines` (the SAME function `_running_ops`,
+        # the PDF writer, calls to render). None (not `[]`/`{}`) for
+        # "not yet resolved" -- every page of every document until that
+        # attach function runs, and every page `_paginate_printed_notes`
+        # builds as a bare list rather than a `Page` (see `_apply_
+        # columns`'s own `merged.headers` comment for why `None` is the
+        # deliberate "no opinion" default throughout this class)."""
+        self.header_lines = None
+        self.footer_lines = None
+        self.auto_pageno = None
         self.mt_lines = None
         self.mb_lines = None
         # `columns`/`column_gutter_pt`/`column_width_pt` (planning #227
@@ -4139,6 +4155,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
         _attach_line_numbers_printed(doc, pages, _printed_size(doc))
         _attach_graphic_cells_printed(doc, pages, _printed_size(doc))
+        _attach_head_foot_lines_printed(doc, pages, _printed_size(doc))
         return pages or [[]]
 
     refs_all = _ref_pairs(_annotated_notes(doc))
@@ -4975,6 +4992,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         _attach_justify_word_x_printed(doc, pages, size_for_left)
         _attach_line_numbers_printed(doc, pages, size_for_left)
         _attach_graphic_cells_printed(doc, pages, size_for_left)
+        _attach_head_foot_lines_printed(doc, pages, size_for_left)
     return pages or [[]]
 
 
@@ -5123,6 +5141,114 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 line.graphic_cells = record
 
 
+def _attach_head_foot_lines_printed(doc, pages, size):
+    """planning #251(d): sets `Page.header_lines`/`footer_lines`/`auto_
+    pageno` -- the running head/foot's own resolved (text, x, y, font)
+    entries, one per declared `.h#`/`.f#` slot in force on this page --
+    moved from `_running_ops`'s own render-time-only computation (called
+    fresh, once per page, by `_emit_pdf_inner`'s per-page loop) onto the
+    page-lines model, via the SAME `_resolve_head_foot_lines` function
+    (no parallel re-derivation: this and `_running_ops` both call it,
+    each simply doing something different with its answer -- rendering
+    vs recording, exactly `_attach_graphic_cells_printed`'s own
+    precedent above).
+
+    Resolves under the document's own NATURAL state -- `auto_page_number`
+    from `_pgnum_checkpoints` (the `.pn`/`.pg`/`.op` state the file
+    itself carries) and every declared header/footer -- the same "model
+    states it unconditionally, a flag only tells the WRITER whether to
+    draw it" convention `headers`/`footers`/`line_no` already use: a
+    caller that renders with `--headers off` or an explicit `--page-
+    numbers on/off` override still gets a PDF from `_running_ops`'s own
+    fresh, independent call (this function's answer is for the model/
+    JSON export only, never substituted into the render path) -- so
+    those flags stay exactly as free to override the writer's own output
+    as they always were.
+
+    Replicates `_emit_pdf_inner`'s own per-page geometry swap (`.mt`/
+    `.mb`/`.pl`/`.hm`/`.fm`/`.po` overrides, `page_geom_changed`/
+    `po_parity`-gated `running_left`) and its `page_numbers_mode ==
+    'auto'` branch (the `.bi`-keyed `_pgnum_at` lookup, with the #228
+    trailing-`.pa` `explicit_break_bi` fallback for a page with no lines
+    of its own) verbatim -- see that loop's own dense per-line comments
+    for WHY each piece exists; this is the identical arithmetic, run
+    once here instead of once per real render."""
+    from .core import DEFAULT_HM_LINES as _DEF_HM
+    if not pages:
+        return
+    lead = _printed_lead(doc)
+    left = _printed_left(doc, size)
+    page_h = _resolved_page_height(doc, True)
+    pgnum_checkpoints = _pgnum_checkpoints(doc)
+    page_numbers = _resolve_page_numbers(_pn_checkpoints(doc), pages)
+    for page_index, pg in enumerate(pages):
+        page_mt = getattr(pg, 'mt_lines', None)
+        page_mb = getattr(pg, 'mb_lines', None)
+        page_pl = getattr(pg, 'pl_lines', None)
+        page_hm = getattr(pg, 'hm_lines', None)
+        page_fm = getattr(pg, 'fm_lines', None)
+        page_po = getattr(pg, 'po_cols', None)
+        page_geom_changed = (page_mt is not None or page_mb is not None
+                             or page_hm is not None or page_fm is not None)
+        page_po_parity = getattr(pg, 'po_parity', False)
+        running_left = (_resolve_left_pt(page_po, size)
+                        if page_po is not None
+                            and (page_geom_changed or page_po_parity)
+                        else left)
+        saved_pg = None
+        if (page_mt is not None or page_mb is not None or page_pl is not None
+                or page_hm is not None or page_fm is not None):
+            eff = dict(doc.meta['page'])
+            if page_mt is not None:
+                eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
+            if page_mb is not None:
+                eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
+            if page_pl is not None:
+                eff['pl_lines'] = page_pl
+            if page_hm is not None:
+                eff['hm_lines'] = page_hm
+                eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
+            if page_fm is not None:
+                eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
+            saved_pg, doc.meta['page'] = doc.meta['page'], eff
+        bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pg) if bi is not None]
+        if bis:
+            auto_page_number = _pgnum_at(pgnum_checkpoints, max(bis))
+        else:
+            fallback_bi = getattr(pg, 'explicit_break_bi', None)
+            auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
+                                if fallback_bi is not None else False)
+        resolved = _resolve_head_foot_lines(
+            doc, page_numbers[page_index], page_h, lead, size, running_left,
+            True, headers=getattr(pg, 'headers', None),
+            footers=getattr(pg, 'footers', None),
+            auto_page_number=auto_page_number)
+        if saved_pg is not None:
+            doc.meta['page'] = saved_pg
+        if resolved is None:
+            continue
+        if not isinstance(pg, Page):
+            # `_paginate_printed_notes`'s own footnote-area pages are
+            # sometimes plain lists, not `Page` instances (see `_apply_
+            # columns`'s own `merged.headers` comment) -- an attribute
+            # ASSIGNMENT (unlike every other consumer's read-only
+            # `getattr(pl, ..., None)`) would raise on a bare list. Same
+            # gap `columns`/`column_gutter_pt` already accept for these
+            # pages: the writer still renders their real (document-
+            # global-fallback) running head correctly; only the MODEL's
+            # own resolved copy is unavailable for this one page shape.
+            continue
+        if resolved['headers']:
+            pg.header_lines = [{'text': text, 'x': running_left, 'y': y, 'font': font_idx}
+                               for _n, text, y, font_idx in resolved['headers']]
+        if resolved['footers']:
+            pg.footer_lines = [{'text': text, 'x': running_left, 'y': y, 'font': font_idx}
+                               for _n, text, y, font_idx in resolved['footers']]
+        if resolved['auto'] is not None:
+            text, x, y = resolved['auto']
+            pg.auto_pageno = {'text': text, 'x': x, 'y': y}
+
+
 def _toc_page_numbers(doc, pix_results=None, pictures='off'):
     """{block_index: page_number} -- the REAL paginator's own answer for
     which page each block's FIRST printed line landed on (round 18,
@@ -5193,9 +5319,29 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
-def _running_ops(doc, page_no, page_h, lead, size, left, printed,
-                 headers=None, footers=None, res=None, auto_page_number=False):
-    """Header and footer text for one page, as content-stream ops.
+def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
+                             headers=None, footers=None, auto_page_number=False):
+    """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
+    (each line's `y`; `x` is simply the caller's already-resolved `left`,
+    since -- unlike `y` -- no header/footer line's own starting x has ever
+    depended on `page_no`, only on the page's own `.po`/`.poe`/`.poo`
+    state, which `_emit_pdf_inner`'s own per-page `running_left` already
+    resolves and threads straight through as this function's `left`
+    parameter) and WHAT TEXT (the `#` page-number substitution, and --
+    fontless/Courier lines with their own right-align tab only -- the
+    print-time-baked realignment spacing WS7 re-evaluates against THIS
+    page's own actual page-number width).
+
+    Planning #251(d), 2026-09-10: this is the MODEL half of what used to
+    be one function, `_running_ops`. `_running_ops` (the PDF writer) now
+    calls this and turns its resolved (text, y, font_idx) lines into
+    content-stream ops; `_attach_head_foot_lines_printed` (the page-lines
+    model, `_doc_to_pagelines`'s own post-pagination pass, below) calls
+    the SAME function to put page-level `Page.header_lines`/`footer_
+    lines`/`auto_pageno` on the model the app reads -- planning #251's
+    own running thread: "every per-word x the writer computes ... lives
+    on the page-lines model, the writer renders from it." Neither caller
+    duplicates this arithmetic; both call this one function.
 
     Geometry MEASURED on WordStar 4 (2026-08-03), not inferred:
         line 0                      header line 1
@@ -5216,22 +5362,41 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     (the one `.pc` positions -- a completely separate mechanism from a `#`
     the author placed inside a real `.he`/`.fo`) show on THIS page" --
     combining `--page-numbers auto/on/off` and, for `auto`, the per-page
-    `_pgnum_checkpoints` state. `_running_ops` itself only resolves WHERE
+    `_pgnum_checkpoints` state. This function itself only resolves WHERE
     (from `.po`/`.pc` via `_auto_pageno_x_pt`) and WHETHER a real footer
     pre-empts it (WSFORMAT.WS: "active only when the footers are not in
     use") -- never the on/off DECISION itself, which needs page-level
     context (the checkpoint state, the CLI flag) this function does not
-    have. A caller that never passes it (every existing call site but the
-    one main per-page loop wires it into) gets `False`, byte-identical to
+    have. A caller that never passes it (every existing `_running_ops`
+    call site but the one main per-page loop wires it into; `_attach_
+    head_foot_lines_printed` below always resolves the document's own
+    NATURAL 'auto' answer, the same "model states it unconditionally, a
+    flag only tells the WRITER whether to draw it" convention `headers`/
+    `footers` themselves already use) gets `False`, byte-identical to
     before this parameter existed -- TOC/Index pages included, which pass
     `headers={}`/`footers={}` explicitly and must not suddenly grow a
-    number they never had."""
+    number they never had.
+
+    Returns None for "nothing to place here" (the caller distinguishes
+    this from an empty-but-real result by testing for None, not falsy --
+    there is no ops list of its own to be empty). Otherwise `{'headers':
+    [(n, text, y, font_idx), ...], 'footers': [(n, text, y, font_idx),
+    ...], 'auto': (text, x, y) or None}`, ascending `n`, only slots
+    carrying real (truthy) text. `text` is FULLY resolved (`#`
+    substituted; fontless lines with their own right-align tab also get
+    the baked realignment spaces) but keeps WordStar's own inline style
+    TOGGLE BYTES intact -- a consumer still runs it through `hf_runs` for
+    STYLING/per-run advance, exactly as the raw `headers`/`footers` dict
+    already requires (this function resolves WHERE and WHAT TEXT, never
+    how to draw it). `font_idx` is the same `doc.fonts` index `doc.
+    header_fonts`/`footer_fonts` already carry, or None for the
+    fontless/Courier default."""
     headers = doc.headers if headers is None else headers
     footers = doc.footers if footers is None else footers
     footer_in_use = bool(footers) and any(footers.values())
     show_auto_num = printed and auto_page_number and not footer_in_use
     if not (headers or footers or show_auto_num) or not printed:
-        return []
+        return None
     page = doc.meta.get('page') or {}
     # `.op` does NOT suppress a `#` in a header or footer. MEASURED on WordStar 4
     # (2026-08-03): a document carrying `.op` and `.fo Page #` printed "Page 1" on
@@ -5252,34 +5417,30 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     def render(txt):
         return txt.replace('#', str(page_no))
 
-    def _hf_line_ops(txt, y, font_idx, tab_rec=None):
-        """One header/footer LINE's ops (register C6). `font_idx` is the
-        doc.fonts index found on this line's own .h#/.f# (doc.header_fonts/
-        footer_fonts -- None when that line opened with no font-change block
-        of its own). Resolved the SAME way a body span's own 'fontN' tag is
-        (_pdf_family), so LJ6DTP's running head -- Antique Olive, a
-        proportional sans face, per its own `.h1` -- no longer falls back to
-        a hardcoded Courier just because header text has no span machinery
-        of its own. `hf_runs` (emit.py; already used by Modern/RTF for this
-        exact text) turns WordStar's own typed toggle bytes into styles, so
-        a genuinely bold run still renders bold in whatever face this
-        resolves to, and the toggle bytes themselves never reach the page as
-        literal control characters.
+    def _resolve_line_text(txt, font_idx, tab_rec):
+        """The final substituted (and, for a fontless line with its own
+        right-align tab, realignment-baked) text for one header/footer
+        LINE -- the TEXT half of what used to be `_hf_line_ops`'s own
+        `tab_rec` branch, moved here (planning #251(d)) so it runs once
+        per PAGE at model-build time instead of once per PDF RENDER --
+        same formula, same result; `_running_ops` never recomputes it,
+        it calls `_resolve_head_foot_lines` (this function's own
+        caller) exactly like every other consumer.
 
         `tab_rec` (planning #202, -README's own running head) is this
-        line's own `doc.header_tabs`/`footer_tabs` entry: `(char_idx, cols,
-        abs_hmi)`, or None. A right/center/decimal-align tab typed into a
-        `.h#`/`.f#` argument gets its own `cols` spaces BAKED into the text
-        at parse time (`_symmetric_blocks`/`_tab_columns`, same as a body
-        span's) -- sized for whatever the eventual `#` substitution was
-        assumed to be wide when the file was LAST SAVED (always 1 column:
-        WordStar's own screen shows the literal '#' token, never the
-        eventual printed number). Real WS7 re-evaluates the tab at PRINT
-        TIME against THAT page's own actual page-number width instead
-        (measured, -README.WS pages 9->10: WS7's own "WordStar" moves 7.2pt
-        LEFT the instant the page number grows a second digit, while the
-        number's own right edge -- the tab's real target column -- never
-        moves).
+        line's own `doc.header_tabs`/`footer_tabs` entry: `(char_idx,
+        cols, abs_hmi)`, or None. A right/center/decimal-align tab typed
+        into a `.h#`/`.f#` argument gets its own `cols` spaces BAKED
+        into the text at parse time (`_symmetric_blocks`/`_tab_columns`,
+        same as a body span's) -- sized for whatever the eventual `#`
+        substitution was assumed to be wide when the file was LAST SAVED
+        (always 1 column: WordStar's own screen shows the literal '#'
+        token, never the eventual printed number). Real WS7 re-evaluates
+        the tab at PRINT TIME against THAT page's own actual page-number
+        width instead (measured, -README.WS pages 9->10: WS7's own
+        "WordStar" moves 7.2pt LEFT the instant the page number grows a
+        second digit, while the number's own right edge -- the tab's
+        real target column -- never moves).
 
         `abs_hmi` (content[2:4], "absolute tab size in HMIs" -- the SAME
         field a body span's own tab mark carries) is WHERE THE BAKED
@@ -5320,31 +5481,10 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         Fixed-pitch (`entry is None`, Courier) only: a proportional header
         face has no single column width to divide the HMI target by, and no
         oracle in the corpus combines the two, so that case is left at the
-        baked `cols` -- unchanged, same as before this existed.
-
-        No font on this line (the overwhelmingly common case -- every
-        document that never opens a `.h#`/`.f#` with a font block) is
-        BYTE-IDENTICAL to before this existed: one Tj, the whole string,
-        Courier -- PROVIDED the line has no toggle bytes of its own to
-        interpret (mechanism M residuals round, 2026-09-06): a fontless
-        `.h#`/`.f#` line that DOES type an inline style toggle (WS_TOGGLES,
-        e.g. `^Y` for italic) used to skip `hf_runs` entirely and write the
-        raw control byte straight into the Tj string -- a real PDF viewer
-        (and this repo's own fidelity gate, reproducing one) then advances
-        the pen by whatever width its font gives an undefined glyph code,
-        landing it as a phantom extra character glued onto the following
-        word. Confirmed on -README.WS's own running head (`.h1`, no font
-        block, wrapped in a single `^Y`...`^Y` italic pair): the engine's
-        Printed PDF carried a literal `\\x19` before "WordStar" on every
-        page, shifting "7.0"/"Archive" 7.2-14.4pt right of WS7's own real
-        (correctly italic-then-restored, no phantom glyph) position. `res`
-        is required for the run-by-run path (it registers whatever base-14
-        font gets used in the page's own /Font resources); a caller that
-        omits it gets the old single-Tj behaviour regardless (there is no
-        way to register a font without one), same as before this fix."""
+        baked `cols` -- unchanged, same as before this existed."""
         entry = (doc.fonts[font_idx]
-                if font_idx is not None and res is not None
-                and 0 <= font_idx < len(doc.fonts) else None)
+                if font_idx is not None and 0 <= font_idx < len(doc.fonts)
+                else None)
         if entry is None and tab_rec is not None:
             char_idx, cols, abs_hmi = tab_rec
             if 0 <= char_idx and char_idx + cols <= len(txt):
@@ -5353,40 +5493,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                 saved_target_col = round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)
                 new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
                 txt = txt[:char_idx] + (' ' * new_cols) + suffix
-        if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
-            return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
-                   (FONTS[(False, False)].encode(), size, left, y,
-                    _esc(render(txt)))]
-        family = _pdf_family(entry) if entry is not None else 'Courier'
-        pt = (max(1, round(entry['points']))
-              if entry is not None and entry.get('points') else size)
-        ops, x = [], left
-        for i, (run_text, styles) in enumerate(_hf_runs(txt)):
-            run_text = render(run_text)
-            if not run_text:
-                continue
-            if (i == 0 and not run_text.strip()
-                    and entry is not None and entry.get('proportional')):
-                # WordStar re-stamps a tab-derived leading indent as 10-CPI
-                # machine spaces regardless of the font in force (the SAME
-                # rule this module's own _split_indent applies to body
-                # text) -- a proportional face's space glyph is much
-                # narrower, so advancing on IT would pull the header text
-                # back toward the margin instead of where WS7's own
-                # absolute-position PCL puts it (measured: LJ6DTP.pcl's
-                # `&a1718H` immediately before this exact line's "LJ6DTP").
-                # A fontless (Courier) line never takes this branch --
-                # Courier's own per-character advance already IS
-                # `_PDF_PT_PER_COL`, so the general natural-width path
-                # below already lands leading spaces correctly.
-                x += len(run_text) * _PDF_PT_PER_COL
-                continue
-            basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-            font = res.ref(basefont)
-            ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
-                       (font.encode(), pt, x, y, _esc(run_text)))
-            x += _natural_width_pt(run_text, basefont, pt)
-        return ops
+        return render(txt)
 
     # The header block is anchored to the BODY, not the paper edge: its last
     # line sits `.hm` lines above the first body line, inside `.mt` (".MT ...
@@ -5502,12 +5609,14 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     hm = float(page.get('hm_lines', 2))
     top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
-    ops = []
+    resolved_headers = []
     for n, txt in sorted(headers.items()):
         if not txt:
             continue
         y = page_h - (head_base + n - 1) * LEAD - size
-        ops += _hf_line_ops(txt, y, doc.header_fonts.get(n), doc.header_tabs.get(n))
+        font_idx = doc.header_fonts.get(n)
+        text = _resolve_line_text(txt, font_idx, doc.header_tabs.get(n))
+        resolved_headers.append((n, text, y, font_idx))
     # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
     # same default/explicit asymmetry `.hm` turned out to have, above, and
     # NOT applying it here on the evidence actually available. No oracle in
@@ -5523,13 +5632,17 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     # own placement, unlike a default `.hm` in the header's. Reported, not
     # acted on.
     foot_line = pl - mb + fm
+    resolved_footers = []
     for n, txt in sorted(footers.items()):
         if not txt:
             continue
         y = page_h - (foot_line + n - 1) * lead - size
         if y < 0:
             continue
-        ops += _hf_line_ops(txt, y, doc.footer_fonts.get(n), doc.footer_tabs.get(n))
+        font_idx = doc.footer_fonts.get(n)
+        text = _resolve_line_text(txt, font_idx, doc.footer_tabs.get(n))
+        resolved_footers.append((n, text, y, font_idx))
+    auto = None
     if show_auto_num:
         # WordStar's own AUTOMATIC number rides the SAME row a footer line 1
         # would (n=1: `foot_line + 1 - 1 == foot_line`) -- measured, every
@@ -5542,10 +5655,115 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         # just above -- at most one of the two ever fires for a given page.
         y = page_h - foot_line * lead - size
         if y >= 0:
-            x = _auto_pageno_x_pt(doc)
+            auto = (str(page_no), _auto_pageno_x_pt(doc), y)
+    return {'headers': resolved_headers, 'footers': resolved_footers, 'auto': auto}
+
+
+def _running_ops(doc, page_no, page_h, lead, size, left, printed,
+                 headers=None, footers=None, res=None, auto_page_number=False):
+    """Header and footer text for one page, as content-stream ops -- a
+    thin RENDERING shell over `_resolve_head_foot_lines` (planning
+    #251(d)): that function resolves WHERE (`y`, and this page's own
+    `left`) and WHAT TEXT (page-number substitution, fontless tab-
+    realignment baking); this function only turns each already-resolved
+    line into PDF content-stream ops -- font resource registration
+    (`res`), toggle-byte STYLING (`hf_runs`), and a proportional header/
+    footer face's own per-run natural-width advance. See `_resolve_head_
+    foot_lines`'s own docstring for the geometry/text derivation (mt/hm
+    participation, `.op`, right-tab realignment, the WS4 header/footer
+    row layout) -- this docstring covers rendering only."""
+    resolved = _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left,
+                                        printed, headers, footers, auto_page_number)
+    if resolved is None:
+        return []
+
+    def _hf_line_ops(txt, y, font_idx):
+        """One already-resolved header/footer LINE's ops (register C6).
+        `font_idx` is the doc.fonts index found on this line's own
+        .h#/.f# (doc.header_fonts/footer_fonts -- None when that line
+        opened with no font-change block of its own). Resolved the SAME
+        way a body span's own 'fontN' tag is (_pdf_family), so LJ6DTP's
+        running head -- Antique Olive, a proportional sans face, per its
+        own `.h1` -- no longer falls back to a hardcoded Courier just
+        because header text has no span machinery of its own. `hf_runs`
+        (emit.py; already used by Modern/RTF for this exact text) turns
+        WordStar's own typed toggle bytes into styles, so a genuinely
+        bold run still renders bold in whatever face this resolves to,
+        and the toggle bytes themselves never reach the page as literal
+        control characters.
+
+        `txt` arrives here ALREADY fully resolved (`#` substituted, any
+        fontless right-tab realignment baked -- `_resolve_head_foot_
+        lines`'s own `_resolve_line_text`) -- this function never
+        touches page numbers or tab arithmetic, only glyphs.
+
+        No font on this line (the overwhelmingly common case -- every
+        document that never opens a `.h#`/`.f#` with a font block) is
+        BYTE-IDENTICAL to before this existed: one Tj, the whole string,
+        Courier -- PROVIDED the line has no toggle bytes of its own to
+        interpret (mechanism M residuals round, 2026-09-06): a fontless
+        `.h#`/`.f#` line that DOES type an inline style toggle (WS_TOGGLES,
+        e.g. `^Y` for italic) used to skip `hf_runs` entirely and write the
+        raw control byte straight into the Tj string -- a real PDF viewer
+        (and this repo's own fidelity gate, reproducing one) then advances
+        the pen by whatever width its font gives an undefined glyph code,
+        landing it as a phantom extra character glued onto the following
+        word. Confirmed on -README.WS's own running head (`.h1`, no font
+        block, wrapped in a single `^Y`...`^Y` italic pair): the engine's
+        Printed PDF carried a literal `\\x19` before "WordStar" on every
+        page, shifting "7.0"/"Archive" 7.2-14.4pt right of WS7's own real
+        (correctly italic-then-restored, no phantom glyph) position. `res`
+        is required for the run-by-run path (it registers whatever base-14
+        font gets used in the page's own /Font resources); a caller that
+        omits it gets the old single-Tj behaviour regardless (there is no
+        way to register a font without one), same as before this fix."""
+        entry = (doc.fonts[font_idx]
+                if font_idx is not None and res is not None
+                and 0 <= font_idx < len(doc.fonts) else None)
+        if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
+            return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
+                   (FONTS[(False, False)].encode(), size, left, y,
+                    _esc(txt))]
+        family = _pdf_family(entry) if entry is not None else 'Courier'
+        pt = (max(1, round(entry['points']))
+              if entry is not None and entry.get('points') else size)
+        ops, x = [], left
+        for i, (run_text, styles) in enumerate(_hf_runs(txt)):
+            if not run_text:
+                continue
+            if (i == 0 and not run_text.strip()
+                    and entry is not None and entry.get('proportional')):
+                # WordStar re-stamps a tab-derived leading indent as 10-CPI
+                # machine spaces regardless of the font in force (the SAME
+                # rule this module's own _split_indent applies to body
+                # text) -- a proportional face's space glyph is much
+                # narrower, so advancing on IT would pull the header text
+                # back toward the margin instead of where WS7's own
+                # absolute-position PCL puts it (measured: LJ6DTP.pcl's
+                # `&a1718H` immediately before this exact line's "LJ6DTP").
+                # A fontless (Courier) line never takes this branch --
+                # Courier's own per-character advance already IS
+                # `_PDF_PT_PER_COL`, so the general natural-width path
+                # below already lands leading spaces correctly.
+                x += len(run_text) * _PDF_PT_PER_COL
+                continue
+            basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+            font = res.ref(basefont)
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
-                       (FONTS[(False, False)].encode(), size, x, y,
-                        _esc(str(page_no))))
+                       (font.encode(), pt, x, y, _esc(run_text)))
+            x += _natural_width_pt(run_text, basefont, pt)
+        return ops
+
+    ops = []
+    for _n, txt, y, font_idx in resolved['headers']:
+        ops += _hf_line_ops(txt, y, font_idx)
+    for _n, txt, y, font_idx in resolved['footers']:
+        ops += _hf_line_ops(txt, y, font_idx)
+    if resolved['auto'] is not None:
+        text, x, y = resolved['auto']
+        ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
+                   (FONTS[(False, False)].encode(), size, x, y,
+                    _esc(text)))
     return ops
 
 
