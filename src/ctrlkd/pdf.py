@@ -5375,16 +5375,38 @@ def _attach_head_foot_lines_printed(doc, pages, size):
         if resolved is None:
             continue
         if not isinstance(pg, Page):
-            # `_paginate_printed_notes`'s own footnote-area pages are
-            # sometimes plain lists, not `Page` instances (see `_apply_
-            # columns`'s own `merged.headers` comment) -- an attribute
-            # ASSIGNMENT (unlike every other consumer's read-only
-            # `getattr(pl, ..., None)`) would raise on a bare list. Same
-            # gap `columns`/`column_gutter_pt` already accept for these
-            # pages: the writer still renders their real (document-
-            # global-fallback) running head correctly; only the MODEL's
-            # own resolved copy is unavailable for this one page shape.
-            continue
+            # planning #251 part d fix (found by the app coder, job 348
+            # follow-up: sawyer/-SCREEN.WS page 1, the app's own
+            # BOTHNOTE.WS page 1): `_paginate_printed_notes`'s own
+            # footnote-area pages are sometimes plain lists, not `Page`
+            # instances (see `_apply_columns`'s own `merged.headers`
+            # comment) -- an attribute ASSIGNMENT (unlike every other
+            # consumer's read-only `getattr(pl, ..., None)`) raises on a
+            # bare list. This USED TO `continue` here, leaving the
+            # model's own copy unresolved for every such page even
+            # though `_running_ops` (the writer) draws their header/
+            # footer/auto-page-number correctly from this SAME `resolved`
+            # answer, via its own `getattr(pl, 'headers', None)` fallback
+            # a few lines above -- two sources of truth that could (and
+            # did) disagree: the writer put "1" at 291.6/732.0 on
+            # -SCREEN.WS page 1 while the model said `None`.
+            #
+            # Promoting the bare list to a real `Page` here instead
+            # closes the gap -- `headers`/`footers` set explicitly to
+            # `None` (not `Page.__init__`'s own `{}` default, which would
+            # instead SUPPRESS the doc-global running-head fallback these
+            # pages have always relied on; every other `Page.__init__`
+            # field default already matches what `getattr(bare_list,
+            # attr, None)` returned, so nothing else about this page's
+            # resolved behaviour changes). `pages[page_index]` is
+            # reassigned so `_emit_pdf_inner`'s own render loop -- which
+            # reads this SAME `pages` list a few lines later -- keeps
+            # seeing byte-identical `getattr(pl, 'headers', None)`
+            # answers; PDF bytes do not move.
+            pg = Page(pg)
+            pg.headers = None
+            pg.footers = None
+            pages[page_index] = pg
         if resolved['headers']:
             pg.header_lines = [{'text': text, 'x': running_left, 'y': y, 'font': font_idx}
                                for _n, text, y, font_idx in resolved['headers']]
