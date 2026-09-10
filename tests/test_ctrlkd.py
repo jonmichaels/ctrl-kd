@@ -7242,3 +7242,142 @@ def test_printed_left_po_columns_are_pitch_independent():
 
     assert abs(_pdf._printed_left(_Doc(), 12) - 57.6) < 1e-9
     assert abs(_pdf._printed_left(_Doc(), 10) - 57.6) < 1e-9
+
+
+# ------------------------------------------- planning #255: header/footer
+# style-sheet alignment (sawyer/REF/GALLEYS.DOT/ADVANCE.DOT's own real
+# shape -- a `.h#`/`.f#` argument opening with a 0x11 paragraph-style-
+# select whose resolved style carries 'right'/'center' justification).
+
+def _hf_style_doc(just, slot=2, attrs_on=0, font=(142, 220, 49710), tag=b'.h1o'):
+    """A minimal WS5+ document whose header line `tag` opens with a 0x11
+    style-select referencing a library style at `slot` -- the same shape
+    `test_ws7_heading_and_softpage`/`test_style_record_formatting_applies_
+    and_persists` already use for BODY text, here on a `.h#`/`.f#`
+    argument instead (real corpus shape: GALLEYS.DOT/ADVANCE.DOT's `.h1o`/
+    `.h1e`). `just` is the raw signed justification byte value
+    (`_parse_style_library`'s own vocabulary: 0 left, 1 justify, -2
+    center, -3 right) `% 256`; `font`/`attrs_on` let a test pin the
+    style's OWN font/span-attrs resolution too (real capture, ADVANCE.DOT:
+    "Header Odd"/"Header Even" both declare bold and a non-default
+    proportional face)."""
+    rec = bytearray(_style_record(just=just % 256))
+    rec[0:2] = font[0].to_bytes(2, 'little')
+    rec[2:4] = font[1].to_bytes(2, 'little')
+    rec[4:6] = font[2].to_bytes(2, 'little')
+    rec[91:93] = attrs_on.to_bytes(2, 'little')
+    entries = [('WordStar Defaults', False, None),
+              ('WordStar Defaults', False, None)]
+    entries += [('unused', False, None)] * (slot - 2)
+    entries.append(('Header Style', True, bytes(rec)))
+    lib = _style_library(entries)
+    style = _style_handle(slot)
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            tag + b' ' + style + b'TITLE #' + HARD +
+            b'Body text follows.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    return bytes(data)
+
+
+def test_head_foot_style_select_resolves_right_alignment():
+    """The core defect: a `.h#`/`.f#` argument's own 0x11 style-select
+    (WSFORMAT's "Header Odd"/"Header Even" mechanism) resolves its
+    style's 'flush right' justification into `Document.header_align`/
+    `_align_parity` -- never modeled before planning #255 (both engines
+    always left-aligned, regardless of what the selected style asked
+    for)."""
+    doc = core.parse_ws(_hf_style_doc(just=-3))              # -3: flush right
+    assert doc.header_align_parity == {1: {'O': 'right'}}
+    # The flat, parity-unaware projection every `.h#`/`.f#` command also
+    # writes (Modern/RTF/plain-text's own legacy fallback, #250's own
+    # carve-out) gets the SAME last-in-source-order value.
+    assert doc.header_align == {1: 'right'}
+
+
+def test_head_foot_style_select_center_and_left_and_justify_never_align():
+    """WSFORMAT documents right/center as the header/footer alignment
+    axis; 'left' (explicit no-justification) and 'justify' (full
+    justification, a body-paragraph-only concept) both fall through to
+    None -- WordStar's own ordinary left-aligned placement, exactly as
+    before this mechanism existed."""
+    assert core.parse_ws(_hf_style_doc(just=-2)).header_align == {1: 'center'}
+    assert core.parse_ws(_hf_style_doc(just=0)).header_align == {1: None}
+    assert core.parse_ws(_hf_style_doc(just=1)).header_align == {1: None}
+
+
+def test_head_foot_style_select_carries_its_own_font_and_attrs():
+    """Real WS7 capture (ADVANCE.DOT): "Header Odd"/"Header Even" both
+    declare a non-default proportional font AND bold -- a style selection
+    changes the ACTIVE FONT for header/footer text exactly as it does for
+    body text (`_style_font`, the SAME cache/cross-reference body spans
+    use), and its span attrs become this line's own baseline styling
+    (`Document.header_style_attrs_parity`), ORed with (never replacing)
+    any inline toggle bytes typed in the argument text itself."""
+    doc = core.parse_ws(_hf_style_doc(just=-3, attrs_on=0b1000000))  # bold
+    font_idx = doc.header_fonts_parity[1]['O']
+    assert font_idx is not None
+    entry = doc.fonts[font_idx]
+    assert entry['proportional'] is True
+    assert entry['generic_style'] == 'sans'
+    assert entry['points'] == 11.0
+    assert doc.header_style_attrs_parity == {1: {'O': frozenset({'b'})}}
+    # An explicit inline font block on the SAME line still wins (register
+    # C6 precedent) -- not exercised by any corpus document, so only the
+    # style-only path (the common, real-corpus case) is pinned by name
+    # here; the precedence itself is enforced in core.py at the call site.
+
+
+def test_head_foot_style_select_footer_mirrors_header():
+    """`.f#`'s own mirror of the header mechanism above -- no corpus
+    document exercises a style-selected FOOTER, but WSFORMAT documents
+    `.FO`/`.F1` symmetrically with `.HE`/`.H1`, and both engines implement
+    the family uniformly."""
+    doc = core.parse_ws(_hf_style_doc(just=-3, tag=b'.f1o'))
+    assert doc.footer_align_parity == {1: {'O': 'right'}}
+    assert doc.footer_align == {1: 'right'}
+    assert doc.header_align == {}                # untouched -- no `.h#` at all
+
+
+def test_head_foot_style_select_shifts_the_printed_x_right():
+    """End-to-end: the resolved 'right' alignment actually MOVES the
+    Printed model's own `x` -- `_hf_align_x`'s own formula, pinned
+    against the SAME `_hf_natural_width_pt` a consumer would compute,
+    rather than a hardcoded point value that would silently stop meaning
+    anything the moment an AFM table changes. `right_edge` here is the
+    document's own UNCHANGED defaults (`DEFAULT_PO_COLS`/65-column `.rm`
+    default -- this fixture sets neither), proving the mechanism needs no
+    special-cased page geometry to work."""
+    from ctrlkd import pdf as _pdf
+    doc = core.parse_ws(_hf_style_doc(just=-3))
+    pages = _pdf._doc_to_pagelines(doc, True)
+    hl = pages[0].header_lines
+    assert hl and hl[0]['text'] == 'TITLE 1'
+    size = _pdf._printed_size(doc)
+    left = _pdf._printed_left(doc, size)
+    right_edge = _pdf._printed_hf_right(doc, left)
+    font_idx = doc.header_fonts_parity[1]['O']
+    style_attrs = doc.header_style_attrs_parity[1]['O']
+    width = _pdf._hf_natural_width_pt('TITLE 1', font_idx, doc, size, style_attrs)
+    assert hl[0]['x'] == pytest.approx(right_edge - width, abs=0.05)
+    # Sanity: well clear of the plain left margin -- a real shift, not a
+    # rounding no-op.
+    assert hl[0]['x'] > left + 50
+
+
+def test_head_foot_no_style_select_is_unchanged():
+    """A plain `.h1` with no 0x11 selection at all resolves `header_align`
+    to None and renders at the ordinary left margin -- byte-identical to
+    every document before planning #255 existed (`hf_style_w0` is simply
+    never found in `line_marks`, the same `next(..., None)` shape `hf_
+    font_idx`/`hf_tab_mark` already use)."""
+    from ctrlkd import pdf as _pdf
+    data = b'.h1 PLAIN HEADER #\r\n' + b'Body text follows.' + HARD
+    doc = core.parse_ws(data)
+    assert doc.header_align == {1: None}
+    pages = _pdf._doc_to_pagelines(doc, True)
+    hl = pages[0].header_lines
+    size = _pdf._printed_size(doc)
+    left = _pdf._printed_left(doc, size)
+    assert hl[0]['x'] == left

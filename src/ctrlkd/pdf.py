@@ -3792,7 +3792,8 @@ class Page(list):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
-        # planning #250: `{1: (font_idx, tab_rec)}` -- set ONLY by
+        # planning #250: `{1: (font_idx, tab_rec, align)}` (align added
+        # planning #255) -- set ONLY by
         # `_close_page`'s own `_parity_hf`, only when THIS page's line 1
         # came from a `.h1e`/`.h1o`/`.f1e`/`.f1o` parity variant (not a
         # plain `.h1`/`.fo`). None (the "no opinion, read `doc.header_
@@ -4924,7 +4925,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # value` and `test_head_foot_parity_a_plain_h1_after_h1e_updates_
         # only_the_flat_fallback` (tests/test_ctrlkd.py) pin both halves
         # of this reading.
-        def _parity_hf(even_map, odd_map, fonts_parity, tabs_parity):
+        def _parity_hf(even_map, odd_map, fonts_parity, tabs_parity, align_parity,
+                       style_attrs_parity):
             if 1 not in even_map and 1 not in odd_map:
                 return None
             if is_even_page and 1 in even_map:
@@ -4935,25 +4937,34 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 return None
             font_idx = fonts_parity.get(1, {}).get(letter)
             tab_rec = tabs_parity.get(1, {}).get(letter)
-            return text, font_idx, tab_rec
-        head = _parity_hf(page_hdrs_e, page_hdrs_o,
-                          doc.header_fonts_parity, doc.header_tabs_parity)
+            # Planning #255: this page's own resolved style-sheet alignment
+            # (GALLEYS.DOT/ADVANCE.DOT's `.h1o`/`.h1e` -- see `Document.
+            # header_align_parity`'s own docstring) and its style's own
+            # span attrs (`Document.header_style_attrs_parity`), the SAME
+            # parity slot font_idx/tab_rec just above already read.
+            align = align_parity.get(1, {}).get(letter)
+            style_attrs = style_attrs_parity.get(1, {}).get(letter) or frozenset()
+            return text, font_idx, tab_rec, align, style_attrs
+        head = _parity_hf(page_hdrs_e, page_hdrs_o, doc.header_fonts_parity,
+                          doc.header_tabs_parity, doc.header_align_parity,
+                          doc.header_style_attrs_parity)
         if head is not None:
-            text, font_idx, tab_rec = head
+            text, font_idx, tab_rec, align, style_attrs = head
             if text:
                 pg.headers[1] = text
             else:
                 pg.headers.pop(1, None)
-            pg.head_hf_override = {1: (font_idx, tab_rec)}
-        foot = _parity_hf(page_ftrs_e, page_ftrs_o,
-                          doc.footer_fonts_parity, doc.footer_tabs_parity)
+            pg.head_hf_override = {1: (font_idx, tab_rec, align, style_attrs)}
+        foot = _parity_hf(page_ftrs_e, page_ftrs_o, doc.footer_fonts_parity,
+                          doc.footer_tabs_parity, doc.footer_align_parity,
+                          doc.footer_style_attrs_parity)
         if foot is not None:
-            text, font_idx, tab_rec = foot
+            text, font_idx, tab_rec, align, style_attrs = foot
             if text:
                 pg.footers[1] = text
             else:
                 pg.footers.pop(1, None)
-            pg.foot_hf_override = {1: (font_idx, tab_rec)}
+            pg.foot_hf_override = {1: (font_idx, tab_rec, align, style_attrs)}
         # Body text: `_doc_to_pagelines`/`_body_stream_printed` could not
         # resolve a `.poe`/`.poo`-governed line's own left origin at BUILD
         # time (which page, and therefore which parity, a line lands on is
@@ -5520,11 +5531,24 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             pg.footers = None
             pages[page_index] = pg
         if resolved['headers']:
-            pg.header_lines = [{'text': text, 'x': running_left, 'y': y, 'font': font_idx}
-                               for _n, text, y, font_idx in resolved['headers']]
+            # `style_attrs` (planning #255) is a PDF-render-time concern
+            # only here -- `_running_ops` ORs it into `hf_runs`' own
+            # per-run styles before drawing; the page-lines MODEL keeps
+            # its pre-existing dict shape (`text`/`x`/`y`/`font` only),
+            # unchanged for every document, matching this field's own
+            # established "byte-identical unless a document actually uses
+            # the mechanism" convention -- `font_idx` (already threaded
+            # through `_style_font`) is enough for a consumer to resolve
+            # the style's own face; bold/italic is this text's own toggle-
+            # byte concern, `hf_runs` already exposes it the same way for
+            # every other header/footer line.
+            pg.header_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx}
+                               for _n, text, y, font_idx, x, _attrs
+                               in resolved['headers']]
         if resolved['footers']:
-            pg.footer_lines = [{'text': text, 'x': running_left, 'y': y, 'font': font_idx}
-                               for _n, text, y, font_idx in resolved['footers']]
+            pg.footer_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx}
+                               for _n, text, y, font_idx, x, _attrs
+                               in resolved['footers']]
         if resolved['auto'] is not None:
             text, x, y = resolved['auto']
             pg.auto_pageno = {'text': text, 'x': x, 'y': y}
@@ -5600,6 +5624,85 @@ def _coalesce(line):
             out.append([text, styles])
     return out
 
+def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
+    """Natural width, in points, of an already-resolved header/footer LINE
+    (`#` substituted, tab-realignment baked -- `_resolve_line_text`'s own
+    output) -- the SAME font/run resolution `_running_ops`'s `_hf_line_ops`
+    draws it with (register C6's own family/size lookup, `hf_runs`'s own
+    toggle-byte styling), so a style-sheet-driven right/center alignment
+    (planning #255) can be resolved HERE, on the model, and `_hf_line_ops`
+    can simply draw at the model's own resolved `x` rather than
+    recomputing this -- one place that measures, matching `_resolve_line_
+    text`'s own already-established convention for this function.
+
+    `style_attrs` (planning #255, `Document.header_style_attrs`) is the
+    selected paragraph style's own baseline span attrs (real capture,
+    ADVANCE.DOT's "Header Odd"/"Header Even": both declare bold) -- ORed
+    into every run's own toggle-byte styles, never replacing them, exactly
+    how `_hf_line_ops` itself must apply it when it draws the same text.
+
+    Mirrors `_hf_line_ops`'s own leading-indent special case (a tab-
+    derived indent on a PROPORTIONAL line re-stamps as 10-CPI machine
+    spaces, not the font's own narrow space glyph) so alignment and
+    drawing never disagree about how wide the same text is."""
+    entry = (doc.fonts[font_idx]
+            if font_idx is not None and 0 <= font_idx < len(doc.fonts) else None)
+    family = _pdf_family(entry) if entry is not None else 'Courier'
+    pt = (max(1, round(entry['points']))
+         if entry is not None and entry.get('points') else size)
+    total = 0.0
+    for i, (run_text, styles) in enumerate(_hf_runs(txt)):
+        if not run_text:
+            continue
+        if (i == 0 and not run_text.strip()
+                and entry is not None and entry.get('proportional')):
+            total += len(run_text) * _PDF_PT_PER_COL
+            continue
+        styles = styles | style_attrs
+        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        total += _natural_width_pt(run_text, basefont, pt)
+    return total
+
+
+def _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
+                style_attrs=frozenset()):
+    """The starting x, in points, for one header/footer LINE that resolved
+    a style-sheet alignment (planning #255) -- `left` for None/anything
+    unresolved (WordStar's own default, byte-identical to before this
+    existed), else `text`'s own natural width pulled back from `right_
+    edge` (flush right) or split evenly either side of the measure
+    (center), clamped so a line wider than its own measure never prints
+    LEFT of `left` (matches `_modern_line_ops`'s own `max(0.0, ...)`
+    clamp for the same degenerate case)."""
+    if align not in ('right', 'center') or right_edge is None:
+        return left
+    w = _hf_natural_width_pt(text, font_idx, doc, size, style_attrs)
+    if align == 'right':
+        return max(left, right_edge - w)
+    return left + max(0.0, (right_edge - left - w) / 2.0)
+
+
+def _printed_hf_right(doc, left):
+    """The print area's own right edge, in points, for a header/footer
+    line's own right/center alignment (planning #255) -- `left` (the
+    caller's own already-resolved, parity-aware `.po`/`.poe`/`.poo`
+    origin for THIS page) plus the document's own `.rm`, at the same 10
+    CPI column frame `justify_right_x` (body-paragraph full justification)
+    already uses `po_origin_pt` + `rm_cols * _PDF_PT_PER_COL` for -- see
+    that call site's own comment. `doc.meta['page']['rm_cols']` (planning
+    #255, `_PAGE_DOT_KEYS`) is the document's own OPENING `.rm`, the same
+    "one resolved answer, page-1-shaped" rule mt/mb/hm/fm/po already
+    follow at this same document-level scope; a document that also
+    changes `.rm` mid-file keeps this opening value for its header/footer
+    alignment (unaffected: body-paragraph justification still tracks the
+    change via each block's own `right_margin`)."""
+    page = doc.meta.get('page') or {}
+    rm_cols = page.get('rm_cols')
+    if rm_cols is None:
+        return None
+    return left + rm_cols * _PDF_PT_PER_COL
+
+
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
                              head_hf_override=None, foot_hf_override=None):
@@ -5662,15 +5765,25 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     Returns None for "nothing to place here" (the caller distinguishes
     this from an empty-but-real result by testing for None, not falsy --
     there is no ops list of its own to be empty). Otherwise `{'headers':
-    [(n, text, y, font_idx), ...], 'footers': [(n, text, y, font_idx),
-    ...], 'auto': (text, x, y) or None}`, ascending `n`, only slots
-    carrying real (truthy) text. `text` is FULLY resolved (`#`
-    substituted; fontless lines with their own right-align tab also get
-    the baked realignment spaces) but keeps WordStar's own inline style
-    TOGGLE BYTES intact -- a consumer still runs it through `hf_runs` for
-    STYLING/per-run advance, exactly as the raw `headers`/`footers` dict
-    already requires (this function resolves WHERE and WHAT TEXT, never
-    how to draw it). `font_idx` is the same `doc.fonts` index `doc.
+    [(n, text, y, font_idx, x, style_attrs), ...], 'footers': [(n, text,
+    y, font_idx, x, style_attrs), ...], 'auto': (text, x, y) or None}`,
+    ascending `n`, only slots carrying real (truthy) text. `text` is
+    FULLY resolved (`#` substituted; fontless lines with their own
+    right-align tab also get the baked realignment spaces) but keeps
+    WordStar's own inline style TOGGLE BYTES intact -- a consumer still
+    runs it through `hf_runs` for STYLING/per-run advance, exactly as the
+    raw `headers`/`footers` dict already requires (this function resolves
+    WHERE and WHAT TEXT, never how to draw it). `x` (planning #255) is
+    `left` unchanged for the overwhelmingly common case (no style-sheet
+    alignment resolved), else this line's own already-measured
+    right/center-aligned starting point (`_hf_align_x`) -- a consumer
+    draws AT this x, it never recomputes alignment itself, the same "the
+    model measures, the writer draws" split `text`'s own tab-realignment
+    baking already established. `style_attrs` (planning #255) is the
+    selected style's own baseline span attrs (frozenset, possibly empty)
+    -- a consumer ORs it into every run's own toggle-byte styles before
+    drawing/measuring, never replacing them. `font_idx` is the same
+    `doc.fonts` index `doc.
     header_fonts`/`footer_fonts` already carry, or None for the
     fontless/Courier default."""
     # Planning #250: a document with NO real body blocks at all (GALLEYS.
@@ -5699,7 +5812,10 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             headers = dict(headers)
             headers[1] = pv[letter]
             head_hf_override = {1: (doc.header_fonts_parity.get(1, {}).get(letter),
-                                    doc.header_tabs_parity.get(1, {}).get(letter))}
+                                    doc.header_tabs_parity.get(1, {}).get(letter),
+                                    doc.header_align_parity.get(1, {}).get(letter),
+                                    doc.header_style_attrs_parity.get(1, {})
+                                    .get(letter) or frozenset())}
     if footers_flat and foot_hf_override is None and doc.footers_parity.get(1):
         letter = 'E' if page_no % 2 == 0 else 'O'
         pv = doc.footers_parity[1]
@@ -5707,7 +5823,10 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             footers = dict(footers)
             footers[1] = pv[letter]
             foot_hf_override = {1: (doc.footer_fonts_parity.get(1, {}).get(letter),
-                                    doc.footer_tabs_parity.get(1, {}).get(letter))}
+                                    doc.footer_tabs_parity.get(1, {}).get(letter),
+                                    doc.footer_align_parity.get(1, {}).get(letter),
+                                    doc.footer_style_attrs_parity.get(1, {})
+                                    .get(letter) or frozenset())}
     footer_in_use = bool(footers) and any(footers.values())
     show_auto_num = printed and auto_page_number and not footer_in_use
     if not (headers or footers or show_auto_num) or not printed:
@@ -5924,6 +6043,37 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     hm = float(page.get('hm_lines', 2))
     top_head = max(headers, default=1)
     head_base = max(0.0, mt - hm - top_head)
+    # Planning #255: a document with NO real body blocks at all
+    # (GALLEYS.DOT/ADVANCE.DOT) never runs `_close_page`'s own `.poe`/
+    # `.poo` resolution (`Page.po_parity`, set only when a real per-page
+    # `Page` exists) -- `headers_flat`/`footers_flat` (this function's own
+    # #250 test, above) already IS that same "no real page" signal.
+    # Reuses `_poe_poo_checkpoints`/`_left_for_parity` (the SAME machinery
+    # `_close_page` calls) directly here, at block 0 (the only anchor a
+    # document with no blocks can have -- every `.poe`/`.poo` in
+    # GALLEYS.DOT/ADVANCE.DOT precedes the document's own single `.h1o`/
+    # `.h1e` pair, both before any block would ever open). A document
+    # that never sets `.poe`/`.poo` gets empty checkpoint lists and
+    # `left` unchanged -- byte-identical to before this existed; a
+    # document WITH a real page for this page (`headers_flat` False)
+    # is also untouched -- its own `_close_page`-resolved `left` (this
+    # function's own `left` parameter) already reflects them.
+    if headers_flat or footers_flat:
+        poe_cp = _poe_poo_checkpoints(doc, _POE_CMD_RE)
+        poo_cp = _poe_poo_checkpoints(doc, _POO_CMD_RE)
+        if poe_cp or poo_cp:
+            po0 = _po_at(_po_checkpoints(doc), 0)
+            poe0 = _po_at(poe_cp, 0) if poe_cp else None
+            poo0 = _po_at(poo_cp, 0) if poo_cp else None
+            left = _resolve_left_pt(
+                _left_for_parity(po0, poe0, poo0, page_no % 2 == 0), size)
+    # planning #255: the print area's own right edge, once per page (every
+    # header/footer line on it shares the same `.rm`) -- see `_printed_hf_
+    # right`'s own docstring. None for a document that never resolves a
+    # `.rm` at all (impossible in practice -- `doc.meta['page']['rm_cols']`
+    # always carries at least the WordStar default -- kept as a guard
+    # anyway since `_hf_align_x` already treats None as "no alignment").
+    right_edge = _printed_hf_right(doc, left)
     resolved_headers = []
     for n, txt in sorted(headers.items()):
         if not txt:
@@ -5935,11 +6085,15 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         # family) falls straight through to the flat `doc.header_fonts`/
         # `header_tabs` reads, byte-identical to before this existed.
         if head_hf_override is not None and n in head_hf_override:
-            font_idx, tab_rec = head_hf_override[n]
+            font_idx, tab_rec, align, style_attrs = head_hf_override[n]
         else:
             font_idx, tab_rec = doc.header_fonts.get(n), doc.header_tabs.get(n)
+            align = doc.header_align.get(n)
+            style_attrs = doc.header_style_attrs.get(n) or frozenset()
         text = _resolve_line_text(txt, font_idx, tab_rec)
-        resolved_headers.append((n, text, y, font_idx))
+        x = _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
+                        style_attrs)
+        resolved_headers.append((n, text, y, font_idx, x, style_attrs))
     # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
     # same default/explicit asymmetry `.hm` turned out to have, above, and
     # NOT applying it here on the evidence actually available. No oracle in
@@ -5964,11 +6118,15 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             continue
         # planning #250: same override as the header loop above.
         if foot_hf_override is not None and n in foot_hf_override:
-            font_idx, tab_rec = foot_hf_override[n]
+            font_idx, tab_rec, align, style_attrs = foot_hf_override[n]
         else:
             font_idx, tab_rec = doc.footer_fonts.get(n), doc.footer_tabs.get(n)
+            align = doc.footer_align.get(n)
+            style_attrs = doc.footer_style_attrs.get(n) or frozenset()
         text = _resolve_line_text(txt, font_idx, tab_rec)
-        resolved_footers.append((n, text, y, font_idx))
+        x = _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
+                        style_attrs)
+        resolved_footers.append((n, text, y, font_idx, x, style_attrs))
     auto = None
     if show_auto_num:
         # WordStar's own AUTOMATIC number rides the SAME row a footer line 1
@@ -6006,8 +6164,18 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     if resolved is None:
         return []
 
-    def _hf_line_ops(txt, y, font_idx):
+    def _hf_line_ops(txt, y, font_idx, x0, style_attrs=frozenset()):
         """One already-resolved header/footer LINE's ops (register C6).
+
+        `x0` (planning #255) is this line's own already-resolved starting
+        x -- `_resolve_head_foot_lines`'s own `x` (`left` unchanged, or a
+        style-sheet right/center alignment's own measured start) -- this
+        function draws AT it, never recomputing alignment itself.
+        `style_attrs` (planning #255) is the selected style's own baseline
+        span attrs (real capture, ADVANCE.DOT: "Header Odd"/"Header Even"
+        both declare bold) -- ORed into every run's own toggle-byte styles
+        below, the SAME merge `_hf_natural_width_pt` already applies when
+        measuring this exact text for alignment.
         `font_idx` is the doc.fonts index found on this line's own
         .h#/.f# (doc.header_fonts/footer_fonts -- None when that line
         opened with no font-change block of its own). Resolved the SAME
@@ -6049,7 +6217,8 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         entry = (doc.fonts[font_idx]
                 if font_idx is not None and res is not None
                 and 0 <= font_idx < len(doc.fonts) else None)
-        if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
+        if (entry is None and not style_attrs
+                and (res is None or not any(ord(c) < 0x20 for c in txt))):
             # `txt.replace('∙', '•')`: this fast path (no font block, no control/
             # toggle byte anywhere) never calls `_hf_runs` at all -- fine for style
             # and control-byte handling, since the gate above already proves there
@@ -6067,12 +6236,12 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             # drawn bytes: the two agreed neither more nor less than the SAME
             # substitution both are supposed to apply on their own read of it.
             return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
-                   (FONTS[(False, False)].encode(), size, left, y,
+                   (FONTS[(False, False)].encode(), size, x0, y,
                     _esc(txt.replace('∙', '•')))]
         family = _pdf_family(entry) if entry is not None else 'Courier'
         pt = (max(1, round(entry['points']))
               if entry is not None and entry.get('points') else size)
-        ops, x = [], left
+        ops, x = [], x0
         for i, (run_text, styles) in enumerate(_hf_runs(txt)):
             if not run_text:
                 continue
@@ -6092,6 +6261,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                 # below already lands leading spaces correctly.
                 x += len(run_text) * _PDF_PT_PER_COL
                 continue
+            styles = styles | style_attrs
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
             font = res.ref(basefont)
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
@@ -6100,10 +6270,10 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         return ops
 
     ops = []
-    for _n, txt, y, font_idx in resolved['headers']:
-        ops += _hf_line_ops(txt, y, font_idx)
-    for _n, txt, y, font_idx in resolved['footers']:
-        ops += _hf_line_ops(txt, y, font_idx)
+    for _n, txt, y, font_idx, x0, style_attrs in resolved['headers']:
+        ops += _hf_line_ops(txt, y, font_idx, x0, style_attrs)
+    for _n, txt, y, font_idx, x0, style_attrs in resolved['footers']:
+        ops += _hf_line_ops(txt, y, font_idx, x0, style_attrs)
     if resolved['auto'] is not None:
         text, x, y = resolved['auto']
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %

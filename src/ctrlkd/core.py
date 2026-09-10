@@ -1306,6 +1306,34 @@ class Document:
     # `_hf_line_ops` falls back to the baked text unchanged, byte-identical.
     header_tabs: dict = field(default_factory=dict)
     footer_tabs: dict = field(default_factory=dict)
+    # Planning #255: a `.h#`/`.f#` argument's own embedded paragraph-style-
+    # sheet reference (0x11 selection, the SAME symmetric-block mechanism a
+    # body paragraph's style select uses -- WSFORMAT's own "Header Odd"/
+    # "Header Even" style sheets, sawyer/REF/GALLEYS.DOT and ADVANCE.DOT's
+    # `.h1o`/`.h1e`) -- 'right' (flush right) or 'center' when the resolved
+    # style's own justification field asks for one, else None (the style
+    # carries no alignment, or resolved to 'left'/'justify', or the handle
+    # is unresolvable -- WordStar's own default left-aligned placement,
+    # byte-identical to before this existed). A literal type-9 right/
+    # center/decimal-align TAB typed into the argument text itself
+    # (`header_tabs` above) is a DIFFERENT, older mechanism -- WSFORMAT
+    # documents both; a line can in principle carry either, never observed
+    # carrying both in the corpus.
+    header_align: dict = field(default_factory=dict)
+    footer_align: dict = field(default_factory=dict)
+    # Planning #255: the SAME 0x11 style-select's own span-attribute bits
+    # (WSFORMAT's fixed strikeout/doublestrike/underline/sub/super/bold/
+    # italic table, `_parse_style_library`'s own `entry['attrs']`) --
+    # real WS7 capture, sawyer/REF/ADVANCE.DOT: "Header Odd"/"Header Even"
+    # both declare bold (measured: "TITLE" prints Helvetica-BOLD, not
+    # plain Helvetica), which nothing typed in the `.h1o`/`.h1e` argument
+    # text itself asks for -- a style's attrs are a BASELINE for the whole
+    # line, exactly like a body paragraph's `style_attrs`, ORed with
+    # (never replacing) whatever inline toggle bytes the text itself types
+    # (`hf_runs`). Empty frozenset (not None) when unset, so a consumer
+    # can `|` it into a run's own styles unconditionally.
+    header_style_attrs: dict = field(default_factory=dict)
+    footer_style_attrs: dict = field(default_factory=dict)
     # Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` (WSFORMAT.TXT: ".HE can
     # optionally specify even or odd numbered page headers" / the matching
     # ".FO" sentence -- confirmed the ONLY two lines that do; `.H2`-`.H5`/
@@ -1325,6 +1353,15 @@ class Document:
     footer_fonts_parity: dict = field(default_factory=dict)
     header_tabs_parity: dict = field(default_factory=dict)
     footer_tabs_parity: dict = field(default_factory=dict)
+    # Planning #255: the parity-aware sibling of `header_align`/`footer_
+    # align` above, same shape as `header_tabs_parity` -- GALLEYS.DOT/
+    # ADVANCE.DOT select a DIFFERENT style ("Header Odd" vs "Header Even")
+    # on their `.h1o`/`.h1e` lines, so the resolved alignment itself is
+    # parity-dependent, not just the text.
+    header_align_parity: dict = field(default_factory=dict)
+    footer_align_parity: dict = field(default_factory=dict)
+    header_style_attrs_parity: dict = field(default_factory=dict)
+    footer_style_attrs_parity: dict = field(default_factory=dict)
     # Every .he/.h1-.h5/.fo/.f1-.f5 IN DOCUMENT ORDER, with the block it
     # precedes: ('H'|'F', line 1-5, text, block_index). WordStar applies a
     # running head from the page where it is defined -- on that page itself
@@ -2329,7 +2366,26 @@ _PAGE_DOT_KEYS = {b'PL': 'pl_lines', b'MT': 'mt_lines',
                   # WordStar prints on its own. Measured: it does NOT move a `#`
                   # placed inside a header or footer, which prints where the
                   # author put it. Two separate mechanisms.
-                  b'PC': 'pc_col'}
+                  b'PC': 'pc_col',
+                  # Planning #255: `.rm`'s own document-opening value, at the
+                  # SAME 10 CPI column frame `.po`/`.pc` already share --
+                  # needed so a style-sheet-driven right/center header/footer
+                  # alignment (GALLEYS.DOT/ADVANCE.DOT's `.h1o`/`.h1e`) has a
+                  # print-area RIGHT edge to align against. `.rm` was never
+                  # tracked at document level before this (only per-BLOCK, on
+                  # `fmt`/`Block.right_margin`, `_parse_format_dot`'s own
+                  # separate reading of the same command) because nothing at
+                  # page/document scope needed it -- and GALLEYS.DOT/
+                  # ADVANCE.DOT are pseudogalley templates with NO body
+                  # blocks at all (`_resolve_head_foot_lines`'s own #250
+                  # comment), so the block-level reading is unavailable for
+                  # exactly the documents that need this. Same pre-text-
+                  # last-wins rule as mt/mb/hm/fm/po above: a document whose
+                  # `.rm` changes AFTER body text begins keeps its OPENING
+                  # value here (the per-block reading, unaffected, still
+                  # tracks mid-document changes for body-paragraph
+                  # justification).
+                  b'RM': 'rm_cols'}
 
 # GAP, reported not implemented (planning #202 cause 6, 2026-09-08): `.POE`/
 # `.POO` (page offset for even/odd pages -- WSFORMAT.WS's own text: ".PO can
@@ -2453,6 +2509,7 @@ def _resolve_cw_arg(value: float, unit: bytes | None):
 _PAGE_DOT_RESOLVERS = {'po_cols': _resolve_cols_arg, 'lh_48': _resolve_lh_arg,
                        'ls': _resolve_ls_arg,
                        'cw_120': _resolve_cw_arg,
+                       'rm_cols': _resolve_cols_arg,
                        # `.pc` is a COLUMN (WSFORMAT.WS, ".PC ... Indicates the
                        # column at which the page number will be printed"),
                        # the same 10-CPI frame `.po`/`.lm`/`.rm`/`.pm` share --
@@ -3080,7 +3137,7 @@ def line_numbering_at(checkpoints, bi):
 
 
 def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
-                     tab_mark=None):
+                     tab_mark=None, align=None, style_attrs=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -3111,6 +3168,19 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     `header_fonts`/`header_tabs` write every `.h#`/`.f#` command already got
     (kept for Modern/RTF/plain-text, which stay last-in-source-order-wins
     and parity-unaware -- reported, not fixed, this round).
+
+    `align` (planning #255) is the caller's own resolved answer -- 'right'/
+    'center'/None -- for this physical line's own `.h#`/`.f#` argument
+    opening with a 0x11 paragraph-style-select whose resolved style carries
+    a justification the header/footer model has never read before
+    (GALLEYS.DOT/ADVANCE.DOT's "Header Odd"/"Header Even" style sheets).
+    Written into `Document.header_align`/`footer_align` (+ `_parity`),
+    siblings of `header_tabs`/`footer_tabs` above -- a DIFFERENT alignment
+    mechanism (a style-sheet reference, not a literal typed tab mark), so
+    it gets its own field rather than overloading `header_tabs`. Modern/
+    RTF/plain-text never read it -- same "reported, not fixed" carve-out
+    as parity above; this is Printed-tier only, same as #250's own
+    justification for a flat/parity split.
     """
     m = _HEAD_FOOT_RE.match(cmd)
     if not m:
@@ -3163,15 +3233,26 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     else:
         tab_val = None
     which_tabs[line] = tab_val
+    which_align = doc.header_align if kind == 'H' else doc.footer_align
+    which_align[line] = align
+    which_style_attrs = (doc.header_style_attrs if kind == 'H'
+                         else doc.footer_style_attrs)
+    which_style_attrs[line] = style_attrs or frozenset()
     if parity is not None:
         which_p = doc.headers_parity if kind == 'H' else doc.footers_parity
         which_fonts_p = (doc.header_fonts_parity if kind == 'H'
                          else doc.footer_fonts_parity)
         which_tabs_p = (doc.header_tabs_parity if kind == 'H'
                         else doc.footer_tabs_parity)
+        which_align_p = (doc.header_align_parity if kind == 'H'
+                         else doc.footer_align_parity)
+        which_style_attrs_p = (doc.header_style_attrs_parity if kind == 'H'
+                               else doc.footer_style_attrs_parity)
         which_p.setdefault(line, {})[parity] = text
         which_fonts_p.setdefault(line, {})[parity] = font_idx
         which_tabs_p.setdefault(line, {})[parity] = tab_val
+        which_align_p.setdefault(line, {})[parity] = align
+        which_style_attrs_p.setdefault(line, {})[parity] = style_attrs or frozenset()
     if anchor is not None:
         doc.hf_events.append((kind, line, text, anchor))
         doc.hf_events_parity.append(parity)
@@ -4321,6 +4402,29 @@ def _style_heading_level(name: str) -> int:
     return 0
 
 
+def _style_align(w0, style_slots):
+    """The horizontal alignment a 0x11 paragraph-style-select handle's own
+    RESOLVED style asks for -- 'right' (flush right) or 'center', or None
+    for anything this axis has never needed (left/justify -- WordStar's own
+    left-aligned default -- an unresolvable 0x03xx editing-temp handle, or
+    a slot with no library entry). Planning #255 (sawyer/REF/GALLEYS.DOT/
+    ADVANCE.DOT's `.h1o`/`.h1e` "Header Odd"/"Header Even" style sheets):
+    the SAME pool-tag/slot resolution the body-text 0x11 handler uses (see
+    that parse site's own comment) and the SAME `entry['justification']`
+    vocabulary `_parse_style_library` already emits -- 'right' there means
+    flush-right/right-ALIGNED (WordStar's own "flush right" term), not the
+    fully-justified 'justify' a running `.oj on` would ask for; only right/
+    center are documented header/footer alignment axes (WSFORMAT/-HOW-TO.
+    RJS), so 'justify' and 'left' both fall through to None here."""
+    if (w0 >> 8) != 0x02:
+        return None
+    entry = style_slots.get(w0 & 0xFF)
+    if entry is None:
+        return None
+    j = entry.get('justification')
+    return j if j in ('right', 'center') else None
+
+
 # ---------------------------------------------- round-trip capture (#20/#21)
 #
 # _decode_spans is deliberately lossy in small, well-known ways: it folds
@@ -5117,11 +5221,45 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # bytes, never this line's own marks.
             hf_tab_mark = next(((rel, m[1], m[2], m[3]) for rel, m in line_marks
                                if m[0] == 'tab'), None)
+            # Planning #255: a `.h#`/`.f#` argument can ALSO open with its own
+            # 0x11 paragraph-style-select (GALLEYS.DOT/ADVANCE.DOT's `.h1o`/
+            # `.h1e` -- "Header Odd"/"Header Even"), found the same way
+            # hf_font_idx/hf_tab_mark are. Resolved against `style_slots`,
+            # the SAME library lookup the body-text 0x11 handler (below, in
+            # the ordinary content-line path) uses -- for BOTH axes a
+            # selected style can carry: `_style_align`'s own justification
+            # reading, and the style's own FONT (real WS7 capture,
+            # sawyer/REF/ADVANCE.DOT's `.h1o`: "Header Odd" renders its
+            # header in 11pt Helvetica-Bold, the style's own declared font,
+            # not the document's default Courier -- style selection changes
+            # the active font for header/footer text exactly as it does for
+            # body text, `_style_font`'s own cache is the SAME one the body
+            # 0x11 handler shares). An explicit inline font block ON THIS
+            # LINE (`hf_font_idx`, register C6) is the more specific signal
+            # and wins if both exist -- no corpus document exercises that
+            # combination, but the body-text precedent (an inline font
+            # block always overrides the ambient style) argues for the
+            # same precedence here.
+            hf_style_w0 = next((m[1] for _rel, m in line_marks if m[0] == 'style'),
+                               None)
+            hf_align = None
+            hf_style_font_idx = None
+            hf_style_attrs = None
+            if hf_style_w0 is not None and (hf_style_w0 >> 8) == 0x02:
+                _hf_entry = style_slots.get(hf_style_w0 & 0xFF)
+                if _hf_entry is not None:
+                    hf_align = _style_align(hf_style_w0, style_slots)
+                    if _hf_entry.get('font') and any(_hf_entry['font']):
+                        hf_style_font_idx = _style_font(_hf_entry['font'])
+                    hf_style_attrs = _hf_entry.get('attrs')
             _parse_head_foot(cmd if strip_hibit else raw.rstrip(), doc,
                              encoding,
                              anchor=len(doc.blocks) + (1 if cur.lines or
                                                        cur_line.spans else 0),
-                             font_idx=hf_font_idx, tab_mark=hf_tab_mark)
+                             font_idx=(hf_font_idx if hf_font_idx is not None
+                                      else hf_style_font_idx),
+                             tab_mark=hf_tab_mark,
+                             align=hf_align, style_attrs=hf_style_attrs)
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.
@@ -5576,6 +5714,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # alongside every resolved figure, not just the page size.
     pn_start = page.get('pn_start')
     pc_col = page.get('pc_col')
+    rm_cols = page.get('rm_cols')
     doc.meta['page'] = {
         # `.pn n` -- the number of the page it appears on, so a chapter file in
         # a larger manuscript can start where the previous one stopped.
@@ -5610,6 +5749,15 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         'ls_source': 'file' if ls is not None else 'default',
         'cw_120': cw_120 if cw_120 is not None else DEFAULT_CW_120,
         'cw_source': 'file' if cw_120 is not None else 'default',
+        # Planning #255: document-opening `.rm`, at the same 10 CPI column
+        # frame `.po` uses -- see `_PAGE_DOT_KEYS`'s own comment for why
+        # this is needed at document scope (GALLEYS.DOT/ADVANCE.DOT have no
+        # body blocks to read a per-block right_margin from). 65.0 matches
+        # every other `.rm`-default reading already in this codebase
+        # (`_new_block`'s own body-paragraph fallback, `_justify_pieces_
+        # printed`'s callers) -- WSFORMAT.TXT: ".RM ... Default is 65."
+        'rm_cols': rm_cols if rm_cols is not None else 65.0,
+        'rm_source': 'file' if rm_cols is not None else 'default',
     }
     # The one derived figure consumers actually need: printed text lines per
     # page, from WordStar's own vertical model (see _text_lines_per_page for
