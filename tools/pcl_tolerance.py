@@ -1213,9 +1213,32 @@ SUPSUB_MAX_DY_DP = 80  # 8pt -- generous vs. every measured real WS7
                        # printed LINE (which sits at least one whole
                        # leading away, always >8pt in this corpus's own
                        # body sizes).
+OFFBASELINE_OCCUPANT_LEAD_SLACK_DP = 80  # 8pt -- planning #259 (2026-09-10):
+                       # a real sup/sub occupant always sits immediately
+                       # after the PRECEDING same-baseline content (`gap_
+                       # x0_dp`), zero real gap in fixed-pitch (SUB-SUPE.TST,
+                       # DISPLAY, NOTES.TST -- decipoint-exact) and a small
+                       # substitute-AFM measurement drift in substituted-
+                       # proportional text (LYING's own 'Prize.'+marker,
+                       # ~1.3pt) -- never floating deep inside a wide gap.
+                       # Without this bound, `-SCREEN`'s own "Strike-out
+                       # ----------(SAWYER.EXE..." line -- whose real visual
+                       # gap after "Strike-out" is a same-position UNDERLINE
+                       # OVERLAY (pulled out before this search ever runs),
+                       # not real content -- let the UNRELATED subscript '2'
+                       # from the H2O demo TWO LINES ABOVE (which the
+                       # middle-gap loop there had already correctly
+                       # absorbed) get re-claimed a second time by this far
+                       # wider, unrelated gap, 50+pt from either edge.
+                       # Bounding candidates to within one lead of `gap_x0_dp`
+                       # specifically (the only edge a real occupant is ever
+                       # measured against) fixes that false positive while
+                       # every confirmed real occupant in this corpus stays
+                       # comfortably inside it.
 
 
-def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp):
+def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp,
+                               anchor_size_pt=None):
     """A super/subscript character sits on a DIFFERENT y than the line it
     visually belongs to -- WS7's own driver really does move the pen
     vertically for it (confirmed directly: a private WS4 paper's own footnote-
@@ -1243,7 +1266,26 @@ def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp):
     anyway (a lone digit, a bare footnote marker), never a real,
     independently-matchable word; nothing is ever double-counted. Returns
     None (never stitched) when zero or more than one candidate matches --
-    ambiguous is left alone, conservative by design."""
+    ambiguous is left alone, conservative by design.
+
+    `anchor_size_pt` (planning #259, 2026-09-10), when given, additionally
+    requires the candidate's own declared size to be STRICTLY SMALLER --
+    a real sup/sub character is always reduced relative to the body text
+    whose gap it fills (WSFORMAT's own `.sr` spec, `_sized`'s own ratio;
+    every confirmed real occupant in this corpus measures 8/9.25pt against
+    a 12pt body). Without this, `sawyer/REF/NOTES.TST` 's own 'AC1'/'AC2'
+    -- genuine, independently-matchable 9.25pt REVISION-TRACKING labels
+    (3 alnum characters, never `_is_unreliable_to_align`) that happen to
+    sit at their own reduced-size row between two full-size body lines,
+    exactly like a real sup/sub marker's row -- go hunting a TRAILING
+    occupant of their OWN and, purely by horizontal coincidence in this
+    fixed-pitch document, land on 'he' (2 characters, `_is_unreliable_to_
+    align`, real 12pt body text on the row above starting at the exact
+    decipoint 'AC1' 's own natural width happens to end): a full-size real
+    word wrongly absorbed as if it were 'AC1' 's own raised/lowered tail.
+    'he' is 12pt, the SAME as its own line's body size, never smaller than
+    anything -- the one property that already, correctly, separates it
+    from every genuine occupant this function has ever matched."""
     slack_dp = round(fg.WORD_GAP_SLACK_PT * fg.DECIPT_PER_PT)
     candidates = []
     for pc, tc in page_chunks:
@@ -1252,10 +1294,13 @@ def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp):
             continue
         if not _is_unreliable_to_align(pc['text']):
             continue
+        if anchor_size_pt is not None and not (pc['size_pt'] < anchor_size_pt):
+            continue
         x0 = pc['x_decipoints']
         x1 = x0 + round(fg.afm.string_width_pt(pc['text'], pc.get('font'), pc['size_pt'])
                         * fg.DECIPT_PER_PT)
-        if x0 >= gap_x0_dp - slack_dp and x1 <= gap_x1_dp + slack_dp:
+        if x0 >= gap_x0_dp - slack_dp and x1 <= gap_x1_dp + slack_dp \
+                and x0 - gap_x0_dp <= OFFBASELINE_OCCUPANT_LEAD_SLACK_DP:
             candidates.append((pc, tc))
     return candidates[0] if len(candidates) == 1 else None
 
@@ -1361,11 +1406,37 @@ def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
     if page_chunks and normal_items:
         line_y_dp = items[0][0]['y_decipoints']
 
-        def _splice(occ):
+        def _splice(occ, boundary_dp):
+            # planning #259 (2026-09-10): anchor the spliced-in occupant at
+            # the KNOWN gap boundary (`end_dp`/`last_end_dp`, the preceding
+            # real content's own accumulated end) rather than the occupant's
+            # own independently-captured `x_decipoints`. `_find_offbaseline_
+            # occupant` already confirmed geometrically that this occupant
+            # fills the gap (its own real x falls within one `WORD_GAP_
+            # SLACK_PT` of the boundary) -- and raw PCL, checked directly
+            # across multiple real WS7 captures spanning both fixed-pitch
+            # (SUB-SUPE.TST, DISPLAY, NOTES.TST -- decipoint-exact) and
+            # substituted-proportional (LYING) font classes, confirms WS7's
+            # own driver ALWAYS emits a sup/sub occupant's real H exactly at
+            # the preceding content's true end: a genuine, structural zero
+            # gap, never a typed space. The only reason a substituted-
+            # proportional splice used to show a non-zero gap here (LYING's
+            # own 'Prize.'+marker, ~1.3pt) was this engine's own SUBSTITUTE
+            # AFM metric slightly mis-estimating where 'Prize.' truly ends --
+            # not a real WS7 spacing decision -- which then tripped `fg.
+            # segment_words_from_chars`'s OWN separate, tighter
+            # SUBSTITUTED_PROPORTIONAL_GAP_MAX_PT cap downstream and left
+            # the splice re-decided (and rejected) a second time by a
+            # threshold this function's own docstring never intended to
+            # apply to an occupant it already confirmed belongs here.
+            # Anchoring removes that re-litigation: once found, an occupant
+            # always merges, matching this function's stated "the same set
+            # of characters on both sides" contract regardless of font
+            # class.
             opc, otc = occ
             obasefont, osize = opc.get('font'), opc['size_pt']
             ospace_w = fg.char_space_width_pt(obasefont, osize)
-            ocursor = opc['x_decipoints'] / fg.DECIPT_PER_PT
+            ocursor = boundary_dp / fg.DECIPT_PER_PT
             for ch in opc['text']:
                 w = fg.afm.string_width_pt(ch, obasefont, osize)
                 chars.append({
@@ -1383,9 +1454,10 @@ def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
             start_dp = pc_b['x_decipoints']
             if start_dp <= end_dp:
                 continue  # already zero/negative gap, nothing to stitch
-            occ = _find_offbaseline_occupant(page_chunks, end_dp, start_dp, line_y_dp)
+            occ = _find_offbaseline_occupant(page_chunks, end_dp, start_dp, line_y_dp,
+                                             anchor_size_pt=pc_a['size_pt'])
             if occ is not None:
-                _splice(occ)
+                _splice(occ, end_dp)
         # The TRAILING search (past this line's own last chunk, below) is
         # gated on this baseline having at least one item that would
         # become its own checkable token on its own merits -- a baseline
@@ -1422,10 +1494,11 @@ def _merge_zero_gap_cross_font_chunks(items, page_chunks=None):
                              + fg.afm.string_width_pt(last_pc['text'], last_pc.get('font'),
                                                        last_pc['size_pt'])) * fg.DECIPT_PER_PT)
         trailing_occ = (_find_offbaseline_occupant(
-            page_chunks, last_end_dp, last_end_dp + TRAILING_OCCUPANT_WINDOW_DP, line_y_dp)
+            page_chunks, last_end_dp, last_end_dp + TRAILING_OCCUPANT_WINDOW_DP, line_y_dp,
+            anchor_size_pt=last_pc['size_pt'])
             if line_has_real_content else None)
         if trailing_occ is not None:
-            _splice(trailing_occ)
+            _splice(trailing_occ, last_end_dp)
     chars.sort(key=lambda c: c['x_start'])
     merged = list(overlays)
     for w in fg.segment_words_from_chars(chars):

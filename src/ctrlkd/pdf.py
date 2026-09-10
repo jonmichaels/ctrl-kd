@@ -7445,8 +7445,37 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # count-based slot into the next word, and grid-width spaces --
             # an average CHARACTER wide, ~0.46em -- read as gaping and
             # uneven. Word overlaps everywhere; Jon's review, 2026-08-05.)
-            pitch = _span_pitch(entry, pt)
-            want = _face_tz(basefont, pitch, pt)
+            #
+            # Mechanism G's proportional half (planning #259, 2026-09-10):
+            # `factor` is a property of the FONT BLOCK -- the constant
+            # stretch this substitute face needs so its average glyph lands
+            # on WordStar's own declared pitch -- not of any one span's
+            # drawn size. A sup/sub span's `pt` is already reduced by
+            # `_sized` (8pt at the default 12); computing `factor` from
+            # THAT reduced size (the pre-existing bug) asks `_face_tz` to
+            # stretch an 8pt-average reference glyph up to the pitch a
+            # 12pt-declared font block wants, inflating `want` by roughly
+            # size_here/pt (measured directly: LYING's own 12pt CG-Times
+            # font block, entry width_1800=137, sup marker at pt=8 -- old
+            # code computed want=151.69%, landing an 8pt "1" at 6.07pt,
+            # nearly 1.5x its natural 4.0pt advance; using size_here
+            # (12, this span's own UNREDUCED declared size, already in
+            # scope) for both the pitch lookup and `_face_tz`'s own
+            # reference-string measurement gives want=101.12% -- the SAME
+            # scale every other span on this line already uses -- landing
+            # the "1" at 4.04pt, its natural width plus the line's own
+            # tiny grid-fit correction). Byte-identical for every non-sup/
+            # sub span (`_sized` returns `pt == size_here` when neither
+            # style is set, its only other caller). raw PCL confirms real
+            # WS7 does NOT reselect pitch for a proportional sup/sub span
+            # the way mechanism G's Courier case does (font-select's own
+            # Pitch field is an unused "1" placeholder in both the body
+            # and the marker's ESC(s...T, only the Height field changes,
+            # 12v -> 8v -- LYING.pcl, mechanism-G's twin case for a real
+            # font block) -- the glyph itself draws at the reduced size,
+            # the LINE's scale constant does not change underneath it.
+            pitch = _span_pitch(entry, size_here)
+            want = _face_tz(basefont, pitch, size_here)
             factor = want / 100.0
             # Continuous underline (Jon's ruling 2026-08-20, see `_rules`):
             # one-op-per-word pieces would break the rule at every space no

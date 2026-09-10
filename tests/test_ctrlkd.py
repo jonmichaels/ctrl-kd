@@ -4646,6 +4646,28 @@ def _font_block(number, points=12.0, style_bits=0, width=180):
                      + ts.to_bytes(2, 'little') + bytes(6))
 
 
+def _ws7_header_block():
+    """A REAL type-0 header block (`ws7_block(0x00)`, planning #259,
+    2026-09-10): a WS5+ document's declared release byte (0x60 = 7.0 BCD)
+    plus enough padding to clear `detect()`'s own header-shortcut length
+    floor (jump = len(content)+4 must be >= 8, i.e. content >= 4 bytes --
+    `detect()`, the `data[0]==0x1D and data[3]==0x00` branch). `ws7_block(0x00)`
+    alone (EMPTY content, jump=4) fails that floor and falls through to
+    `detect()`'s byte-density heuristics, which misjudge a short synthetic
+    fixture as 'binary' -- `_symmetric_blocks` (and therefore `doc.fonts`)
+    is then never even called, so a font-block fixture built on a bare
+    `ws7_block(0x00)` preamble silently never exercises a real font entry
+    at all (found investigating planning #259: the two mechanism-G fixtures
+    below both claimed to test 'a WS7 span with its own font block' while
+    actually falling through to the SAME Courier fontless-fallback path
+    their own sibling test already covers -- their numbers still matched
+    because Courier is both this emitter's fontless default AND their
+    chosen face, so the gap was invisible until a non-Courier fixture
+    (this planning #259 round's own proportional test) needed a font entry
+    that ISN'T also the fallback)."""
+    return ws7_block(0x00, bytes([0x60]) + bytes(20))
+
+
 def _helv_typestyle():
     """A typestyle number the base-14 mapping resolves to Helvetica."""
     from ctrlkd.typestyles import TYPESTYLE_NAMES
@@ -4747,6 +4769,70 @@ def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
     assert sup_x == body_x + 3 * 7.2               # immediately after 'cd.', no gap
     tail_x = by_text[b'  ef'][2]
     assert tail_x == sup_x + 5.5                    # NOT sup_x + 4.8 (the old double-narrow)
+
+
+# ------------------------------------- mechanism G's proportional half (#259)
+#
+# LYING.WS's own footnote-marker residual (planning #259, 2026-09-10). Unlike
+# Courier (mechanism G above), real WS7's raw PCL for a PROPORTIONAL sup/sub
+# span (LYING.pcl's own ESC(s...T pair: body `...12v...4101T`, marker
+# `...8v...4101T`) does NOT reselect pitch -- the Pitch field is an unused
+# '1' placeholder in both. Only the Height field changes. So a proportional
+# span's own `factor` (`_face_tz`'s Tz scale, the constant that lands the
+# substitute face's average glyph on the font block's own declared pitch) is
+# a property of the FONT BLOCK, not of any one span's drawn size -- exactly
+# mechanism G's own principle, just manifesting through `_face_tz` instead of
+# a flat pitch multiply. Before this fix, `_line_ops_printed`'s proportional
+# branch computed `factor` from the marker's OWN reduced `pt` (8), asking an
+# 8pt-average reference glyph to stretch up to the pitch a 12pt-declared font
+# block wants -- LYING's own entry (width_1800=137) inflated `want` from a
+# correct 101.12% to 151.69%, landing the sup '1' at 6.07pt, ~1.5x its
+# natural 4.0pt advance (confirmed directly against `tools/fidelity_gate.py
+# --dump-engine-chars` on LYING.WS before/after this fix).
+
+def test_pdf_sup_in_proportional_ws7_font_block_uses_body_size_for_the_tz_scale():
+    """LYING's own shape: a real WS7 font block for typestyle 5 ('Tms Rmn
+    (also CG Times, Times Roman and Dutch)'), proportional bit set,
+    width_1800=137 (LYING's own recorded value) -- 'Prize.' (6 chars) then a
+    superscript '1' with no gap (matching the real capture's own zero-gap
+    footnote-marker join exactly), then ' X' to show the marker's own
+    advance lands correctly too.
+
+    'Prize.' sets the line's own Tz to 101.12% (`_span_pitch(entry, 12)`
+    = 137/25 = 5.48pt pitch, over a 12pt Times-Roman reference average of
+    5.4191pt) and draws at 27.97pt (57.6 -> 85.57, rounds to 85.6). Before
+    this fix the sup '1' recomputed `factor` from its OWN reduced pt (8),
+    asking an 8pt-average reference glyph (3.6127pt) to reach the SAME
+    5.48pt pitch -- want=151.69%, not 101.12% -- landing the '1' at
+    6.0676pt (85.6 -> 91.7). Now it reuses `size_here` (12, this span's own
+    UNREDUCED declared size) for both the pitch lookup and `_face_tz`'s own
+    reference measurement, exactly like every other span on the line: NO
+    Tz operator at all (the scale is unchanged from 'Prize.' 's own 101.12%,
+    this emitter's own "written only when it changes" convention), and the
+    '1' draws at its natural 4.0448pt (85.6 -> 89.6...92.6 measured, see
+    below) -- not the old 6.0676pt overshoot."""
+    from ctrlkd.pdf import emit_pdf
+    times = 5
+    style_bits = 0x8000 | (1 << 10)   # proportional + generic_style=serif
+    data = (_ws7_header_block() + _font_block(times, 12.0, style_bits=style_bits, width=137) +
+            b'Prize.' + b'\x14' + b'1' + b'\x14' + b' X' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.fonts and doc.fonts[0]['proportional'] and doc.fonts[0]['width_1800'] == 137
+    spans = _content_spans(emit_pdf(doc, 'printed'))
+    by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
+    body_size, body_tz, body_x = by_text[b'Prize.']
+    sup_size, sup_tz, sup_x = by_text[b'1']
+    tail_size, tail_tz, tail_x = by_text[b'X']
+    assert (body_size, body_tz, body_x) == (12, 101.12, 57.6)
+    assert sup_size == 8                       # round(12 * 2/3) -- default ratio, non-Courier
+    # NO Tz operator for the sup span at all -- the SAME line-wide scale
+    # 'Prize.' already set, never a span-local recompute (mechanism G's
+    # proportional half: `factor` is the font block's property, not this
+    # one span's drawn size).
+    assert sup_tz is None
+    assert sup_x == 85.6                        # immediately after 'Prize.', no gap
+    assert tail_tz is None                       # still unchanged, back to body size too
+    assert tail_x == 92.6                        # 85.6 + 4.0448 (natural '1'), NOT + 6.0676
 
 
 def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
