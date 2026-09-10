@@ -144,7 +144,37 @@ def sawyer_enumerate_archive(root):
     MAINTAINER-ONLY: called by tools/answer_key.py --record against a real
     archive checkout that is ALREADY the intended population (e.g. the
     corpus's own documents-only trim), never at test-collection or
-    test-run time -- see this module's docstring."""
+    test-run time -- see this module's docstring.
+
+    Planning: a raw `os.walk` picks up ANY file that happens to be sitting
+    in `root` at record time, tracked or not -- a stray tool-output
+    artifact written beside a document (e.g. `-README.json`, a ctrl-kd
+    `layout` JSON export saved into the corpus tree instead of a scratch
+    directory) silently became `-README.json`, a "convertible" 390th
+    document with no source, no provenance, and no place in the corpus's
+    own documented kept-extensions trim -- 9 nonsense cells (a 775-page
+    PDF from a JSON file) committed straight into `tests/answer_key.json`
+    the next `--record` run. `root`'s maintainer copy (the corpus's own
+    private git checkout -- see tests/SAWYER-CORPUS.md) is ALWAYS a git
+    working tree, so `git ls-files` -- the
+    checkout's own record of what actually belongs there, immune to
+    whatever a later, unrelated command happens to leave lying around in
+    the same directory -- is authoritative when available. A public
+    stranger's own unzip of the Sawyer download (`sawyer_doc_name`'s own
+    docstring: "a public user downloading the archive themselves points
+    the same variable at their own unzip directory") is never a git repo,
+    so this falls back to the original whole-tree walk for that case,
+    unchanged."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ['git', 'ls-files', '-z'], cwd=root, check=True,
+            capture_output=True).stdout.decode('utf-8', 'surrogateescape')
+        tracked = sorted(p for p in out.split('\0') if p)
+        if tracked:
+            return tracked
+    except (OSError, subprocess.CalledProcessError):
+        pass
     out = []
     for dirpath, _dirnames, filenames in os.walk(root):
         for fn in filenames:

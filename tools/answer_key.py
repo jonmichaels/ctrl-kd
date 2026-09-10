@@ -374,6 +374,24 @@ def build():
                                             pictures_off_grid_cells)),
         },
     }
+    # Every recorded document key must resolve to a real file (the
+    # `-README.json` incident: a stray tool-output artifact left sitting
+    # in the corpus tree became a phantom 390th document with no source
+    # at all -- `sawyer_enumerate_archive`'s own git-ls-files fix, above,
+    # stops it happening again from THAT cause; this is the generator's
+    # own independent guarantee, checked every `--record`/`--check` run
+    # regardless of cause).
+    sawyer_root = sawyer_archive()
+    missing = [name for name in samples_docs
+              if not os.path.isfile(os.path.join(SAMPLES_DIR, name))]
+    for group_name, docs in (('sawyer convertible', sawyer_docs),
+                             ('sawyer known_nonconvertible', known_nonconvertible),
+                             ('sawyer non_document_assets', non_document_assets)):
+        missing += ['%s (%s)' % (name, group_name) for name, entry in docs.items()
+                   if not os.path.isfile(os.path.join(sawyer_root, entry['path']))]
+    if missing:
+        raise SystemExit('answer key would record %d document(s) with no file on '
+                         'disk: %s' % (len(missing), missing))
     return key
 
 
