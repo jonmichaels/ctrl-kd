@@ -66,17 +66,30 @@ def document_info(data, path=None):
         # never read the dict before this round).
         if doc.meta.get('formatting'):
             info['formatting'] = doc.meta['formatting']
-        # `.ps` (register row 6): parsed, deliberately NOT acted on --
-        # round 9's NLQ ruling made the font block's own `proportional`
-        # bit the real, authoritative source; `.ps` is a WS4-era toggle
-        # real font metadata has superseded. "No rendering support" is a
-        # ruling, not a gap, but the file's own use of it must still be
-        # VISIBLE.
+        # `.ps` (register row 6): round 9's NLQ ruling made the font
+        # block's own `proportional` bit decisive for any run a font block
+        # actually covers -- `.ps` never overrides that, and still doesn't.
+        # Planning #252 (Jon's ruling 2026-09-09) gave it exactly one job
+        # beyond that: for a run NO font block covers, in a document that
+        # declares fonts somewhere, `.ps off` is now the document's own
+        # word for "non-proportional" -- Modern's uncovered-run fallback
+        # reads Courier instead of Times (pdf.py's `_modern_tok_font`,
+        # emit.py's RTF/HTML equivalents). `.ps on` (or never set) leaves
+        # the fallback at Times, unchanged. Surfaced regardless of whether
+        # this call's own render actually exercises the fallback (the
+        # standing discoverability rule) -- a caller can see the document
+        # made this declaration even from a Printed-only run.
         if 'proportional' in (doc.meta.get('formatting') or {}):
+            prop = doc.meta['formatting']['proportional']
             info['ps_note'] = (
-                '.ps (proportional spacing) is present but superseded by '
-                'the font block\'s own declared pitch (round 9 NLQ ruling) '
-                '-- not separately honored')
+                '.ps off (non-proportional) is present -- Modern gives an '
+                'uncovered run (no font block of its own) Courier instead '
+                'of Times, when the document declares fonts elsewhere '
+                '(planning #252); a run a font block DOES cover still goes '
+                'by that block\'s own declared pitch (round 9)'
+                if prop is False else
+                '.ps on (proportional) is present -- no effect: Modern\'s '
+                'uncovered-run fallback is already Times')
         # headers/footers/page numbers (ledger row 1): DECLARED content,
         # regardless of whether this call's own --headers flag would
         # render them.

@@ -7206,16 +7206,33 @@ def _modern_geometry(doc):
     return margl, margt, margb, max(144.0, page_w - margl - 72.0)
 
 
-def _modern_tok_font(text, styles, fonts):
+def _modern_tok_font(text, styles, fonts, nonprop_fallback=False):
     """(written, family, pt, entry) for one modern token. _span_render does
     the real work (untransliteration, entry sizes); the one modern rule on
     top: a token with NO font information reads in Times at the
     sophisticated size, never Courier -- the typescript aesthetic lives
-    only in Printed now."""
+    only in Printed now.
+
+    `nonprop_fallback` (planning #252, Jon's ruling 2026-09-09 verbatim):
+    the ONE exception to that rule. A document can carry font blocks
+    elsewhere (so this run's own lack of one is a real gap, not a fontless
+    document) AND separately declare itself non-proportional at the
+    document level (`.ps off`, WSFORMAT register C19 -- core.py's
+    `doc.meta['formatting']['proportional'] is False`, the SAME flag round
+    9 already found and deliberately left unhonoured -- see info.py's
+    `ps_note`). Round 9's ruling stands for every run a real font block DOES
+    cover (`_pdf_family`'s own `entry['proportional'] is False` check,
+    unchanged); this is only the uncovered-run fallback, which round 9
+    never addressed because Modern's own Times-fallback didn't exist to
+    ask the question of until this round. Caller resolves `nonprop_fallback`
+    ONCE per document (`bool(doc.fonts) and doc.meta['formatting'].get(
+    'proportional') is False`) -- a document with zero font blocks anywhere
+    stays Times regardless of `.ps`, matching the ruling's explicit "no
+    fonts -> Times (unchanged)"."""
     written, family, pt, entry = _span_render(text, styles, fonts,
                                               MODERN_BODY_PT)
     if entry is None:
-        family = 'Times'
+        family = 'Courier' if nonprop_fallback else 'Times'
     return written, family, pt, entry
 
 
@@ -7312,6 +7329,14 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     screenplay_marker_bis = {bi for bi in range(len(doc.blocks))
                              if bi + 1 in screenplay_blocks
                              or bi + 2 in screenplay_blocks} if screenplay_blocks else frozenset()
+    # planning #252 (Jon's ruling 2026-09-09): resolved ONCE per document,
+    # not per token -- see _modern_tok_font's own docstring for the full
+    # reasoning. `doc.fonts` non-empty means the document really does
+    # declare fonts somewhere (an uncovered run here is a real gap); the
+    # `.ps off` flag is the document-level non-proportional declaration
+    # round 9 already parsed but never wired to a consumer.
+    nonprop_fallback = (bool(doc.fonts)
+                        and doc.meta.get('formatting', {}).get('proportional') is False)
     flow = []
     for it in sem['items']:
         k = it['kind']
@@ -7372,7 +7397,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     continue
                 for m in _MODERN_TOK_RE.finditer(run_text):
                     written, family, pt, entry = _modern_tok_font(
-                        m.group(0), styles, doc.fonts)
+                        m.group(0), styles, doc.fonts, nonprop_fallback)
                     # b26-modern item 4 (2026-09-07): a token whose family
                     # isn't already Symbol/ZapfDingbats may still carry
                     # cp437 Greek/math/Dingbats bytes cp1252 can't encode --

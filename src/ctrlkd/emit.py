@@ -931,7 +931,7 @@ def _is_graphic_text(text):
     stripped = text.replace(' ', '')
     return bool(stripped) and all(c in GRAPHIC_CHARS for c in stripped)
 
-def _html_span(s, keep_ws=False, inline_styling=True):
+def _html_span(s, keep_ws=False, inline_styling=True, nonprop_fallback=False):
     text = _html.escape(s.text)
     if keep_ws:
         pass
@@ -947,6 +947,14 @@ def _html_span(s, keep_ws=False, inline_styling=True):
     classes = []
     if font:
         classes.append('ws-' + font.replace('font', 'font-'))
+    elif nonprop_fallback:
+        # planning #252 (Jon's ruling 2026-09-09): a run no WS5+ font block
+        # covers, in a document that declares fonts elsewhere AND declares
+        # itself non-proportional (`.ps off`) -- the RTF/PDF-side twin of
+        # this exact rule (`_rtf_span`'s own `nonprop_fallback`,
+        # `_modern_tok_font`'s in pdf.py). `.ws-nonprop`'s CSS rule (below)
+        # is the same monospace stack `.ws-graphic` already uses.
+        classes.append('ws-nonprop')
     # round 18 (RULINGS-LEDGER row 10): inline colour -- `.ws-colour-N`
     # matches `_style_css`'s own generated rule (N is the raw palette
     # index, not an array index). `--inline-styling off` never applies
@@ -1011,7 +1019,8 @@ def _html_img(r, pictures, image_links, idx):
 
 
 def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=True,
-               pix_map=None, pictures='off', image_links=None, sentence_spacing=False):
+               pix_map=None, pictures='off', image_links=None, sentence_spacing=False,
+               nonprop_fallback=False):
     """Render one already-decided list of Spans (a logical line, or one
     Line's worth of a paragraph unit -- callers choose). Coalesces adjacent
     identically-styled spans unconditionally: cheap, idempotent for a
@@ -1084,7 +1093,7 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=
                              if shown_map is not None else None)
                     out.append(_html_note_ref(note, label, shown))
                 continue
-        out.append(_html_span(s, keep_ws, inline_styling))
+        out.append(_html_span(s, keep_ws, inline_styling, nonprop_fallback))
     return ''.join(out)
 
 def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS, sentence_spacing=False):
@@ -1483,7 +1492,7 @@ def _classify_modern_blocks(doc):
 
 def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
                 pix_map=None, pictures='off', image_links=None,
-                sentence_spacing=False):
+                sentence_spacing=False, nonprop_fallback=False):
     # Round 13 (main-merge reconciliation): `_html_line` now takes a bare
     # spans LIST directly (the b23 overhaul's own signature -- it runs
     # `coalesce_spans`/`split_graphic_spans` over its argument), not a
@@ -1499,12 +1508,12 @@ def _html_slice(line, start, end, refs, keep, shown_map, inline_styling=True,
     return _html_line(_slice_spans(line.spans, start, end),
                       refs, keep, shown_map=shown_map, inline_styling=inline_styling,
                       pix_map=pix_map, pictures=pictures, image_links=image_links,
-                      sentence_spacing=sentence_spacing)
+                      sentence_spacing=sentence_spacing, nonprop_fallback=nonprop_fallback)
 
 
 def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
                        pix_map=None, pictures='off', image_links=None,
-                       sentence_spacing=False):
+                       sentence_spacing=False, nonprop_fallback=False):
     """The centred line's own text with its alignment padding sliced off
     (both mechanisms: a real align=center tag already had the M3 strip
     upstream, so lead/trail are 0 and this is a no-op; spaces-only
@@ -1523,7 +1532,7 @@ def _html_centered_row(line, s, refs, keep, shown_map, inline_styling=True,
     lead = len(raw) - len(raw.lstrip(' '))
     trail = len(raw) - len(raw.rstrip(' '))
     return _html_slice(line, lead, len(raw) - trail, refs, keep, shown_map, inline_styling,
-                       pix_map, pictures, image_links, sentence_spacing)
+                       pix_map, pictures, image_links, sentence_spacing, nonprop_fallback)
 
 
 def _html_toc_index(doc):
@@ -1589,6 +1598,12 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                  if note_refs == 'prefixed' and not printed else None)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
+    # planning #252 (Jon's ruling 2026-09-09): resolved ONCE per document,
+    # same rule as emit_rtf's/pdf.py's own -- False whenever printed, so
+    # every call site below can carry this unconditionally rather than
+    # branch on mode itself.
+    nonprop_fallback = (not printed and bool(doc.fonts)
+                        and doc.meta.get('formatting', {}).get('proportional') is False)
     # Round 20b (slate item 13): screenplay-detected regions get verse-
     # class (line/indent-preserving) treatment -- see emit_text's
     # identical comment for the doctrine. Not printed: a facsimile
@@ -1676,7 +1691,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                                       inline_styling=inline_styling,
                                       pix_map=pix_map, pictures=pictures,
                                       image_links=image_links,
-                                      sentence_spacing=ss_on)
+                                      sentence_spacing=ss_on,
+                                      nonprop_fallback=nonprop_fallback)
                            for line in merged_lines(b)).strip()
             if txt:
                 parts.append(f'<h{b.heading}{cls}>{txt}</h{b.heading}>')
@@ -1791,7 +1807,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                                            inline_styling=inline_styling,
                                            pix_map=pix_map, pictures=pictures,
                                            image_links=image_links,
-                                           sentence_spacing=ss_on)]
+                                           sentence_spacing=ss_on,
+                                           nonprop_fallback=nonprop_fallback)]
                     for line in unit[1:]:
                         spans = _maybe_strip_align(b, list(line.spans))
                         if not is_verse:
@@ -1800,7 +1817,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                                                    inline_styling=inline_styling,
                                                    pix_map=pix_map, pictures=pictures,
                                                    image_links=image_links,
-                                                   sentence_spacing=ss_on))
+                                                   sentence_spacing=ss_on,
+                                                   nonprop_fallback=nonprop_fallback))
                     if len(unit) > 1 and not is_verse:
                         para = ' '.join(t for t in rendered if t.strip())
                     else:
@@ -1862,7 +1880,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         plain_run_is_block_start = False
                         _flush_quote()
                         html = _html_centered_row(line, s, refs, keep, shown_map, inline_styling,
-                                                  pix_map, pictures, image_links, ss_on)
+                                                  pix_map, pictures, image_links, ss_on,
+                                                  nonprop_fallback)
                         if html.strip():
                             # round 20 (slate item 4): a "wrapped centered
                             # unit" -- same tight spacing as verse, same
@@ -1880,17 +1899,20 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     raw = ''.join(sp.text for sp in line.spans)
                     body = _html_slice(line, len(raw) - len(s['body']), None,
                                        refs, keep, shown_map, inline_styling,
-                                       pix_map, pictures, image_links, ss_on)
+                                       pix_map, pictures, image_links, ss_on,
+                                       nonprop_fallback)
                     builder.add_bullet(s['level'], cls, body)
                 else:  # 'def'
                     raw = ''.join(sp.text for sp in line.spans)
                     lead = len(raw) - len(raw.lstrip(' '))
                     dt = _html_slice(line, lead, lead + len(s['label']),
                                      refs, keep, shown_map, inline_styling,
-                                     pix_map, pictures, image_links, ss_on)
+                                     pix_map, pictures, image_links, ss_on,
+                                     nonprop_fallback)
                     dd = _html_slice(line, len(raw) - len(s['body']), None,
                                      refs, keep, shown_map, inline_styling,
-                                     pix_map, pictures, image_links, ss_on)
+                                     pix_map, pictures, image_links, ss_on,
+                                     nonprop_fallback)
                     builder.add_def(s['level'], cls, dt, dd)
             _flush_plain_run()
     builder.flush(parts)
@@ -1906,6 +1928,19 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         extra = _style_css(doc, printed, inline_styling)
         if extra:
             css = css + '\n' + extra
+    # planning #252 (Jon's ruling 2026-09-09): the `.ws-nonprop` rule is
+    # appended only when a span actually USED the class -- checked against
+    # the real rendered `parts`, not merely `nonprop_fallback` being true
+    # for the document. A document can declare fonts + `.ps off`
+    # (`nonprop_fallback` true) and still have every run covered by a real
+    # font block (PRINT.TST/PSPRINT.TST in the real corpus sweep both land
+    # here: `.ps off` + fonts, zero uncovered body-text spans) -- adding
+    # the rule unconditionally on `nonprop_fallback` alone would move THAT
+    # document's html cells by a fixed CSS-byte delta even though PDF/RTF
+    # (which only spend bytes on an actual uncovered run) move by nothing,
+    # breaking cross-format consistency for the exact same document.
+    if nonprop_fallback and any('ws-nonprop' in p for p in parts):
+        css += '\nspan.ws-nonprop{font-family:ui-monospace,Menlo,Consolas,monospace}'
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
     # end, gated by `--toc` (default off). HTML is non-paged: no page
     # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's
@@ -2114,7 +2149,8 @@ def _rtf_comment_dest(note, sentence_spacing=False):
 
 def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
               roll_half_pt=None, ul_continuous=True, inline_styling=True,
-              pix_map=None, pictures='off', sentence_spacing=False):
+              pix_map=None, pictures='off', sentence_spacing=False,
+              nonprop_fallback=False):
     if 'fnref' in sp.styles:
         note, label = _resolve_ref(refs, sp.text)
         if note is not None:
@@ -2196,6 +2232,20 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
                 c += r'\dn%d ' % roll_half_pt
         if fontctl:
             c += ''.join(fontctl.get(st, '') for st in these_styles if st.startswith('font'))
+        # planning #252 (Jon's ruling 2026-09-09): a run no WS5+ font block
+        # covers (no 'fontN' tag at all -- core.py:3371's own producer,
+        # the same test `_span_font`/pdf.py's `_modern_tok_font` use) gets
+        # Courier instead of the inherited \f0 body default, but ONLY in a
+        # document that declares fonts elsewhere AND declares itself
+        # non-proportional (`.ps off` -- `nonprop_fallback`, resolved once
+        # per document in `emit_rtf`, Modern only). \f1 is always Courier
+        # New in this emitter's own \fonttbl (see the graphic-text override
+        # just below and emit_rtf's literal `{\f1 Courier New;}`) -- reusing
+        # that slot rather than adding a target-varying one, same face
+        # either way.
+        if nonprop_fallback and not any(
+                st.startswith('font') and st[4:].isdigit() for st in these_styles):
+            c += r'\f1 '
         if inline_styling:
             # round 18 (RULINGS-LEDGER row 10): WordStar's own inline
             # colour (symmetric type 1) -- direct `\cfN` against the fixed
@@ -2768,6 +2818,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # 4/5/7 document never carries these). Applied in PRINTED mode only
     # (below); Modern never reads doc_sb/doc_sa at all.
     doc_sb, doc_sa = _rtf_doc_spacing_twips(doc) if printed else (None, None)
+    # planning #252 (Jon's ruling 2026-09-09): resolved ONCE per document,
+    # same rule and same reasoning as pdf.py's `_modern_tok_font` fallback
+    # -- Printed keeps its own Courier-body doctrine untouched (`.ps` never
+    # governed it and still doesn't), so this is Modern-only.
+    nonprop_fallback = (not printed and bool(doc.fonts)
+                        and doc.meta.get('formatting', {}).get('proportional') is False)
     # ruling 2026-08-26: per-block `\sl` now needs a whole-document pass
     # (pdf.resolved_printed_leads_48 -- see _rtf_block_lead_48) -- computed
     # ONCE here, same "resolved once, not per block" doctrine as doc_sb/
@@ -2828,7 +2884,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # both share a style.
         return ''.join(_rtf_span(sp, refs, keep, fontctl, printed, shown_map,
                                  roll_half_pt, ul_continuous, inline_styling,
-                                 pix_map, pictures, ss_on)
+                                 pix_map, pictures, ss_on, nonprop_fallback)
                        for sp in split_graphic_spans(coalesce_spans(merged)))
 
     # round 17b (RULINGS-LEDGER row 5/6, register C11), corrected by

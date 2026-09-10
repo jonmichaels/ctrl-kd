@@ -889,10 +889,22 @@ def test_diagnose_omits_formatting_key_when_nothing_was_set():
     assert 'formatting' not in d
 
 
-def test_diagnose_flags_ps_as_superseded():
+def test_diagnose_flags_ps_on_as_no_effect():
+    # planning #252 (2026-09-09): round 9's blanket "superseded, never
+    # honored" is no longer the whole story -- `.ps off` now governs
+    # Modern's uncovered-run fallback (see test_ctrlkd.py's
+    # test_modern_nonproportional_* trio). `.ps on` (this test) still has
+    # no effect: the fallback is already Times.
     d = _diag(b'.ps on' + HARD + b'Body text.' + HARD)
-    assert 'ps_note' in d and 'superseded' in d['ps_note']
+    assert 'ps_note' in d and 'no effect' in d['ps_note']
     assert d['formatting']['proportional'] is True
+
+
+def test_diagnose_flags_ps_off_as_governing_the_modern_fallback():
+    d = _diag(b'.ps off' + HARD + b'Body text.' + HARD)
+    assert 'ps_note' in d
+    assert 'Courier' in d['ps_note'] and 'Times' in d['ps_note']
+    assert d['formatting']['proportional'] is False
 
 
 def test_diagnose_surfaces_headers_footers_declared():

@@ -4967,6 +4967,142 @@ def test_pdf_cp437_greek_in_plain_courier_routes_through_symbol_face():
     assert line in txt_modern
 
 
+# ---------------------------------------- planning #252, Jon's ruling 2026-09-09
+#
+# "...doesn't declare font proportionality, is Times in Modern in ctrl-kd and
+# sr, and Georgia 14 (or whatever is set in Settings). There's a setting in WS
+# where it can declare that fonts are not proportional. If that's the case,
+# and no font block exists, then it becomes Courier (or Courier Prime in
+# macOS)." The document-level setting is `.ps off` (WSFORMAT register C19,
+# core.py's `_parse_format_dot`), which round 9 already parsed into
+# `doc.meta['formatting']['proportional']` but deliberately left unconsumed
+# (info.py's old `ps_note`: "present but superseded... not separately
+# honored") -- round 9's own ruling covered only runs a REAL font block
+# covers (`_pdf_family`'s `entry['proportional'] is False`), which this round
+# leaves untouched. This round gives `.ps off` its first real consumer: the
+# Modern fallback for a run NO font block covers, in a document that
+# declares fonts SOMEWHERE ELSE (a document with zero font blocks anywhere
+# stays Times/Georgia regardless of `.ps` -- the ruling's own "no fonts ->
+# Times, unchanged"). Printed is untouched (its whole body is already
+# Courier; `.ps` never governed it and still doesn't).
+#
+# Corpus sweep (the project's private vintage-document corpus, all 3145
+# ws4/ws5+ files, `core.parse_ws` directly): 12 documents declare `.ps
+# off`. 9 are the HOLYMAC macro set
+# (`sawyer/MACROS/HOLYMAC/*`) and carry ZERO font blocks -- unaffected by
+# this round, per the ruling's own "no fonts" carve-out. The 3 that DO carry
+# fonts (`sawyer/PRINT.TST`, `sawyer/DEFAULT/PRINT.TST`, `sawyer/PSPRINT.TST`)
+# have no body-text run left uncovered by a font block once parsed -- the
+# ONE uncovered span in the whole trio is `PSPRINT.TST`'s own footnote-
+# reference marker ('1', fnref+sup), which renders through a different,
+# unconditional-Times code path (pdf.py's marker tuple in `_modern_flow`,
+# same apparatus-stays-Times convention as running heads/note text) that
+# this round does not touch. The real corpus's Modern answer-key therefore
+# has NOTHING to move for this ruling -- the moved-list is empty, evidence
+# not assumption (see the job report for the full sweep). These synthetic
+# fixtures exercise the actual code path the real corpus never happens to
+# reach.
+
+def _ps_doc(ps, first_covered, body_style_bits=0x8000):
+    """A WS7 document with an optional `.ps on|off` declaration, an
+    UNCOVERED first line (no font block in force yet), then a real
+    proportional Helvetica font block covering a second line. `ps` is
+    'on', 'off', or None (never set)."""
+    header = ws7_block(0x00, bytes([0x70]) + bytes(15))
+    ps_line = (b'.ps %s' % ps.encode()) + HARD if ps else b''
+    helv = _helv_typestyle()
+    return (header + ps_line
+            + b'Uncovered first line.' + HARD
+            + _font_block(helv, 12.0, style_bits=body_style_bits)
+            + b'Covered second line.' + HARD)
+
+
+def test_modern_nonproportional_declared_gives_uncovered_run_courier():
+    """fonts-declared + non-proportional -> Courier (the new rule), all
+    three Modern emitters."""
+    doc = core.parse_ws(_ps_doc('off', True))
+    assert doc.meta['formatting']['proportional'] is False
+    assert doc.fonts                                     # declares fonts
+
+    from ctrlkd.pdf import emit_pdf
+    pdf = emit_pdf(doc, mode='modern')
+    fonts = _basefonts(pdf)
+    shown = _content_text(pdf)
+    cour = next(n for n, b in fonts.items() if b == b'Courier')
+    helv = next(n for n, b in fonts.items() if b == b'Helvetica')
+    assert (cour, 14, b'Uncovered') in shown              # the fallback run
+    assert (helv, 12, b'Covered') in shown                # the covered run, untouched
+
+    r = emit.emit_rtf(doc, mode='modern')
+    assert '{\\f1 Uncovered first line.}' in r             # \f1 == Courier New, always in \fonttbl
+
+    h = emit.emit_html(doc, mode='modern')
+    assert '<span class="ws-nonprop">Uncovered first line.</span>' in h
+    assert 'ws-font-0">Covered second line.' in h
+
+
+def test_modern_proportional_or_unset_keeps_times_fallback():
+    """fonts-declared + proportional (`.ps on`) -- and fonts-declared with
+    `.ps` never set -- both leave the uncovered-run fallback at Times/
+    Georgia, unchanged. Round 9's own per-block rule (not this round) still
+    decides the COVERED run's face."""
+    from ctrlkd.pdf import emit_pdf
+    for ps in ('on', None):
+        doc = core.parse_ws(_ps_doc(ps, True))
+        assert doc.meta.get('formatting', {}).get('proportional') is not False
+        pdf = emit_pdf(doc, mode='modern')
+        fonts = _basefonts(pdf)
+        shown = _content_text(pdf)
+        times = next(n for n, b in fonts.items() if b == b'Times-Roman')
+        assert (times, 14, b'Uncovered') in shown, ps
+
+        r = emit.emit_rtf(doc, mode='modern')
+        assert '{Uncovered first line.}' in r, ps           # no \fN control: inherits \f0 (Georgia)
+
+        h = emit.emit_html(doc, mode='modern')
+        assert 'ws-nonprop' not in h, ps
+
+
+def test_modern_nonproportional_declared_but_no_fonts_stays_times():
+    """The ruling's explicit carve-out: `.ps off` with NO font blocks
+    anywhere in the document changes nothing -- matches the real corpus's
+    HOLYMAC macro files (9 of them, all fontless, all `.ps off`)."""
+    from ctrlkd.pdf import emit_pdf
+    header = ws7_block(0x00, bytes([0x70]) + bytes(15))
+    data = header + b'.ps off' + HARD + b'No font blocks anywhere at all.' + HARD
+    doc = core.parse_ws(data)
+    assert doc.meta['formatting']['proportional'] is False
+    assert not doc.fonts
+
+    pdf = emit_pdf(doc, mode='modern')
+    fonts = _basefonts(pdf)
+    shown = _content_text(pdf)
+    times = next(n for n, b in fonts.items() if b == b'Times-Roman')
+    assert (times, 14, b'No') in shown
+    assert not any(fonts.get(f) == b'Courier' for f, sz, t in shown)
+
+    h = emit.emit_html(doc, mode='modern')
+    assert 'class="ws-nonprop"' not in h
+    r = emit.emit_rtf(doc, mode='modern')
+    assert '{No font blocks anywhere at all.}' in r
+
+
+def test_modern_nonproportional_fallback_never_touches_printed():
+    """Printed's own body face doctrine (Courier, the era's typescript) is
+    untouched by `.ps off` -- it always rendered fontless/uncovered text as
+    Courier anyway, for a completely different, pre-existing reason (round
+    9's Printed doctrine, not this round)."""
+    from ctrlkd.pdf import emit_pdf
+    doc_off = core.parse_ws(_ps_doc('off', True))
+    doc_on = core.parse_ws(_ps_doc('on', True))
+    pdf_off = emit_pdf(doc_off, mode='printed')
+    pdf_on = emit_pdf(doc_on, mode='printed')
+    # Printed's own geometry differs only in the `.ps` dot line itself
+    # being a no-op either way -- the two PDFs' text-showing operators for
+    # the two body lines must be byte-identical.
+    assert _content_text(pdf_off) == _content_text(pdf_on)
+
+
 def test_symbol_fallback_split_generalises_to_zapfdingbats():
     """`_symbol_fallback_split`/`symbolmap.symbol_fallback_kind` answer
     'math' (Symbol) OR 'symbols' (ZapfDingbats), not just 'math' -- the
