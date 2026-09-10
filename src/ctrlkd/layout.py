@@ -772,18 +772,32 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             pl_col = getattr(pl, 'col', None)
             if pl_col is not None:
                 line['col'] = pl_col
+            # `x`/`width` below are all rounded to 1 decimal -- the SAME
+            # precision the PDF writer's own `%.1f` position operators have
+            # always used (pdf.py's `_line_ops_printed`/`_graphic_ops` never
+            # emit more). Both engines' internal float math can differ in
+            # the 15th-16th significant digit for an identical formula (IEEE
+            # 754 accumulation order, e.g. Swift's `Double(pt)` cast vs
+            # Python's int `pt` stays int one step longer) -- invisible in
+            # the PDF bytes themselves (both round to the same `.1f` string)
+            # but a RAW float export exposes it as a spurious cross-engine
+            # divergence with no real meaning (planning #251, found via
+            # AnswerKeyParityTests once these fields started exporting full
+            # precision). Rounding here, not just at render time, is what
+            # keeps the JSON meaningful at the SAME precision the writer
+            # actually places ink at.
             pl_justify_word_x = getattr(pl, 'justify_word_x', None)
             if pl_justify_word_x is not None:
                 line['justify_word_x'] = [
-                    {'text': t, 'x': x, 'width': w}
+                    {'text': t, 'x': round(x, 1), 'width': round(w, 1)}
                     for t, x, w in pl_justify_word_x]
             pl_line_no = getattr(pl, 'line_no', None)
             if pl_line_no is not None:
-                line['line_no'] = {'text': pl_line_no[0], 'x': pl_line_no[1]}
+                line['line_no'] = {'text': pl_line_no[0], 'x': round(pl_line_no[1], 1)}
             pl_graphic_cells = getattr(pl, 'graphic_cells', None)
             if pl_graphic_cells is not None:
                 line['graphic_cells'] = [
-                    {'char': c, 'x': x, 'width': w}
+                    {'char': c, 'x': round(x, 1), 'width': round(w, 1)}
                     for c, x, w in pl_graphic_cells]
             lines.append(line)
         pg = {

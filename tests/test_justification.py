@@ -221,7 +221,7 @@ def test_justify_word_x_lands_on_the_pageline_model():
     assert out['version'] == 5
     jline = out['printed']['pages'][0]['lines'][0]
     assert [p['text'] for p in jline['justify_word_x']] == ['AA', ' ', 'BB', ' ', 'CC']
-    assert jline['justify_word_x'][2]['x'] == x_bb
+    assert jline['justify_word_x'][2]['x'] == round(x_bb, 1)
     assert 'justify_word_x' not in out['printed']['pages'][0]['lines'][1]
 
 
