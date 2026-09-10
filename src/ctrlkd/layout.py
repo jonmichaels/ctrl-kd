@@ -764,6 +764,26 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     `headers`/`footers` dict (unsubstituted template strings) stays
     exactly as it was; this is purely additive.
 
+    version 7 (planning #251 follow-up, 2026-09-10, found by the app
+    coder job 348): a `modern['items']` entry of kind 'para' or 'note'
+    MAY now carry 'graphic_cells' — `[{'char': str, 'x': float,
+    'width': float, 'page': int}, ...]`, one entry per cp437 box-
+    drawing/graphic character that paragraph draws as a vector in
+    Modern PDF, document order — the exact per-cell x/width `pdf.py`'s
+    own `_graphic_ops` call (inside `_modern_line_ops`) draws from
+    (`attach_graphic_cells_modern`, mirroring Printed's own
+    'graphic_cells'/`_attach_graphic_cells_printed` precedent above
+    exactly). 'page' is the 1-based Modern PDF page that cell landed on
+    — present here (and never on Printed's own 'graphic_cells') because
+    `modern['items']` is a flat, unpaginated list, unlike
+    `printed['pages']`, where the page is already the list's own
+    nesting. OMITTED, not null, on every item with no graphic character
+    at all, or that never reaches `_modern_streams`' body-building pass
+    (a footnote's own page-bottom text — see `attach_graphic_cells_
+    modern`'s own docstring for that one documented scope cut) — a
+    document with no Modern graphic content anywhere emits byte-
+    identical JSON to version 6.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -876,13 +896,45 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             pg['column_width_pt'] = getattr(page, 'column_width_pt', None)
         printed_pages.append(pg)
 
+    modern_out = modern_flow(doc, notes=notes, note_refs=note_refs)
+    # version 7 (planning #251 follow-up, 2026-09-10, found by the app coder
+    # job 348): a `modern['items']` entry of kind 'para' or 'note' MAY now
+    # carry 'graphic_cells' -- `[{'char', 'x', 'width', 'page'}, ...]`, one
+    # entry per cp437 box-drawing/graphic character that paragraph draws as
+    # a vector in Modern PDF, document order -- the exact per-cell x/width
+    # pdf.py's own `_graphic_ops` call (inside `_modern_line_ops`) draws
+    # from (`attach_graphic_cells_modern`, mirroring Printed's own
+    # 'graphic_cells'/`_attach_graphic_cells_printed` precedent above
+    # exactly). 'page' is the 1-based Modern PDF page that cell landed on
+    # -- present here (and never on Printed's own 'graphic_cells') because
+    # `modern['items']` is a flat, unpaginated list, unlike
+    # `printed['pages']`, where the page is already the list's own
+    # nesting. OMITTED, not null, on every item with no graphic character
+    # at all, or that never reaches `_modern_streams`' body-building pass
+    # (a footnote's own page-bottom text; see `attach_graphic_cells_modern`
+    # 's own docstring for that one documented scope cut) -- a document
+    # with no Modern graphic content anywhere emits byte-identical JSON to
+    # version 6. The unit-cell GEOMETRY needed to actually DRAW each
+    # character (`graphic_cell_rects`/`graphic_cell_ops`, both public, both
+    # already covering Modern's exact same six categories) is unaffected
+    # by this version bump -- same "a stable, per-character lookup, not
+    # exported through this JSON" choice version 5's own docstring already
+    # made. `_pdf` is the same lazy import this function's own docstring-
+    # adjacent `printed_pages` loop above already uses.
+    modern_graphic_cells = _pdf.attach_graphic_cells_modern(doc, notes, note_refs)
+    for i, cells in modern_graphic_cells.items():
+        if cells:
+            modern_out['items'][i]['graphic_cells'] = [
+                {'char': c, 'x': round(x, 1), 'width': round(w, 1), 'page': page}
+                for c, x, w, page in cells]
+
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 6,
+        'version': 7,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
-        'modern': modern_flow(doc, notes=notes, note_refs=note_refs),
+        'modern': modern_out,
         'printed': {'pages': printed_pages},
         'invisibles': {
             'dot_commands': doc.meta.get('dot_commands', []),

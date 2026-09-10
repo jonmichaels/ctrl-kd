@@ -14,6 +14,7 @@ Two halves:
 import json
 
 from ctrlkd import core, pdf, layout as _layout
+from ctrlkd.emit import DEFAULT_NOTE_KINDS
 
 HARD = b'\r\n'
 
@@ -154,7 +155,7 @@ def test_graphic_cells_x_matches_what_the_pdf_actually_draws():
 def test_graphic_cells_in_layout_json():
     doc = _box_doc()
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 6
+    assert out['version'] == 7
     top = out['printed']['pages'][0]['lines'][0]
     assert 'graphic_cells' in top
     assert [c['char'] for c in top['graphic_cells']] == ['┌', '─', '─', '┐']
@@ -165,3 +166,55 @@ def test_graphic_cells_in_layout_json():
         + b'An ordinary line of prose, nothing graphic here at all.' + HARD)
     prose_out = json.loads(_layout.emit_layout(prose))
     assert 'graphic_cells' not in prose_out['printed']['pages'][0]['lines'][0]
+
+
+# --------------------------------------------- (c follow-up) Modern graphic_cells
+
+def test_modern_graphic_cells_land_on_the_layout_json():
+    """planning #251 follow-up (2026-09-10, app coder job 348): the SAME cp437
+    box draws a vector rule in Modern PDF too (`_graphic_ops`, called from
+    `_modern_line_ops`), and the app's Modern view needs the model's own
+    x/width/page to place it -- `attach_graphic_cells_modern` records exactly
+    what `_modern_streams` draws, via a real (throwaway) call to that same
+    function."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + (b'\xcd' * 10) + HARD)          # a single ══════════ rule, 10 wide
+    cells = pdf.attach_graphic_cells_modern(doc, DEFAULT_NOTE_KINDS, 'word')
+    assert cells
+    all_cells = [c for v in cells.values() for c in v]
+    assert len(all_cells) == 10
+    assert all(c[0] == '═' for c in all_cells)
+    assert all(c[3] == 1 for c in all_cells)          # page
+    xs = [c[1] for c in all_cells]
+    assert xs == sorted(xs)
+
+    out = json.loads(_layout.emit_layout(doc, mode='modern'))
+    assert out['version'] == 7
+    with_cells = [it for it in out['modern']['items'] if 'graphic_cells' in it]
+    assert len(with_cells) == 1
+    gc = with_cells[0]['graphic_cells']
+    assert len(gc) == 10
+    assert all(c['char'] == '═' and c['page'] == 1 for c in gc)
+
+
+def test_modern_graphic_cells_absent_for_a_document_with_no_graphics():
+    prose = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'An ordinary line of prose, nothing graphic here at all.' + HARD)
+    assert pdf.attach_graphic_cells_modern(prose, DEFAULT_NOTE_KINDS, 'word') == {}
+    out = json.loads(_layout.emit_layout(prose, mode='modern'))
+    assert not any('graphic_cells' in it for it in out['modern']['items'])
+
+
+def test_modern_graphic_cells_never_change_pdf_bytes():
+    """`attach_graphic_cells_modern`'s own throwaway call never touches the
+    real `emit_pdf` render path (`attach_graphic_cells=None` by default at
+    its one real call site)."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + (b'\xcd' * 10) + HARD)
+    pdf1 = pdf.emit_pdf(doc, mode='modern')
+    pdf.attach_graphic_cells_modern(doc, DEFAULT_NOTE_KINDS, 'word')
+    pdf2 = pdf.emit_pdf(doc, mode='modern')
+    assert pdf1 == pdf2

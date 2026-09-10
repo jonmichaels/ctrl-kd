@@ -218,7 +218,7 @@ def test_justify_word_x_lands_on_the_pageline_model():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 6
+    assert out['version'] == 7
     jline = out['printed']['pages'][0]['lines'][0]
     assert [p['text'] for p in jline['justify_word_x']] == ['AA', ' ', 'BB', ' ', 'CC']
     assert jline['justify_word_x'][2]['x'] == round(x_bb, 1)

@@ -5244,6 +5244,50 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 line.graphic_cells = record
 
 
+def attach_graphic_cells_modern(doc, notes, note_refs):
+    """planning #251 follow-up (2026-09-10, app coder job 348): every
+    `sem['items']` index (`_layout.modern_flow(doc, notes=notes,
+    note_refs=note_refs)`'s own item list -- the SAME call `emit_layout`'s
+    `modern['items']` serializes) with at least one drawn cp437 graphic-
+    character cell, mapped to that paragraph's own cells `(char, x_pt,
+    width_pt, page)`, document order across however many wrapped visual
+    lines/pages the paragraph's own non-wrapping graphic run lands on --
+    via a real (throwaway-resources) call to `_modern_streams` itself,
+    using its own `attach_graphic_cells` recording parameter, so the
+    values are exactly what Modern PDF draws (`_graphic_ops`), never a
+    parallel re-derivation. Mirrors `_attach_graphic_cells_printed`'s own
+    precedent for Printed. Port of Swift's `attachGraphicCellsModern`.
+
+    Skipped outright (returns `{}`) when NO block anywhere in the
+    document carries a graphic character at all -- the same necessary-
+    condition short-circuit `_attach_graphic_cells_printed` applies per
+    LINE, applied once here per DOCUMENT (the only granularity available
+    before `_modern_streams`' own pagination has run), sparing the
+    overwhelming majority of documents a full throwaway Modern-PDF
+    pagination pass.
+
+    `notes`/`note_refs` come from the caller and must be the SAME values
+    passed to `_layout.modern_flow` at the `emit_layout` call site, so a
+    cell's own item index always lines up with the `sem['items']` that
+    produced it; every other option (pix_results/pictures/sentence_
+    spacing) is the library default `_modern_streams` itself uses when
+    `options` carries none of them, matching `_layout.modern_flow`'s own
+    "document's own unconverted text" convention (`_modern_flow`'s own
+    `sentence_spacing` docstring) -- a pix-substituted paragraph never
+    carries a graphic character in the first place (its runs are "exactly
+    one resolved, decoded pix placeholder"), so `pictures='off'` here
+    changes nothing this function could ever attach to."""
+    has_graphic_content = any(
+        set(span.text) & GRAPHIC_CHARS
+        for block in doc.blocks for line in block.lines for span in line.spans)
+    if not has_graphic_content:
+        return {}
+    cells = {}
+    _modern_streams(doc, {'notes': notes, 'note_refs': note_refs},
+                    FontRes(), attach_graphic_cells=cells)
+    return cells
+
+
 def _attach_head_foot_lines_printed(doc, pages, size):
     """planning #251(d): sets `Page.header_lines`/`footer_lines`/`auto_
     pageno` -- the running head/foot's own resolved (text, x, y, font)
@@ -7375,7 +7419,8 @@ def _modern_w(text, styles, family, pt, entry):
 
 
 def _modern_flow(doc, keep, note_refs='word', pix_results=None,
-                 pictures='off', text_width_pt=0.0, sentence_spacing=False):
+                 pictures='off', text_width_pt=0.0, sentence_spacing=False,
+                 record_sem_index=None):
     """The MEASURED Modern flow: layout.modern_flow's semantic items (the
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
@@ -7407,7 +7452,21 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     JSON emitter therefore always serializes the document's own
     unconverted text; a consumer (this adapter, the app's native text
     stack) applies sentence-spacing on top, same as every other emit_*
-    option that never reaches layout.py's semantic items."""
+    option that never reaches layout.py's semantic items.
+
+    `record_sem_index` (planning #251 follow-up, 2026-09-10): a list, or
+    None. When given, one entry is appended per element of the RETURNED
+    flow, in order -- the index into `sem['items']` (this function's own
+    `_layout.modern_flow(doc, ...)` result) that produced it. `'tabs'` is
+    the one `sem['items']` entry that produces NO flow entry at all (an
+    editor-time-only item, `continue`d before any append below) -- every
+    other kind appends exactly one flow entry per `sem['items']` entry, in
+    the same order, so this is pure bookkeeping alongside the existing
+    loop, never a parallel re-derivation of what that loop already
+    decides. `_attach_graphic_cells_modern` uses it to attribute a
+    wrapped/paginated visual line's own graphic cells back to the
+    semantic item the `layout` JSON's own `modern['items']` array will
+    serialize it against."""
     embed_images = pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
     sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs)
@@ -7441,16 +7500,22 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     nonprop_fallback = (bool(doc.fonts)
                         and doc.meta.get('formatting', {}).get('proportional') is False)
     flow = []
-    for it in sem['items']:
+
+    def _emit(entry, _sem_i):
+        flow.append(entry)
+        if record_sem_index is not None:
+            record_sem_index.append(_sem_i)
+
+    for sem_i, it in enumerate(sem['items']):
         k = it['kind']
         if k == 'blank':
-            flow.append(('blank', blank_h))
+            _emit(('blank', blank_h), sem_i)
         elif k == 'break':
-            flow.append(('break',))
+            _emit(('break',), sem_i)
         elif k == 'cond':
-            flow.append(('cond', it['lines']))
+            _emit(('cond', it['lines']), sem_i)
         elif k == 'hf':
-            flow.append(('hf', it['which'], it['line'], it['text']))
+            _emit(('hf', it['which'], it['line'], it['text']), sem_i)
         elif k == 'tabs':
             continue          # editor-time state: no rendered consequence
         elif k == 'note-separator':
@@ -7461,22 +7526,22 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             # one 'note-separator', always immediately before the first
             # 'note' item, when `end_rows` is non-empty) -- Jon's ruling
             # 2026-09-07 fires here, in `_modern_streams`.
-            flow.append(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
-                                   MODERN_NOTE_PT, None, sep_w)],
-                         'left', [], 0.0, 0.0, False, False, True))
+            _emit(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
+                            MODERN_NOTE_PT, None, sep_w)],
+                  'left', [], 0.0, 0.0, False, False, True), sem_i)
         elif k == 'note':
             note_text = (_sentence_spacing_texts([it['text']])[0]
                         if sentence_spacing else it['text'])
-            flow.append(('para', _modern_note_toks(it['label'], note_text,
-                                                    it['note_kind']),
-                         'left', [], 0.0, 0.0, False, False, False))
+            _emit(('para', _modern_note_toks(it['label'], note_text,
+                                             it['note_kind']),
+                  'left', [], 0.0, 0.0, False, False, False), sem_i)
         else:                                                   # para
             if embed_images and not any('ref' in r for r in it['runs']):
                 sub = _spans_pix_substitution(
                     [(r['text'], r['styles']) for r in it['runs']],
                     pix_map, text_width_pt)
                 if sub is not None:
-                    flow.append(('image',) + sub)
+                    _emit(('image',) + sub, sem_i)
                     continue
             toks = []
             # N9: applied to the run texts, in order, same cross-piece
@@ -7548,9 +7613,9 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     # never also a slugline.)
                     no_wrap = True
             notes = [(note_rows[ni], label) for ni, label in it['footnotes']]
-            flow.append(('para', toks, align, notes,
-                         it['indent_cols'] * col_pt,
-                         it['cut_cols'] * col_pt, no_wrap, page_marker, False))
+            _emit(('para', toks, align, notes,
+                  it['indent_cols'] * col_pt,
+                  it['cut_cols'] * col_pt, no_wrap, page_marker, False), sem_i)
     return flow
 
 
@@ -7622,9 +7687,22 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
     return _modern_line_ops(toks, left, y, width, 'left', res, tz_state)
 
 
-def _modern_line_ops(toks, left, y, width, align, res, tz_state):
+def _modern_line_ops(toks, left, y, width, align, res, tz_state,
+                     record_graphic_cells=None):
     """Content-stream ops for one modern visual line. One op per word keeps
-    a viewer's substitute-metric drift bounded, same as printed."""
+    a viewer's substitute-metric drift bounded, same as printed.
+
+    `record_graphic_cells` (planning #251 follow-up, 2026-09-10): same
+    contract as `_line_ops_printed`'s parameter of the same name -- None
+    to record nothing (every ordinary render call), a real list to
+    EXTEND with this call's own cp437 graphic-character placements
+    (never cleared first: a caller collecting across several calls, as
+    `_attach_graphic_cells_modern` does across a paragraph's own wrapped
+    visual lines, gets one running list). Threaded through this
+    function's own recursive sub-calls (the non-graphic pieces flanking
+    a graphic run) for the same reason those sub-calls never themselves
+    append anything: a piece `_GRAPHIC_RUN` extracts BETWEEN two runs is,
+    by construction, never itself a graphic run."""
     lw = sum(t[5] for t in toks)
     while toks and not toks[-1][0].strip():
         lw -= toks[-1][5]
@@ -7652,7 +7730,8 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state):
                     pw = _modern_w(piece, styles, family, pt, entry)
                     ops += _modern_line_ops(
                         [(piece, styles, family, pt, entry, pw)],
-                        gx, y, width, 'left', res, tz_state)
+                        gx, y, width, 'left', res, tz_state,
+                        record_graphic_cells=record_graphic_cells)
                     gx += pw
                 run = m.group(0)
                 # b32: Modern's own line-to-line advance is exactly
@@ -7663,6 +7742,20 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state):
                 # default gap (see `_graphic_ops`'s own docstring).
                 ops += _graphic_ops(run, gx, y, pitch, spt,
                                     lead_factor=MODERN_LINE)
+                # planning #251 follow-up (2026-09-10): the model's own
+                # per-cell x/width -- same "recorded here, the ONE place
+                # this run's per-character cell positions are ever
+                # computed" precedent `_line_ops_printed`'s own
+                # `record_graphic_cells` doc states. Unlike Printed's
+                # `proportional_cell` gate (defaults to fixed-pitch when
+                # `entry is None`), a fontless MODERN run ALSO takes the
+                # `spt` em-advance branch above (M11) -- Python's own
+                # `round(int, 1)` int/float split (layout.py's own JSON
+                # serialization) falls out of `pitch`'s own runtime type
+                # here with no extra flag needed, unlike Swift.
+                if record_graphic_cells is not None:
+                    record_graphic_cells.extend(
+                        (ch, gx + i * pitch, pitch) for i, ch in enumerate(run))
                 gx += len(run) * pitch
                 pos = m.end()
             if pos < len(text):
@@ -7670,7 +7763,8 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state):
                 pw = _modern_w(piece, styles, family, pt, entry)
                 ops += _modern_line_ops(
                     [(piece, styles, family, pt, entry, pw)],
-                    gx, y, width, 'left', res, tz_state)
+                    gx, y, width, 'left', res, tz_state,
+                    record_graphic_cells=record_graphic_cells)
             x += w
             continue
         if text.strip():
@@ -7695,8 +7789,30 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state):
     return ops
 
 
-def _modern_streams(doc, options, res):
-    """All page content streams for Modern mode."""
+def _modern_streams(doc, options, res, attach_graphic_cells=None):
+    """All page content streams for Modern mode.
+
+    `attach_graphic_cells` (planning #251 follow-up, 2026-09-10): same
+    contract as `_attach_graphic_cells_printed`'s own `_line_ops_printed`
+    call -- None for every ordinary render (`emit_pdf`'s own call), a
+    real (empty) dict for `_attach_graphic_cells_modern`'s throwaway
+    pass, which this function fills keyed by `sem['items']` index (see
+    the `body` tuple's own 6th field below) with every graphic cell that
+    paragraph's own wrapped visual lines draw, in document order, ACROSS
+    however many visual lines/pages that paragraph's own non-wrapping
+    graphic run actually lands on -- the SAME `_modern_line_ops` call the
+    real content stream is built from, so the values are exactly what
+    the PDF draws, never a parallel re-derivation.
+
+    Scope: body paragraphs, and the end-matter appendix's own endnote/
+    annotation entries (both flow through `body` below) -- a FOOTNOTE's
+    own text is collected and drawn through the separate `notes_lines`/
+    `nlines` mechanism, which carries no `sem['items']` identity, so a
+    graphic character inside a footnote's own text (not observed
+    anywhere in the public corpus) is not attached; this mirrors
+    `layout` JSON's own existing choice to leave raw headers/footers
+    unresolved onto `PageLine` (`header_lines`/`footer_lines`, planning
+    #251(d), are the separate, already-resolved answer for those)."""
     keep = frozenset(options.get('notes', ())) or frozenset(
         ('footnote', 'endnote', 'annotation'))
     margl, margt, margb, width = _modern_geometry(doc)
@@ -7704,10 +7820,12 @@ def _modern_streams(doc, options, res):
     # (printed=False by construction -- `_emit_pdf_inner`'s own `else`
     # branch), so 'auto' always resolves to single here.
     ss_on = _resolve_sentence_spacing(options.get('sentence_spacing', 'auto'), False)
+    sem_index_of_item = [] if attach_graphic_cells is not None else None
     flow = _modern_flow(doc, keep, options.get('note_refs') or 'word',
                         pix_results=options.get('pix_results'),
                         pictures=options.get('pictures', 'off'),
-                        text_width_pt=width, sentence_spacing=ss_on)
+                        text_width_pt=width, sentence_spacing=ss_on,
+                        record_sem_index=sem_index_of_item)
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 
@@ -7757,7 +7875,8 @@ def _modern_streams(doc, options, res):
         y = PAGE_H - margt
         opened = False
 
-    for item in flow:
+    for fi, item in enumerate(flow):
+        sem_i = sem_index_of_item[fi] if sem_index_of_item is not None else None
         if item[0] == 'hf':
             _, kind, lno, txt = item
             (cur_h if kind == 'H' else cur_f)[lno] = txt
@@ -7803,7 +7922,7 @@ def _modern_streams(doc, options, res):
                 close()
             open_page()
             y -= h_pt
-            body.append((y, item, 'left', 0.0, 0.0))
+            body.append((y, item, 'left', 0.0, 0.0, sem_i))
             continue
         _, toks, align, notes, indent, cut, no_wrap, page_marker, end_notes_start = item
         if page_marker and body:
@@ -7860,7 +7979,7 @@ def _modern_streams(doc, options, res):
             open_page()
             y -= h
             last_h = h
-            body.append((y, vline, align, indent, cut))
+            body.append((y, vline, align, indent, cut, sem_i))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
                 for note, label in notes:
@@ -7891,15 +8010,20 @@ def _modern_streams(doc, options, res):
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
             ops += _modern_hf_ops(ftrs[lno], page_no, margl, fy, width,
                                   res, tz_state)
-        for y, toks, align, indent, cut in body:
+        for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks
                 ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
                            % (w_pt, h_pt, margl, y, pix_idx))
                 continue
+            line_cells = [] if attach_graphic_cells is not None else None
             ops += _modern_line_ops(list(toks), margl + indent, y,
                                     max(36.0, width - indent - cut),
-                                    align, res, tz_state)
+                                    align, res, tz_state,
+                                    record_graphic_cells=line_cells)
+            if sem_i is not None and line_cells:
+                attach_graphic_cells.setdefault(sem_i, []).extend(
+                    (ch, x, w, page_no) for ch, x, w in line_cells)
         if nlines:
             block = [None] + nlines           # None = the separator rule
             total = len(block)
@@ -7911,6 +8035,9 @@ def _modern_streams(doc, options, res):
                                (f.encode(), MODERN_NOTE_PT, margl, ly,
                                 _esc(FOOTNOTE_SEPARATOR)))
                 else:
+                    # Footnote text: no `sem['items']` identity to attach
+                    # to (see this function's own doc comment) -- always
+                    # discarded.
                     ops += _modern_line_ops(list(ln), margl, ly, width,
                                             'left', res, tz_state)
         streams.append(b'\n'.join(ops))

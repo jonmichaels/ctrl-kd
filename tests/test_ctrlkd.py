@@ -3841,7 +3841,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 6
+    assert out['version'] == 7
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -6600,7 +6600,7 @@ def test_head_foot_lines_omitted_when_the_document_has_neither():
     assert pages[0].footer_lines is None
     assert pages[0].auto_pageno is None
     out = json.loads(emit_layout(doc))
-    assert out['version'] == 6
+    assert out['version'] == 7
     jp = out['printed']['pages'][0]
     assert 'header_lines' not in jp and 'footer_lines' not in jp
     assert 'auto_page_number' not in jp
@@ -6685,7 +6685,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 6
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 7
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])
