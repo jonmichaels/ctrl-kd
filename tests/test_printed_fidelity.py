@@ -803,6 +803,45 @@ def test_l_hash_checkpoint_is_positional_not_last_command_wins():
     assert r'4\tab' not in r
 
 
+def test_l_hash_labels_and_x_land_on_the_pageline_model():
+    """planning #251(d): the `.l#` gutter label/x are no longer a writer-
+    only decision -- `_doc_to_pagelines` (and therefore `layout` JSON)
+    now carries them too, `PageLine.line_no = (label, x_pt)`, the exact
+    values `_page_stream` draws from. Same fixture as the sibling
+    PDF-bytes test above, checked one level lower: on the model, not the
+    content stream."""
+    body = (b'.l# 2' + HARD
+            + HARD.join(b'Line %d text.' % i for i in range(1, 7)) + HARD)
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)
+    from ctrlkd import pdf as _pdf
+    pages = _pdf._doc_to_pagelines(doc, True)
+    line_nos = [getattr(pl, 'line_no', None) for pl in pages[0]]
+    labels = [ln[0] for ln in line_nos if ln is not None]
+    assert labels == ['1', '2', '3']
+    # every labelled line's x is the SAME right-aligned position
+    # (`LINE_NO_RIGHT_PT` minus the label's own width) `_page_stream`
+    # used to compute at render time -- single-digit labels here, so
+    # all three land at the identical x.
+    xs = {ln[1] for ln in line_nos if ln is not None}
+    assert len(xs) == 1
+    # unlabelled lines (including the trailing blank the parser folds
+    # in) carry no opinion, same "furniture" convention as `left`/`col`.
+    assert any(ln is None for ln in line_nos)
+
+    # The same answer, one level up, through the public `layout` JSON --
+    # OMITTED (not present) on a line with no active interval, present
+    # with 'text'/'x' on one that has.
+    from ctrlkd import layout as _layout
+    import json
+    out = json.loads(_layout.emit_layout(doc))
+    assert out['version'] == 4
+    json_lines = out['printed']['pages'][0]['lines']
+    json_labels = [l['line_no']['text'] for l in json_lines if 'line_no' in l]
+    assert json_labels == ['1', '2', '3']
+    assert all('line_no' not in l for l, ln in zip(json_lines, line_nos)
+              if ln is None)
+
+
 def test_line_numbers_flag_off_suppresses_the_gutter():
     body = (b'.l# 1' + HARD + b'One line only.' + HARD)
     doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(15)) + body)

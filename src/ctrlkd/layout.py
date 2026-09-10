@@ -710,6 +710,17 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     "byte-identical to version 2 when unused" convention `left`/`col`
     already use.
 
+    version 4 (planning #251(d), 2026-09-09): each printed line MAY now
+    carry 'line_no' — `{'text': str, 'x': float}` — the `.l#` gutter
+    label and its ABSOLUTE x, moved off `pdf.py`'s own `_page_stream`
+    render-time counter (`PageLine.line_no`, set by
+    `_attach_line_numbers_printed`) onto the model. OMITTED, not null,
+    on every line no active `.l#` interval numbers — a document that
+    never declares `.l#` emits byte-identical JSON to version 3. Present
+    regardless of the PDF writer's own `--line-numbers` flag (same
+    "model states it unconditionally, a flag only tells the WRITER
+    whether to draw it" convention `headers`/`footers` already use).
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -751,6 +762,9 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 line['justify_word_x'] = [
                     {'text': t, 'x': x, 'width': w}
                     for t, x, w in pl_justify_word_x]
+            pl_line_no = getattr(pl, 'line_no', None)
+            if pl_line_no is not None:
+                line['line_no'] = {'text': pl_line_no[0], 'x': pl_line_no[1]}
             lines.append(line)
         pg = {
             'lines': lines,
@@ -770,7 +784,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 3,
+        'version': 4,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],

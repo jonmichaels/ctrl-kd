@@ -3498,14 +3498,26 @@ class PageLine(list):
     # span, or one with no slack to distribute) leaves this None, and
     # `_line_ops_printed` falls back to computing it fresh at render time,
     # unchanged from before this field existed.
+    # `line_no` (planning #251(d), 2026-09-09): this line's own `.l#`
+    # gutter label and ABSOLUTE x, as `(label, x_pt)`, or None for a line
+    # no active `.l#` interval numbers -- moved off `_page_stream`'s own
+    # render-time `line_no_state` counter (which reset every PAGE, per
+    # planning #247's own oracle) onto the model by
+    # `_attach_line_numbers_printed`, called from `_doc_to_pagelines`
+    # right before it returns. `_page_stream` now only draws from this
+    # field (still gated by its own `line_no_checkpoints is not None`
+    # parameter, which is how `--line-numbers off` keeps suppressing the
+    # draw even though the model carries the label unconditionally --
+    # same "model states it, a flag may still tell the WRITER not to
+    # draw it" shape `headers`/`footers`/`show_headers` already use).
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
                 'kerning', 'left', 'roll', 'justify_right_x', 'parity_left', 'col',
-                'justify_word_x')
+                'justify_word_x', 'line_no')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
                 roll=None, justify_right_x=None, parity_left=None, col=None,
-                justify_word_x=None):
+                justify_word_x=None, line_no=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -3522,6 +3534,7 @@ class PageLine(list):
         self.parity_left = parity_left
         self.justify_word_x = justify_word_x
         self.col = col
+        self.line_no = line_no
 
 
 class Page(list):
@@ -3999,6 +4012,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             pages.pop()
         pages = _apply_columns(doc, pages, _printed_size(doc))
         _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
+        _attach_line_numbers_printed(doc, pages, _printed_size(doc))
         return pages or [[]]
 
     refs_all = _ref_pairs(_annotated_notes(doc))
@@ -4833,7 +4847,38 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     if printed:
         pages = _apply_columns(doc, pages, size_for_left)
         _attach_justify_word_x_printed(doc, pages, size_for_left)
+        _attach_line_numbers_printed(doc, pages, size_for_left)
     return pages or [[]]
+
+
+def _attach_line_numbers_printed(doc, pages, size):
+    """planning #251(d): sets `PageLine.line_no = (label, x_pt)` on every
+    line an active `.l#` interval numbers -- moved from `_page_stream`'s
+    own render-time `line_no_state` counter, replicated here in the exact
+    same shape (`_page_stream` is invoked once per PAGE, so the interval/
+    counter pair starts fresh at every page's own first line -- planning
+    #247's own oracle, sawyer/PRINT.TST: `.l#2` activates on a page's own
+    first body line, `.l# 0` deactivates on its last). A document that
+    never declares `.l#` (`line_numbering_checkpoints` stays at its
+    `(0, None)` seed) walks every line and sets nothing -- no behaviour
+    change, just an O(lines) no-op pass."""
+    checkpoints = _line_numbering_checkpoints(doc)
+    _, gutter_family, gutter_size, _ = _span_render('', (), doc.fonts, size)
+    for page in pages:
+        line_no_state = [None, 0]
+        for line in page:
+            line_bi = getattr(line, 'bi', None)
+            interval = (_line_numbering_at(checkpoints, line_bi)
+                       if line_bi is not None else None)
+            if interval != line_no_state[0]:
+                line_no_state[0] = interval
+                line_no_state[1] = 0
+            k = line_no_state[1]
+            line_no_state[1] += 1
+            if interval and k % interval == 0:
+                label = str(k // interval + 1)
+                gx = LINE_NO_RIGHT_PT - len(label) * gutter_size * 0.6
+                line.line_no = (label, gx)
 
 
 def _attach_justify_word_x_printed(doc, pages, size):
@@ -6531,18 +6576,11 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     # LEAVING the colour1-7 family always needs one.
     col_state = [('g', 0.0), False]
     prev_overprint = False
-    # planning #247: `.l#`'s own running state -- `line_no_state[0]` is
-    # the interval MOST RECENTLY resolved (per line, below), and
-    # `line_no_state[1]` is a 0-based count of physical lines since it
-    # last changed value (including a change FROM or TO None/off). Local
-    # to this call, so it starts fresh at every page's own first line for
-    # free (`_page_stream` is invoked once per page) -- matching the one
-    # real oracle (sawyer/PRINT.TST: `.l#2` activates on a page's own
-    # first body line, `.l# 0` deactivates on its last) -- and ALSO
-    # restarts correctly if a checkpoint change ever lands mid-page
-    # (untested: no oracle exercises that), rather than counting from
-    # the page's own top regardless of where the interval itself began.
-    line_no_state = [None, 0]
+    # planning #251(d): the `.l#` running counter that used to live here
+    # (planning #247, `line_no_state`) moved to `_doc_to_pagelines`'s own
+    # `_attach_line_numbers_printed` -- see `PageLine.line_no`'s own
+    # comment. This call site now only gates the DRAW (`line_no_checkpoints
+    # is not None`, below), it no longer resolves the label/x itself.
     # planning #227 follow-up (2026-09-09): `_apply_columns` concatenates
     # every column's own lines into ONE flat `pagelines` list (column 0's,
     # then column 1's, ...; PageLine.col records which) -- this loop must
@@ -6682,20 +6720,20 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         # real oracle happens to be Courier, which is also this engine's
         # own fallback, so this is untested against a document whose
         # default body font is something else.
-        line_bi = getattr(line, 'bi', None)
-        line_no_interval = (_line_numbering_at(line_no_checkpoints, line_bi)
-                            if line_no_checkpoints is not None and line_bi is not None
-                            else None)
-        if line_no_interval != line_no_state[0]:
-            line_no_state[0] = line_no_interval
-            line_no_state[1] = 0
-        line_no_k = line_no_state[1]
-        line_no_state[1] += 1
-        if line_no_interval and line_no_k % line_no_interval == 0:
-            label = str(line_no_k // line_no_interval + 1)
+        # planning #251(d): the label/x themselves are now
+        # `_doc_to_pagelines`'s own decision (`_attach_line_numbers_
+        # printed`, set on `PageLine.line_no`) -- this call site's only
+        # remaining job is the `--line-numbers off` gate, which still
+        # works exactly as before: that flag makes `_emit_pdf_inner` pass
+        # `line_no_checkpoints=None` into this function, same as today,
+        # so the draw is suppressed regardless of what the model carries
+        # (same shape `show_headers`/`headers` already use).
+        line_no = (getattr(line, 'line_no', None)
+                  if line_no_checkpoints is not None else None)
+        if line_no is not None:
+            label, gx = line_no
             _, gutter_family, gutter_size, _ = _span_render('', (), fonts, size)
             gutter_font = res.ref(gutter_family)
-            gx = LINE_NO_RIGHT_PT - len(label) * gutter_size * 0.6
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET'
                       % (gutter_font.encode(), gutter_size, gx, y, label.encode()))
         segs = []
