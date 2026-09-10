@@ -3627,6 +3627,37 @@ def test_rr_bare_ruler_next_line_also_clears_para_margin():
     assert second.para_margin is None    # cleared: the swallowed ruler image has no `P` pip
 
 
+def test_rr_bare_ruler_image_overprint_terminator_adds_no_blank_line():
+    """Planning #249 (sawyer/INTERVU.WS, near the page 7/8 boundary): a bare
+    `.rr`'s ruler-image line (planning #240's swallowed-next-line form) can
+    itself end with `^PM Overprint Line` (a bare CR, no LF) instead of an
+    ordinary hard return -- WSFORMAT.TXT: "the next line prints at THIS
+    line's baseline". Measured byte shape, INTERVU.WS offset 8711: the
+    document's FIRST `.rr` pair writes `.rr\\rL----P----!----!-------------R
+    \\r\\r\\n` -- TWO CR-family breaks after the image, not the one CR+LF its
+    OWN second `.rr` pair (three lines later, same document) uses for the
+    exact same construct. WS7's real capture shows no extra blank line
+    between the two ruler pairs (a normal 2-blank/72pt paragraph gap, same
+    as everywhere else in this document) -- the overprint's continuation is
+    an EMPTY line printed onto the ruler's own already-invisible baseline,
+    contributing nothing. Before this fix the engine's parsed block carried
+    3 blank Lines here instead of 2, pushing "punctuation." (and 5 more
+    words) from WS7's page 7 onto page 8.
+    """
+    doc = core.parse_ws(
+        b'Line ending before the rulers.\r\n'
+        b'\r\n'
+        b'.rr\rL----P----!----!-------------R\r\r\n'
+        b'.rr\rL----!---------------------------!------------------------------R\r\n'
+        b'\r\n'
+        b'Line after the rulers.\r\n')
+    first, second = doc.blocks
+    assert [''.join(s.text for s in ln.spans) for ln in first.lines] == [
+        'Line ending before the rulers.', '', '']
+    assert [''.join(s.text for s in ln.spans) for ln in second.lines] == [
+        'Line after the rulers.']
+
+
 def test_margins_accept_columns_and_inches():
     """The archive writes both `.rm 65` and `.rm 6.5"`."""
     assert core.parse_ws(b'.rm 65\r\nT.\r\n').blocks[0].right_margin == 65.0

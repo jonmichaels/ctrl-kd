@@ -244,6 +244,21 @@ def test_overprint_bare_cr():
     assert rt(data) == data
 
 
+def test_rr_ruler_image_overprint_terminator_roundtrips():
+    """Planning #249 companion to test_rr_bare_ruler_image_overprint_
+    terminator_adds_no_blank_line (test_ctrlkd.py): the swallowed overprint-continuation
+    entry is folded into the ruler's own round-trip ledger (`_rt_dots`, same
+    tally anchor) rather than dropped -- its bytes (here, just the bare
+    entry's own CRLF; the entry's text is empty) must still come back."""
+    data = (WS5_SEED +
+            b'Line ending before the rulers.' + HARD + HARD +
+            b'.rr\rL----P----R' + b'\x0d' + HARD +
+            b'.rr\rL----R' + HARD +
+            HARD +
+            b'Line after the rulers.' + HARD + b'\x1a')
+    assert rt(data) == data
+
+
 # ------------------------------------------------------------ the contract
 
 def test_editor_mutation_survives_a_save():

@@ -4767,6 +4767,13 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     # decoded as content) the same way this entry itself is. See the `.RR`
     # comment above (cmd[1:3].upper() == b'RR') for the full citation.
     consume_next_as_ruler = False
+    # #249: set (below, where a swallowed ruler-image entry's OWN separator
+    # is inspected) when that image line ended in a bare CR -- ^PM Overprint
+    # Line, "the next line prints at THIS line's baseline" (WSFORMAT.TXT).
+    # The VERY NEXT physical entry, if it is blank, is that overprint's
+    # continuation onto the ruler's already-invisible line: real WordStar
+    # adds no new vertical space for it. See the check's own citation below.
+    _rr_swallow_blank = False
     for _rt_idx, (raw, sep, line_marks) in enumerate(physical):
         # this entry's raw separator bytes, and the event count before it --
         # tasks #20/#21, stamped onto whichever Line closes the entry below
@@ -4783,6 +4790,28 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      if _rt_fidx is not None and _rt_fidx < len(doc.fonts)
                      else None)
         stripped = bytes(b & 0x7F for b in raw)
+        # #249: this entry is the (blank) overprint continuation of a
+        # ruler-image line just swallowed below -- see `_rr_swallow_blank`'s
+        # own citation. Measured on sawyer/INTERVU.WS's first `.rr` pair near
+        # the page 7/8 boundary: the source writes the image as
+        # `.rr\rL----P----!----!-------------R\r\r\n` -- TWO bare-CR-family
+        # breaks after the image text, not the one CR+LF the same document's
+        # OTHER `.rr` pair (three lines later) uses. The first CR is the
+        # image's own overprint terminator (already consumed by the
+        # `consume_next_as_ruler` branch below); this second, empty entry is
+        # what that overprint prints ON TOP OF the (invisible) ruler line --
+        # nothing. WS7's real capture shows no extra blank there (the
+        # engine's 3rd Line was pushing "punctuation." and 5 more words to
+        # page 8). Folded into `_rt_dots` at the SAME tally anchor as the
+        # ruler entries (not dropped) so the byte-exact writer still replays
+        # it: `raw` is empty here, so this contributes exactly the entry's
+        # own separator bytes, in order, same as before the fix.
+        if _rr_swallow_blank:
+            _rr_swallow_blank = False
+            if sep.startswith('blank-'):
+                _rt_dots.append((_rt_tally[0], bytes(raw),
+                                 _rt_brk if _rt_brk is not None else b''))
+                continue
         # #240: this entry is a bare `.rr`'s own ruler-image line (see the
         # flag's own comment, set below) -- consume it whole, exactly like a
         # dot-command line's own round-trip bookkeeping, and never let it
@@ -4804,6 +4833,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             _apply_ruler_margins(bytes(b & 0x7F for b in cmd), fmt)
             if _block_format(fmt) != _rr_before:
                 close_block()
+            # #249: this image line's OWN separator (`sep`, this entry's) --
+            # if it is a bare-CR overprint, the physical entry right after it
+            # is that overprint's continuation and gets special handling at
+            # the top of the next iteration (see `_rr_swallow_blank`'s own
+            # citation above).
+            _rr_swallow_blank = (sep == 'over')
             continue
         # A line that BEGINS with a 0x0F print control's display string is
         # content, not a dot command -- but its first character is often «
