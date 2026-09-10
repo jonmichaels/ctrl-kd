@@ -5890,9 +5890,25 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                 if font_idx is not None and res is not None
                 and 0 <= font_idx < len(doc.fonts) else None)
         if entry is None and (res is None or not any(ord(c) < 0x20 for c in txt)):
+            # `txt.replace('∙', '•')`: this fast path (no font block, no control/
+            # toggle byte anywhere) never calls `_hf_runs` at all -- fine for style
+            # and control-byte handling, since the gate above already proves there
+            # is neither to interpret, but `_hf_runs` ALSO does one plain character
+            # substitution unconditionally (register C9, above): '∙' (U+2219 BULLET
+            # OPERATOR) -> '•' (U+2022 BULLET), because cp1252 carries a real bullet
+            # glyph and WordStar's own list marker means the round one. This path
+            # skipped that too, reintroducing the exact "downgrades a round bullet
+            # to a middle dot for no encoding reason" regression C9 fixed for every
+            # OTHER header/footer line -- found corpus-wide by `tools/verify_head_
+            # foot_model.py` on sawyer/REF/ADVANCE.DOT's own running head (a
+            # fontless `.h1`, no toggle bytes, `∙` typed directly) once that script
+            # started comparing the model's `header_lines` text (which DOES carry
+            # the original `∙`, pre-`_hf_runs`, by design) against the PDF's own
+            # drawn bytes: the two agreed neither more nor less than the SAME
+            # substitution both are supposed to apply on their own read of it.
             return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, left, y,
-                    _esc(txt))]
+                    _esc(txt.replace('∙', '•')))]
         family = _pdf_family(entry) if entry is not None else 'Courier'
         pt = (max(1, round(entry['points']))
               if entry is not None and entry.get('points') else size)
