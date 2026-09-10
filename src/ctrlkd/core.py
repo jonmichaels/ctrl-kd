@@ -1306,14 +1306,46 @@ class Document:
     # `_hf_line_ops` falls back to the baked text unchanged, byte-identical.
     header_tabs: dict = field(default_factory=dict)
     footer_tabs: dict = field(default_factory=dict)
+    # Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` (WSFORMAT.TXT: ".HE can
+    # optionally specify even or odd numbered page headers" / the matching
+    # ".FO" sentence -- confirmed the ONLY two lines that do; `.H2`-`.H5`/
+    # `.F2`-`.F5` carry no such wording, real corpus usage never sets one).
+    # `{1: {'E': text, 'O': text}}` -- only key 1 is ever populated, kept as
+    # a dict (not two scalars) so a future line-1-shaped exception needs no
+    # reshape. Sibling to `headers`/`footers` above the same way `header_
+    # fonts`/`header_tabs` are: FINAL state per parity, font/tab per parity
+    # (GALLEYS.DOT/ADVANCE.DOT's own two variants carry different tab
+    # layouts). The flat `headers`/`footers` above still receive every
+    # `.h1e`/`.h1o` occurrence too (last-in-source-order wins, unchanged
+    # legacy projection) -- Modern/RTF/plain-text export read ONLY the flat
+    # dict and do not attempt parity (reported, not implemented, per #250).
+    headers_parity: dict = field(default_factory=dict)
+    footers_parity: dict = field(default_factory=dict)
+    header_fonts_parity: dict = field(default_factory=dict)
+    footer_fonts_parity: dict = field(default_factory=dict)
+    header_tabs_parity: dict = field(default_factory=dict)
+    footer_tabs_parity: dict = field(default_factory=dict)
     # Every .he/.h1-.h5/.fo/.f1-.f5 IN DOCUMENT ORDER, with the block it
     # precedes: ('H'|'F', line 1-5, text, block_index). WordStar applies a
     # running head from the page where it is defined -- on that page itself
     # only if no text has printed there yet, else from the next page. The
     # final-state dicts above cannot express that (OLDTIMES defines its head
     # after page 1's title block: a proper manuscript has NO running head on
-    # page 1); the paginator replays these events instead.
+    # page 1); the paginator replays these events instead. Shape UNCHANGED
+    # by planning #250 -- kept a plain 4-tuple deliberately (every existing
+    # consumer -- layout.py's Modern flow, emit.py's RTF, this field's own
+    # JSON export -- reads it as-is, byte-identical for every document that
+    # never uses `.h1e`/`.h1o`/`.f1e`/`.f1o`) -- see `hf_events_parity`.
     hf_events: list = field(default_factory=list)
+    # Planning #250: `hf_events`'s own parity, INDEX-ALIGNED with it (same
+    # length, `hf_events_parity[i]` is `hf_events[i]`'s own parity) rather
+    # than widened onto the tuple itself -- a SEPARATE list so every
+    # existing `hf_events` consumer (including its own JSON export) stays
+    # byte-identical for the 380+ real corpus documents that never use the
+    # family; only pdf.py's Printed pagination replay reads this one, by
+    # zipping the two together. None for a plain `.h1`/`.he`/`.f1`/`.fo`
+    # event, else 'E'/'O' for `.h1e`/`.h1o`/`.f1e`/`.f1o`.
+    hf_events_parity: list = field(default_factory=list)
     footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
                                                        # endnotes, and annotations, in document
                                                        # order -- all three are rendered the
@@ -2481,7 +2513,19 @@ def _resolve_page_size(pl_lines: float):
         return named_in, name, width_in
     return height_in, 'Custom', 8.5
 
-_HEAD_FOOT_RE = re.compile(rb'^\.(H[E1-5]|F[O1-5])\s?(.*)$', re.I)
+# Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` are real 3-letter dot commands
+# (WSFORMAT.TXT confirms only line 1 of each carries an even/odd variant --
+# see `_parse_head_foot`'s own docstring). The 3-char alternatives MUST come
+# first in this alternation: `H[E1-5]` alone already matches the first two
+# characters of "H1E"/"H1O" and would stop there (Python `re` alternation
+# tries branches in order and takes the first that matches AT this
+# position, not the longest overall match), leaving a stray 'E'/'O' glued
+# onto the captured text -- measured directly: parsing ADVANCE.DOT's own
+# `.h1e ... ROBERT J. SAWYER` produced `doc.headers[1] == 'e # ∙ ROBERT
+# J. SAWYER'` before this fix, a real corruption bug, not merely the
+# "folds E/O into the same slot" the issue this fixes was originally filed
+# against understood it as.
+_HEAD_FOOT_RE = re.compile(rb'^\.(H1[EO]|F1[EO]|H[E1-5]|F[O1-5])\s?(.*)$', re.I)
 
 
 _ONOFF_RE = re.compile(rb'^\.([A-Za-z]{2})\s+(ON|OFF|[CRD])\b', re.I)
@@ -3058,6 +3102,15 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     leader, cols)` -- `rel` a BYTE offset from the start of `cmd` (the SAME
     coordinate space `_symmetric_blocks` recorded it in), the rest exactly
     what a body span's own tab mark carries. See `Document.header_tabs`.
+
+    Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` (real corpus commands --
+    sawyer/REF/GALLEYS.DOT etc; confirmed the ONLY header/footer line WSFORMAT
+    documents as parity-conditional) write into `Document.headers_parity`/
+    `footers_parity` (+ the matching `_fonts_parity`/`_tabs_parity`) keyed
+    `{1: {'E': ..., 'O': ...}}`, ON TOP OF the ordinary flat `headers`/
+    `header_fonts`/`header_tabs` write every `.h#`/`.f#` command already got
+    (kept for Modern/RTF/plain-text, which stay last-in-source-order-wins
+    and parity-unaware -- reported, not fixed, this round).
     """
     m = _HEAD_FOOT_RE.match(cmd)
     if not m:
@@ -3089,8 +3142,16 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     which = doc.headers if kind == 'H' else doc.footers
     which_fonts = doc.header_fonts if kind == 'H' else doc.footer_fonts
     which_tabs = doc.header_tabs if kind == 'H' else doc.footer_tabs
-    second = tag[1:2]
-    line = 1 if second in (b'E', b'O') else int(second)
+    if len(tag) == 3:
+        # `.H1E`/`.H1O`/`.F1E`/`.F1O` (planning #250) -- the 3rd byte is
+        # the parity, always line 1 (the only line WSFORMAT documents as
+        # parity-conditional; see this function's own docstring).
+        line = 1
+        parity = tag[2:3].decode()          # 'E' or 'O'
+    else:
+        second = tag[1:2]
+        line = 1 if second in (b'E', b'O') else int(second)
+        parity = None
     which[line] = text
     which_fonts[line] = font_idx
     # A tab whose own byte offset landed at or past the '#'-bearing text (or
@@ -3098,11 +3159,22 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     # left to reposition -- None, same as a line with no tab at all.
     if (tab_mark is not None and tab_char_idx is not None
             and 0 <= tab_char_idx <= len(text)):
-        which_tabs[line] = (tab_char_idx, tab_mark[3], tab_mark[1])
+        tab_val = (tab_char_idx, tab_mark[3], tab_mark[1])
     else:
-        which_tabs[line] = None
+        tab_val = None
+    which_tabs[line] = tab_val
+    if parity is not None:
+        which_p = doc.headers_parity if kind == 'H' else doc.footers_parity
+        which_fonts_p = (doc.header_fonts_parity if kind == 'H'
+                         else doc.footer_fonts_parity)
+        which_tabs_p = (doc.header_tabs_parity if kind == 'H'
+                        else doc.footer_tabs_parity)
+        which_p.setdefault(line, {})[parity] = text
+        which_fonts_p.setdefault(line, {})[parity] = font_idx
+        which_tabs_p.setdefault(line, {})[parity] = tab_val
     if anchor is not None:
         doc.hf_events.append((kind, line, text, anchor))
+        doc.hf_events_parity.append(parity)
 
 
 def _cp_lines(cmd: bytes) -> int:

@@ -6606,6 +6606,163 @@ def test_head_foot_lines_omitted_when_the_document_has_neither():
     assert 'auto_page_number' not in jp
 
 
+def _hf_parity_doc(n=120, only=None):
+    """A multi-page document (55 body lines/page at defaults, so `n=120`
+    spans 3 pages) whose header carries `.h1e`/`.h1o` (planning #250).
+    `only` (None/'e'/'o') emits just one side of the pair, for the "one of
+    the pair set" fixtures -- no corpus document exercises this, so the
+    fallback reading (the un-set parity falls through to whatever plain
+    `.h1`/`.fo` is in force) needs its own synthetic coverage."""
+    out = []
+    if only is None:
+        out += ['.h1e EVEN-TEXT PAGE #', '.h1o ODD-TEXT PAGE #']
+    elif only == 'e':
+        out += ['.h1 PLAIN-TEXT PAGE #', '.h1e EVEN-TEXT PAGE #']
+    elif only == 'o':
+        out += ['.h1 PLAIN-TEXT PAGE #', '.h1o ODD-TEXT PAGE #']
+    out += [f'LINE {i:03d} ' + '-' * 40 for i in range(1, n + 1)]
+    return ('\r\n'.join(out) + '\r\n').encode()
+
+
+def _printed_header_texts(doc):
+    """[(page_no, text), ...] this document's own resolved Printed header
+    line 1, one entry per page, via `_doc_to_pagelines`'s `header_lines`
+    (planning #251(d)) -- the same model both the writer and `layout` JSON
+    read, so a test against it covers both without rendering a real PDF."""
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(doc, True)
+    out = []
+    for i, pg in enumerate(pages, 1):
+        hl = getattr(pg, 'header_lines', None)
+        out.append((i, hl[0]['text'] if hl else None))
+    return out
+
+
+def test_head_foot_parity_odd_even_text_alternates_by_page():
+    """`.h1e`/`.h1o` (planning #250, WSFORMAT.TXT: only `.HE`/`.H1` and
+    `.FO`/`.F1` "can optionally specify even or odd numbered page"
+    headers/footers) select a DIFFERENT text per page, by that page's own
+    parity -- measured against real WS7 (sawyer/REF/BOOKLET.HOW: WS7's
+    even pages print `.h1e`'s text, odd pages `.h1o`'s)."""
+    doc = core.parse_ws(_hf_parity_doc())
+    texts = _printed_header_texts(doc)
+    assert texts == [
+        (1, 'ODD-TEXT PAGE 1'), (2, 'EVEN-TEXT PAGE 2'), (3, 'ODD-TEXT PAGE 3'),
+    ], texts
+    # The flat, parity-UNAWARE projection (`doc.headers`) still carries the
+    # last-in-source-order value for every non-Printed/non-parity-aware
+    # consumer (Modern, RTF, plain text) -- unchanged legacy fallback,
+    # reported not implemented for those formats this round.
+    assert doc.headers == {1: 'ODD-TEXT PAGE #'}
+
+
+def test_head_foot_parity_h1_only_document_is_unchanged():
+    """A document with only a plain `.h1` (no `.h1e`/`.h1o` at all) prints
+    the SAME text on every page, byte-identical to before this feature
+    existed -- the `_parity_hf` resolver in `_close_page` returns None
+    immediately (`doc.headers_parity` empty) and never touches `pg.
+    headers`."""
+    doc = core.parse_ws(_hf_doc())
+    texts = _printed_header_texts(doc)
+    assert texts == [(1, 'HEADER-TEXT PAGE 1'), (2, 'HEADER-TEXT PAGE 2'),
+                     (3, 'HEADER-TEXT PAGE 3')], texts
+    assert doc.headers_parity == {}
+
+
+def test_head_foot_parity_h1e_without_h1o_falls_back_to_the_flat_value():
+    """The brief's own open question -- "a fallback-semantics call for
+    'only one of the pair set' (no corpus document exercises it)" -- ruled
+    here (`_close_page`'s own `_parity_hf` docstring, pdf.py): the un-set
+    parity (odd pages, here) has no override of its own and falls through
+    to the FLAT dict (`doc.headers`), which every `.h#`/`.f#` command --
+    parity-tagged or not -- ALSO writes into unconditionally, exactly the
+    legacy last-in-source-order-wins projection Modern/RTF/plain-text
+    already read. This fixture's `.h1e` fires AFTER the plain `.h1`, so
+    the flat value is the `.h1e` text by the time it settles -- EVEN pages
+    get their own override (the same text, here); ODD pages fall through
+    to that SAME flat value, never blank and never a crash. A `.h1e`
+    fired BEFORE a later plain `.h1` would leave a DIFFERENT flat value in
+    force instead (the plain command's own, per the `.poe`/`.poo`
+    precedent: a parity-specific override never clears, and is never
+    cleared by, the OTHER independently-stateful member of this family)."""
+    doc = core.parse_ws(_hf_parity_doc(only='e'))
+    texts = _printed_header_texts(doc)
+    assert texts == [
+        (1, 'EVEN-TEXT PAGE 1'), (2, 'EVEN-TEXT PAGE 2'), (3, 'EVEN-TEXT PAGE 3'),
+    ], texts
+    assert doc.headers == {1: 'EVEN-TEXT PAGE #'}
+
+
+def test_head_foot_parity_h1o_without_h1e_falls_back_to_the_flat_value():
+    """Mirror of the `.h1e`-only case above, for `.h1o` alone."""
+    doc = core.parse_ws(_hf_parity_doc(only='o'))
+    texts = _printed_header_texts(doc)
+    assert texts == [
+        (1, 'ODD-TEXT PAGE 1'), (2, 'ODD-TEXT PAGE 2'), (3, 'ODD-TEXT PAGE 3'),
+    ], texts
+    assert doc.headers == {1: 'ODD-TEXT PAGE #'}
+
+
+def test_head_foot_parity_a_plain_h1_after_h1e_updates_only_the_flat_fallback():
+    """The OTHER half of the "only one of the pair" ruling above, pinned
+    directly: a parity-specific override (`.h1e`) is independently
+    stateful (the `.poe`/`.poo` precedent) -- a LATER plain `.h1` updates
+    the flat fallback (what odd pages, which have no `.h1o` override of
+    their own, read) but does NOT clear the even-page override already in
+    force."""
+    data = (b'.h1e EVEN-TEXT PAGE #\r\n.h1 PLAIN-TEXT PAGE #\r\n' +
+           b'\r\n'.join((f'LINE {i:03d} ' + '-' * 40).encode() for i in range(1, 121))
+           + b'\r\n')
+    doc = core.parse_ws(data)
+    texts = _printed_header_texts(doc)
+    assert texts == [
+        (1, 'PLAIN-TEXT PAGE 1'), (2, 'EVEN-TEXT PAGE 2'), (3, 'PLAIN-TEXT PAGE 3'),
+    ], texts
+
+
+def test_head_foot_parity_footer_f1e_f1o_alternates_by_page():
+    """`.f1e`/`.f1o` (planning #250) -- the footer's own mirror of the
+    header test above. Zero real corpus documents use this pair (only
+    `.h1e`/`.h1o` occur in the Sawyer archive), but WSFORMAT.TXT documents
+    `.FO`/`.F1` as carrying the identical even/odd option `.HE`/`.H1`
+    does, and both engines implement it symmetrically."""
+    data = (b'.f1e EVEN-FOOT PAGE #\r\n.f1o ODD-FOOT PAGE #\r\n' +
+           b'\r\n'.join((f'LINE {i:03d} ' + '-' * 40).encode() for i in range(1, 121))
+           + b'\r\n')
+    doc = core.parse_ws(data)
+    from ctrlkd.pdf import _doc_to_pagelines
+    pages = _doc_to_pagelines(doc, True)
+    texts = []
+    for i, pg in enumerate(pages, 1):
+        fl = getattr(pg, 'footer_lines', None)
+        texts.append((i, fl[0]['text'] if fl else None))
+    assert texts == [
+        (1, 'ODD-FOOT PAGE 1'), (2, 'EVEN-FOOT PAGE 2'), (3, 'ODD-FOOT PAGE 3'),
+    ], texts
+    assert doc.footers == {1: 'ODD-FOOT PAGE #'}
+
+
+def test_head_foot_parity_h1e_h1o_carry_their_own_font_and_tab():
+    """GALLEYS.DOT/ADVANCE.DOT's own real-corpus shape: `.h1e`/`.h1o` each
+    open with a DIFFERENT font-change block AND a different right-align
+    tab -- `doc.header_fonts_parity`/`header_tabs_parity` (planning #250)
+    keep them separate per parity, not folded to a single flat value the
+    way `doc.header_fonts`/`header_tabs` (pre-existing, single most-recent-
+    wins) already are for every OTHER header line."""
+    doc = core.parse_ws(_hf_parity_doc())
+    assert doc.header_fonts_parity == {1: {'E': None, 'O': None}}
+    assert doc.header_tabs_parity == {1: {'E': None, 'O': None}}
+    # Both parities present and independently addressable, even though
+    # this fixture's own two lines carry no font block/tab of their own
+    # (None, None) -- the SHAPE (a dict keyed by parity letter, not a
+    # single flat scalar) is what this test pins; a font/tab-bearing
+    # fixture is impractical to construct by hand at this layer (the
+    # binary type-2 Font block/type-9 tab sequence), so the real-corpus
+    # documents (GALLEYS.DOT/ADVANCE.DOT, via the sawyer-armed PCL tier)
+    # are what a real font/tab divergence would be caught by.
+    assert set(doc.header_fonts_parity[1]) == {'E', 'O'}
+
+
 def test_layout_json_carries_resolved_head_foot_lines():
     """`layout` JSON (version 6, planning #251(d)) exposes the SAME
     resolved header/footer/auto-number entries the model carries --

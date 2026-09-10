@@ -3785,12 +3785,22 @@ class Page(list):
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
                 'explicit_break', 'explicit_break_bi',
                 'columns', 'column_gutter_pt', 'column_width_pt',
-                'header_lines', 'footer_lines', 'auto_pageno')
+                'header_lines', 'footer_lines', 'auto_pageno',
+                'head_hf_override', 'foot_hf_override')
 
     def __init__(self, seq=()):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
+        # planning #250: `{1: (font_idx, tab_rec)}` -- set ONLY by
+        # `_close_page`'s own `_parity_hf`, only when THIS page's line 1
+        # came from a `.h1e`/`.h1o`/`.f1e`/`.f1o` parity variant (not a
+        # plain `.h1`/`.fo`). None (the "no opinion, read `doc.header_
+        # fonts`/`header_tabs` as before" default) for every page of
+        # every document that never uses the family -- same convention as
+        # `po_cols`/`po_parity` just above.
+        self.head_hf_override = None
+        self.foot_hf_override = None
         # `header_lines`/`footer_lines`/`auto_pageno` (planning #251(d),
         # 2026-09-10): this page's own RESOLVED running head/foot -- `#`
         # substituted, fontless right-tab realignment baked, `y`/`x`/
@@ -4111,6 +4121,11 @@ def _apply_columns(doc, pages, size):
         # `_apply_columns` merges from the document's `.co3` region.
         merged.headers = getattr(pg, 'headers', None)
         merged.footers = getattr(pg, 'footers', None)
+        # planning #250: carry the source page's own parity font/tab
+        # override through the merge, same passthrough as headers/footers
+        # just above -- None on every page this feature never touches.
+        merged.head_hf_override = getattr(pg, 'head_hf_override', None)
+        merged.foot_hf_override = getattr(pg, 'foot_hf_override', None)
         merged.mt_lines = getattr(pg, 'mt_lines', None)
         merged.mb_lines = getattr(pg, 'mb_lines', None)
         merged.pl_lines = getattr(pg, 'pl_lines', None)
@@ -4276,9 +4291,18 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # page carries the running head IN FORCE when it printed (doc.hf_events;
     # OLDTIMES defines its head after page 1's title -- a manuscript has no
     # running head on page 1, and now doesn't get one).
+    # planning #250: `doc.hf_events_parity` is INDEX-ALIGNED with `doc.
+    # hf_events` itself ('E'/'O'/None, `.h1e`/`.h1o`/`.f1e`/`.f1o` vs an
+    # ordinary `.h#`/`.f#` -- see `Document.hf_events_parity`'s own
+    # docstring for why this is a separate list rather than a wider tuple)
+    # -- zipped in here so a page's own PARITY (known only once it closes,
+    # same as `.poe`/`.poo`'s `cur_po`/`cur_poe`/`cur_poo`) can pick the
+    # right variant below.
+    hf_events = getattr(doc, 'hf_events', ())
+    hf_parity = getattr(doc, 'hf_events_parity', None) or [None] * len(hf_events)
     hf_by_block = {}
-    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
-        hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
+    for (kind, lno, txt, anchor), parity in zip(hf_events, hf_parity):
+        hf_by_block.setdefault(anchor, []).append((kind, lno, txt, parity))
     # round 17 (RULINGS-LEDGER row 5/7): `.pm`/`.psa`/`.psb` extend round 6's
     # RTF vertical-space model to Printed PDF, same relative-computation
     # rules, Printed only (Modern's own `else` branch below never reads
@@ -4783,6 +4807,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     pages, page, spent = [], [], 0.0
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
+    # planning #250: the SAME flat/snapshot machinery as `cur_hdrs`/
+    # `page_hdrs` above, one independent pair per parity -- `.h1e`/`.f1e`
+    # write only `cur_hdrs_e`/`cur_ftrs_e`, `.h1o`/`.f1o` only `cur_hdrs_o`/
+    # `cur_ftrs_o`; a plain `.h1`/`.fo` never clears either (same "each
+    # command in this family is independently stateful" rule `.poe`/`.poo`
+    # already established -- `_left_for_parity`'s own docstring). Resolved
+    # against the real page parity only in `_close_page`, the one place
+    # that knows it.
+    cur_hdrs_e, cur_hdrs_o, cur_ftrs_e, cur_ftrs_o = {}, {}, {}, {}
+    page_hdrs_e, page_hdrs_o, page_ftrs_e, page_ftrs_o = {}, {}, {}, {}
     def _cost(ln):
         lead = getattr(ln, 'lead', None) or default_lead
         if not page:                              # first line on page is free
@@ -4860,6 +4894,66 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # gate -- correctly built to exclude a HOLYMAC-style transient
             # `.po` -- lets it through regardless. See `Page.po_parity`.
             pg.po_parity = cur_poe is not None or cur_poo is not None
+        # planning #250: `.h1e`/`.h1o`/`.f1e`/`.f1o` -- this page's own
+        # PARITY (`is_even_page`, just resolved above) picks its real
+        # line-1 text the same way `.poe`/`.poo` picks its own left
+        # origin: its OWN parity variant if the document ever set one FOR
+        # THIS PARITY, else whatever plain `.h1`/`.he`/`.f1`/`.fo` governs
+        # (`page_hdrs`/`page_ftrs`, already the page's own snapshot,
+        # unchanged). `page_hdrs_e`/`_o`/`page_ftrs_e`/`_o` all empty (no
+        # document that never uses `.h1e`/`.h1o`/`.f1e`/`.f1o`) means
+        # `_parity_hf` returns None every time below -- `pg.headers`/
+        # `pg.footers` stay byte-identical to before this feature existed.
+        #
+        # "Only one of the pair set" (brief's own open question; no corpus
+        # document exercises it): the un-set parity has no override of its
+        # own here and falls through to `page_hdrs`/`page_ftrs` -- the
+        # flat dict every `.h#`/`.f#` command ALSO writes (`core.py`'s
+        # `_parse_head_foot`, unconditionally, parity or not), the SAME
+        # last-in-source-order-wins projection Modern/RTF/plain-text
+        # already read -- so a document with `.h1e` alone never shows a
+        # blank header on odd pages, or a crash. This is NOT necessarily
+        # "the plain `.h1`'s own text": a parity-specific override is
+        # independently stateful (the `.poe`/`.poo` precedent -- a later
+        # plain `.h1` never clears an `.h1e`/`.h1o` already in force, and
+        # vice versa), so the flat fallback is whichever `.h#`/`.f#`
+        # command -- of EITHER shape -- fired LAST at any given point in
+        # the document; only the PARITY-SPECIFIC state is sticky, the flat
+        # projection keeps its pre-existing simple last-wins reading.
+        # `test_head_foot_parity_h1e_without_h1o_falls_back_to_the_flat_
+        # value` and `test_head_foot_parity_a_plain_h1_after_h1e_updates_
+        # only_the_flat_fallback` (tests/test_ctrlkd.py) pin both halves
+        # of this reading.
+        def _parity_hf(even_map, odd_map, fonts_parity, tabs_parity):
+            if 1 not in even_map and 1 not in odd_map:
+                return None
+            if is_even_page and 1 in even_map:
+                letter, text = 'E', even_map[1]
+            elif not is_even_page and 1 in odd_map:
+                letter, text = 'O', odd_map[1]
+            else:
+                return None
+            font_idx = fonts_parity.get(1, {}).get(letter)
+            tab_rec = tabs_parity.get(1, {}).get(letter)
+            return text, font_idx, tab_rec
+        head = _parity_hf(page_hdrs_e, page_hdrs_o,
+                          doc.header_fonts_parity, doc.header_tabs_parity)
+        if head is not None:
+            text, font_idx, tab_rec = head
+            if text:
+                pg.headers[1] = text
+            else:
+                pg.headers.pop(1, None)
+            pg.head_hf_override = {1: (font_idx, tab_rec)}
+        foot = _parity_hf(page_ftrs_e, page_ftrs_o,
+                          doc.footer_fonts_parity, doc.footer_tabs_parity)
+        if foot is not None:
+            text, font_idx, tab_rec = foot
+            if text:
+                pg.footers[1] = text
+            else:
+                pg.footers.pop(1, None)
+            pg.foot_hf_override = {1: (font_idx, tab_rec)}
         # Body text: `_doc_to_pagelines`/`_body_stream_printed` could not
         # resolve a `.poe`/`.poo`-governed line's own left origin at BUILD
         # time (which page, and therefore which parity, a line lands on is
@@ -4912,10 +5006,22 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     trailing_pagebreak = False
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
-            _, kind, lno, txt = l
+            _, kind, lno, txt, parity = l
+            # planning #250: `.h1e`/`.f1e` write ONLY `cur_hdrs_e`/
+            # `cur_ftrs_e`, `.h1o`/`.f1o` ONLY `cur_hdrs_o`/`cur_ftrs_o` --
+            # a plain `.h1`/`.fo` (parity is None) still ALSO writes the
+            # flat `cur_hdrs`/`cur_ftrs`, exactly as before this feature
+            # existed (the fallback `_close_page`'s own `_parity_hf` reads
+            # when neither variant governs this page's own parity).
+            if parity == 'E':
+                (cur_hdrs_e if kind == 'H' else cur_ftrs_e)[lno] = txt
+            elif parity == 'O':
+                (cur_hdrs_o if kind == 'H' else cur_ftrs_o)[lno] = txt
             (cur_hdrs if kind == 'H' else cur_ftrs)[lno] = txt
             if not page:                   # nothing printed on this page yet:
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
+                page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
             continue
         if isinstance(l, tuple) and l and l[0] == 'cond':
             # strictly fewer than n lines left -> break; exactly n is enough.
@@ -4957,6 +5063,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             if short and page:
                 _close_page(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
+                page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
             continue
         # Finding 3: a line about to start a FRESH page (whether the page
         # was just closed above, by the `cond` branch, or this is simply
@@ -4996,6 +5104,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             if page or l is None:
                 _close_page(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
+                page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
                 # organic overflow (see `_recompute_geom`'s docstring,
                 # path 2): `l` itself is the new page's first line and
                 # never reaches the top-of-loop `not page` gate, since it
@@ -5369,7 +5479,9 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             doc, page_numbers[page_index], page_h, lead, size, running_left,
             True, headers=getattr(pg, 'headers', None),
             footers=getattr(pg, 'footers', None),
-            auto_page_number=auto_page_number)
+            auto_page_number=auto_page_number,
+            head_hf_override=getattr(pg, 'head_hf_override', None),
+            foot_hf_override=getattr(pg, 'foot_hf_override', None))
         if saved_pg is not None:
             doc.meta['page'] = saved_pg
         if resolved is None:
@@ -5489,7 +5601,8 @@ def _coalesce(line):
     return out
 
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
-                             headers=None, footers=None, auto_page_number=False):
+                             headers=None, footers=None, auto_page_number=False,
+                             head_hf_override=None, foot_hf_override=None):
     """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
     (each line's `y`; `x` is simply the caller's already-resolved `left`,
     since -- unlike `y` -- no header/footer line's own starting x has ever
@@ -5560,8 +5673,41 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     how to draw it). `font_idx` is the same `doc.fonts` index `doc.
     header_fonts`/`footer_fonts` already carry, or None for the
     fontless/Courier default."""
+    # Planning #250: a document with NO real body blocks at all (GALLEYS.
+    # DOT/ADVANCE.DOT -- pseudogalley templates, `doc.blocks` is empty)
+    # never builds a real per-page `Page` (`_close_page`, the ordinary
+    # per-page parity resolver, never runs -- nothing ever calls it) --
+    # `_doc_to_pagelines` falls back to a single bare `[]` "page," and
+    # every caller here passes `headers=None`/`footers=None` for it
+    # (`getattr(bare_list, 'headers', None)`, unlike a real `Page`, whose
+    # `.headers` is ALWAYS a dict, `_close_page`'s own or the class
+    # default `{}` -- see `Page.__init__`). `headers_flat`/`footers_flat`
+    # (the caller's OWN args, before the `doc.headers` fallback just
+    # below) distinguish that real "no per-page answer exists" case from
+    # an ordinary page whose own resolved dict simply happens to be
+    # falsy/empty (TOC pages pass `headers={}` explicitly, never None) --
+    # only the former needs this page-number-parity fallback; a real
+    # page's own already-`_close_page`-resolved dict is authoritative and
+    # must never be second-guessed here.
+    headers_flat, footers_flat = headers is None, footers is None
     headers = doc.headers if headers is None else headers
     footers = doc.footers if footers is None else footers
+    if headers_flat and head_hf_override is None and doc.headers_parity.get(1):
+        letter = 'E' if page_no % 2 == 0 else 'O'
+        pv = doc.headers_parity[1]
+        if letter in pv:
+            headers = dict(headers)
+            headers[1] = pv[letter]
+            head_hf_override = {1: (doc.header_fonts_parity.get(1, {}).get(letter),
+                                    doc.header_tabs_parity.get(1, {}).get(letter))}
+    if footers_flat and foot_hf_override is None and doc.footers_parity.get(1):
+        letter = 'E' if page_no % 2 == 0 else 'O'
+        pv = doc.footers_parity[1]
+        if letter in pv:
+            footers = dict(footers)
+            footers[1] = pv[letter]
+            foot_hf_override = {1: (doc.footer_fonts_parity.get(1, {}).get(letter),
+                                    doc.footer_tabs_parity.get(1, {}).get(letter))}
     footer_in_use = bool(footers) and any(footers.values())
     show_auto_num = printed and auto_page_number and not footer_in_use
     if not (headers or footers or show_auto_num) or not printed:
@@ -5783,8 +5929,16 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         if not txt:
             continue
         y = page_h - (head_base + n - 1) * LEAD - size
-        font_idx = doc.header_fonts.get(n)
-        text = _resolve_line_text(txt, font_idx, doc.header_tabs.get(n))
+        # planning #250: `head_hf_override` (this page's own `.h1e`/`.h1o`
+        # resolution, `pdf.py`'s `_close_page`) wins for whichever line it
+        # names -- None (every page of every document that never uses the
+        # family) falls straight through to the flat `doc.header_fonts`/
+        # `header_tabs` reads, byte-identical to before this existed.
+        if head_hf_override is not None and n in head_hf_override:
+            font_idx, tab_rec = head_hf_override[n]
+        else:
+            font_idx, tab_rec = doc.header_fonts.get(n), doc.header_tabs.get(n)
+        text = _resolve_line_text(txt, font_idx, tab_rec)
         resolved_headers.append((n, text, y, font_idx))
     # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
     # same default/explicit asymmetry `.hm` turned out to have, above, and
@@ -5808,8 +5962,12 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         y = page_h - (foot_line + n - 1) * lead - size
         if y < 0:
             continue
-        font_idx = doc.footer_fonts.get(n)
-        text = _resolve_line_text(txt, font_idx, doc.footer_tabs.get(n))
+        # planning #250: same override as the header loop above.
+        if foot_hf_override is not None and n in foot_hf_override:
+            font_idx, tab_rec = foot_hf_override[n]
+        else:
+            font_idx, tab_rec = doc.footer_fonts.get(n), doc.footer_tabs.get(n)
+        text = _resolve_line_text(txt, font_idx, tab_rec)
         resolved_footers.append((n, text, y, font_idx))
     auto = None
     if show_auto_num:
@@ -5829,7 +5987,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
 
 
 def _running_ops(doc, page_no, page_h, lead, size, left, printed,
-                 headers=None, footers=None, res=None, auto_page_number=False):
+                 headers=None, footers=None, res=None, auto_page_number=False,
+                 head_hf_override=None, foot_hf_override=None):
     """Header and footer text for one page, as content-stream ops -- a
     thin RENDERING shell over `_resolve_head_foot_lines` (planning
     #251(d)): that function resolves WHERE (`y`, and this page's own
@@ -5842,7 +6001,8 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     participation, `.op`, right-tab realignment, the WS4 header/footer
     row layout) -- this docstring covers rendering only."""
     resolved = _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left,
-                                        printed, headers, footers, auto_page_number)
+                                        printed, headers, footers, auto_page_number,
+                                        head_hf_override, foot_hf_override)
     if resolved is None:
         return []
 
@@ -8371,7 +8531,11 @@ def _emit_pdf_inner(doc, printed, options):
                                    size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}),
-                                   res=res, auto_page_number=auto_page_number)
+                                   res=res, auto_page_number=auto_page_number,
+                                   head_hf_override=(getattr(pl, 'head_hf_override', None)
+                                                     if show_headers else None),
+                                   foot_hf_override=(getattr(pl, 'foot_hf_override', None)
+                                                     if show_headers else None))
             if saved_pg is not None:
                 doc.meta['page'] = saved_pg
             streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
