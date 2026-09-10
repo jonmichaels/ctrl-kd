@@ -1999,6 +1999,122 @@ _SCREENPLAY_PAGE_MARKER_RE = _re.compile(r'[ \t]*\d{1,4}\.?[ \t]*$')
 _SCREENPLAY_TRAILING_SCENE_NUM_RE = _re.compile(r'[ \t]\d{1,4}[ \t]*$')
 
 
+# planning #251(c): a fixed cell-FRACTION line/arm thickness for
+# `graphic_cell_rects` -- `_graphic_ops`'s own weight (`t = max(0.5, pt /
+# 12.0)`) is a POINT thickness independent of pitch, which has no exact
+# cell-fraction equivalent (the same 0.5pt hairline is a different
+# fraction of a 6pt cell than of a 24pt one); this is a documented visual
+# approximation, not a re-derivation fitted to every possible point size.
+_GRAPHIC_CELL_LINE_FRAC = 0.08
+_GRAPHIC_CELL_DOUBLE_GAP_FRAC = 0.08   # `_graphic_ops`'s own `d == t` rule
+
+
+def graphic_cell_rects(char):
+    """Unit-cell-space rects for one cp437 graphic character's filled
+    sub-shapes -- `[(x, y, w, h), ...]`, each 0..1 fraction of the cell
+    (x left-to-right, y bottom-to-top from the cell's own baseline-0.25pt
+    floor `_graphic_ops` uses), ASSUMING A SQUARE CELL (pitch == height).
+    `[]` for a character this module does not draw as geometry at all
+    (`char not in GRAPHIC_CHARS`).
+
+    Planning #251(c): the single PUBLIC accessor for every one of this
+    module's six graphic-geometry categories (arcCorners/boxArms/
+    shadeGray/partBlocks/symbolShapes/fullBlock) -- BOX_ARMS/ARC_CORNERS/
+    SHADE_GRAY/PART_BLOCKS/SQUARE_PART_BLOCKS/SYMBOL_SHAPES themselves
+    stay module-internal (leading underscore is this module's only
+    public/private signal, `_span_pitch`'s own docstring); a consumer
+    that wants to DRAW a graphic cell without linking this engine's own
+    `_graphic_ops` (Soft Return.app's `PrintedVectorGraphics`, which used
+    to hand-port boxArms/shadeGray/partBlocks/symbolShapes by eye from
+    this file and had no arcCorners port at all -- that table was never
+    exposed anywhere) calls this instead of reading the tables.
+
+    Every rect here is exactly what `_graphic_ops` itself computes at
+    pitch == h == 1 -- its own square-cell correction (`sq = min(pitch,
+    h)`, used for ■/symbolShapes/arcCorners so those look REGULAR rather
+    than squashed onto a non-square cell) reduces to the identity at that
+    ratio, so these fractions are not a separate re-derivation, just that
+    same arithmetic evaluated once at the square case. A caller with a
+    real, non-square cell (Courier's own 12pt/7.2pt pitch is a 0.6
+    aspect, the common case) scales x by its own pitch and y by its own
+    cell height independently -- the same two-axis scale `_graphic_ops`
+    already applies to a partBlocks/boxArms rect, just deferred to the
+    caller here.
+
+    `arcCorners` (╭╮╰╯) is the one lossy case: the real glyph is a
+    quarter-circle fillet (`_graphic_ops`'s own Bezier join), which no
+    rect can represent exactly. This returns the SAME two stub rects the
+    sharp-cornered BOX_ARMS glyph it replaces (┌┐└┘) would -- an honest
+    bounding approximation missing only the rounding, not a curve API;
+    real curve drawing still needs `_graphic_ops`'s own point-level code.
+    `shadeGray` (░▒▓) and `fullBlock` (█) both return the single full-cell
+    rect `[(0, 0, 1, 1)]` -- shade's own ink-coverage FRACTION (SHADE_GRAY)
+    is a fill color, not a geometry difference, and stays out of a
+    rects-only return; a caller already needs its own gray/gradient table
+    for that regardless of this function.
+    `symbolShapes` (♦♥♠♣☻☼≡) returns one bounding-box rect per POSITIVE
+    sub-shape (poly points' own min/max extent; a disc's `(cx-r, cy-r,
+    2r, 2r)` box); a `white`-tagged sub-shape (a knockout CUT OUT of an
+    already-filled area, e.g. ☻'s eyes/mouth) is a subtraction a flat
+    rect list cannot express and is omitted -- the positive shapes alone
+    already give a caller the glyph's own silhouette/extent."""
+    if char == '█':
+        return [(0.0, 0.0, 1.0, 1.0)]
+    if char in SHADE_GRAY:
+        return [(0.0, 0.0, 1.0, 1.0)]
+    if char in PART_BLOCKS:
+        return [PART_BLOCKS[char]]
+    if char in SYMBOL_SHAPES:
+        out = []
+        for shape in SYMBOL_SHAPES[char]:
+            kind = shape[0]
+            if kind == 'white':
+                continue
+            if kind == 'rect':
+                _, fx, fy, fw, fh = shape
+                out.append((fx, fy, fw, fh))
+            elif kind == 'disc':
+                _, fx, fy, fr = shape
+                out.append((fx - fr, fy - fr, 2 * fr, 2 * fr))
+            elif kind == 'poly':
+                xs = [p[0] for p in shape[1]]
+                ys = [p[1] for p in shape[1]]
+                out.append((min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)))
+        return out
+    if char in ARC_CORNERS:
+        vdir, hdir = ARC_CORNERS[char]
+        t = _GRAPHIC_CELL_LINE_FRAC
+        rc = 0.42
+        mx = my = 0.5
+        v_far = 0.0 if vdir == 'down' else 1.0
+        h_far = 1.0 if hdir == 'right' else 0.0
+        ay = my + (rc if vdir == 'up' else -rc)
+        bx = mx + (rc if hdir == 'right' else -rc)
+        out = [(mx - t / 2, min(v_far, ay), t, abs(ay - v_far))]
+        out.append((min(h_far, bx), my - t / 2, abs(bx - h_far), t))
+        return out
+    if char in BOX_ARMS:
+        u, dn, l, r = BOX_ARMS[char]
+        t = _GRAPHIC_CELL_LINE_FRAC
+        d = _GRAPHIC_CELL_DOUBLE_GAP_FRAC
+        mx = my = 0.5
+        out = []
+        for weight, xa, xb in ((l, 0.0, mx), (r, mx, 1.0)):
+            if weight == 1:
+                out.append((xa, my - t / 2, xb - xa, t))
+            elif weight == 2:
+                out.append((xa, my + d - t / 2, xb - xa, t))
+                out.append((xa, my - d - t / 2, xb - xa, t))
+        for weight, ya, yc in ((u, my, 1.0), (dn, 0.0, my)):
+            if weight == 1:
+                out.append((mx - t / 2, ya, t, yc - ya))
+            elif weight == 2:
+                out.append((mx - d - t / 2, ya, t, yc - ya))
+                out.append((mx + d - t / 2, ya, t, yc - ya))
+        return out
+    return []
+
+
 def _graphic_ops(text, x, y, pitch, pt, lead_factor=1.1):
     """Vector ops for one all-graphics span (spaces advance, draw nothing).
 
@@ -3510,14 +3626,22 @@ class PageLine(list):
     # draw even though the model carries the label unconditionally --
     # same "model states it, a flag may still tell the WRITER not to
     # draw it" shape `headers`/`footers`/`show_headers` already use).
+    # `graphic_cells` (planning #251(c), 2026-09-09): every cp437
+    # box-drawing/graphic character this line draws as a vector, as
+    # `[(char, x_pt, width_pt), ...]` in document order, or None for a
+    # line with no graphic character at all. Set by
+    # `_attach_graphic_cells_printed` from a real (throwaway-state) call
+    # to `_line_ops_printed` itself -- see that function's own
+    # `record_graphic_cells` parameter -- so the values are exactly what
+    # the writer draws, not a parallel re-derivation.
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
                 'kerning', 'left', 'roll', 'justify_right_x', 'parity_left', 'col',
-                'justify_word_x', 'line_no')
+                'justify_word_x', 'line_no', 'graphic_cells')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
                 roll=None, justify_right_x=None, parity_left=None, col=None,
-                justify_word_x=None, line_no=None):
+                justify_word_x=None, line_no=None, graphic_cells=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -3535,6 +3659,7 @@ class PageLine(list):
         self.justify_word_x = justify_word_x
         self.col = col
         self.line_no = line_no
+        self.graphic_cells = graphic_cells
 
 
 class Page(list):
@@ -4013,6 +4138,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pages = _apply_columns(doc, pages, _printed_size(doc))
         _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
         _attach_line_numbers_printed(doc, pages, _printed_size(doc))
+        _attach_graphic_cells_printed(doc, pages, _printed_size(doc))
         return pages or [[]]
 
     refs_all = _ref_pairs(_annotated_notes(doc))
@@ -4848,6 +4974,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pages = _apply_columns(doc, pages, size_for_left)
         _attach_justify_word_x_printed(doc, pages, size_for_left)
         _attach_line_numbers_printed(doc, pages, size_for_left)
+        _attach_graphic_cells_printed(doc, pages, size_for_left)
     return pages or [[]]
 
 
@@ -4936,6 +5063,64 @@ def _attach_justify_word_x_printed(doc, pages, size):
                                              line.justify_right_x, basefont, pt)
             if pieces:
                 line.justify_word_x = pieces
+
+
+def _attach_graphic_cells_printed(doc, pages, size):
+    """planning #251(c): sets `PageLine.graphic_cells` (see that field's
+    own comment) on every line carrying a cp437 graphic character, via a
+    real -- but THROWAWAY-STATE (fresh `FontRes`/`tz_state`/`col_state`,
+    a dummy `y`) -- call to `_line_ops_printed` itself, using its own new
+    `record_graphic_cells` parameter. None of the throwaway state can
+    change a graphic cell's own x/width: `_graphic_ops`'s advance is
+    `pitch` alone (font-metric-driven Tz scaling, the fill colour state,
+    and the actual `y` never enter that arithmetic -- see `_line_ops_
+    printed`'s own graphics branch), so this is not a parallel
+    re-derivation, it is the SAME function computing the SAME values,
+    just once, ahead of the real render pass. The ops themselves are
+    discarded; only the recorded `(char, x_pt, width_pt)` list survives.
+
+    Skips a line outright when its RAW (pre-substitution) text has no
+    character in `GRAPHIC_CHARS` at all -- `_lj_substitute`'s own tables
+    (`_LJ_SUBST`/`_LJ_SUBST_UNIVERS`) never turn a NON-graphic character
+    into a graphic one (only graphic-to-non-graphic, ☻/☼, or graphic-to-
+    graphic, ♥♦♣♠ to the matching arc corner), so this is a safe
+    necessary-condition filter, not an approximation -- it just spares
+    the overwhelming majority of ordinary prose lines a throwaway render
+    call."""
+    fonts = doc.fonts
+    left = _printed_left(doc, size)
+    roll_pt = _printed_roll_pt(doc)
+    ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
+    colour_map = (_COLOUR_GRAY_LJ6DTP
+                 if doc.meta.get('printer_driver') == 'LJ6DTP' else {})
+    pcl_programs = doc.pcl_programs
+    page_h = _resolved_page_height(doc, True)
+    for page in pages:
+        for line in page:
+            if not any(set(text) & GRAPHIC_CHARS for text, _ in line):
+                continue
+            segs = []
+            for text, styles in _coalesce(line):
+                if not text:
+                    continue
+                written, family, size_here, entry = _span_render(
+                    text, styles, fonts, size)
+                segs.append((written, styles, family, size_here, entry))
+            own_left = getattr(line, 'left', None)
+            left_here = left if own_left is None else own_left
+            own_roll = getattr(line, 'roll', None)
+            roll_here = roll_pt if own_roll is None else own_roll
+            record = []
+            _line_ops_printed(
+                segs, left_here, 0.0, size, FontRes(), [TZ_DEFAULT],
+                [('g', 0.0), False], colour_map or {}, roll_here,
+                getattr(line, 'fi', None), ul_continuous, pcl_programs, page_h,
+                getattr(line, 'kerning', True),
+                getattr(line, 'justify_right_x', None),
+                getattr(line, 'justify_word_x', None),
+                record_graphic_cells=record)
+            if record:
+                line.graphic_cells = record
 
 
 def _toc_page_numbers(doc, pix_results=None, pictures='off'):
@@ -5966,8 +6151,18 @@ def _justify_pieces_printed(text, pitch, x0, justify_right_x, basefont, pt):
 def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
-                      kerning=True, justify_right_x=None, justify_word_x=None):
+                      kerning=True, justify_right_x=None, justify_word_x=None,
+                      record_graphic_cells=None):
     """One laid-out line, on the document's own horizontal grid.
+
+    `record_graphic_cells` (planning #251(c)): a list, or None. When
+    given, every cp437 graphic character this call draws as a vector
+    (see the `GRAPHIC_CHARS` branch below) appends its own `(char, x_pt,
+    width_pt)` -- the SAME x/width `_graphic_ops` just drew from -- so
+    `_doc_to_pagelines`'s `_attach_graphic_cells_printed` can record the
+    model's own answer with a real (throwaway-state) call to this
+    function instead of re-deriving the advance rule itself. None (every
+    ordinary render call) costs nothing extra.
 
     `justify_word_x` (planning #251(b)): this line's own PRECOMPUTED
     `_justify_pieces_printed` result (`PageLine.justify_word_x`, set by
@@ -6351,6 +6546,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             pitch = (pt if (entry is not None and entry.get('proportional'))
                      else _span_pitch(entry, pt))
             ops += _graphic_ops(text, x, y, pitch, pt)
+            # planning #251(c): the model's own per-cell x/width -- see
+            # `record_graphic_cells`'s own doc on this function's
+            # signature. Recorded here, the ONE place this run's per-
+            # character cell positions are ever computed, rather than
+            # re-derived by a model-build-time caller.
+            if record_graphic_cells is not None:
+                record_graphic_cells.extend(
+                    (ch, x + i * pitch, pitch) for i, ch in enumerate(text))
             x += len(text) * pitch
             continue
         if entry is not None and entry.get('proportional') and not indent:

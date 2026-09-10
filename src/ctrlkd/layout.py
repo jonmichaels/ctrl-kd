@@ -721,6 +721,21 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     "model states it unconditionally, a flag only tells the WRITER
     whether to draw it" convention `headers`/`footers` already use).
 
+    version 5 (planning #251(c), 2026-09-09): each printed line MAY now
+    carry 'graphic_cells' — `[{'char': str, 'x': float, 'width': float},
+    ...]`, one entry per cp437 box-drawing/graphic character the line
+    draws as a vector, document order — the exact per-cell x/width
+    `pdf.py`'s own `_graphic_ops` draws from (`PageLine.graphic_cells`,
+    set by `_attach_graphic_cells_printed`). OMITTED, not null, on every
+    line with no graphic character at all — a document with none anywhere
+    emits byte-identical JSON to version 4. The unit-cell GEOMETRY a
+    consumer needs to actually draw each character (arcCorners/boxArms/
+    shadeGray/partBlocks/symbolShapes/fullBlock) is a separate, stable
+    lookup — `pdf.graphic_cell_rects(char)`, a PUBLIC function, not
+    exported through this JSON (it depends on nothing per-document; a
+    consumer calls it directly, in either engine, keyed only by the
+    character).
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -765,6 +780,11 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             pl_line_no = getattr(pl, 'line_no', None)
             if pl_line_no is not None:
                 line['line_no'] = {'text': pl_line_no[0], 'x': pl_line_no[1]}
+            pl_graphic_cells = getattr(pl, 'graphic_cells', None)
+            if pl_graphic_cells is not None:
+                line['graphic_cells'] = [
+                    {'char': c, 'x': x, 'width': w}
+                    for c, x, w in pl_graphic_cells]
             lines.append(line)
         pg = {
             'lines': lines,
@@ -784,7 +804,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 4,
+        'version': 5,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
