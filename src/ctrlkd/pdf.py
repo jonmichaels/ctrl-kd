@@ -7421,10 +7421,28 @@ def _modern_tok_font(text, styles, fonts, nonprop_fallback=False):
     return written, family, pt, entry
 
 
-def _modern_w(text, styles, family, pt, entry):
+def _modern_w(text, styles, family, pt, entry, printed_pt):
     """A token's advance in points under modern layout: natural face widths
     (face-scaled for entries, straight AFM for fontless Times), the fixed
-    grid only where a fixed-pitch font block asks for it."""
+    grid only where a fixed-pitch font block asks for it.
+
+    `printed_pt` (planning #254, 2026-09-10): the document's OWN fixed-pitch
+    type size (`_printed_size(doc)`), never the Modern reading size -- a
+    graphic character (box-drawing, block, shade) draws on the Printed
+    fixed-pitch cell REGARDLESS of a resolved font entry's own `proportional`
+    flag (WordStar counted a `.cw`-pitch column grid for these glyphs no
+    matter what printer face the document declared; Modern's reading face
+    is irrelevant to that count -- Jon's ruling). Before this fix, a
+    fontless run (`entry is None`, every WS4 file and any run before a
+    WS5+ document's first font-change record) advanced graphic cells at the
+    Modern BODY size (14pt) instead: -README's 65-column `=` rule measured
+    65*14 = 910pt in a 468pt measure, 370pt past the sheet's right edge.
+    `_span_pitch(entry, printed_pt)` already ignores `printed_pt` entirely
+    once `entry` carries its own `width_1800` (a real WS5+ font block), so
+    this same call is correct for a resolved fixed-pitch OR proportional
+    entry too -- passing `printed_pt` here (not `spt`) only changes the
+    FALLBACK branch (`entry is None`), which is exactly the shape that was
+    wrong."""
     spt, _rise = _sized(styles, pt)
     basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
     if set(text) & GRAPHIC_CHARS:
@@ -7435,18 +7453,18 @@ def _modern_w(text, styles, family, pt, entry):
         # the geometry IS the glyph. Printed keeps its fontless-untouched
         # doctrine; Modern draws the shape at the em advance.
         total = 0.0
-        pitch = (spt if entry is None or entry.get('proportional')
-                 else _span_pitch(entry, spt))
+        pitch = _span_pitch(entry, printed_pt)
         pos = 0
         for m in _GRAPHIC_RUN.finditer(text):
             if m.start() > pos:
                 total += _modern_w(text[pos:m.start()], styles, family, pt,
                                    entry if not (set(text[pos:m.start()])
-                                                 & GRAPHIC_CHARS) else entry)
+                                                 & GRAPHIC_CHARS) else entry,
+                                   printed_pt)
             total += len(m.group(0)) * pitch
             pos = m.end()
         if pos < len(text):
-            total += _modern_w(text[pos:], styles, family, pt, entry)
+            total += _modern_w(text[pos:], styles, family, pt, entry, printed_pt)
         return total
     if entry is not None and not entry.get('proportional'):
         return len(text) * _span_pitch(entry, spt)
@@ -7507,6 +7525,10 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     serialize it against."""
     embed_images = pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
+    # planning #254: the document's own fixed-pitch size, for a graphic
+    # character's cell advance ONLY (`_modern_w`'s own `printed_pt` doc) --
+    # never the Modern reading size.
+    printed_pt = _printed_size(doc)
     sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs)
     note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
@@ -7599,7 +7621,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                         continue
                     marker = (run_text, styles, 'Times', MODERN_BODY_PT,
                               None)
-                    toks.append(marker + (_modern_w(*marker),))
+                    toks.append(marker + (_modern_w(*marker, printed_pt),))
                     continue
                 for m in _MODERN_TOK_RE.finditer(run_text):
                     written, family, pt, entry = _modern_tok_font(
@@ -7614,7 +7636,8 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     else:
                         fb_pieces = _symbol_fallback_split(written, family)
                     for piece, piece_family in fb_pieces:
-                        w = _modern_w(piece, styles, piece_family, pt, entry)
+                        w = _modern_w(piece, styles, piece_family, pt, entry,
+                                     printed_pt)
                         toks.append((piece, styles, piece_family, pt, entry, w))
             # b26-modern item 3 (screenplay ruling): only lines inside a
             # DETECTED screenplay region (or immediately preceding one,
@@ -7704,7 +7727,7 @@ def _modern_note_lines(label, text, width, kind='footnote'):
     return _modern_wrap(_modern_note_toks(label, text, kind), width)
 
 
-def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
+def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt):
     """One modern running-head/foot line: Times MODERN_NOTE_PT in the margin
     zone, WordStar's `#` token as the page number (same rule as printed:
     `.op` never suppresses an explicit `#`). The header keeps its own baked
@@ -7712,7 +7735,11 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
     head is a page fixture, not reflowing text. Raw toggle bytes in the
     stored head (`^B` bold and friends -- LJ6DTP's `.h1`) are interpreted
     as styles via emit.hf_runs, so measurement and drawing agree; letters
-    overlapped when the toggles were measured as glyphs (round 3)."""
+    overlapped when the toggles were measured as glyphs (round 3).
+
+    `printed_pt` (planning #254): threaded to `_modern_line_ops` only for
+    the graphic-cell cases neither header nor footer text has ever been
+    observed to carry -- see that parameter's own docstring."""
     toks = []
     for run_text, styles in _hf_runs(txt):
         run_text = run_text.replace('#', str(page_no))
@@ -7722,13 +7749,24 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state):
             toks.append((m.group(0), styles, 'Times', MODERN_NOTE_PT, None, w))
     if not toks:
         return []
-    return _modern_line_ops(toks, left, y, width, 'left', res, tz_state)
+    return _modern_line_ops(toks, left, y, width, 'left', res, tz_state,
+                            printed_pt)
 
 
-def _modern_line_ops(toks, left, y, width, align, res, tz_state,
+def _modern_line_ops(toks, left, y, width, align, res, tz_state, printed_pt,
                      record_graphic_cells=None):
     """Content-stream ops for one modern visual line. One op per word keeps
     a viewer's substitute-metric drift bounded, same as printed.
+
+    `printed_pt` (planning #254, 2026-09-10): the document's own fixed-pitch
+    type size (`_printed_size(doc)`) -- see `_modern_w`'s own docstring for
+    the full rule and the bug this closes (a graphic row's own cell advance
+    must never depend on the Modern reading size). Threaded (not recomputed
+    -- no `doc` reaches this function) from every real caller: `_modern_
+    streams` (body/footnote lines) and `_modern_hf_ops` (running heads/
+    feet), and through this function's own recursive sub-calls below so a
+    graphic run split across several sub-calls always agrees with the piece
+    that measured it in `_modern_w`.
 
     `record_graphic_cells` (planning #251 follow-up, 2026-09-10): same
     contract as `_line_ops_printed`'s parameter of the same name -- None
@@ -7759,16 +7797,15 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state,
             # split mixed tokens: graphic runs draw as vectors at the cell
             # advance, interleaved text renders through the normal path
             # (fontless spans included under Modern -- round 3, 2026-08-06)
-            pitch = (spt if entry is None or entry.get('proportional')
-                     else _span_pitch(entry, spt))
+            pitch = _span_pitch(entry, printed_pt)
             pos, gx = 0, x
             for m in _GRAPHIC_RUN.finditer(text):
                 if m.start() > pos:
                     piece = text[pos:m.start()]
-                    pw = _modern_w(piece, styles, family, pt, entry)
+                    pw = _modern_w(piece, styles, family, pt, entry, printed_pt)
                     ops += _modern_line_ops(
                         [(piece, styles, family, pt, entry, pw)],
-                        gx, y, width, 'left', res, tz_state,
+                        gx, y, width, 'left', res, tz_state, printed_pt,
                         record_graphic_cells=record_graphic_cells)
                     gx += pw
                 run = m.group(0)
@@ -7784,13 +7821,11 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state,
                 # per-cell x/width -- same "recorded here, the ONE place
                 # this run's per-character cell positions are ever
                 # computed" precedent `_line_ops_printed`'s own
-                # `record_graphic_cells` doc states. Unlike Printed's
-                # `proportional_cell` gate (defaults to fixed-pitch when
-                # `entry is None`), a fontless MODERN run ALSO takes the
-                # `spt` em-advance branch above (M11) -- Python's own
-                # `round(int, 1)` int/float split (layout.py's own JSON
-                # serialization) falls out of `pitch`'s own runtime type
-                # here with no extra flag needed, unlike Swift.
+                # `record_graphic_cells` doc states. `pitch` (planning #254)
+                # is always `_span_pitch`'s own float now, entry or no --
+                # the old int/float split this comment used to describe
+                # tracked a since-removed branch that advanced a fontless
+                # run's graphic cells at the Modern reading size instead.
                 if record_graphic_cells is not None:
                     record_graphic_cells.extend(
                         (ch, gx + i * pitch, pitch) for i, ch in enumerate(run))
@@ -7798,10 +7833,10 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state,
                 pos = m.end()
             if pos < len(text):
                 piece = text[pos:]
-                pw = _modern_w(piece, styles, family, pt, entry)
+                pw = _modern_w(piece, styles, family, pt, entry, printed_pt)
                 ops += _modern_line_ops(
                     [(piece, styles, family, pt, entry, pw)],
-                    gx, y, width, 'left', res, tz_state,
+                    gx, y, width, 'left', res, tz_state, printed_pt,
                     record_graphic_cells=record_graphic_cells)
             x += w
             continue
@@ -7854,6 +7889,9 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
     keep = frozenset(options.get('notes', ())) or frozenset(
         ('footnote', 'endnote', 'annotation'))
     margl, margt, margb, width = _modern_geometry(doc)
+    # planning #254: threaded to every `_modern_line_ops`/`_modern_hf_ops`
+    # call below -- see `_modern_w`'s own docstring.
+    printed_pt = _printed_size(doc)
     # N9 (b33 field notes): this function only ever runs the Modern path
     # (printed=False by construction -- `_emit_pdf_inner`'s own `else`
     # branch), so 'auto' always resolves to single here.
@@ -8041,13 +8079,13 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
                 continue
             hy = PAGE_H - 44.0 - (lno - 1) * note_lead
             ops += _modern_hf_ops(hdrs[lno], page_no, margl, hy, width,
-                                  res, tz_state)
+                                  res, tz_state, printed_pt)
         for lno in sorted(ftrs):
             if not ftrs[lno]:
                 continue
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
             ops += _modern_hf_ops(ftrs[lno], page_no, margl, fy, width,
-                                  res, tz_state)
+                                  res, tz_state, printed_pt)
         for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks
@@ -8057,7 +8095,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             line_cells = [] if attach_graphic_cells is not None else None
             ops += _modern_line_ops(list(toks), margl + indent, y,
                                     max(36.0, width - indent - cut),
-                                    align, res, tz_state,
+                                    align, res, tz_state, printed_pt,
                                     record_graphic_cells=line_cells)
             if sem_i is not None and line_cells:
                 attach_graphic_cells.setdefault(sem_i, []).extend(
@@ -8077,7 +8115,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
                     # to (see this function's own doc comment) -- always
                     # discarded.
                     ops += _modern_line_ops(list(ln), margl, ly, width,
-                                            'left', res, tz_state)
+                                            'left', res, tz_state, printed_pt)
         streams.append(b'\n'.join(ops))
     return streams
 
