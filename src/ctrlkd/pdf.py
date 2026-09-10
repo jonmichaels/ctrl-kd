@@ -2115,6 +2115,109 @@ def graphic_cell_rects(char):
     return []
 
 
+def graphic_cell_ops(char):
+    """Drawing-grade geometry for one cp437 graphic character, in unit-cell
+    space -- planning #251 follow-up (2026-09-10, app coder job 348,
+    docs/KNOWN-ISSUES-REGISTER.md planning #216 row): where
+    `graphic_cell_rects` hands a consumer bounding RECTS, this hands it the
+    actual drawing OPERATIONS `_graphic_ops` itself executes -- filled
+    rects/discs/polygons for the five table-driven categories (never
+    bounding-boxed: a disc stays a true disc, a poly stays its exact vertex
+    list, unlike `graphic_cell_rects`' own documented bounding-box
+    simplification for those two), and for arcCorners a SINGLE
+    `('stroke_path', segments, line_width_frac)` carrying the exact same
+    four path commands and Bezier control points `_graphic_ops`'s own
+    arcCorners branch computes (move-to the far stub end, line-to the near
+    stub end, curve-to the quarter-circle join with `_graphic_ops`'s own
+    K=0.5523 constant, line-to the other stub's far end) -- never split
+    into separate shapes, so a consumer executing this op list draws the
+    identical shape at the identical op count as the real PDF.
+    `test_graphic_cell_ops_parity.py` replays each arcCorners character's
+    ops back into the same raw PDF operator KIND sequence `_graphic_ops`
+    itself emits (w, m, l, c, l, S) and asserts an exact match, both count
+    and kind -- LJ6DTP.WS page 3's own regression (51 app-drawn ops
+    against 35 real PDF ops, `graphic_cell_rects`' two-rects-per-arc
+    reconstruction) is the corpus case this closes.
+
+    Op shapes:
+      ('fill_rect', x, y, w, h, gray)     gray is None except SHADE_GRAY's
+                                           own entries, which carry their
+                                           ink-coverage fraction
+      ('fill_disc', cx, cy, r)
+      ('fill_polygon', points)            points: [(x, y), ...]
+      ('stroke_path', segments, line_width_frac)
+                                           segments: [('m', x, y),
+                                           ('l', x, y), ('c', c1x, c1y,
+                                           c2x, c2y, x, y), ...]
+
+    `[]` for a character this module does not draw as geometry at all
+    (`char not in GRAPHIC_CHARS`), same convention `graphic_cell_rects`
+    uses. Port of Swift's `graphicCellOps`."""
+    if char == '█':
+        return [('fill_rect', 0.0, 0.0, 1.0, 1.0, None)]
+    if char in SHADE_GRAY:
+        return [('fill_rect', 0.0, 0.0, 1.0, 1.0, SHADE_GRAY[char])]
+    if char in PART_BLOCKS:
+        fx, fy, fw, fh = PART_BLOCKS[char]
+        return [('fill_rect', fx, fy, fw, fh, None)]
+    if char in SYMBOL_SHAPES:
+        out = []
+        for shape in SYMBOL_SHAPES[char]:
+            kind = shape[0]
+            if kind == 'white':
+                continue   # knockout -- see `graphic_cell_rects`' own doc comment
+            if kind == 'rect':
+                _, fx, fy, fw, fh = shape
+                out.append(('fill_rect', fx, fy, fw, fh, None))
+            elif kind == 'disc':
+                _, fx, fy, fr = shape
+                out.append(('fill_disc', fx, fy, fr))
+            elif kind == 'poly':
+                out.append(('fill_polygon', list(shape[1])))
+        return out
+    if char in ARC_CORNERS:
+        vdir, hdir = ARC_CORNERS[char]
+        t = _GRAPHIC_CELL_LINE_FRAC
+        rc = 0.42
+        mx = my = 0.5
+        sv = 1.0 if vdir == 'up' else -1.0
+        sh = 1.0 if hdir == 'right' else -1.0
+        ax, ay = mx, my + sv * rc
+        bx, by = mx + sh * rc, my
+        K = 0.5523
+        c1x, c1y = ax, my + sv * rc * (1 - K)
+        c2x, c2y = mx + sh * rc * (1 - K), by
+        v_far = 0.0 if vdir == 'down' else 1.0
+        h_far = 1.0 if hdir == 'right' else 0.0
+        segments = [
+            ('m', mx, v_far),
+            ('l', ax, ay),
+            ('c', c1x, c1y, c2x, c2y, bx, by),
+            ('l', h_far, my),
+        ]
+        return [('stroke_path', segments, t)]
+    if char in BOX_ARMS:
+        u, dn, l, r = BOX_ARMS[char]
+        t = _GRAPHIC_CELL_LINE_FRAC
+        d = _GRAPHIC_CELL_DOUBLE_GAP_FRAC
+        mx = my = 0.5
+        out = []
+        for weight, xa, xb in ((l, 0.0, mx), (r, mx, 1.0)):
+            if weight == 1:
+                out.append(('fill_rect', xa, my - t / 2, xb - xa, t, None))
+            elif weight == 2:
+                out.append(('fill_rect', xa, my + d - t / 2, xb - xa, t, None))
+                out.append(('fill_rect', xa, my - d - t / 2, xb - xa, t, None))
+        for weight, ya, yc in ((u, my, 1.0), (dn, 0.0, my)):
+            if weight == 1:
+                out.append(('fill_rect', mx - t / 2, ya, t, yc - ya, None))
+            elif weight == 2:
+                out.append(('fill_rect', mx - d - t / 2, ya, t, yc - ya, None))
+                out.append(('fill_rect', mx + d - t / 2, ya, t, yc - ya, None))
+        return out
+    return []
+
+
 def _graphic_ops(text, x, y, pitch, pt, lead_factor=1.1):
     """Vector ops for one all-graphics span (spaces advance, draw nothing).
 
