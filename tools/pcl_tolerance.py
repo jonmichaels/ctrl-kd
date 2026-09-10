@@ -588,11 +588,51 @@ KERNING_MERGE_EPS_PT = 1.5  # generous vs decipoint quantization + AFM rounding.
                             # CG-Times/Univers-substituted running sizes get
                             # that close too, so widening the bound merges
                             # genuine separate words far more often than it
-                            # catches real kerning-pair splits. WARPRAYR's
-                            # 'War'/'country'/similar residuals are left
-                            # NAMED, not fixed, rather than regress the rest
-                            # of the corpus to chase one document's own
-                            # kerning-pair magnitude.
+                            # catches real kerning-pair splits. That was
+                            # widening the bound SYMMETRICALLY, though --
+                            # planning #202/#258 traced the actual raw PCL
+                            # for every remaining WARPRAYR/LYING instance
+                            # ('War'/'ar', 'You'/'ou', '"Ye'/'e', etc. --
+                            # tools/pcl_text.py against ws7-prints/v3) and
+                            # found WS7 itself places the second chunk
+                            # BEFORE where the first chunk's own AFM width
+                            # says it should end -- a real kerning-PAIR
+                            # tightening (measured -1.56pt to -2.00pt across
+                            # 5 confirmed instances), never a gap. A REAL
+                            # inter-word space is never negative (WS7 never
+                            # prints two words overlapping), so a wider
+                            # bound is safe on the negative side alone --
+                            # see KERNING_MERGE_NEG_EPS_PT below, which
+                            # carries none of the symmetric widening's
+                            # regression risk (confirmed against the full
+                            # armed corpus, tools/pcl_tolerance.py --record,
+                            # 2026-09-10: only the two target documents'
+                            # counts moved).
+
+
+KERNING_MERGE_NEG_EPS_PT = 2.5  # mechanism C's OWN bound for a NEGATIVE gap
+                            # (the next chunk starts BEFORE the running
+                            # word's own AFM-predicted end -- WS7 kerned the
+                            # pair tighter than a flat sum of individual
+                            # character widths) -- wider than
+                            # KERNING_MERGE_EPS_PT on purpose, and safe to
+                            # be: a real inter-word gap is a typed space, and
+                            # a space is never negative width, so widening
+                            # THIS side alone can never mistake two genuinely
+                            # separate words for one kerning-split word the
+                            # way widening the (POSITIVE) eps above does --
+                            # the same "chunk shape unique to this
+                            # mechanism's own territory" reasoning
+                            # TRAILING_PUNCT_MERGE_EPS_PT's own docstring
+                            # already uses. 2.5pt covers, with margin, every
+                            # real kern confirmed against the raw PCL
+                            # (planning #202/#258, ws7-prints/v3):
+                            # WARPRAYR 'War'->'ar' -2.00pt, WARPRAYR/LYING's
+                            # several 'You'->'ou'/'Y'->'ou' -1.96pt,
+                            # WARPRAYR '"Ye'->'e' -1.56pt to -1.86pt across
+                            # its two instances. Confirmed against the full
+                            # armed corpus (--record, 2026-09-10): only
+                            # WARPRAYR and LYING moved.
 
 
 DOUBLE_STRIKE_EPS_PT = 2.0  # generous vs the ~1.4pt slant offset a faux-italic
@@ -729,7 +769,8 @@ def _is_rule_chunk(text: str) -> bool:
     return bool(text) and len(set(text)) == 1 and text[0] in '-_='
 
 
-def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
+def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT,
+                                 neg_eps_pt=KERNING_MERGE_NEG_EPS_PT):
     """Mechanism C: WS7's own driver splits certain words at a kerning pair
     ('War' -> 'W' + 'ar', 'You' -> 'Y' + 'ou', 'Twain' -> 'T' + 'wain') into
     two touching print chunks with no space between them -- confirmed on
@@ -738,12 +779,20 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
     print line's (pc, tc) pairs, already sorted by x. Two consecutive
     chunks merge into one when they share the same size and font (both the
     post-substitution name and the pre-substitution PCL typeface id) and
-    the next chunk's own x lands within `eps_pt` of where the running
+    the next chunk's own x lands within tolerance of where the running
     merged text's own AFM natural width (fg.afm.string_width_pt -- the SAME
     metric this repo's other engine/WS7 comparisons already use) says it
-    should end -- i.e. WS7 printed them as one continuous run with no
-    visible gap, just split into separate PCL text chunks. The merged
-    chunk keeps the FIRST chunk's own position/font/size and gets the
+    should end -- i.e. WS7 printed them as one continuous run, just split
+    into separate PCL text chunks. The tolerance is ASYMMETRIC (planning
+    #202/#258, traced against the raw PCL, ws7-prints/v3, via
+    tools/pcl_text.py): the next chunk starting AT OR AFTER the predicted
+    end (gap >= 0, the two chunks merely touch or carry a hair of extra
+    space) uses the tighter `eps_pt`, but starting BEFORE it (gap < 0 --
+    WS7 kerned the pair tighter than a flat sum of individual character
+    widths, e.g. 'W'/'ar' abutting 2.0pt inside 'W's own predicted glyph
+    box) uses the wider `neg_eps_pt` -- see KERNING_MERGE_NEG_EPS_PT's own
+    docstring for why that side alone is safe to widen. The merged chunk
+    keeps the FIRST chunk's own position/font/size and gets the
     concatenated text; nothing downstream of this function ever reads a
     merged chunk's 'width', only its 'text'/'x'/'y'.
 
@@ -791,7 +840,9 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
                 break
             expected_end_dp = start_x + (
                 fg.afm.string_width_pt(text, pc.get('font'), pc['size_pt']) * fg.DECIPT_PER_PT)
-            if abs(npc['x_decipoints'] - expected_end_dp) > eps_pt * fg.DECIPT_PER_PT:
+            gap_dp = npc['x_decipoints'] - expected_end_dp
+            bound_pt = eps_pt if gap_dp >= 0 else neg_eps_pt
+            if abs(gap_dp) > bound_pt * fg.DECIPT_PER_PT:
                 break
             text += npc['text']
             j += 1
@@ -801,7 +852,7 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
     return merged
 
 
-TRAILING_PUNCT_MERGE_EPS_PT = 3.0  # wider than KERNING_MERGE_EPS_PT (1.5pt)
+TRAILING_PUNCT_MERGE_EPS_PT = 3.5  # wider than KERNING_MERGE_EPS_PT (1.5pt)
                                    # on purpose: a real inter-word GAP never
                                    # shows up as a WS7 chunk containing
                                    # NOTHING but punctuation (that shape is
@@ -809,7 +860,21 @@ TRAILING_PUNCT_MERGE_EPS_PT = 3.0  # wider than KERNING_MERGE_EPS_PT (1.5pt)
                                    # so widening it here carries none of
                                    # mechanism C's own risk of swallowing a
                                    # genuine short word -- confirmed against
-                                   # the full 10-document set below.
+                                   # the full 10-document set below. Raised
+                                   # from 3.0 (planning #202/#258,
+                                   # 2026-09-10): LYING's own confirmed
+                                   # trailing-punctuation gaps range -1.60pt
+                                   # to +3.20pt across every instance in the
+                                   # document ('thoughtfully'+',' at
+                                   # +3.06pt was the one case landing just
+                                   # outside the old 3.0pt bound, on a
+                                   # fully-justified line -- WordStar's own
+                                   # justification stretch reaches even a
+                                   # word's own trailing mark, not just real
+                                   # inter-word spaces). 3.5pt covers every
+                                   # confirmed instance with margin; full
+                                   # armed-corpus --record confirms only
+                                   # LYING moved.
 _TRAILING_PUNCT_CHARS = frozenset(',.;:!?\'")]-')
 
 
