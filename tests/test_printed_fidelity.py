@@ -834,7 +834,7 @@ def test_l_hash_labels_and_x_land_on_the_pageline_model():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 5
+    assert out['version'] == 6
     json_lines = out['printed']['pages'][0]['lines']
     json_labels = [l['line_no']['text'] for l in json_lines if 'line_no' in l]
     assert json_labels == ['1', '2', '3']
