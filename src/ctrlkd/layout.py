@@ -837,24 +837,33 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
         # planning #251(d)): resolved by `_attach_head_foot_lines_printed`
         # -- see `emit_layout`'s own docstring for the field shapes. Same
         # omit-unless-set convention as `columns`/`left`/`col` above.
+        # `float(...)` before `round(...)`: `e['x']`/`e['y']` can be plain Python
+        # `int`s (e.g. a print-stream document's fixed-default `LEAD`/`size`
+        # keeping the whole `y = page_h - foot_line * lead - size` expression an
+        # `int`, WSMIN.PAT's own shape) -- `round(60, 1)` returns the bare `int`
+        # `60`, `json.dumps` then writes `60` with no decimal point, while sr's
+        # `Double` always writes `60.0`. Found via `AnswerKeyParityTests` once
+        # this shipped (WSMIN.PAT/WS-CON.TXT/descript.bu, all print streams).
+        # `float()` first forces the SAME `X.0` spelling every other rounded
+        # field here already gets from its own float-only arithmetic.
         pg_header_lines = getattr(page, 'header_lines', None)
         if pg_header_lines is not None:
             pg['header_lines'] = [
-                {'text': e['text'], 'x': round(e['x'], 1), 'y': round(e['y'], 1),
-                 'font': e['font']}
+                {'text': e['text'], 'x': round(float(e['x']), 1),
+                 'y': round(float(e['y']), 1), 'font': e['font']}
                 for e in pg_header_lines]
         pg_footer_lines = getattr(page, 'footer_lines', None)
         if pg_footer_lines is not None:
             pg['footer_lines'] = [
-                {'text': e['text'], 'x': round(e['x'], 1), 'y': round(e['y'], 1),
-                 'font': e['font']}
+                {'text': e['text'], 'x': round(float(e['x']), 1),
+                 'y': round(float(e['y']), 1), 'font': e['font']}
                 for e in pg_footer_lines]
         pg_auto_pageno = getattr(page, 'auto_pageno', None)
         if pg_auto_pageno is not None:
             pg['auto_page_number'] = {
                 'text': pg_auto_pageno['text'],
-                'x': round(pg_auto_pageno['x'], 1),
-                'y': round(pg_auto_pageno['y'], 1),
+                'x': round(float(pg_auto_pageno['x']), 1),
+                'y': round(float(pg_auto_pageno['y']), 1),
             }
         # `columns`/`column_gutter_pt`/`column_width_pt` (version 2): same
         # omit-unless-set convention as `left`/`col` above -- present only
