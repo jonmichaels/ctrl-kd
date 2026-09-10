@@ -1594,6 +1594,28 @@ _PDF_PT_PER_COL = 7.2   # print columns at 10 CPI: 72pt/in / 10 col/in = 7.2pt/c
                         # exact value MAX_COLS itself already derives from
                         # (SIZE * 0.6 == 7.2 at the default SIZE=12).
 
+# planning #257 (sawyer/REF/-HOW-TO.RJS pages 10-12): a typed leading-space
+# run before proportional text with NO `.pm` backing it (`_line_ops_
+# printed`'s own `pm_active`/`column_indent`) still needs its OWN width --
+# not `_PDF_PT_PER_COL` (that branch is for a `.pm`-governed run, WARPRAYR),
+# and not this base14 Helvetica substitute's own AFM space glyph either
+# (0.278em -- correct for an ORDINARY inter-word space inside running text,
+# measured: "PRINTING UNBOUND"'s own single space landed within 0.1pt of it
+# -- but too narrow for a run of many consecutive typed ones). MEASURED
+# directly against two independent blocks of the same real WS7 capture
+# (ws7-prints/v4/sawyer__REF__-HOW-TO_EXT_RJS.pcl, both Univers/Helv 10pt,
+# `.pm 0"` in force): the banner heading's 20/22/18/30-space lines (left
+# 21.6pt, WS7 x 88.8/95.5/82.0/122.4) and the later `IfException` block's
+# 12-space lines (left 417.6pt, WS7 x 457.9) both solve to the SAME flat
+# 0.336em/pt ratio to within 0.1pt (decipoint rounding) -- e.g. 21.6 +
+# 20*3.36 = 88.8 exactly, 417.6 + 12*3.36 = 457.92 vs 457.9. Applied
+# UNSCALED (no `_face_tz` factor: that scale lands the face's AVERAGE
+# character on its own HMI grid, and a space is not average -- scaling it
+# the same amount overshot every one of these lines). Untested outside a
+# Helv/Univers substitution -- no other proportional face types a literal
+# indent with no `.pm` anywhere in the current corpus.
+_TYPED_INDENT_SPACE_EM = 0.336
+
 
 def _printed_pm_fi_pt(block):
     """First-line indent in points from `.pm` -- mirrors `_rtf_pm_fi_twips`
@@ -3790,13 +3812,13 @@ class PageLine(list):
     # to `_line_ops_printed` itself -- see that function's own
     # `record_graphic_cells` parameter -- so the values are exactly what
     # the writer draws, not a parallel re-derivation.
-    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'bi', 'image', 'ws4_spacing',
-                'kerning', 'left', 'roll', 'justify_right_x', 'parity_left', 'col',
-                'justify_word_x', 'line_no', 'graphic_cells')
+    __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
+                'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
+                'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
-                bi=None, image=None, ws4_spacing=False, kerning=True, left=None,
-                roll=None, justify_right_x=None, parity_left=None, col=None,
+                pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
+                left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
                 justify_word_x=None, line_no=None, graphic_cells=None):
         super().__init__(segments)
         self.soft = soft
@@ -3805,6 +3827,13 @@ class PageLine(list):
         self.lead = lead
         self.bi = bi
         self.fi = fi
+        # planning #257: whether this line's own BLOCK has a real, nonzero
+        # `.pm` (para_margin) in force -- see `_line_ops_printed`'s own
+        # `pm_active` parameter for why this has to travel separately from
+        # `fi` (which is already 0/None in BOTH the "no .pm at all" case
+        # and the "typed indent already satisfies .pm" case, so it cannot
+        # by itself tell the two apart).
+        self.pm_active = pm_active
         self.image = image
         self.ws4_spacing = ws4_spacing
         self.kerning = kerning
@@ -4517,6 +4546,23 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             lines.append(None)
         prev_cols = cur_cols
         fi_pt = _printed_pm_fi_pt(b) if printed else None
+        # planning #257: a real, nonzero `.pm` in force for this block --
+        # NOT merely "fi_pt computed to something", since fi_pt is already
+        # 0 both when the block never set `.pm` (para_margin None) AND when
+        # a typed indent already satisfies a nonzero one (WARPRAYR's own
+        # first line, `_printed_pm_fi_pt`'s own `max(0, pm_cols -
+        # already_typed_cols)`). `_line_ops_printed` needs the RAW state,
+        # not the already-reduced indent, to decide whether a line's own
+        # typed leading spaces (before proportional text, `_split_indent`'s
+        # `indent` flag) are `.pm`'s own document-column convention
+        # (WARPRAYR, measured) or plain hand-typed centering with no
+        # margin mechanism behind it at all (sawyer/REF/-HOW-TO.RJS pages
+        # 10-12, `.pm 0"` in force -- measured: WS7 prints those lines'
+        # leading spaces at Univers 10pt's own natural (narrower) space
+        # advance, not 10-CPI columns; this engine printed them 70-115pt
+        # too far right doing exactly the WARPRAYR math with no `.pm` to
+        # justify it).
+        pm_active = bool(printed and b.para_margin)
         first_line_of_block = True
         # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
         # block, skipping pagebreak/condpage sentinels -- `_entering_lead_pt`'s
@@ -4725,7 +4771,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     justify_right_x = po_origin_pt + rm_cols * _PDF_PT_PER_COL
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
-                             fi=(fi_pt if first_line_of_block else None), bi=bi,
+                             fi=(fi_pt if first_line_of_block else None),
+                             pm_active=pm_active, bi=bi,
                              ws4_spacing=ws4_spacing_line,
                              kerning=getattr(line, 'kerning', True),
                              left=own_left, roll=own_roll,
@@ -5418,7 +5465,8 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 getattr(line, 'kerning', True),
                 getattr(line, 'justify_right_x', None),
                 getattr(line, 'justify_word_x', None),
-                record_graphic_cells=record)
+                record_graphic_cells=record,
+                pm_active=getattr(line, 'pm_active', False))
             if record:
                 line.graphic_cells = record
 
@@ -6943,8 +6991,25 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
                       kerning=True, justify_right_x=None, justify_word_x=None,
-                      record_graphic_cells=None):
+                      record_graphic_cells=None, pm_active=False):
     """One laid-out line, on the document's own horizontal grid.
+
+    `pm_active` (planning #257, PageLine.pm_active): whether this line's own
+    BLOCK has a real, nonzero `.pm` in force -- the missing half of
+    `_split_indent`'s `indent` flag below. That flag alone says "this
+    segment is the line's own leading run of literal spaces before
+    proportional text"; it does NOT say the leading run is `.pm`'s own
+    document-column convention (WARPRAYR.WS, measured: the block's own
+    `.pm 5` and its typed 10/5-space stanza indents both target the SAME
+    10-CPI column) rather than plain hand-typed centering with no margin
+    mechanism behind it at all (sawyer/REF/-HOW-TO.RJS pages 10-12,
+    measured: `.pm 0"` in force, a banner heading centred with literal
+    spaces WordStar prints at Univers 10pt's own natural, narrower space
+    advance -- this engine used to print it 70-115pt too far right doing
+    WARPRAYR's document-column math with no `.pm` to justify it). Below,
+    an `indent`-flagged segment only takes the document-column measure
+    when `pm_active` is ALSO true; otherwise it falls through to the same
+    natural-width proportional path an ordinary word on the line gets.
 
     `record_graphic_cells` (planning #251(c)): a list, or None. When
     given, every cp437 graphic character this call draws as a vector
@@ -7347,7 +7412,22 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                     (ch, x + i * pitch, pitch) for i, ch in enumerate(text))
             x += len(text) * pitch
             continue
-        if entry is not None and entry.get('proportional') and not indent:
+        # planning #257: `indent` alone (`_split_indent`'s flag) only means
+        # "this segment is the line's own leading run of literal spaces
+        # before proportional text" -- it fires for WARPRAYR's `.pm`-backed
+        # stanza indents AND for sawyer/REF/-HOW-TO.RJS's `.pm 0"` hand-
+        # typed banner centring alike, and only the FIRST of those is
+        # really `.pm`'s document-column convention (see `_line_ops_
+        # printed`'s own `pm_active` doc). `column_indent` adds that
+        # missing half: a leading run only takes the 10-CPI document-column
+        # measure below when this line's own block actually has a real
+        # `.pm` in force; otherwise it falls into the SAME natural-width
+        # proportional path an ordinary word gets, which is what real WS7
+        # did with -HOW-TO.RJS's typed spaces (measured: Univers 10pt's own
+        # space glyph, ~3.36pt wide, not the 7.2pt 10-CPI column this
+        # branch used to charge every one of them).
+        column_indent = indent and pm_active
+        if entry is not None and entry.get('proportional') and not column_indent:
             # PROPORTIONAL runs advance at NATURAL widths, face-scaled. Every
             # piece (word or space run) occupies its own AFM width times the
             # FACE-constant Tz -- the scale that lands the face's AVERAGE
@@ -7384,8 +7464,16 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             ul_x0 = ul_x1 = None
             for m in _re.finditer(r' +|[^ ]+', text):
                 piece = m.group(0)
-                nat = _natural_width_pt(piece, basefont, pt)
-                pw = nat * factor if nat > 0 else len(piece) * pitch
+                if indent and piece[0] == ' ':
+                    # planning #257: this piece IS the whole typed leading
+                    # run (`_split_indent` only ever flags an all-space or
+                    # all-text segment) -- see `_TYPED_INDENT_SPACE_EM`'s
+                    # own comment for the measured ratio and why it skips
+                    # `factor` (the face-average Tz scale) entirely.
+                    pw = len(piece) * pt * _TYPED_INDENT_SPACE_EM
+                else:
+                    nat = _natural_width_pt(piece, basefont, pt)
+                    pw = nat * factor if nat > 0 else len(piece) * pitch
                 if piece[0] != ' ':
                     if symbol_bold or symbol_italic:
                         ops.append(_symbol_style_op(
@@ -7411,7 +7499,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                 ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
                            % (ul_x0, y - 1.5, ul_x1, y - 1.5))
             continue
-        if indent:
+        if column_indent:
             scale, w = None, len(text) * size * 0.6      # document print columns
         else:
             # Fixed-pitch (and metric-less) runs: width-matched onto the font
@@ -7743,7 +7831,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  pcl_programs, page_h,
                                  getattr(line, 'kerning', True),
                                  getattr(line, 'justify_right_x', None),
-                                 getattr(line, 'justify_word_x', None))
+                                 getattr(line, 'justify_word_x', None),
+                                 pm_active=getattr(line, 'pm_active', False))
     return b'\n'.join(ops)
 
 

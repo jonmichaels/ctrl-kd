@@ -5409,6 +5409,68 @@ def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
     assert x == 79.2
 
 
+def test_typed_indent_with_no_pm_uses_natural_space_width_not_columns():
+    """Planning #257 (sawyer/REF/-HOW-TO.RJS pages 10-12): the sibling case
+    the WARPRAYR fixtures above do NOT cover -- a proportional line's own
+    typed leading spaces with NO `.pm` anywhere backing them (para_margin
+    None, unlike every WARPRAYR fixture's `.pm 5`/`.pm 6`). `_split_indent`
+    still flags these spaces `indent` (they are a leading run of literal
+    blanks before proportional text, exactly WARPRAYR's own shape) but with
+    no `.pm` in force there is no document-column convention for them to
+    be honouring -- real WS7 (ws7-prints/v4/sawyer__REF__-HOW-TO_EXT_RJS.pcl,
+    `.pm 0"` in force) printed this banner's typed spaces at Univers 10pt's
+    own natural, narrower space advance, not the 7.2pt 10-CPI column
+    `_PDF_PT_PER_COL` charges a WARPRAYR-style run. Before this fix
+    `_line_ops_printed` charged EVERY proportional typed indent the
+    document-column rate regardless of `.pm`, landing 'PRINTING' at
+    x=165.6 against WS7's real 88.8 (+76.8pt, the bug this closes).
+
+    This fixture has no `.lm` override (unlike the real -HOW-TO.RJS
+    capture, whose own `.lm .3"` moves `left` to 21.6), so `left` is the
+    plain `.po` default, 57.6 -- the SAME 88.8/165.6 real-vs-pre-fix delta
+    still applies on top of it: 57.6 + 20 typed spaces * 10pt *
+    `_TYPED_INDENT_SPACE_EM` (0.336) == 124.8, not the pre-fix document-
+    column reading of 57.6 + 20*7.2 == 201.6 (see `_TYPED_INDENT_SPACE_EM`'s
+    own docstring for the two independent corpus measurements this ratio
+    was fit against, and the real document's own 88.8/165.6 numbers)."""
+    from ctrlkd.pdf import emit_pdf
+    helv = _helv_typestyle()
+    data = (ws7_block(0x00)
+            + b'.pm 0' + HARD
+            + _font_block(helv, 10.0, width=125, style_bits=0x8000)
+            + b'                    PRINTING UNBOUND BOOK GALLEYS' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 0.0
+    pdf = emit_pdf(doc, mode='printed')
+    x = float(re.search(rb'([\d.]+) [\d.]+ Td \(PRINTING', pdf).group(1))
+    assert x == 124.8                         # NOT 201.6 (20*7.2 + 57.6,
+                                               # the pre-fix document-column
+                                               # bug this test pins closed)
+
+
+def test_typed_indent_still_uses_document_columns_when_pm_really_is_active():
+    """The other half of the same fix, guarding against overcorrecting:
+    WARPRAYR's own `.pm`-governed shape (test_pm_first_line_indent_not_
+    doubled_when_source_already_types_it, above) must still use the
+    document-column measure -- `column_indent` (this fix's own gate) is
+    `indent AND pm_active`, not a blanket switch to natural width. Same
+    assertion that test already makes, re-stated here as this fix's own
+    negative case so a future change to the `pm_active` gate trips
+    whichever of these two tests it actually broke."""
+    from ctrlkd.pdf import emit_pdf
+    data = (ws7_block(0x00)
+            + b'.pm 5' + HARD
+            + _helv_font_block()
+            + b'          Ten typed leading spaces on this first line.' + HARD)
+    doc = core.parse_ws(data)
+    assert doc.blocks[0].para_margin == 4.0
+    pdf = emit_pdf(doc, mode='printed')
+    x = float(re.search(rb'([\d.]+) [\d.]+ Td \(Ten', pdf).group(1))
+    assert x == 129.6                         # left 57.6 + 10-space indent
+                                               # 72 (10-CPI columns, .pm
+                                               # really is active here)
+
+
 def test_pdf_courier_beats_the_generic_bits_that_call_it_serif():
     """The trap this ordering exists for: the spec's own font block for
     Courier declares generic_style 'serif' -- honest typography (it is a slab

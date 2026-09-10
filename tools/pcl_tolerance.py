@@ -716,6 +716,19 @@ def _dedupe_double_strike_chunks(items, eps_pt=DOUBLE_STRIKE_EPS_PT):
     return out
 
 
+def _is_rule_chunk(text: str) -> bool:
+    """A WS7 print chunk that is NOTHING but one repeated rule character --
+    measured: sawyer/REF/-HOW-TO.RJS's own code-listing block underlines
+    every entry with literal '-'/'------------------' overprinted at the
+    SAME y as the text (this document's font/printer combination has no
+    PCL underline escape available for it, so WordStar draws the rule by
+    hand instead). Deliberately narrower than `_is_unreliable_to_align`
+    (used much later in the pipeline -- ANY short/no-alnum chunk): a
+    genuine one/two-character real token (a lone digit, an open-paren)
+    must never be treated as a rule and silently skipped over below."""
+    return bool(text) and len(set(text)) == 1 and text[0] in '-_='
+
+
 def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
     """Mechanism C: WS7's own driver splits certain words at a kerning pair
     ('War' -> 'W' + 'ar', 'You' -> 'Y' + 'ou', 'Twain' -> 'T' + 'wain') into
@@ -732,17 +745,47 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
     visible gap, just split into separate PCL text chunks. The merged
     chunk keeps the FIRST chunk's own position/font/size and gets the
     concatenated text; nothing downstream of this function ever reads a
-    merged chunk's 'width', only its 'text'/'x'/'y'."""
+    merged chunk's 'width', only its 'text'/'x'/'y'.
+
+    planning #257 (sawyer/REF/-HOW-TO.RJS pages 10-12): a hand-drawn
+    underline rule (`_is_rule_chunk`) is drawn UNDER THE WHOLE WORD it
+    underlines, via a same-y overprint AFTER the word's own text -- so BY
+    X it can, and here does, sort BETWEEN two print-chunk pieces of a
+    word this driver ALSO happens to split on its own (measured: 'CmdT'/
+    'ags(ON)' and 'L'/'oopgarou:', both one continuous typed word in the
+    source, no space or style change anywhere near the split). Before
+    this fix the plain `items[j]` neighbour check saw the rule chunk
+    first, its own text/position never matching the running word's
+    expected end, and gave up -- reporting a real, single-word line as
+    two separate 'glued'/split words (planning #257's own investigation:
+    this was a decoder artifact, NOT a real WS7 gluing/splitting bug --
+    the raw PCL positions prove 'CmdT' end and 'ags(ON)' start abut to
+    within 1.3pt, well inside `eps_pt`). A rule chunk is now skipped over
+    while scanning for the next real candidate (never itself a merge
+    candidate, never treated as the mismatch that ends one) and re-
+    emitted afterward, unchanged, in the same relative order -- since it
+    is scanned strictly in the input's own x-sorted order and always
+    carries an x at or past the merged word's own start, the output list
+    stays x-non-decreasing exactly as `items` came in."""
     merged = []
     i = 0
     n = len(items)
     while i < n:
         pc, tc = items[i]
+        if _is_rule_chunk(pc['text']):
+            merged.append((pc, tc))
+            i += 1
+            continue
         text = pc['text']
         start_x = pc['x_decipoints']
         j = i + 1
+        rules = []
         while j < n:
             npc, ntc = items[j]
+            if _is_rule_chunk(npc['text']):
+                rules.append((npc, ntc))
+                j += 1
+                continue
             if (npc['size_pt'] != pc['size_pt'] or npc.get('font') != pc.get('font')
                     or ntc.get('_T') != tc.get('_T')):
                 break
@@ -753,6 +796,7 @@ def _merge_kerning_split_chunks(items, eps_pt=KERNING_MERGE_EPS_PT):
             text += npc['text']
             j += 1
         merged.append((dict(pc, text=text), tc))
+        merged.extend(rules)
         i = j
     return merged
 
@@ -1004,20 +1048,41 @@ def _reconcile_glued_ws7_chunks(eng_tokens, unmatched_ws7, unmatched_engine):
     directly against `fg.match_doc`'s own leftover unmatched lists
     instead of the WS7 chunk stream `load_ws7_tokens` builds.
 
-    `eng_tokens` is the FULL (already box-drawing/`_is_unreliable_to_align`
-    -filtered, same list `doc_report` builds) engine token stream in
-    document reading order -- the adjacency check walks THIS list's own
-    consecutive indices, not `unmatched_engine`'s (which drops the
-    ordering a merge needs the instant anything between two candidates
-    already matched). `unmatched_ws7`/`unmatched_engine` are
-    `fg.match_doc`'s own leftover lists. Returns
+    `eng_tokens` is the FULL engine token stream in document reading
+    order, UNFILTERED (planning #257: the caller's own pre-filter copy,
+    `eng_tokens_all` -- see `doc_report`'s own comment on it) -- the
+    adjacency check walks THIS list's own consecutive indices, not
+    `unmatched_engine`'s (which drops the ordering a merge needs the
+    instant anything between two candidates already matched).
+    `unmatched_ws7`/`unmatched_engine` are `fg.match_doc`'s own leftover
+    lists (built from the FILTERED stream, same objects by identity, so
+    `id()` lookups against either list still work here). Returns
     `(new_unmatched_ws7, new_unmatched_engine)` with every resolved
     token removed from both -- resolved pairs are not added to `pairs`
     (position-level comparison for a glued WS7 chunk is not meaningful:
     there is no single correct x for the boundary between two words
     inside one PCL chunk, the same reasoning `_merge_trailing_
     punctuation_chunks`'s own merged chunk already carries for its own
-    x). A token is consumed by at most one reconciliation."""
+    x). A token is consumed by at most one reconciliation.
+
+    planning #257 (sawyer/REF/-HOW-TO.RJS's own 'ROBERTJ.' -- confirmed
+    a REAL WS7 print artifact, not a decoder bug: the raw PCL's own
+    absolute positions put 'J' starting within 0.5pt of 'ROBERT' alone's
+    natural end, the same zero-gap signature mechanism C's docstring
+    already established for this shape, on the SAME running-head text
+    repeated on every page): the engine's own 'J.' is SHORT (stripped
+    len <= 2) and so never survives `_is_unreliable_to_align` into the
+    FILTERED stream `doc_report` builds `unmatched_engine` from at all --
+    the original single-neighbour check here (`eng_tokens[i + 1]`) landed
+    on the wrong, much-later real word and could never see it. The walk
+    below now BRIDGES over any number of intervening tokens (short or
+    box-drawing ones included, read from this UNFILTERED `eng_tokens`)
+    while their accumulated text stays a PREFIX of `w`'s own -- so a
+    glue swallowing one or more such short components, not just a bare
+    two-real-word pair, still reconciles. A bridged token that DOES
+    survive filtering (a real word) and is not itself still unmatched is
+    where the walk stops rather than steals it -- it already found its
+    own correct match elsewhere; gluing through it would be guessing."""
     idx_of = {id(t): i for i, t in enumerate(eng_tokens)}
     unmatched_eng_ids = {id(t) for t in unmatched_engine}
     resolved_ws7_ids, resolved_eng_ids = set(), set()
@@ -1025,19 +1090,39 @@ def _reconcile_glued_ws7_chunks(eng_tokens, unmatched_ws7, unmatched_engine):
         for e1 in unmatched_engine:
             if id(e1) in resolved_eng_ids or e1['page'] != w['page']:
                 continue
+            if e1['text'] == w['text']:
+                continue                  # already a 1:1 match elsewhere
             i = idx_of.get(id(e1))
-            if i is None or i + 1 >= len(eng_tokens):
+            if i is None:
                 continue
-            e2 = eng_tokens[i + 1]
-            if (id(e2) in resolved_eng_ids or id(e2) not in unmatched_eng_ids
-                    or e2['page'] != w['page']
-                    or abs(e2['y_top'] - e1['y_top']) > 0.5):
-                continue
-            if e1['text'] + e2['text'] != w['text']:
+            text = e1['text']
+            bridge = []
+            j = i + 1
+            matched = False
+            while j < len(eng_tokens) and len(text) < len(w['text']):
+                nxt = eng_tokens[j]
+                if nxt['page'] != w['page'] or abs(nxt['y_top'] - e1['y_top']) > 0.5:
+                    break
+                is_real = not (_is_box_drawing_text(nxt['text'])
+                               or _is_unreliable_to_align(nxt['text']))
+                if is_real and (id(nxt) in resolved_eng_ids
+                                or id(nxt) not in unmatched_eng_ids):
+                    break              # a real word already spoken for -- stop
+                candidate = text + nxt['text']
+                if not w['text'].startswith(candidate):
+                    break
+                text = candidate
+                bridge.append(nxt)
+                j += 1
+                if text == w['text']:
+                    matched = True
+                    break
+            if not matched:
                 continue
             resolved_ws7_ids.add(id(w))
             resolved_eng_ids.add(id(e1))
-            resolved_eng_ids.add(id(e2))
+            for t in bridge:
+                resolved_eng_ids.add(id(t))
             break
     new_unmatched_ws7 = [w for w in unmatched_ws7 if id(w) not in resolved_ws7_ids]
     new_unmatched_engine = [e for e in unmatched_engine if id(e) not in resolved_eng_ids]
@@ -1613,6 +1698,11 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
     # longer has a WS7 "," to match against (now excluded above) would
     # misreport as a genuine `extra-word-in-engine` bug instead of simply
     # being outside what this alignment method can check.
+    eng_tokens_all = eng_tokens   # planning #257: doc-reading-order, BEFORE
+                                  # the short/box-drawing filter below --
+                                  # `_reconcile_glued_ws7_chunks`'s own
+                                  # bridging walk needs this (see its
+                                  # docstring's "planning #257" note).
     eng_tokens = [t for t in eng_tokens
                  if not (_is_box_drawing_text(t['text']) or _is_unreliable_to_align(t['text']))]
 
@@ -1683,7 +1773,7 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
     # docstring. `pairs`/`deltas` are unaffected (nothing resolved here
     # has a meaningful single x to compare).
     unmatched_ws7, unmatched_engine = _reconcile_glued_ws7_chunks(
-        eng_tokens, m['unmatched_ws7'], m['unmatched_engine'])
+        eng_tokens_all, m['unmatched_ws7'], m['unmatched_engine'])
 
     for t in unmatched_ws7:
         add(REASON_WORD_UNMATCHED, t['page'], round(t['y_top'], 1), [t['text']],
