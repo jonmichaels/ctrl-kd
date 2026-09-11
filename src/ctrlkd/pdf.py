@@ -1984,8 +1984,9 @@ SQUARE_PART_BLOCKS = frozenset('■')
 #   ('disc', cx, cy, r)         filled circle (four Béziers)
 #   ('rect', x, y, w, h)        filled rectangle
 #   ('white', <sub-shape>)      same shapes, filled paper-white (knockouts)
-# Scope is exactly the ruled seven; the rest of CP437_GRAPHICS (arrows,
-# music notes …) still degrades until a document surfaces them.
+# Scope is the ruled seven plus ₧ (planning #266, below); the rest of
+# CP437_GRAPHICS (arrows, music notes …) still degrades until a document
+# surfaces them.
 SYMBOL_SHAPES = {
     # Round 20 (slate item 8): symmetric span (0.8 both axes -- was
     # 0.76w/0.84h, a minor pre-existing asymmetry harmless before the
@@ -2013,6 +2014,26 @@ SYMBOL_SHAPES = {
           ('rect', 0.17, 0.17, 0.12, 0.12), ('rect', 0.71, 0.17, 0.12, 0.12)],
     '≡': [('rect', 0.10, 0.62, 0.80, 0.09), ('rect', 0.10, 0.42, 0.80, 0.09),
           ('rect', 0.10, 0.22, 0.80, 0.09)],
+    # planning #266 (Jon's ruling 2026-09-11): cp437 code 158, PESETA SIGN
+    # (U+20A7). Not a control-position glyph like the seven above, but the
+    # SAME problem and therefore the same answer: no base-14 face carries
+    # it, cp1252 has no slot for it, so the text path could only ever
+    # degrade it to '?'. The 2026-08-11 ruling that put the card suits and
+    # the sun on this table is the rule -- a cp437 glyph with no encoding
+    # slot is drawn as geometry -- and this is the next character a real
+    # corpus document surfaced. The IBM cp437 glyph is a "Pt" ligature
+    # (the CGA/VGA ROM font's own design for the peseta): a capital P
+    # whose bowl runs into a lower-case t. Drawn here as the P's stem and
+    # a knocked-out bowl (disc, inner disc, and the left-hand cut that
+    # squares the bowl off against the stem -- the stem is drawn LAST so
+    # the cut never eats it), then the t's crossbar, stem and foot.
+    '₧': [('disc', 0.36, 0.64, 0.22),
+          ('white', ('disc', 0.36, 0.64, 0.105)),
+          ('white', ('rect', 0.00, 0.36, 0.22, 0.58)),
+          ('rect', 0.12, 0.14, 0.10, 0.72),
+          ('rect', 0.50, 0.50, 0.28, 0.075),
+          ('rect', 0.62, 0.14, 0.09, 0.58),
+          ('rect', 0.62, 0.14, 0.19, 0.075)],
 }
 GRAPHIC_CHARS = (frozenset('█') | set(BOX_ARMS) | set(SHADE_GRAY)
                  | set(PART_BLOCKS) | set(SYMBOL_SHAPES) | set(ARC_CORNERS))
@@ -2697,31 +2718,48 @@ def _span_render(text, styles, fonts, size):
 # encoding so a middle dot from a header triple or a box glyph in a fontless
 # span degrades to its nearest visible relative, not to '?'.
 #
-# Finding 2 (b26 visual pass, -README.WS/-README.pcl): cp437 code 158
-# decodes to PESETA SIGN (U+20A7) -- cp1252/WinAnsi has no glyph for it
-# either (base-14 has no euro glyph and no peseta glyph -- Symbol has
-# neither), so it fell to '?' here same as any other unrepresentable
-# character. -README.WS's OWN text explains the honest reading for a
-# post-1999 WordStar install: "WordStar was last updated in 1992, seven
-# years before the euro currency symbol was adopted in 1999" -- the
-# corpus's dosbox-x setup patches three of its own PDFs (printer driver
-# files) to show the euro at this exact code instead ("euro=158" in the
-# [render] section), and its own worked example inserts code 158 to
-# PROVE the euro renders. Substituting the one glyph cp1252 actually has
-# at this position (EURO SIGN, U+20AC, cp1252 0x80) turns a guaranteed
-# '?' into what a real modern WS7 install of this exact corpus shows.
+# Finding 2 (b26 visual pass) was a BLANKET '₧' -> '€' entry in this table:
+# cp437 code 158 decodes to PESETA SIGN (U+20A7), cp1252/WinAnsi has no
+# glyph for it, so it fell to '?' -- and every document carrying code 158
+# got the euro instead, whatever it meant by it. Planning #266 (Jon's
+# ruling, 2026-09-11) replaces that with a DRIVER-KEYED rule, and the
+# blanket entry is gone from `_ESC_FALLBACK` below:
 #
-# KNOWN LIMIT, recorded rather than hidden: DISPLAY.WS (Sawyer corpus)
-# also carries one <1B 9E 1C> triple, in a bare cp437 code-to-glyph
-# reference chart ("158 <glyph>") with no euro context at all -- real
-# cp437 code 158 IS the peseta sign, not the euro, so this substitution
-# is specifically right for -README's own documented intent and
-# arguably wrong for DISPLAY's literal chart entry. Both currently show
-# '?' at that position either way (no font in this pipeline can draw a
-# real peseta glyph), so this is not a working document regressing --
-# it is one broken cell resolved the same way in both, and DISPLAY.WS
-# is outside the checked-in/gated corpus, so nothing here is verified
-# against its own WS7 capture.
+#   "driver keyed ... So anyone using Sawyer's trick gets the Euro. Any
+#    other old docs which actually use a Peseta in them, see it as
+#    intended."
+#
+# The trick is Sawyer's own, documented in his -README.WS ("THE EURO
+# CURRENCY SYMBOL"): WordStar was last updated in 1992, seven years before
+# the euro was adopted, so he PATCHED THREE PRINTER DRIVERS -- LASERJET,
+# LJ6DTP and HP4 -- so that PC-8 character 9E (the peseta slot) selects
+# Roman-8 BA (the euro) on the printer. A document that names one of those
+# three in its own header record is therefore a document printed through a
+# patched driver, and code 158 on it MEANS the euro. Any other document is
+# an ordinary one, and code 158 on it means exactly what cp437 says it
+# means. `_peseta_euro_table` is the test (the driver name comes from the
+# WS7 header's own 9-byte driver-name field, `core`'s `printer_driver` --
+# the same field the LJ6DTP character substitutions and colour map key on;
+# `core` already extracts it as the leading upper-case/digit run, so it
+# arrives as 'LASERJET'/'LJ6DTP'/'HP4' with the record tag stripped).
+#
+# The peseta itself is no longer a fallback case at all: it is drawn as
+# VECTOR GEOMETRY in its own cell (SYMBOL_SHAPES, Jon's 2026-08-11 cp437
+# ruling -- a cp437 glyph with no encoding slot is geometry, not a
+# question mark), on both the Printed and the Modern PDF path, so the
+# non-patched-driver document gets a real peseta rather than the '?' it
+# used to get. DISPLAY.WS, the other Sawyer document carrying code 158
+# (a bare cp437 code-to-glyph reference chart, "158 <glyph>", with no
+# euro context in its prose at all), is no longer a special case to
+# record: it names LASERJET in its own header, so it is a patched-driver
+# document and its chart entry follows the same one rule as every other
+# -- the euro, because that is what character 158 put on paper through
+# the driver this file was written for.
+#
+# Scope: this rule lives in `layout.py` with the LJ6DTP substitutions it
+# is a sibling of, so it reaches the semantic flow, the printed page-lines
+# model and both PDF views. What the RTF/HTML/text emitters do with code
+# 158 is planning #264's review, and is deliberately untouched.
 # Register C9: '•' (U+2022 BULLET -- WordStar's own cp437 0x07 list marker,
 # CP437_GRAPHICS's own mapping) is NOT a fallback case at all: cp1252 has a
 # real bullet glyph for it (0x95), same as every base-14 face's own
@@ -2732,7 +2770,22 @@ def _span_render(text, styles, fonts, size):
 # all -- measured against LJ6DTP-p1.png. '∙' keeps its fallback; '•' needs
 # none.
 _ESC_FALLBACK = str.maketrans({'∙': '·', '‼': '!', '│': '|',
-                               '─': '-', '═': '=', '₧': '€'})
+                               '─': '-', '═': '='})
+
+# planning #266: ONE definition of the driver-keyed rule, in layout.py --
+# the shared semantic model, where the LJ6DTP character substitutions this
+# is a sibling of already live (`layout.LJ_SUBST`, "driver character
+# substitutions are content", ruling 2026-08-06 M7). Bound here under this
+# module's own private names because everything below reads as though the
+# rule were local, and because `layout.modern_flow` already applies it to
+# the SEMANTIC flow: what is left for this module is the PRINTED model
+# (`_doc_to_pagelines`/`_body_stream_printed`, which read `doc` spans
+# directly and never pass through `modern_flow`), the printed notes
+# paginators, and running heads/feet at render time.
+_EURO_PATCHED_DRIVERS = _layout.EURO_PATCHED_DRIVERS
+_PESETA_TO_EURO = _layout.PESETA_TO_EURO
+_peseta_euro_table = _layout.peseta_euro_table
+_euro_texts = _layout.euro_texts
 
 def _esc(text):
     # cp1252, not latin-1: the declared /WinAnsiEncoding IS cp1252, and it is
@@ -3092,6 +3145,9 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
     font_lead_ok = (any(f.get('proportional') for f in doc.fonts)
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
+    # planning #266: this document's own driver-keyed cp437-158 rule
+    # (`_peseta_euro_table`), resolved once.
+    euro = _peseta_euro_table(doc)
     stream = []
     # Planning #245 (columns-rule research §7, closing the scope gap named
     # at planning #227): same region-boundary forced break AND the same
@@ -3171,7 +3227,7 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                         if note.kind in ('footnote', 'annotation'):
                             refs.append((label, note))
                         continue
-                spans.append((s.text, styles))
+                spans.append((_euro_texts([s.text], euro)[0], styles))
             # Planning #251 (2026-09-09): same model-build-time bare-tab
             # expansion as `_doc_to_pagelines`'s own plain path -- see its
             # identical comment for why. This function is Printed-only by
@@ -3409,6 +3465,9 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
                                   pictures=pictures)
     default_lead = _printed_lead(doc)
     pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
+    # planning #266: this document's own driver-keyed cp437-158 rule
+    # (`_peseta_euro_table`), resolved once.
+    euro = _peseta_euro_table(doc)
     # Finding 2 bottom-anchor geometry (see _printed_notes_reserve_pt):
     # constant for the whole document, computed once.
     _notes_top = _printed_top(doc)
@@ -3515,8 +3574,9 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
                 is_terminal = True
             i += 1
             for label, note in refs:
-                note_text = (_sentence_spacing_texts([note.text])[0]
-                            if sentence_spacing else note.text)
+                note_text = _euro_texts(
+                    [_sentence_spacing_texts([note.text])[0]
+                     if sentence_spacing else note.text], euro)[0]
                 queue.append(_note_wrap(_note_marker(note, label, pad_cols), note_text, width))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         area = _render_area(entries)
@@ -3618,12 +3678,16 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
     if not endnotes:
         return []
     pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
+    # planning #266: this document's own driver-keyed cp437-158 rule
+    # (`_peseta_euro_table`), resolved once.
+    euro = _peseta_euro_table(doc)
     lines = []
     for k, (note, label) in enumerate(endnotes):
         if k:
             lines.append([])
-        note_text = (_sentence_spacing_texts([note.text])[0]
-                    if sentence_spacing else note.text)
+        note_text = _euro_texts(
+            [_sentence_spacing_texts([note.text])[0]
+             if sentence_spacing else note.text], euro)[0]
         lines.extend(_note_wrap(_endnote_marker(label, pad_cols), note_text, width))
     pages = []
     continuing = bool(last_page and last_page_cost < cap)
@@ -4307,6 +4371,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     silently dropped, so that occurrence renders as the ordinary
     unresolved-equivalent placeholder text instead (still correct, just
     not embedded)."""
+    # planning #266: this document's own driver-keyed cp437-158 rule
+    # (`_peseta_euro_table`), resolved once.
+    euro = _peseta_euro_table(doc)
     if printed and _has_placeable_notes(doc):
         cap = _printed_cap(doc)
         pages, last_page_cost, last_page_has_area = _paginate_printed_notes(
@@ -4595,8 +4662,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # emitter's own choke point (a span filtered out by
             # `_keep_span` above never renders, so it never counts as
             # "the last character seen" either).
-            texts = (_sentence_spacing_texts([s.text for s in kept])
-                    if sentence_spacing else [s.text for s in kept])
+            texts = _euro_texts(
+                _sentence_spacing_texts([s.text for s in kept])
+                if sentence_spacing else [s.text for s in kept], euro)
             spans = [(t, _effective_span_styles(s, b, heading_bold=True))
                      for s, t in zip(kept, texts)]
             if printed:
@@ -4816,8 +4884,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             for note, label in placeable:
                 marker = (_endnote_marker(label) if note.kind == 'endnote'
                           else _note_marker(note, label))
-                note_text = (_sentence_spacing_texts([note.text])[0]
-                            if sentence_spacing else note.text)
+                note_text = _euro_texts(
+                    [_sentence_spacing_texts([note.text])[0]
+                     if sentence_spacing else note.text], euro)[0]
                 lines.extend(_wrap_line([(marker + note_text, frozenset())],
                                         MAX_COLS))
     # Finding 3 (b26-print-fidelity-2): a fresh page picks up whatever
@@ -6270,6 +6339,15 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                                         head_hf_override, foot_hf_override)
     if resolved is None:
         return []
+
+    # planning #266: a running head/foot is part of the document, so the
+    # same driver-keyed cp437-158 rule applies to it -- at RENDER time
+    # here, never in `_resolve_head_foot_lines` above, which is the shared
+    # head/foot MODEL (`_attach_head_foot_lines_printed`, the `layout`
+    # JSON's own header/footer lines) and must keep carrying the
+    # document's own unconverted text, same discipline as every other
+    # PDF-only text option.
+    euro = _peseta_euro_table(doc)
 
     def _hf_line_ops(txt, y, font_idx, x0, style_attrs=frozenset()):
         """One already-resolved header/footer LINE's ops (register C6).

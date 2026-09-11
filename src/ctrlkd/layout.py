@@ -402,6 +402,60 @@ LJ_SUBST = str.maketrans({'☻': '©', '☼': '…', "'": '’', '_': '—',
                           '`': '‘', '«': '“', '»': '”', '≡': '–'})
 LJ_SUBST_UNIVERS = str.maketrans({'♥': '┌', '♦': '┐', '♣': '└', '♠': '┘'})
 
+# planning #266 (Jon's ruling 2026-09-11): the SAME class of thing as
+# LJ_SUBST above -- a printer-driver patch that changes which glyph the
+# character prints as, and therefore CONTENT the semantic flow applies,
+# not a per-renderer decision.
+#
+# Robert J. Sawyer's own -README.WS ("THE EURO CURRENCY SYMBOL") explains
+# it: WordStar was last updated in 1992, seven years before the euro was
+# adopted in 1999, so he patched three PRINTER DEFINITION FILES -- in this
+# era a `.PDF` is WordStar's own printer driver, nothing to do with Adobe
+# -- LASERJET.PDF, LJ6DTP.PDF and HP4.PDF, so that PC-8 character 9E (the
+# peseta slot, cp437 code 158) selects Roman-8 BA, the euro. A document
+# naming one of those three in its own WS7 header driver-name field is a
+# document printed through a patched driver, so its code 158 MEANS the
+# euro. Every other document means the peseta, and gets it: renderers
+# with no peseta glyph draw it as geometry (pdf.py's SYMBOL_SHAPES, the
+# 2026-08-11 cp437 ruling), never as '?'.
+#
+# Jon's ruling, verbatim: "driver keyed ... So anyone using Sawyer's trick
+# gets the Euro. Any other old docs which actually use a Peseta in them,
+# see it as intended."
+#
+# Scope: the semantic flow and the PDF views built on it. The RTF/HTML/
+# text emitters' own handling of code 158 is planning #264's review and is
+# deliberately untouched.
+EURO_PATCHED_DRIVERS = frozenset({'LASERJET', 'LJ6DTP', 'HP4'})
+PESETA_TO_EURO = str.maketrans({'₧': '€'})
+
+
+def peseta_euro_table(doc):
+    """The `str.translate` table mapping cp437 code 158 to EURO SIGN for a
+    document printed through one of Sawyer's patched drivers (see
+    `EURO_PATCHED_DRIVERS` above), or None for every other document --
+    meaning the peseta stays a peseta.
+
+    The driver name is the WS7 header's own 9-byte driver-name field,
+    `core`'s `doc.meta['printer_driver']` -- the same field the LJ6DTP
+    character substitutions and colour map key on. `core` extracts it as
+    the leading upper-case/digit run with the record tag stripped, so a
+    real document always arrives as 'LASERJET'/'LJ6DTP'/'HP4'; the match
+    is stated case-insensitively anyway so the rule does not silently
+    depend on that one parser detail."""
+    name = (doc.meta.get('printer_driver') or '').strip().upper()
+    return PESETA_TO_EURO if name in EURO_PATCHED_DRIVERS else None
+
+
+def euro_texts(texts, table):
+    """`texts` with `peseta_euro_table`'s table applied, or `texts`
+    unchanged when there is no table (the ordinary document -- same
+    object, not a copy, so nothing pays for a rule that does not apply to
+    it)."""
+    if table is None:
+        return texts
+    return [t.translate(table) for t in texts]
+
 
 def endnote_label(label):
     """Endnote display label under the `word` scheme: lowercase roman,
@@ -484,13 +538,16 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
 
     # every kept note, in document order, with its indices stable for the
     # 'ref'/'footnotes'/'index' fields below
+    # planning #266: this document's own driver-keyed cp437-158 rule.
+    euro = peseta_euro_table(doc)
     note_rows, index_by_id = [], {}
     for n, label in pairs:
         if n.kind not in keep:
             continue
         index_by_id[id(n)] = len(note_rows)
         note_rows.append({'kind': n.kind, 'label': label,
-                          'shown': shown_by_id[id(n)], 'text': n.text,
+                          'shown': shown_by_id[id(n)],
+                          'text': euro_texts([n.text], euro)[0],
                           'origin': getattr(n, 'origin', 'block')})
 
     lj = doc.meta.get('printer_driver') == 'LJ6DTP'
@@ -645,6 +702,8 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                         if (entry.get('typestyle_name') or
                                 '').startswith('Univers'):
                             text = text.translate(LJ_SUBST_UNIVERS)
+                if euro is not None:
+                    text = text.translate(euro)
                 if text:
                     runs.append({'text': text, 'styles': sorted(styles)})
             if b.align in ('center', 'right'):
