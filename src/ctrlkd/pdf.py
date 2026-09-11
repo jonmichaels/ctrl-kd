@@ -8205,6 +8205,48 @@ def _modern_para_is_graphic(item):
             and any(set(t[0]) & GRAPHIC_CHARS for t in item[1]))
 
 
+def _modern_clips_row(toks):
+    """WHICH MODERN ROWS REFUSE TO WRAP (job 456, and the app's own b28
+    follow-up on it -- ported here, the app is the reference).
+
+    A row of box-drawing or block characters is a picture, not a sentence:
+    broken across two visual lines it stops being the thing it draws. Three
+    shapes qualify, read off the row's own final rendered text:
+
+      wholly graphic       at least one graphic character, and nothing else
+                           on the row but graphic characters and spaces (a
+                           box border, a rule).
+      2+ graphic chars     job 456's own rule and the field report behind it
+                           ("I don't understand what happened in Modern.
+                           They have line returns in the middle"). A MIXED
+                           row -- a real prose label plus its glyphs -- is
+                           the case: a legend row ('LL: └ LR: ┘ ...
+                           Joins: ... Mixed: ...') or a substitution-table
+                           row, which ordinary word wrapping folds at the
+                           perfectly legal space between label and glyph.
+                           The threshold is TWO, not one, so an ordinary
+                           paragraph carrying a single incidental symbol (a
+                           list marker) still wraps like the prose it is.
+      nowhere to break     a row with no space in it at all. This engine's
+                           greedy wrap never breaks inside a token, so such
+                           a row already sets as one line; stated anyway,
+                           because it is part of the rule being ported and
+                           a renderer that CAN break a word must not.
+
+    A clipped row is set as ONE line and runs past the measure rather than
+    reflowing (`_modern_streams` gives it an unbounded wrap width) -- the
+    app's `.byClipping`. Read the row's FINAL tokens, after a centred row's
+    padding has come off and a def row's label/gap prefix has gone on."""
+    text = ''.join(t[0] for t in toks)
+    graphic = set(text) & GRAPHIC_CHARS
+    if graphic and all(ch in GRAPHIC_CHARS or ch in ' \u00a0\u2060'
+                       for ch in text):
+        return True
+    if sum(ch in GRAPHIC_CHARS for ch in text) > 1:
+        return True
+    return bool(text) and ' ' not in text
+
+
 def _slice_runs(runs, start, end):
     """The sub-list of `runs` covering characters [start, end) of their own
     concatenated text, each run's styles (and note reference) carried onto
@@ -8522,6 +8564,30 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             hang, tight = 0.0, False
             if structure.get('centered'):
                 tight = True
+                # UNDECLARED CENTRING IS STILL CENTRING (the app's b17 rule,
+                # ported here): a line the author centred by TYPING leading
+                # spaces carries no `.oc` and no align tag at all, so it
+                # arrives `align == 'left'` with its padding still in the
+                # text. Rendered as-is in a proportional face the padding
+                # became an arbitrary indent AND spent measure, so the row
+                # both sat off-centre and wrapped early. The classifier has
+                # already decided this row reads as centred
+                # (`layout.classify_rows`: symmetric padding, at least 2
+                # leading columns, not the document's own routine paragraph
+                # indent, at least 4 columns of slack, at most one wide
+                # internal gap, no internal tab run) -- so the padding comes
+                # off and the row is centred on its own measure.
+                #
+                # A tag-declared centred row (`center_via == 'tag'`) reaches
+                # this same branch and is unaffected: `layout.modern_flow`
+                # stripped that padding upstream (M3) and its align is
+                # already 'center', so both steps below are no-ops. The
+                # whole effect is on undeclared, spaces-padded rows.
+                align = 'center'
+                while toks and not toks[0][0].strip():
+                    toks.pop(0)
+                while toks and not toks[-1][0].strip():
+                    toks.pop()
             elif structure.get('kind'):
                 # the ladder REPLACES the block's own `.lm` indent (that is
                 # the whole point of it), so the row's residual leading
@@ -8559,6 +8625,12 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                 # for and move every wrap in the block.
                 if not (indent > 0 and cut > 0):
                     indent = 0.0
+            # A GRAPHIC ROW DOES NOT WRAP (job 456 -- `_modern_clips_row`).
+            # Decided last, on this row's own FINAL tokens: a centred row
+            # has shed its padding and a def row has gained its label/gap
+            # prefix by now, and the rule reads the text the page will
+            # actually carry. Never clears a `no_wrap` an earlier rule set.
+            no_wrap = no_wrap or _modern_clips_row(toks)
             _emit(('para', toks, align, notes, indent, cut, no_wrap,
                   page_marker, False, tight, hang), sem_i)
     return flow

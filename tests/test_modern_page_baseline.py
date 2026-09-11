@@ -235,8 +235,12 @@ def test_lj6dtp_page_one_baselines_lift_by_their_own_descents(
     Helvetica's published -207/1000.
 
     Also pinned here: the named last body line the spec tracks is on page
-    1, and the document's page count is what it was before the port --
-    this rule moves no line onto a different page."""
+    1, and the document's page count -- 10 pages since job 456's own
+    backport (the character-substitution tables on pages 9-11 each set as
+    ONE clipped line instead of wrapping to two, which is 26 body lines and
+    a whole page). It was 11 when this test was written, and the baseline
+    rule this test is about is not what moved it: RULE 3 moves no line onto
+    a different page, then or now."""
     with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
         doc = core.parse(fh.read())
     out = pdf.emit_pdf(doc, mode='modern')
@@ -254,4 +258,4 @@ def test_lj6dtp_page_one_baselines_lift_by_their_own_descents(
     named = ('This manual describes a Printer Description File for WordStar '
              'for DOS 6.0 and 7.0 that gives').replace(' ', '')
     assert any(r[2].startswith(named) for r in rows)
-    assert len(pdf._modern_streams(doc, {}, pdf.FontRes())) == 11
+    assert len(pdf._modern_streams(doc, {}, pdf.FontRes())) == 10
