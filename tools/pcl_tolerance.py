@@ -220,7 +220,7 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 
 # ----------------------------------------------------------- v4 exclusions
 # (planning #224/#226, ruled 2026-09-08; re-scoped to PUBLIC documents only
-# by planning #243, 2026-09-08). Four classes beyond the 48 merge files
+# by planning #243, 2026-09-08). Five classes beyond the 48 merge files
 # already absent from CAPTURED_DOCS_V4 above -- all PUBLIC (Sawyer-group)
 # documents; every exclusion whose duplicate half was itself a private-
 # corpus document was dropped along with #243's removal of the private v4
@@ -234,12 +234,17 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # multiple pages onto one physical sheet -- unrepresentable as PDF pages;
 # standing parked issue planning #15, this exclusion does not open a new
 # issue -- see EXCLUDED_V4's own two entries for which two documents and
-# how they were found), and 'parked' (planning #228, Jon's ruling
-# 2026-09-08: an investigated-but-unresolved single document, unconnected
-# to any standing parked issue -- see EXCLUDED_V4's own entry for detail.
-# Named in every run, same as the rest of this dict, so a future fix
-# removes it from this list rather than the gate silently going green on
-# an unreviewed change).
+# how they were found), 'degenerate' (-PATCHES.WS -- the document's own
+# .pl0 dot command is invalid (a page length of zero), so WS7's behaviour
+# with it is undefined; similar in kind to LJ6DTP's driver-availability
+# exclusions but a different category -- there the driver was the problem,
+# here the document's own dot command is malformed. Removed from all
+# further work, Jon's ruling 2026-09-10, planning #261), and 'parked'
+# (planning #228, Jon's ruling 2026-09-08: an investigated-but-unresolved
+# single document, unconnected to any standing parked issue -- see
+# EXCLUDED_V4's own entry for detail. Named in every run, same as the rest
+# of this dict, so a future fix removes it from this list rather than the
+# gate silently going green on an unreviewed change).
 # Full detail (sha256, which half was kept, cross-references) lives
 # in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this
 # dict only carries what this PUBLIC repo needs: the doc_name these tests
@@ -277,6 +282,7 @@ EXCLUDED_V4 = {
     'sawyer__TAGS__OK': "duplicate: byte-identical duplicate of sawyer/TAGS/CHECKED (sawyer/TAGS/OK is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__ARTICLES__FORMFEED_EXT_WS': "formfeed-off: turns form feeds off with .xl 00 (and back on with .xl 0c) -- real WS7 overprints multiple pages onto one physical sheet, unrepresentable as PDF pages; standing parked issue planning #15, Jon's ruling 2026-09-08",
     'sawyer__REF__ROUNDED_EXT_BRD': "formfeed-off: sets .xl 00 (form feeds off) at the top of the document -- a continuous-label/border template for unbroken stationery, found by scanning the rest of the v4 batch for the same dot command; standing parked issue planning #15, Jon's ruling 2026-09-08",
+    'sawyer__REF__-PATCHES_EXT_WS': "degenerate: the document's own dot command is invalid (.pl0, a page length of zero) so WordStar 7's behaviour with it is undefined (footer row pl-mb+fm goes negative and WS7 emits a wrapped vertical position; a page never fills) -- removed from all further work, Jon's ruling 2026-09-10 (planning #261)",
     # planning #228: investigated alongside the trailing-`.pa` rule (same
     # visible symptom -- a footer-only final page -- but ruled OUT as that
     # mechanism: its own `.pa` trailer is the standard byte-for-byte shape

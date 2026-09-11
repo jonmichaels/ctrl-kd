@@ -27041,20 +27041,11 @@
     },
     "sawyer__REF__-PATCHES_EXT_WS": {
       "doc": "sawyer__REF__-PATCHES_EXT_WS",
-      "verdict": "clean",
-      "source_ws": "sawyer/REF/-PATCHES.WS",
-      "capture_set": "v4",
-      "install": "pristine",
-      "n_ws7_pages": 22,
-      "n_engine_pages": 22,
-      "no_substitute_word_count": 0,
+      "verdict": "excluded",
+      "source_ws": null,
       "counts_by_reason": {},
       "divergences": [],
-      "document_frame_offset_pt": {
-        "n": 1022,
-        "median_dx": 0.0,
-        "iqr_dx": 0.0
-      }
+      "reason": "degenerate: the document's own dot command is invalid (.pl0, a page length of zero) so WordStar 7's behaviour with it is undefined (footer row pl-mb+fm goes negative and WS7 emits a wrapped vertical position; a page never fills) -- removed from all further work, Jon's ruling 2026-09-10 (planning #261)"
     },
     "sawyer__REF__-SHOW-PP_EXT_WS": {
       "doc": "sawyer__REF__-SHOW-PP_EXT_WS",
