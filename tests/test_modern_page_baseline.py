@@ -23,8 +23,8 @@ import pytest
 
 from ctrlkd import afm, core, pdf
 
-from test_modern_verse_defrow import (HARD, _lines, _modern, _helv_typestyle,
-                                      _font_block, pdf_ws7_block)
+from test_modern_verse_defrow import (HARD, _lines, _modern, _font_block,
+                                      pdf_ws7_block)
 
 # The default Modern page: 1in margins on Letter (`_modern_geometry`'s own
 # "silence is the modern page"), so 72pt off each edge of 792.
