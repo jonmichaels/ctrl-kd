@@ -8937,6 +8937,14 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
     # planning #254: threaded to every `_modern_line_ops`/`_modern_hf_ops`
     # call below -- see `_modern_w`'s own docstring.
     printed_pt = _printed_size(doc)
+    # planning #266 follow-up 2: the driver-keyed euro table
+    # (`_peseta_euro_table`), resolved once. Applied below, at each
+    # header/footer line's own call into `_modern_hf_ops` -- the same
+    # point `_running_ops`'s `_hf_line_ops` calls were patched at
+    # (f82a322): a running head/foot carrying cp437 code 158 kept
+    # showing the pre-driver-rule degradation under Modern too, the
+    # latent twin of that gap.
+    euro = _peseta_euro_table(doc)
     # N9 (b33 field notes): this function only ever runs the Modern path
     # (printed=False by construction -- `_emit_pdf_inner`'s own `else`
     # branch), so 'auto' always resolves to single here.
@@ -9196,14 +9204,14 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             if not hdrs[lno]:
                 continue
             hy = PAGE_H - 44.0 - (lno - 1) * note_lead
-            ops += _modern_hf_ops(hdrs[lno], page_no, margl, hy, width,
-                                  res, tz_state, printed_pt)
+            ops += _modern_hf_ops(_euro_texts([hdrs[lno]], euro)[0], page_no,
+                                  margl, hy, width, res, tz_state, printed_pt)
         for lno in sorted(ftrs):
             if not ftrs[lno]:
                 continue
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
-            ops += _modern_hf_ops(ftrs[lno], page_no, margl, fy, width,
-                                  res, tz_state, printed_pt)
+            ops += _modern_hf_ops(_euro_texts([ftrs[lno]], euro)[0], page_no,
+                                  margl, fy, width, res, tz_state, printed_pt)
         for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks

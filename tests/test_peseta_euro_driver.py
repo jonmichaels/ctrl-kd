@@ -262,50 +262,84 @@ def _doc_with_running_head(driver, hf_text=b'Report ' + PESETA + b' Draft #'):
     return core.parse_ws(header + body)
 
 
+@pytest.mark.parametrize('mode', ['printed', 'modern'])
 @pytest.mark.parametrize('driver', [b'LASERJET', b'LJ6DTP', b'HP4'])
-def test_a_patched_drivers_running_head_and_foot_print_the_euro(driver):
+def test_a_patched_drivers_running_head_and_foot_print_the_euro(driver, mode):
     """THE LATENT GAP this fix closes: `_running_ops` already bound
     `_peseta_euro_table` (same commit as the body rule) with a comment
     saying it applies to running heads/feet, but `_hf_line_ops` never
     consumed it -- a running head/foot carrying cp437 code 158 kept
     showing '?' even on a patched-driver document, the exact defect the
-    driver rule exists to close for body text. Found porting to the sr
-    engine (Sources/CtrlKD/PDFWriter.swift `runningOps`, commit 00b85ae)
-    -- byte-identical across the corpus either way, since no document's
-    own running head carries code 158."""
+    driver rule exists to close for body text. Modern's own running-head/
+    foot renderer, `_modern_hf_ops` (called from `_modern_streams`),
+    carried the identical latent gap (planning #266 follow-up 2) -- found
+    porting to the sr engine (Sources/CtrlKD/PDFWriter.swift `runningOps`,
+    commit 00b85ae, and Sources/CtrlKD/PDFModernLayout.swift
+    `modernHFOps`) -- byte-identical across the corpus either way, since
+    no document's own running head carries code 158."""
     doc = _doc_with_running_head(driver)
     assert doc.meta['printer_driver'] == driver.decode()
-    out = pdf.emit_pdf(doc, mode='printed')
-    strings = [s for s in _text_strings(out) if b'Report' in s]
-    assert strings, f'{driver!r}: the running head/foot text never reached the page'
-    assert all(EURO_CP1252 in s for s in strings), (
-        f'{driver!r}: no euro reached the running head/foot -- {strings!r}')
+    out = pdf.emit_pdf(doc, mode=mode)
+    if mode == 'printed':
+        # `_hf_line_ops` keeps a whole header/footer line as one `Tj`
+        # string, so the euro lands inside the same string as 'Report'.
+        strings = [s for s in _text_strings(out) if b'Report' in s]
+        assert strings, f'{driver!r}/{mode}: the running head/foot text never reached the page'
+        assert all(EURO_CP1252 in s for s in strings), (
+            f'{driver!r}/{mode}: no euro reached the running head/foot -- {strings!r}')
+    else:
+        # `_modern_hf_ops` tokenises a line word-by-word (`_modern_line_
+        # ops`'s one-op-per-word rule), so the converted euro is its own
+        # standalone `Tj` string, never merged with 'Report'/'Draft'. The
+        # fixture's body carries no peseta/euro of its own, so any euro
+        # reaching the page at all must be this running head/foot's.
+        assert any(EURO_CP1252 in s for s in _text_strings(out)), (
+            f'{driver!r}/{mode}: no euro reached the running head/foot')
 
 
+@pytest.mark.parametrize('mode', ['printed', 'modern'])
 @pytest.mark.parametrize('driver', [b'EPSONFX', None])
-def test_an_unpatched_drivers_running_head_and_foot_keep_the_peseta_unconverted(driver):
+def test_an_unpatched_drivers_running_head_and_foot_keep_the_peseta_unconverted(driver, mode):
     """The twin: a document naming no patched driver (or no driver at
     all) sees its running head/foot's own code 158 exactly as before this
-    fix -- unchanged, not regressed, by the driver rule now reaching
-    here. `_hf_line_ops` has no vector-drawing path of its own (that
-    mechanism is body text's -- `pdf.SYMBOL_SHAPES`/`graphic_cell_ops`,
-    also true of sr's `hfLineOps`/`modernHFOps`, neither of which draws
-    graphic-cell geometry for a running line either); an unconverted
-    peseta still degrades through `_esc`'s cp1252 'replace' fallback to a
-    literal '?', same as every other character `_ESC_FALLBACK` does not
-    cover."""
+    fix -- unchanged, not regressed, by the driver rule now reaching here,
+    under either mode.
+
+    The two modes were ALREADY different here, before this fix and after
+    it alike: `_hf_line_ops` (printed) has no vector-drawing path of its
+    own, so an unconverted peseta degrades through `_esc`'s cp1252
+    'replace' fallback to a literal '?', same as every other character
+    `_ESC_FALLBACK` does not cover. `_modern_hf_ops` (modern) calls the
+    SAME `_modern_line_ops` body text draws through, and that function's
+    graphic-character branch does not know or care that its caller is a
+    running line -- so an unconverted peseta there draws as the vector
+    geometry `pdf.SYMBOL_SHAPES` defines, exactly as it would in a
+    paragraph. Neither behavior moved when the euro table was wired in;
+    this test pins both."""
     doc = _doc_with_running_head(driver)
+    plain = _doc_with_running_head(driver, hf_text=b'Report Draft #')
     if driver:
         assert doc.meta['printer_driver'] == driver.decode()
     else:
         assert doc.meta.get('printer_driver') is None
-    out = pdf.emit_pdf(doc, mode='printed')
-    strings = [s for s in _text_strings(out) if b'Report' in s]
-    assert strings, f'{driver!r}: the running head/foot text never reached the page'
-    assert not any(EURO_CP1252 in s for s in strings), (
-        f'{driver!r}: a euro reached a running head/foot no patched driver printed')
-    assert all(b'?' in s for s in strings), (
-        f'{driver!r}: expected the pre-existing "?" degradation, got {strings!r}')
+    out = pdf.emit_pdf(doc, mode=mode)
+    assert not any(EURO_CP1252 in s for s in _text_strings(out)), (
+        f'{driver!r}/{mode}: a euro reached a running head/foot no patched driver printed')
+    if mode == 'printed':
+        strings = [s for s in _text_strings(out) if b'Report' in s]
+        assert strings, f'{driver!r}/{mode}: the running head/foot text never reached the page'
+        assert all(b'?' in s for s in strings), (
+            f'{driver!r}/{mode}: expected the pre-existing "?" degradation, got {strings!r}')
+    else:
+        # the vector twin of the body-level `test_an_unpatched_driver_
+        # draws_the_peseta`: a peseta-bearing running head/foot draws
+        # strictly more vector geometry than the same fixture with the
+        # peseta simply removed, and no literal '?' reaches the page.
+        out_plain = pdf.emit_pdf(plain, mode=mode)
+        assert out.count(b' re f') > out_plain.count(b' re f')
+        assert out.count(b' c\n') > out_plain.count(b' c\n')
+        assert not any(b'?' in s for s in _text_strings(out)), (
+            f'{driver!r}/{mode}: a "?" reached a running head/foot with its own vector path')
 
 
 # ------------------------------------------------------------- tier 2
