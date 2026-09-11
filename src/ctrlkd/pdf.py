@@ -9139,7 +9139,18 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             face, face_pt = _modern_line_face(vline)
             h = (_modern_tight_h(face, face_pt) if tight
                  else MODERN_LINE * face_pt)
-            lead = h
+            # planning #263 follow-up (found and fixed in the Swift engine
+            # first, `PDFModernLayout.modernStreams`): the leading memory a
+            # following 'blank' item advances by is the line's UNTIGHTENED
+            # leading, never the tightened height. Tightening is about how
+            # a verse or centred line reads against the lines it sits
+            # BETWEEN -- the author's own blank line after it is the
+            # paragraph break, and that gap belongs to the body's ordinary
+            # leading, not to the compressed internal spacing of the block
+            # that just ended. Using `h` here made a blank after a tightened
+            # line inherit the compression, so a title block closed tighter
+            # than the identical block would have without the tightening.
+            lead = MODERN_LINE * face_pt
             if vi == 0:
                 h += spacer
             extra = ((sep_h if not notes_lines else 0.0)
