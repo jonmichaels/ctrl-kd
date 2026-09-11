@@ -245,6 +245,69 @@ def test_the_peseta_never_degrades_to_a_question_mark(mode):
         f'{mode}: a "?" reached the content stream')
 
 
+# ------------------------------------------------------- running heads/feet
+
+def _doc_with_running_head(driver, hf_text=b'Report ' + PESETA + b' Draft #'):
+    """A synthetic document naming `driver` (or no driver at all, when
+    `driver` is None) whose `.h1`/`.f1` running head AND foot both carry
+    `hf_text` -- the running-head/foot counterpart of `_doc`'s own body
+    fixture. The WSFORMAT type-0 driver block and the plain `.h1`/`.f1`
+    dot commands compose exactly as `test_lj6dtp_heading_face.py`'s own
+    `_doc_with_header_font` (driver block) and `test_ctrlkd.py`'s own
+    `test_head_foot_lines_land_on_the_model_matching_the_writer` (plain
+    `.h1`/`.f1`, no WSFORMAT block needed for text alone) already show."""
+    header = _driver_header(driver) if driver else _ws_block(0x01, b'\x00\x00')
+    body = (b'.h1 ' + hf_text + HARD + b'.f1 ' + hf_text + HARD +
+            b'Body text, plain and ordinary and long enough to be real.' + HARD)
+    return core.parse_ws(header + body)
+
+
+@pytest.mark.parametrize('driver', [b'LASERJET', b'LJ6DTP', b'HP4'])
+def test_a_patched_drivers_running_head_and_foot_print_the_euro(driver):
+    """THE LATENT GAP this fix closes: `_running_ops` already bound
+    `_peseta_euro_table` (same commit as the body rule) with a comment
+    saying it applies to running heads/feet, but `_hf_line_ops` never
+    consumed it -- a running head/foot carrying cp437 code 158 kept
+    showing '?' even on a patched-driver document, the exact defect the
+    driver rule exists to close for body text. Found porting to the sr
+    engine (Sources/CtrlKD/PDFWriter.swift `runningOps`, commit 00b85ae)
+    -- byte-identical across the corpus either way, since no document's
+    own running head carries code 158."""
+    doc = _doc_with_running_head(driver)
+    assert doc.meta['printer_driver'] == driver.decode()
+    out = pdf.emit_pdf(doc, mode='printed')
+    strings = [s for s in _text_strings(out) if b'Report' in s]
+    assert strings, f'{driver!r}: the running head/foot text never reached the page'
+    assert all(EURO_CP1252 in s for s in strings), (
+        f'{driver!r}: no euro reached the running head/foot -- {strings!r}')
+
+
+@pytest.mark.parametrize('driver', [b'EPSONFX', None])
+def test_an_unpatched_drivers_running_head_and_foot_keep_the_peseta_unconverted(driver):
+    """The twin: a document naming no patched driver (or no driver at
+    all) sees its running head/foot's own code 158 exactly as before this
+    fix -- unchanged, not regressed, by the driver rule now reaching
+    here. `_hf_line_ops` has no vector-drawing path of its own (that
+    mechanism is body text's -- `pdf.SYMBOL_SHAPES`/`graphic_cell_ops`,
+    also true of sr's `hfLineOps`/`modernHFOps`, neither of which draws
+    graphic-cell geometry for a running line either); an unconverted
+    peseta still degrades through `_esc`'s cp1252 'replace' fallback to a
+    literal '?', same as every other character `_ESC_FALLBACK` does not
+    cover."""
+    doc = _doc_with_running_head(driver)
+    if driver:
+        assert doc.meta['printer_driver'] == driver.decode()
+    else:
+        assert doc.meta.get('printer_driver') is None
+    out = pdf.emit_pdf(doc, mode='printed')
+    strings = [s for s in _text_strings(out) if b'Report' in s]
+    assert strings, f'{driver!r}: the running head/foot text never reached the page'
+    assert not any(EURO_CP1252 in s for s in strings), (
+        f'{driver!r}: a euro reached a running head/foot no patched driver printed')
+    assert all(b'?' in s for s in strings), (
+        f'{driver!r}: expected the pre-existing "?" degradation, got {strings!r}')
+
+
 # ------------------------------------------------------------- tier 2
 
 @pytest.mark.sawyer

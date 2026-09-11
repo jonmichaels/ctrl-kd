@@ -6346,7 +6346,11 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     # head/foot MODEL (`_attach_head_foot_lines_printed`, the `layout`
     # JSON's own header/footer lines) and must keep carrying the
     # document's own unconverted text, same discipline as every other
-    # PDF-only text option.
+    # PDF-only text option. Applied below, at each header/footer line's
+    # own call into `_hf_line_ops` -- binding the table here and never
+    # consuming it was a latent gap (found porting to the sr engine,
+    # PDFWriter.swift `runningOps`, byte-identical across the corpus
+    # either way: no document's running head carries cp437 code 158).
     euro = _peseta_euro_table(doc)
 
     def _hf_line_ops(txt, y, font_idx, x0, style_attrs=frozenset()):
@@ -6456,9 +6460,9 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
 
     ops = []
     for _n, txt, y, font_idx, x0, style_attrs in resolved['headers']:
-        ops += _hf_line_ops(txt, y, font_idx, x0, style_attrs)
+        ops += _hf_line_ops(_euro_texts([txt], euro)[0], y, font_idx, x0, style_attrs)
     for _n, txt, y, font_idx, x0, style_attrs in resolved['footers']:
-        ops += _hf_line_ops(txt, y, font_idx, x0, style_attrs)
+        ops += _hf_line_ops(_euro_texts([txt], euro)[0], y, font_idx, x0, style_attrs)
     if resolved['auto'] is not None:
         text, x, y = resolved['auto']
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
