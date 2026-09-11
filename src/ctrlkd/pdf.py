@@ -7909,14 +7909,19 @@ MODERN_VERSE_TIGHT = 0.71875
 # matter are carried as MEASURED CONSTANTS, taken from the app and recorded
 # with the measurement that produced them:
 #
-#   Times New Roman 14pt -> 17.5pt natural   (17.5 / 14   = 1.25)
+#   Times New Roman 14pt -> 16.0pt natural   (16.0 / 14   = 8/7)
 #   Courier Prime   12pt -> 14.0pt natural   (14.0 / 12   = 7/6)
 #
-# So a tightened Times line at the 14pt body size is 12.58pt against the
+# So a tightened Times line at the 14pt body size is 11.50pt against the
 # untightened 16.80, and a tightened Courier line at 12pt is 10.06 against
-# 14.40. Note the two ratios against `MODERN_LINE * pt` are 0.749 and 0.838
+# 14.40. Note the two ratios against `MODERN_LINE * pt` are 0.685 and 0.699
 # -- NOT the same number, which is why a single face-independent constant
 # cannot reproduce the app and this is a table rather than a scalar.
+#
+# (The Times figure was 17.5 when this first landed, from a first pass at
+# the app's own measurement; re-measured through `NSLayoutManager.default
+# LineHeight` it is 16.0, which is also what makes the app's own -README.WS
+# page-4 worked example decompose cleanly -- see `_modern_leading_spacer`.)
 #
 # The faces with no measurement of their own (Helvetica, Symbol,
 # ZapfDingbats) take the Times row, not an invented one: Times is Modern's
@@ -7925,9 +7930,9 @@ MODERN_VERSE_TIGHT = 0.71875
 # hand, and the conservative choice -- Courier's row is the odd one out
 # precisely because it is the monospace face. An unmeasured face is named
 # as unmeasured here rather than silently interpolated.
-_MODERN_NATURAL_LINE = {'Times': 1.25, 'Courier': 7.0 / 6.0,
-                        'Helvetica': 1.25, 'Symbol': 1.25,
-                        'ZapfDingbats': 1.25}
+_MODERN_NATURAL_LINE = {'Times': 8.0 / 7.0, 'Courier': 7.0 / 6.0,
+                        'Helvetica': 8.0 / 7.0, 'Symbol': 8.0 / 7.0,
+                        'ZapfDingbats': 8.0 / 7.0}
 
 # WHERE THE BASELINE LANDS inside a tightened box, as a multiple of type
 # size: the face's own ASCENT, from which the whole of the compression is
@@ -7943,13 +7948,13 @@ _MODERN_NATURAL_LINE = {'Times': 1.25, 'Courier': 7.0 / 6.0,
 #
 # MEASURED against the app, so the residual is on the record rather than
 # implied: the app's own -README.WS spacers are 3.70/3.71/3.94pt, this
-# engine's on the same document are 4.01-4.16. The ~0.25pt sits in the INK,
-# not in this constant -- the app measures a real Mac face's glyph PATH
-# bounds, which run a little under the design bounding boxes the AFM
+# engine's on the same document are 3.59-3.74. What is left sits in the
+# INK, not in this constant -- the app measures a real Mac face's glyph
+# PATH bounds, which do not match the design bounding boxes the AFM
 # publishes for the metric-compatible base-14 face this engine sets in, and
 # no base-14 number can close that by construction. Bending the ascent to
-# absorb it would be fitting a documented font metric to three figures
-# nothing here can re-measure.
+# absorb it would be fitting a documented font metric to figures nothing
+# here can re-measure.
 _MODERN_FACE_ASCENT = {'Times': 1825.0 / 2048.0, 'Courier': 11.0 / 12.0,
                        'Helvetica': 1825.0 / 2048.0,
                        'Symbol': 1825.0 / 2048.0,
@@ -8102,7 +8107,7 @@ def _modern_line_face(vline):
 def _modern_tight_h(family, pt):
     """A tightened (verse/centred) line's own height in points: the face's
     natural line height, compressed by `MODERN_VERSE_TIGHT`."""
-    return pt * _MODERN_NATURAL_LINE.get(family, 1.25) * MODERN_VERSE_TIGHT
+    return pt * _MODERN_NATURAL_LINE.get(family, 8.0 / 7.0) * MODERN_VERSE_TIGHT
 
 
 def _modern_tight_baseline(family, pt):
@@ -8111,7 +8116,7 @@ def _modern_tight_baseline(family, pt):
     The compression comes off the ascent and nothing else (see
     `_MODERN_FACE_ASCENT`), so this is the face's full natural ascent minus
     everything the tightening removed from the box."""
-    natural = pt * _MODERN_NATURAL_LINE.get(family, 1.25)
+    natural = pt * _MODERN_NATURAL_LINE.get(family, 8.0 / 7.0)
     ascent = pt * _MODERN_FACE_ASCENT.get(family, 1825.0 / 2048.0)
     return ascent - natural * (1.0 - MODERN_VERSE_TIGHT)
 
@@ -8505,6 +8510,29 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     structure, col_pt, toks, printed_pt)
             else:
                 tight = align == 'center' or verse_flags[sem_i]
+                # A ONE-SIDED `.lm` IS NOT A STYLE (Jon's b17 ruling, the
+                # same family as the ladder above, one level up: there the
+                # trap was a ROW's own declared column, here it is a whole
+                # PARAGRAPH's declared margin). WordStar leaves a `.lm`
+                # open until something closes it, so an ordinary paragraph
+                # downstream of one inherits an indent nobody styled -- the
+                # document whose intro paragraph sits at its own residual
+                # `.lm 15` with no `.rm` anywhere near it. An ordinary
+                # paragraph starts at Modern's own margin, period, UNLESS
+                # it is a genuine two-sided block quote: BOTH margins
+                # narrowing the measure is a deliberate style, and keeps
+                # its declared indent.
+                #
+                # `.rm` IS ALWAYS HONOURED, and the asymmetry is the point:
+                # the ruling's whole argument is that a left margin left
+                # open upstream reaches paragraphs nobody styled. A
+                # narrowed RIGHT margin has no such failure mode -- it is
+                # what sets the measure every line is broken at -- so
+                # dropping it would not restore Modern's own margin, it
+                # would WIDEN the paragraph past the one the author asked
+                # for and move every wrap in the block.
+                if not (indent > 0 and cut > 0):
+                    indent = 0.0
             _emit(('para', toks, align, notes, indent, cut, no_wrap,
                   page_marker, False, tight, hang), sem_i)
     return flow

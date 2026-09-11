@@ -92,19 +92,19 @@ def _centred(title):
 # --------------------------------------------------- rule 1: the tightening
 
 def test_natural_line_table_reproduces_the_app_s_two_measurements():
-    """The two faces the app measured through its own text stack:
-    Times New Roman 14 -> 17.5pt natural, Courier Prime 12 -> 14.0. A
-    face-independent constant cannot do this -- against `MODERN_LINE * pt`
-    the two ratios are 0.749 and 0.838, not one number."""
-    assert 14 * pdf._MODERN_NATURAL_LINE['Times'] == 17.5
+    """The two faces the app measured through its own text stack
+    (`NSLayoutManager.defaultLineHeight`): Times New Roman 14 -> 16.0pt
+    natural, Courier Prime 12 -> 14.0. A face-independent constant cannot
+    do this -- against `MODERN_LINE * pt` the two ratios are 0.685 and
+    0.699, not one number."""
+    assert 14 * pdf._MODERN_NATURAL_LINE['Times'] == pytest.approx(16.0)
     assert 12 * pdf._MODERN_NATURAL_LINE['Courier'] == pytest.approx(14.0)
-    assert pdf._modern_tight_h('Times', 14) == pytest.approx(12.578125)
+    assert pdf._modern_tight_h('Times', 14) == pytest.approx(11.5)
     assert pdf._modern_tight_h('Courier', 12) == pytest.approx(10.0625)
     # ... and the two are NOT one ratio against `MODERN_LINE * pt`, which
-    # is the whole reason this is a table: Times 14 comes to 0.749 of the
-    # untightened advance, Courier Prime 12 to 0.699.
+    # is the whole reason this is a table.
     assert (pdf._modern_tight_h('Times', 14) / (pdf.MODERN_LINE * 14)
-            == pytest.approx(0.749, abs=0.0005))
+            == pytest.approx(0.685, abs=0.0005))
     assert (pdf._modern_tight_h('Courier', 12) / (pdf.MODERN_LINE * 12)
             == pytest.approx(0.699, abs=0.0005))
 
@@ -330,6 +330,61 @@ def _flow(data):
                             text_width_pt=468.0)
 
 
+# ------------------------- rule 3: a one-sided `.lm` is not a style (b17)
+
+def test_a_one_sided_lm_does_not_indent_an_ordinary_paragraph():
+    """WordStar leaves a `.lm` open until something closes it, so an
+    ordinary paragraph downstream of one inherits an indent nobody styled.
+    An ordinary paragraph starts at Modern's own margin, period."""
+    data = b'.lm 15' + HARD + b'An ordinary paragraph of prose.' + HARD
+    rows = _lines(pdf.emit_pdf(_modern(data), mode='modern'))
+    assert rows[0][1] == pytest.approx(72.0)
+
+
+def test_a_two_sided_block_quote_keeps_its_declared_indent():
+    """The carve-out: BOTH margins narrowing the measure is a deliberate
+    style, and keeps the indent it declared."""
+    data = (b'.lm 10' + HARD + b'.rm 55' + HARD
+            + b'A quoted paragraph, indented on both sides.' + HARD)
+    doc = _modern(data)
+    para = [i for i in pdf._modern_flow(
+        doc, frozenset(('footnote', 'endnote', 'annotation')),
+        text_width_pt=468.0) if i[0] == 'para'][0]
+    assert para[5] > 0                                       # a real cut
+    # `.lm 10` is a column POSITION, so the indent it asks for is 9 columns
+    assert para[4] == pytest.approx(9 * 12.0 * 0.6)          # indent kept
+    rows = _lines(pdf.emit_pdf(doc, mode='modern'))
+    assert rows[0][1] == pytest.approx(72.0 + 9 * 12.0 * 0.6)
+
+
+def test_a_one_sided_rm_is_always_honoured():
+    """The asymmetry is the point: `.rm` sets the measure every line is
+    broken at, so suppressing it would WIDEN the paragraph past the one the
+    author asked for rather than restore Modern's own margin."""
+    data = b'.rm 28' + HARD + (b'word ' * 30).strip() + HARD
+    doc = _modern(data)
+    para = [i for i in pdf._modern_flow(
+        doc, frozenset(('footnote', 'endnote', 'annotation')),
+        text_width_pt=468.0) if i[0] == 'para'][0]
+    assert para[4] == 0.0                                    # no indent
+    assert para[5] == pytest.approx((65 - 28) * 12.0 * 0.6)  # cut honoured
+    rows = _lines(pdf.emit_pdf(doc, mode='modern'))
+    assert rows[0][1] == pytest.approx(72.0)
+    # and it really does narrow the measure: the text wraps well short of
+    # the full 468pt column
+    assert len(rows) > 1
+
+
+def test_the_lm_rule_never_touches_a_structured_row():
+    """A def/bullet row takes the LADDER instead (its own rule), and a
+    centred row keeps the indent it declared -- neither goes through the
+    plain-paragraph branch this rule lives in."""
+    data = (b'.lm 15' + HARD + b'Intro.' + HARD + HARD
+            + b'WS.EXE:  an entry of the list.' + HARD)
+    rows = _lines(pdf.emit_pdf(_modern(data), mode='modern'))
+    assert [round(r[1], 2) for r in rows] == [72.0, 72.0]
+
+
 # ------------------------------------------ the spec's own worked examples
 
 @pytest.mark.sawyer
@@ -366,17 +421,18 @@ def test_readme_ws_page_four_centred_row_advance(require_sawyer_doc):
     "Upgrading from a Previous Release (WordStar 7).pdf" on page 4, and the
     blank line above it.
 
-    The app measured that block at 31.29pt. This engine measures 33.50 --
-    16.80 blank + 12.58 tight row + 4.12 spacer -- and the difference is
-    NOT reproducible from base-14 metrics: 31.29 would need the row plus
-    its spacer to come to 14.49, and the app's own spacer rule has a floor
-    of `MODERN_SPACER_PAD` (2.0) the moment it fires at all, so its own
-    smallest possible answer for a tightened 14pt Times row is 14.58. The
-    parts this engine CAN check against the app it does: the blank above is
-    the body's own 16.80, the row itself is the tightened 12.58, and the
-    spacer is in the app's own measured 3.70-3.94 family (4.12 here; the
-    ~0.25 is the gap between a Mac face's real glyph-path bounds and the
-    AFM design bounding boxes this engine sets from)."""
+    The app decomposes that block as 16.80 blank + 2.99 spacer + 11.50
+    tight row = 31.29. This engine gets 16.80 + 3.74 + 11.50 = 32.04 (32.0
+    once the writer's own `%.1f` positions land): the blank and the
+    tightened row agree exactly, and the whole 0.75 residual is INK -- this
+    row is bold, and its tallest glyph is Times-Bold's own parenthesis at
+    694/1000 em (9.716pt at 14), where the app's 0.99 deficit implies 640.
+    A Mac face's real glyph-PATH bounds are not the AFM's published design
+    bounding boxes and no base-14 number can make them be.
+
+    Worth naming: this row is also the app's own odd one out. Its other
+    measured spacers on this document are 3.70/3.71/3.94, and two of those
+    three are values this engine now produces exactly."""
     with open(require_sawyer_doc('-README.WS (root)'), 'rb') as fh:
         doc = core.parse(fh.read())
     rows = _lines(pdf.emit_pdf(doc, mode='modern'), page=4)
@@ -385,14 +441,13 @@ def test_readme_ws_page_four_centred_row_advance(require_sawyer_doc):
     block = rows[i - 1][0] - rows[i][0]
     blank, tight = pdf.MODERN_LINE * 14, pdf._modern_tight_h('Times', 14)
     assert blank == pytest.approx(16.8)
-    assert tight == pytest.approx(12.578125)
+    assert tight == pytest.approx(11.5)
     spacer = block - blank - tight
-    assert block == pytest.approx(33.50, abs=0.05)
-    assert spacer == pytest.approx(4.12, abs=0.05)
-    # the app's own three measured spacers on this document are 3.70/3.71/
-    # 3.94 -- the same family, ~0.25 apart for the reason the docstring
-    # gives. The bound is what this engine can honestly claim, not 0.05.
-    assert 3.5 < spacer < 4.5
+    assert block == pytest.approx(32.0, abs=0.05)
+    assert spacer == pytest.approx(3.74, abs=0.05)
+    # every Times-14 tightened row on this document lands in the app's own
+    # measured 3.70-3.94 family (this engine spans 3.59-3.74)
+    assert 3.5 < spacer < 4.0
 
 
 # --------------------------------- which FACE a fontless run is measured in
@@ -452,7 +507,7 @@ def test_fontless_tightened_row_measures_in_times_by_default():
     assert para[9] is True                              # tight
     assert pdf._modern_line_face(para[1]) == ('Times', pdf.MODERN_BODY_PT)
     assert pdf._modern_tight_h(*pdf._modern_line_face(para[1])) == pytest.approx(
-        12.578125)
+        11.5)
 
 
 def test_ps_off_tightened_row_measures_in_courier():
@@ -467,7 +522,7 @@ def test_ps_off_tightened_row_measures_in_courier():
     assert face == ('Courier', pdf.MODERN_BODY_PT)
     assert pdf._modern_tight_h(*face) == pytest.approx(
         pdf.MODERN_BODY_PT * 7.0 / 6.0 * pdf.MODERN_VERSE_TIGHT)
-    assert pdf._modern_tight_h(*face) != pytest.approx(12.578125)
+    assert pdf._modern_tight_h(*face) != pytest.approx(11.5)
 
 
 BULLETS = (b'* a bulleted entry whose text is long enough to wrap onto a '
