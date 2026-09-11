@@ -93,7 +93,10 @@ the requested `note_refs` scheme.
 import re
 from collections import Counter
 
-from .core import merged_lines, Span, trailing_blank_lines, effective_span_styles
+from .core import (merged_lines, Span, trailing_blank_lines,
+                   effective_span_styles, assemble_paragraphs,
+                   block_dominant_styles, detect_screenplay_blocks,
+                   looks_like_verse, paragraph_layout_context)
 from .emit import (DEFAULT_NOTE_KINDS, _annotated_notes, _ref_pairs,
                    note_ref_labels, emitter)
 
@@ -449,11 +452,31 @@ def _shown_labels(pairs, note_refs):
     return shown
 
 
-def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
+def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
+                verse_flags=None):
     """The document as the semantic Modern flow — see the module docstring
     for the item contract. This is the single implementation of the
     M-rules; measuring consumers (pdf.py, the app) convert columns to
-    their own units and wrap at their own measure."""
+    their own units and wrap at their own measure.
+
+    `verse_flags` (planning #263): a list, or None. When given, one bool is
+    appended per 'para' item of the returned flow, in order — the SAME
+    verse/stanza verdict `emit_rtf`/`emit_html` compute per paragraph unit
+    (`assemble_paragraphs` + `looks_like_verse`, plus the screenplay
+    override), carried down to this flow's own per-LINE granularity so a
+    measuring consumer can tighten a verse unit's internal line spacing
+    without re-deriving paragraph units for itself.
+
+    It is an OUT-PARAMETER, deliberately, rather than a key on the item
+    dicts: the item dicts ARE the `layout` JSON contract (`emit_layout`
+    dumps them verbatim), that JSON is byte-parity with the Swift engine's
+    own flow, and the Swift side states outright that its own `isVerse`
+    is "NOT serialized into the layout JSON emitter […] this field is
+    Swift-consumer-only, exactly like measurements are absent from the
+    JSON contract by design". Adding it to the dict here would break that
+    parity in one direction while adding nothing a consumer of this
+    function cannot ask for. Same shape as pdf.py's own
+    `record_sem_index` list parameter, for the same reason."""
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
     refs = _ref_pairs(pairs)
@@ -477,8 +500,19 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
         hf_by_block.setdefault(anchor, []).append((kind, lno, txt))
 
     items = []
+    verse_by_index = {}                # planning #263, see `verse_flags`
     end_rows, end_seen = [], set()    # end-matter note indices, doc order
     cur_tabs = None                    # ruler default until a block differs
+    # planning #263: the two whole-document signals `assemble_paragraphs`
+    # and the verse formula need, resolved ONCE (the same discipline
+    # emit.py's own callers use) and only when a caller actually asked for
+    # the verdicts -- a flow built for the JSON emitter pays nothing.
+    if verse_flags is None:
+        convention_indent = head_position = screenplay_blocks = None
+    else:
+        convention_indent, head_position = paragraph_layout_context(doc)
+        screenplay_blocks = detect_screenplay_blocks(doc)
+        margin = doc.meta.get('margin_estimate') or FULL_COLS
     for bi, b in enumerate(doc.blocks):
         stops = getattr(b, 'tab_stops', None)
         if b.kind == 'para' and stops != cur_tabs:
@@ -512,7 +546,29 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
         # `.rm` narrows the measure from the document's full line; a block
         # at the default 65 cuts nothing
         cut = rm_indent_cols(rm)
-        for line in merged_lines(b):
+        block_lines = merged_lines(b)
+        # planning #263: partition this block's own lines into paragraph
+        # units the SAME way `assemble_paragraphs` does, then tag each line
+        # with its unit's verdict -- verbatim emit.py's own formula (the
+        # RTF and HTML emitters share it, and the Swift flow carries the
+        # identical expression). Order-preserving and total over
+        # `block_lines`, so position `li` below is the line's own verdict;
+        # the length guard is insurance against a future change to how
+        # `assemble_paragraphs` partitions, never an expected branch.
+        line_is_verse = None
+        if verse_flags is not None:
+            dominant = block_dominant_styles(block_lines)
+            line_is_verse = []
+            for unit in assemble_paragraphs(
+                    b, margin, head_position=head_position.get(id(b), False),
+                    convention_indent=convention_indent):
+                unit_verse = len(unit) > 1 and (
+                    not b.wrap or looks_like_verse(unit, dominant)
+                    or bi in screenplay_blocks)
+                line_is_verse.extend([unit_verse] * len(unit))
+            if len(line_is_verse) != len(block_lines):
+                line_is_verse = [False] * len(block_lines)
+        for li, line in enumerate(block_lines):
             if not line.spans:
                 items.append({'kind': 'blank'})
                 continue
@@ -612,6 +668,8 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
                             runs[-1] = dict(runs[-1], text=t)
                         break
                     runs.pop()
+            if line_is_verse is not None:
+                verse_by_index[len(items)] = line_is_verse[li]
             items.append({'kind': 'para', 'align': b.align,
                           'indent_cols': lm, 'cut_cols': cut,
                           'runs': runs, 'footnotes': footnotes, 'bi': bi})
@@ -656,6 +714,12 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word'):
                 k: s[k] for k in ('col', 'level', 'kind', 'marker', 'label',
                                   'body', 'centered', 'center_via',
                                   'center_text')}
+    if verse_flags is not None:
+        # Parallel to `items`, one entry each (False for every non-'para'
+        # kind), so a consumer indexes it with the SAME index it already
+        # has for the item -- no second walk, no counter to keep in step.
+        verse_flags.extend(verse_by_index.get(i, False)
+                           for i in range(len(items)))
     return {'items': items, 'notes': note_rows}
 
 

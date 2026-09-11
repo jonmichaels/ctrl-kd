@@ -36,7 +36,7 @@ from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
 from . import layout as _layout
 from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE, \
     symbol_fallback_kind
-from .afm import string_width_pt as _natural_width_pt
+from .afm import string_width_pt as _natural_width_pt, ink_top_pt as _ink_top_pt
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
@@ -7880,6 +7880,101 @@ MODERN_BODY_PT = 14           # the sophisticated size (Jon's specimen ruling)
 MODERN_NOTE_PT = 11
 MODERN_LINE = 1.2             # single-spacing: baseline advance = 1.2 x size
 
+# ------------------------------------------- verse/centre tightening (#263)
+#
+# Poetry and centred material set SINGLE-spaced internally regardless of the
+# surrounding prose's own spacing -- the cross-format law Modern RTF
+# (`_rtf_verse_tight_sl_twips`) and Modern HTML (`line-height:1.15` against
+# the page's own 1.6 ambient) already follow. Modern PDF did not, and Modern
+# PDF is what Soft Return.app's Modern VIEW is answerable to, so the two
+# disagreed on where every centred/verse line fell. Backported here from the
+# app's own shipped, measured implementation (Jon's ruling 2026-09-11, "Yes.
+# I want it. Backport it.").
+#
+# THE FACTOR is the app's `modernVerseTightLineHeightMultiple` -- itself the
+# ratio of the two literals Modern HTML already states (verse 1.15 against
+# the page ambient 1.6). It is a RELATIVE multiplier on the FACE's own
+# natural line height, never on `MODERN_LINE * pt`: an absolute floor or
+# ceiling cannot tighten reliably across faces (it is inert the moment a
+# face's natural height already sits under it), and the same relative number
+# means different leading in different faces, which is the point.
+MODERN_VERSE_TIGHT = 0.71875
+
+# NATURAL LINE HEIGHT, per face, as a multiple of type size.
+#
+# "Natural" here means what the app's text stack reports for the real face
+# it sets Modern in (`NSLayoutManager.defaultLineHeight`) -- the number the
+# multiple above is relative TO. This engine has no such stack and no such
+# faces (base-14 only, nothing embedded, by design), so the two faces that
+# matter are carried as MEASURED CONSTANTS, taken from the app and recorded
+# with the measurement that produced them:
+#
+#   Times New Roman 14pt -> 17.5pt natural   (17.5 / 14   = 1.25)
+#   Courier Prime   12pt -> 14.0pt natural   (14.0 / 12   = 7/6)
+#
+# So a tightened Times line at the 14pt body size is 12.58pt against the
+# untightened 16.80, and a tightened Courier line at 12pt is 10.06 against
+# 14.40. Note the two ratios against `MODERN_LINE * pt` are 0.749 and 0.838
+# -- NOT the same number, which is why a single face-independent constant
+# cannot reproduce the app and this is a table rather than a scalar.
+#
+# The faces with no measurement of their own (Helvetica, Symbol,
+# ZapfDingbats) take the Times row, not an invented one: Times is Modern's
+# own default body face (`_modern_tok_font`: a token with no font
+# information reads in Times), the only other PROPORTIONAL measurement in
+# hand, and the conservative choice -- Courier's row is the odd one out
+# precisely because it is the monospace face. An unmeasured face is named
+# as unmeasured here rather than silently interpolated.
+_MODERN_NATURAL_LINE = {'Times': 1.25, 'Courier': 7.0 / 6.0,
+                        'Helvetica': 1.25, 'Symbol': 1.25,
+                        'ZapfDingbats': 1.25}
+
+# WHERE THE BASELINE LANDS inside a tightened box, as a multiple of type
+# size: the face's own ASCENT, from which the whole of the compression is
+# taken. The line's descent and leading keep their full, untightened size
+# below the baseline, and the box loses its height off the TOP -- which is
+# exactly why tightening can clip a tall glyph's ascender at all, and what
+# `_modern_leading_spacer` below exists to reserve room for.
+#
+# Times New Roman's ascent is 1825/2048 em (its own `hhea` ascender);
+# Courier Prime's is 11/12 em, leaving the classic 1/4-em monospace descent
+# under its measured 7/6 natural box. Same unmeasured-face fallback rule as
+# the natural table above.
+#
+# MEASURED against the app, so the residual is on the record rather than
+# implied: the app's own -README.WS spacers are 3.70/3.71/3.94pt, this
+# engine's on the same document are 4.01-4.16. The ~0.25pt sits in the INK,
+# not in this constant -- the app measures a real Mac face's glyph PATH
+# bounds, which run a little under the design bounding boxes the AFM
+# publishes for the metric-compatible base-14 face this engine sets in, and
+# no base-14 number can close that by construction. Bending the ascent to
+# absorb it would be fitting a documented font metric to three figures
+# nothing here can re-measure.
+_MODERN_FACE_ASCENT = {'Times': 1825.0 / 2048.0, 'Courier': 11.0 / 12.0,
+                       'Helvetica': 1825.0 / 2048.0,
+                       'Symbol': 1825.0 / 2048.0,
+                       'ZapfDingbats': 1825.0 / 2048.0}
+
+# The app's own fixed pad on a leading spacer's height: a second, independent
+# drawing pass does not land pixel-for-pixel on the one that measured it.
+MODERN_SPACER_PAD = 2.0
+
+# The indent LADDER's one step, in WordStar print columns: how far each
+# nesting level of a def/bullet row sits past the one above it. Level 1 sits
+# AT the margin (the row's own declared column is deliberately never used --
+# one file opens level-1 blocks at `.lm 15`, `.lm 2` and `.lm 0`, and
+# rendering the raw column put level-1 labels at three different distances).
+MODERN_LEVEL_STEP_COLS = 4
+
+# A def row's HANG -- where a wrapped continuation lands, past the margin.
+# One FIXED figure for every def row, never the longest label's width and
+# never the row's own: a per-row hang made every row in the same block wrap
+# at its own column ("each line wrap seems to have its own place"), and a
+# block-wide longest-label hang landed the column far enough right to read
+# as a second column of body text. 72pt past the margin puts it 2in from the
+# page edge on Modern's own 1in margins.
+MODERN_DEF_HANG_PT = 72.0
+
 
 def _modern_geometry(doc):
     """(left, top_margin, bottom_margin, text_width) in points. The
@@ -7980,6 +8075,186 @@ def _modern_w(text, styles, family, pt, entry, printed_pt):
     return nat
 
 
+def _modern_line_face(vline):
+    """(family, point size) of the token that SETS a visual line's height --
+    the largest one, the same token `_modern_streams`' own untightened
+    `MODERN_LINE * max(size)` advance is measured from.
+
+    The family comes off the TOKEN, never re-derived here: `_modern_tok_font`
+    has already applied Modern's own face rule (planning #252) -- a run no
+    font block covers reads in Times at the body size, unless the document
+    declares fonts AND declares its type non-proportional (`.ps off`), which
+    puts an uncovered run in Courier. Those two faces have different natural
+    line heights and very different marker advances, so every measurement in
+    this file's tightening/hang rules inherits that one answer rather than
+    Printed's unconditional fixed-pitch default. The ('Times', body size)
+    fallback below is reached only by a line with NO tokens at all -- a
+    paragraph whose runs were all zero-width note anchors, which draws no ink
+    either way."""
+    best = None
+    for t in vline or ():
+        spt, _rise = _sized(t[1], t[3])
+        if best is None or spt >= best[0]:
+            best = (spt, t[2])
+    return (best[1], best[0]) if best else ('Times', MODERN_BODY_PT)
+
+
+def _modern_tight_h(family, pt):
+    """A tightened (verse/centred) line's own height in points: the face's
+    natural line height, compressed by `MODERN_VERSE_TIGHT`."""
+    return pt * _MODERN_NATURAL_LINE.get(family, 1.25) * MODERN_VERSE_TIGHT
+
+
+def _modern_tight_baseline(family, pt):
+    """How far BELOW a tightened line's own top edge its baseline sits.
+
+    The compression comes off the ascent and nothing else (see
+    `_MODERN_FACE_ASCENT`), so this is the face's full natural ascent minus
+    everything the tightening removed from the box."""
+    natural = pt * _MODERN_NATURAL_LINE.get(family, 1.25)
+    ascent = pt * _MODERN_FACE_ASCENT.get(family, 1825.0 / 2048.0)
+    return ascent - natural * (1.0 - MODERN_VERSE_TIGHT)
+
+
+def _modern_ink_above_baseline(toks):
+    """The highest point any glyph of these tokens actually PAINTS above the
+    baseline, in points -- real outline extent (afm.INK_TOP), never a
+    nominal ascender, because a line of x-height letters and a line carrying
+    one parenthesis must not measure the same.
+
+    A cp437 box/block/shade character is not a base-14 glyph at all: Modern
+    draws it as a vector cell, and `_graphic_ops` puts that cell's own top
+    edge `(lead_factor - 0.25) * pt` above the baseline -- so its ink is
+    taken from that geometry, the same place the drawing does, rather than
+    from the '?' cp1252 would substitute for it."""
+    top = 0.0
+    for text, styles, family, pt, entry, _w in toks or ():
+        if not text.strip():
+            continue
+        spt, rise = _sized(styles, pt)
+        if set(text) & GRAPHIC_CHARS:
+            top = max(top, rise + (MODERN_LINE - 0.25) * spt)
+            plain = ''.join(c for c in text if c not in GRAPHIC_CHARS)
+            if not plain.strip():
+                continue
+            text = plain
+        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        top = max(top, rise + _ink_top_pt(text, basefont, spt))
+    return top
+
+
+def _modern_leading_spacer(toks, family, pt):
+    """Job 434's leading spacer, in points -- 0.0 for a line that needs
+    none.
+
+    A tightened line box is shorter than the face's natural one, and the
+    whole of that compression comes off the ascent, so a line whose real ink
+    rises above where the baseline now lands inside that shorter box would
+    either clip against the top of the text frame (the flow's very first
+    line) or crowd the line above it. The room is reserved as an invisible
+    blank advance immediately BEFORE the line, never as space-after on its
+    predecessor: only the former survives being the first thing on a page,
+    and only the former moves to the new page WITH the line when one breaks.
+
+    Fires only on a TIGHTENED line (an untightened one is at the face's own
+    natural height, which already reserves its own ascender) and only when
+    the deficit is genuinely positive; `MODERN_SPACER_PAD` is a fixed pad on
+    top, not a derived figure."""
+    deficit = (_modern_ink_above_baseline(toks)
+               - _modern_tight_baseline(family, pt))
+    return deficit + MODERN_SPACER_PAD if deficit > 0 else 0.0
+
+
+def _modern_para_is_graphic(item):
+    """Is this flow entry a paragraph that draws at least one cp437
+    box/block/shade character? (`_modern_streams`' own suppression test --
+    a box's vertical rule must read as one continuous stroke, not a dashed
+    one, so two graphic rows in a row get no spacer between them.)"""
+    return (item[0] == 'para'
+            and any(set(t[0]) & GRAPHIC_CHARS for t in item[1]))
+
+
+def _slice_runs(runs, start, end):
+    """The sub-list of `runs` covering characters [start, end) of their own
+    concatenated text, each run's styles (and note reference) carried onto
+    whatever piece of it survives."""
+    out, pos = [], 0
+    for r in runs:
+        n = len(r['text'])
+        a, b = max(start, pos), min(end, pos + n)
+        if b > a:
+            piece = r['text'][a - pos:b - pos]
+            out.append(r if piece == r['text'] else dict(r, text=piece))
+        pos += n
+    return out
+
+
+def _modern_def_runs(runs, structure):
+    """(prefix runs, body runs) for one def-list row -- its LABEL followed
+    by a two-space gap, then its body -- or None for a row whose recorded
+    label/body no longer line up with its own text.
+
+    A def row's raw text carries the author's own column padding between
+    label and body (one file pads to column 15 with eight spaces), which is
+    typewriter geometry, not content: Modern re-sets the row as a hanging
+    label, so the padding is replaced by one structural separator and the
+    body's real start decides where the first line's text runs to. The
+    engine's HTML export makes the identical slice for the identical
+    reason; this is the same rule reaching the PDF.
+
+    Sliced by CHARACTER OFFSET against `structure`'s own recorded
+    `label`/`body` lengths -- the counts the classifier took from this
+    exact text -- so styled spans crossing the boundary keep their styles."""
+    label_len = len(structure.get('label') or '')
+    body_len = len(structure.get('body') or '')
+    raw = ''.join(r['text'] for r in runs)
+    lead = len(raw) - len(raw.lstrip(' '))
+    if not label_len or not body_len or lead + label_len > len(raw) - body_len:
+        return None
+    return (_slice_runs(runs, lead, lead + label_len)
+            + [{'text': '  ', 'styles': []}],
+            _slice_runs(runs, len(raw) - body_len, len(raw)))
+
+
+def _modern_structure_indent_hang(structure, col_pt, toks, printed_pt):
+    """(row start indent, continuation hang), both in points, for one
+    structured def/bullet row. The caller has already decided this IS one
+    (a row with a `kind`, not centred -- the centred reading wins).
+
+    THE LADDER, where a row starts: `max(level - 1, 0)` steps of
+    `MODERN_LEVEL_STEP_COLS` past the margin. Level 1 sits AT the margin.
+    The row's own declared column (`structure['col']`, the block's `.lm`
+    plus its residual indent) is deliberately not used -- see
+    `MODERN_LEVEL_STEP_COLS`.
+
+    THE HANG, where a wrapped continuation lands, is per kind:
+      def     a fixed `MODERN_DEF_HANG_PT` past the margin, shared by every
+              row of the list -- see that constant.
+      bullet  the real measured advance of THIS row's own marker text in
+              the face that draws it. A points hang, not a column count,
+              precisely because it has to line up with a glyph: a marker
+              and its gap never land on a whole number of monospace cells
+              in a proportional face, and a column-count hang put every
+              wrapped line slightly past its own first line's text start."""
+    kind = structure.get('kind')
+    indent = max(structure.get('level', 0) - 1, 0) * MODERN_LEVEL_STEP_COLS * col_pt
+    if kind == 'def':
+        return indent, MODERN_DEF_HANG_PT
+    # the marker text is the row's own first two characters (the glyph and
+    # the single space after it -- `classify_rows` only ever calls a glyph a
+    # marker when exactly that shape holds), which the tokenizer may have
+    # split across several tokens
+    hang, need = 0.0, 2
+    for text, styles, family, pt, entry, w in toks:
+        take = text[:need]
+        hang += (w if take == text
+                 else _modern_w(take, styles, family, pt, entry, printed_pt))
+        need -= len(take)
+        if need <= 0:
+            break
+    return indent, hang
+
+
 def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                  pictures='off', text_width_pt=0.0, sentence_spacing=False,
                  record_sem_index=None):
@@ -7987,7 +8262,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
         ('para', toks, align, [(note_row, label)...], indent_pt, cut_pt,
-         no_wrap, page_marker, end_notes_start)
+         no_wrap, page_marker, end_notes_start, tight, hang_pt)
         ('blank', height) | ('break',) | ('cond', n)
         ('hf', 'H'|'F', line_no, text)
         ('image', pix_index, w_pt, h_pt)
@@ -8035,7 +8310,9 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     # character's cell advance ONLY (`_modern_w`'s own `printed_pt` doc) --
     # never the Modern reading size.
     printed_pt = _printed_size(doc)
-    sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs)
+    verse_flags = []
+    sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs,
+                              verse_flags=verse_flags)
     note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
     blank_h = MODERN_LINE * MODERN_BODY_PT
@@ -8094,13 +8371,13 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             # 2026-09-07 fires here, in `_modern_streams`.
             _emit(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
                             MODERN_NOTE_PT, None, sep_w)],
-                  'left', [], 0.0, 0.0, False, False, True), sem_i)
+                  'left', [], 0.0, 0.0, False, False, True, False, 0.0), sem_i)
         elif k == 'note':
             note_text = (_sentence_spacing_texts([it['text']])[0]
                         if sentence_spacing else it['text'])
             _emit(('para', _modern_note_toks(it['label'], note_text,
                                              it['note_kind']),
-                  'left', [], 0.0, 0.0, False, False, False), sem_i)
+                  'left', [], 0.0, 0.0, False, False, False, False, 0.0), sem_i)
         else:                                                   # para
             if embed_images and not any('ref' in r for r in it['runs']):
                 sub = _spans_pix_substitution(
@@ -8110,13 +8387,30 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     _emit(('image',) + sub, sem_i)
                     continue
             toks = []
+            # planning #263: a def row renders as LABEL + a two-space gap +
+            # body, not as the author's own raw column padding -- see
+            # `_modern_def_runs`. Done here, BEFORE the N9 collapse below,
+            # because the slice offsets are character counts the structure
+            # classifier took from the untransformed text; collapsing a
+            # space first shortens the text without shortening the counts
+            # and drags the gap into the body.
+            structure = it.get('structure') or {}
+            para_runs, fixed_runs = it['runs'], []
+            if not structure.get('centered') and structure.get('kind') == 'def':
+                split = _modern_def_runs(para_runs, structure)
+                if split is not None:
+                    fixed_runs, para_runs = split
             # N9: applied to the run texts, in order, same cross-piece
             # state-carrying as every other emitter's own choke point --
             # the pix-substitution check above already ran on the RAW
-            # runs (a structural placeholder match, not prose).
-            run_texts = (_sentence_spacing_texts([r['text'] for r in it['runs']])
-                        if sentence_spacing else [r['text'] for r in it['runs']])
-            for run, run_text in zip(it['runs'], run_texts):
+            # runs (a structural placeholder match, not prose). The
+            # label/gap prefix above is exempt: it is structure, not prose,
+            # and its two-space gap is a deliberate separator that must
+            # survive a label ending in a sentence-ending character.
+            run_texts = (_sentence_spacing_texts([r['text'] for r in para_runs])
+                        if sentence_spacing else [r['text'] for r in para_runs])
+            for run, run_text in ([(r, r['text']) for r in fixed_runs]
+                                  + list(zip(para_runs, run_texts))):
                 styles = frozenset(run['styles'])
                 if 'ref' in run:
                     if not run_text:
@@ -8180,20 +8474,57 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     # never also a slugline.)
                     no_wrap = True
             notes = [(note_rows[ni], label) for ni, label in it['footnotes']]
-            _emit(('para', toks, align, notes,
-                  it['indent_cols'] * col_pt,
-                  it['cut_cols'] * col_pt, no_wrap, page_marker, False), sem_i)
+            # planning #263. THREE mutually exclusive readings of one row,
+            # in the app's own order -- a centred structured row first, a
+            # def/bullet row next, an ordinary paragraph last:
+            #
+            #   centred structured row  tightens, unconditionally. This is
+            #       a separate path from the plain-paragraph one below and
+            #       fires on rows that one never sees (an undeclared,
+            #       spaces-padded centred line keeps `align == 'left'`).
+            #   def/bullet row          takes the indent LADDER and its own
+            #       HANG, and is never tightened.
+            #   plain paragraph         tightens when it is centred or when
+            #       it is part of a verse/stanza unit -- the SAME condition
+            #       Modern RTF and Modern HTML already apply.
+            indent, cut = it['indent_cols'] * col_pt, it['cut_cols'] * col_pt
+            hang, tight = 0.0, False
+            if structure.get('centered'):
+                tight = True
+            elif structure.get('kind'):
+                # the ladder REPLACES the block's own `.lm` indent (that is
+                # the whole point of it), so the row's residual leading
+                # spaces go with it -- left in, they would push a level-1
+                # row off the margin the ladder just put it on. Dropped
+                # BEFORE the hang is measured: a bullet's hang is the
+                # advance of the row's own first two characters, which are
+                # its marker and gap only once the padding is gone.
+                while toks and not toks[0][0].strip():
+                    toks.pop(0)
+                indent, hang = _modern_structure_indent_hang(
+                    structure, col_pt, toks, printed_pt)
+            else:
+                tight = align == 'center' or verse_flags[sem_i]
+            _emit(('para', toks, align, notes, indent, cut, no_wrap,
+                  page_marker, False, tight, hang), sem_i)
     return flow
 
 
-def _modern_wrap(toks, width):
+def _modern_wrap(toks, width, hang=0.0):
     """Greedy wrap of one logical line's tokens -> visual lines. Leading
     whitespace stays (paragraph indent); a space token at a wrap point is
-    swallowed, exactly as any renderer would."""
+    swallowed, exactly as any renderer would.
+
+    `hang` (planning #263): a structured row's own continuation indent. A
+    hang moves every line after the first to the right WITHOUT moving the
+    right edge, so those lines wrap at a measure narrower by exactly that
+    much -- the same thing a head-indent does in any real text stack, and
+    the reason a hang changes a row's line COUNT as well as its look."""
     lines, cur, curw = [], [], 0.0
     for tok in toks:
         text, w = tok[0], tok[5]
-        if cur and curw + w > width and text.strip():
+        limit = width if not lines else max(36.0, width - hang)
+        if cur and curw + w > limit and text.strip():
             lines.append(cur)
             cur, curw = [], 0.0
         if not cur and not text.strip() and lines:
@@ -8506,7 +8837,8 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             y -= h_pt
             body.append((y, item, 'left', 0.0, 0.0, sem_i))
             continue
-        _, toks, align, notes, indent, cut, no_wrap, page_marker, end_notes_start = item
+        (_, toks, align, notes, indent, cut, no_wrap, page_marker,
+         end_notes_start, tight, hang) = item
         if page_marker and body:
             # b26-modern item 3, rule (a): a real screenplay page-number
             # marker starts a new real page -- if this Modern page already
@@ -8541,7 +8873,25 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
         # natural width, exactly as real screenplay software keeps a
         # slugline unbroken.
         line_w = _math.inf if no_wrap else max(36.0, width - indent - cut)
-        vis = _modern_wrap(toks, line_w)
+        vis = _modern_wrap(toks, line_w, hang)
+        # planning #263, job 437: a tightened paragraph that actually WRAPS
+        # renders at the body's ordinary leading throughout instead. The
+        # tightening is about how a verse or centred LINE reads against its
+        # neighbours; a paragraph long enough to need a second visual line
+        # is prose that merely got classified, and compressing its own
+        # internal wrap crowds it. Resolved once, here, because everything
+        # downstream (the line height, the leading spacer, which is the
+        # same paragraph's own headroom) has to agree on the answer.
+        tight = tight and len(vis) == 1
+        # The leading spacer (job 434) is this paragraph's own headroom, so
+        # it is spent as part of the FIRST visual line's advance: that way
+        # the page-fit test below already accounts for it, and a paragraph
+        # pushed to the next page takes its spacer with it rather than
+        # leaving it stranded as blank canvas on the page before.
+        spacer = 0.0
+        if tight and not (fi and _modern_para_is_graphic(flow[fi - 1])
+                          and _modern_para_is_graphic(item)):
+            spacer = _modern_leading_spacer(toks, *_modern_line_face(toks))
         new_note_lines = []
         for note, label in notes:
             if id(note) in seen_notes:
@@ -8551,8 +8901,12 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             new_note_lines += _modern_note_lines(label, note_text, width,
                                                   note['kind'])
         for vi, vline in enumerate(vis):
-            h = MODERN_LINE * max([_sized(t[1], t[3])[0] for t in vline]
-                                  or [MODERN_BODY_PT])
+            face, face_pt = _modern_line_face(vline)
+            h = (_modern_tight_h(face, face_pt) if tight
+                 else MODERN_LINE * face_pt)
+            lead = h
+            if vi == 0:
+                h += spacer
             extra = ((sep_h if not notes_lines else 0.0)
                      + note_lead * len(new_note_lines)) if (vi == 0 and
                                                             new_note_lines) else 0.0
@@ -8560,8 +8914,12 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
                 close()
             open_page()
             y -= h
-            last_h = h
-            body.append((y, vline, align, indent, cut, sem_i))
+            # `last_h` is a LEADING memory (what the next blank item should
+            # advance by), so it records the line's own height, never the
+            # one-off headroom spent above it.
+            last_h = lead
+            body.append((y, vline, align, indent + (hang if vi else 0.0),
+                         cut, sem_i))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
                 for note, label in notes:
