@@ -248,37 +248,56 @@ _COURIER = (COURIER_WIDTH,) * 256
 # ligatures). The Latin-1-named base tables above carry 0 there; since
 # pdf._esc writes cp1252 and the font objects declare /WinAnsiEncoding,
 # these slots are real glyphs with real Adobe AFM widths. Slots WinAnsi
-# leaves undefined (0x80 euro on the era's faces, 0x8D, 0x8F, 0x90, 0x9D)
-# stay 0. Applied as an overlay so the hand-transcribed literals above stay
-# exactly as the AFM files list them.
+# leaves undefined (0x8D, 0x8F, 0x90, 0x9D) stay 0. Applied as an overlay
+# so the hand-transcribed literals above stay exactly as the AFM files
+# list them.
+#
+# 0x80 (Euro) used to be in that undefined list, on the reasoning that the
+# era's faces had no euro. They do carry one -- the same URW base-35 AFMs
+# every number here was transcribed from give it `WX 500` in all four
+# Times cuts, `WX 556` in all four Helvetica cuts and `WX 600` in Courier
+# (which the flat 600 base table already had right), and INK_TOP below was
+# transcribed WITH it (0x80 is 674/671/693/689 Times, 709/724 Helvetica,
+# 575/578 Courier), so the two tables disagreed about whether the glyph
+# exists. Leaving the width at 0 meant a real drawn euro advanced NOTHING:
+# planning #266 put euros on the page for the first time (cp437 code 158
+# under one of Sawyer's patched drivers), and Modern's own word placement
+# ran the following word straight into it -- "here €,then you're"
+# instead of "here €, then you're", measured on -README.WS page 16.
 _WINANSI_HI = {
-    #        sb₁  flo  db₂  ell  dag  ddg  cir  pm   Scn  gsl  OE       ql   qr   dl   dr   bul  en   em   til  tm   scn  gsr  oe        Zcn zcn  Ydi
-    'Helvetica':            {0x82: 222, 0x83: 556, 0x84: 333, 0x85: 1000,
+    #   eur; sb₁  flo  db₂  ell  dag  ddg  cir  pm   Scn  gsl  OE       ql   qr   dl   dr   bul  en   em   til  tm   scn  gsr  oe        Zcn zcn  Ydi
+    'Helvetica':            {0x80: 556,
+        0x82: 222, 0x83: 556, 0x84: 333, 0x85: 1000,
         0x86: 556, 0x87: 556, 0x88: 333, 0x89: 1000, 0x8A: 667, 0x8B: 333,
         0x8C: 1000, 0x8E: 611, 0x91: 222, 0x92: 222, 0x93: 333, 0x94: 333,
         0x95: 350, 0x96: 556, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 500,
         0x9B: 333, 0x9C: 944, 0x9E: 500, 0x9F: 667},
-    'Helvetica-Bold':       {0x82: 278, 0x83: 556, 0x84: 500, 0x85: 1000,
+    'Helvetica-Bold':       {0x80: 556,
+        0x82: 278, 0x83: 556, 0x84: 500, 0x85: 1000,
         0x86: 556, 0x87: 556, 0x88: 333, 0x89: 1000, 0x8A: 667, 0x8B: 333,
         0x8C: 1000, 0x8E: 611, 0x91: 278, 0x92: 278, 0x93: 500, 0x94: 500,
         0x95: 350, 0x96: 556, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 556,
         0x9B: 333, 0x9C: 944, 0x9E: 500, 0x9F: 667},
-    'Times-Roman':          {0x82: 333, 0x83: 500, 0x84: 444, 0x85: 1000,
+    'Times-Roman':          {0x80: 500,
+        0x82: 333, 0x83: 500, 0x84: 444, 0x85: 1000,
         0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
         0x8C: 889, 0x8E: 611, 0x91: 333, 0x92: 333, 0x93: 444, 0x94: 444,
         0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 980, 0x9A: 389,
         0x9B: 333, 0x9C: 722, 0x9E: 444, 0x9F: 722},
-    'Times-Bold':           {0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
+    'Times-Bold':           {0x80: 500,
+        0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
         0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
         0x8C: 1000, 0x8E: 667, 0x91: 333, 0x92: 333, 0x93: 500, 0x94: 500,
         0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 389,
         0x9B: 333, 0x9C: 722, 0x9E: 444, 0x9F: 722},
-    'Times-Italic':         {0x82: 333, 0x83: 500, 0x84: 556, 0x85: 889,
+    'Times-Italic':         {0x80: 500,
+        0x82: 333, 0x83: 500, 0x84: 556, 0x85: 889,
         0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 500, 0x8B: 333,
         0x8C: 944, 0x8E: 556, 0x91: 333, 0x92: 333, 0x93: 556, 0x94: 556,
         0x95: 350, 0x96: 500, 0x97: 889, 0x98: 333, 0x99: 980, 0x9A: 389,
         0x9B: 333, 0x9C: 667, 0x9E: 389, 0x9F: 556},
-    'Times-BoldItalic':     {0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
+    'Times-BoldItalic':     {0x80: 500,
+        0x82: 333, 0x83: 500, 0x84: 500, 0x85: 1000,
         0x86: 500, 0x87: 500, 0x88: 333, 0x89: 1000, 0x8A: 556, 0x8B: 333,
         0x8C: 944, 0x8E: 611, 0x91: 333, 0x92: 333, 0x93: 500, 0x94: 500,
         0x95: 350, 0x96: 500, 0x97: 1000, 0x98: 333, 0x99: 1000, 0x9A: 389,

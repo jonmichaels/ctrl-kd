@@ -147,6 +147,47 @@ def test_the_semantic_flow_carries_the_resolved_character(driver, shown):
     assert ('\u20a7' if shown == '\u20ac' else '\u20ac') not in text
 
 
+# --------------------------------------------------------- the euro's width
+
+def test_the_euro_has_a_real_advance_in_every_base14_text_face():
+    """`afm.WIDTHS` deliberately left 0x80 at 0 on the reasoning that the
+    era's faces had no euro. They carry one, and `afm.INK_TOP` was
+    transcribed WITH it, so the two tables disagreed about whether the
+    glyph exists -- harmless until planning #266 put euros on a page for
+    the first time, at which point a drawn euro advanced NOTHING and
+    Modern ran the next word into it ("here \u20ac,then you're", -README.WS
+    page 16). The widths are the same URW base-35 AFMs every other number
+    in that table came from."""
+    from ctrlkd import afm
+    for face in ('Times-Roman', 'Times-Bold', 'Times-Italic',
+                 'Times-BoldItalic'):
+        assert afm.WIDTHS[face][0x80] == 500, face
+    for face in ('Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique',
+                 'Helvetica-BoldOblique'):
+        assert afm.WIDTHS[face][0x80] == 556, face
+    for face in ('Courier', 'Courier-Bold', 'Courier-Oblique',
+                 'Courier-BoldOblique'):
+        assert afm.WIDTHS[face][0x80] == 600, face
+    # and the two tables now agree about the glyph existing at all
+    for face, widths in afm.WIDTHS.items():
+        if face in afm.INK_TOP and widths[0x80]:
+            assert afm.INK_TOP[face][0x80] > 0, face
+
+
+def test_a_euro_and_its_comma_do_not_collide_under_modern():
+    """The visible defect, as a rule: the word after a euro starts a
+    full space clear of it."""
+    from ctrlkd.afm import string_width_pt
+    doc = _doc(b'LASERJET', b'Here ' + PESETA + b', then more words follow.')
+    out = pdf.emit_pdf(doc, mode='modern')
+    xs = {}
+    for m in re.finditer(rb'([-\d.]+) ([-\d.]+) Td \((.*?)\) Tj', out, re.S):
+        xs[m.group(3)] = float(m.group(1))
+    assert b'\x80,' in xs and b'then' in xs
+    gap = xs[b'then'] - xs[b'\x80,']
+    assert gap > string_width_pt('\u20ac,', 'Times-Roman', pdf.MODERN_BODY_PT)
+
+
 # -------------------------------------------------- patched drivers: euro
 
 @pytest.mark.parametrize('driver', [b'LASERJET', b'LJ6DTP', b'HP4'])
