@@ -24,6 +24,8 @@ same construction as test_ctrlkd.py's own `_font_block` helper.
 import re
 import struct
 
+import pytest
+
 from ctrlkd import core, pdf, pictures
 
 HARD = b'\r\n'
@@ -57,12 +59,28 @@ def test_blank_between_unequal_sizes_advances_at_the_preceding_lines_leading():
     """A 24pt line, a blank, then an 8pt line: the blank must cost the
     24pt line's OWN leading (1.2 x 24 = 28.8pt), not a fixed 14pt-default
     amount -- combined with the 8pt line's own entering leading (1.2 x 8 =
-    9.6pt), the total gap is 38.4pt."""
+    9.6pt), the total BOX advance is 38.4pt.
+
+    That advance is what this test is about, and it is measured on the box
+    ladder rather than on the baselines: since the page baseline model
+    landed (planning #263, tests/test_modern_page_baseline.py) a Modern
+    baseline sits one FACE DESCENT above its own box's bottom, and these
+    two lines are different sizes, so their descents differ too (Courier's
+    157/1000 at 24pt against the same at 8pt). Adding each line's own
+    descent back puts both boxes back on the ladder the blank's arithmetic
+    actually governs."""
     data = font_block(24) + b'Big line.' + HARD + HARD + font_block(8) + b'Small line.' + HARD
     doc = core.parse_ws(data)
     out = pdf.emit_pdf(doc, mode='modern')
     ys = _line_ys(out)
-    assert round(ys[0] - ys[-1], 4) == 38.4
+    big, small = (pdf._modern_descent('Courier', 24),
+                  pdf._modern_descent('Courier', 8))
+    assert (ys[0] - big) - (ys[-1] - small) == pytest.approx(38.4, abs=0.05)
+    # the baselines themselves are 2.512pt further apart than the boxes --
+    # exactly the difference between the two lines' own descents, since the
+    # big line is lifted further off its box bottom than the small one (the
+    # tolerance is the writer's own `%.1f` on a drawn position)
+    assert ys[0] - ys[-1] == pytest.approx(38.4 + (big - small), abs=0.05)
 
 
 def test_blank_between_equal_large_sizes_is_proportionally_larger_than_default():

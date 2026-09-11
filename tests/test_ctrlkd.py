@@ -4862,6 +4862,16 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     a stock automatic page number to each of them -- a real, evidenced,
     deliberate content change, not incidental.
 
+    Re-pinned a FIFTH time 2026-09-11 (MODERN hash only -- the Printed
+    hashes above are untouched): planning #263's page baseline model. A
+    Modern line's baseline now sits one face DESCENT above its own line
+    box's bottom instead of on it (pdf.py's `_modern_descent`,
+    tests/test_modern_page_baseline.py), which moves every Modern baseline
+    on every document by that line's own descent -- here 1.884pt, Courier
+    at the 12pt this fixture sets. A deliberate, global, ruled change to
+    Modern geometry; the box ladder, the page breaks and every x are
+    unchanged, which is why only one of these four hashes moves.
+
     Re-pinned a FOURTH time 2026-09-07, same day (mechanism U,
     PCL-DIVERGENCE-TRIAGE.md, ws7-prints/v3 PRISTINE.EXE round): `.mt`
     ALONE (36pt), not `.mt`+`.hm` (60pt), for a document that never sets
@@ -4882,7 +4892,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     assert digest(core.parse_ws(make_prose()), 'printed') == \
         '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
-        'eb8bc918916d3bbb0b274e203c1c3f03b9008e6f6755cc67c6100a2f30705950'
+        'cd3760328da8b4ffadd366e6d253a8e9cf3adbe1981fa68f7f1c5a8bc472c87b'
     assert digest(core.parse_ws(styled), 'printed') == \
         'a2d067710cee2ebd9f4b86274f2e787d3bf1d304a582dd9d02103956334fe183'
     assert digest(core.parse_printstream(stream), 'printed') == \

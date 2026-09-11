@@ -36,7 +36,8 @@ from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
 from . import layout as _layout
 from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE, \
     symbol_fallback_kind
-from .afm import string_width_pt as _natural_width_pt, ink_top_pt as _ink_top_pt
+from .afm import string_width_pt as _natural_width_pt, ink_top_pt as _ink_top_pt, \
+    descender_pt as _descender_pt
 
 PAGE_W, PAGE_H = 612, 792            # US Letter, points
 MARGIN = 72                          # 1 inch
@@ -8121,6 +8122,31 @@ def _modern_tight_baseline(family, pt):
     return ascent - natural * (1.0 - MODERN_VERSE_TIGHT)
 
 
+def _modern_descent(family, pt):
+    """How far below a Modern line's own BASELINE the face descends, in
+    points and POSITIVE -- the face's AFM `Descender`, negated.
+
+    This is the whole of the page baseline model backported in planning
+    #263 (Jon's standing principle, "the engine needs to work the way Soft
+    Return does"; ledger 2026-09-11): Modern stacks LINE BOXES down from
+    the text frame's top edge, and a box's baseline sits `h - descent`
+    below its own top, not at its bottom. See `_modern_streams`' own
+    "THE PAGE BASELINE MODEL" note for what that does and does not change.
+
+    An unmeasured face takes the TIMES row -- the same rule, for the same
+    two faces (Symbol, ZapfDingbats), that `_MODERN_NATURAL_LINE` and
+    `_MODERN_FACE_ASCENT` already state: Modern's own default body face,
+    named as a fallback rather than invented from a bounding box (afm.py's
+    `DESCENDER` carries no entry for either, deliberately).
+
+    The face's bold/italic variant is not consulted: every Times variant
+    publishes -217, every Helvetica variant -207 and every Courier variant
+    -157, so the roman's row IS the family's row in the base-14."""
+    d = _descender_pt(BASE14[family][0] if family in BASE14 else 'Times-Roman',
+                      pt)
+    return -(d if d is not None else _descender_pt('Times-Roman', pt))
+
+
 def _modern_ink_above_baseline(toks):
     """The highest point any glyph of these tokens actually PAINTS above the
     baseline, in points -- real outline extent (afm.INK_TOP), never a
@@ -8772,6 +8798,37 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
 
     pages = []            # each: (body, [note lines], headers, footers)
     body, notes_lines, seen_notes = [], [], set()
+    # THE PAGE BASELINE MODEL (planning #263, ledger 2026-09-11; Jon's
+    # standing principle, "the engine needs to work the way Soft Return
+    # does"). `y` is a LINE BOX cursor, not a baseline: it starts at the
+    # text frame's own top edge and each line spends its own height `h`
+    # off it, so after `y -= h` the value is that line's BOX BOTTOM, which
+    # is also the next line's box top. Line boxes stack from the top of
+    # the frame -- what AppKit does with line fragments, and what the app's
+    # Modern view is therefore answerable to.
+    #
+    # WHERE THE BASELINE GOES inside that box: `h - descent` below its own
+    # top, i.e. one face DESCENT above the box bottom (`_modern_descent`).
+    # This engine used to draw the baseline ON the box bottom, which put
+    # every Modern line one descent lower than the app drew the same line
+    # and left each line's descenders hanging below its own box.
+    #
+    # WHAT THIS DOES NOT CHANGE: the fit test, and therefore which lines
+    # land on which page. A line fits while its box BOTTOM is inside the
+    # frame (`y - h >= margb`, unchanged below) -- the app's rule stated as
+    # "fragment bottom <= top + H", the identical arithmetic on a Letter
+    # page where `margb == PAGE_H - (margt + H)`. Page composition, page
+    # counts, every x and the whole Printed path are untouched by this;
+    # what moves is the y every Modern line draws at, by its OWN line's
+    # descent (so a mixed-size page does not shift rigidly).
+    #
+    # NOT ported with it: the tightened line's own headroom figure
+    # (`_modern_tight_baseline`, job 434's spacer). That is the app's own
+    # separately-measured number -- glyph-path bounds through
+    # NSLayoutManager -- and the app itself has not yet adopted the AFM
+    # form of it (it is waiting on `afm.INK_TOP`). Changing it here would
+    # move the engine's spacers AWAY from the app's measured 3.70/3.71/
+    # 3.94 on -README.WS, so it stays exactly as fe87b41/a9c94d3 left it.
     y = PAGE_H - margt
     cur_h, cur_f = {}, {}          # running-head state as events replay
     page_h, page_f = {}, {}        # state when the OPEN page took content
@@ -8946,8 +9003,12 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
             # advance by), so it records the line's own height, never the
             # one-off headroom spent above it.
             last_h = lead
-            body.append((y, vline, align, indent + (hang if vi else 0.0),
-                         cut, sem_i))
+            # THE PAGE BASELINE MODEL (planning #263): `y` is this line
+            # BOX's own bottom edge -- the next box's top -- and the
+            # baseline sits one face DESCENT above it, never on it. See the
+            # note at the head of this function.
+            body.append((y + _modern_descent(face, face_pt), vline, align,
+                         indent + (hang if vi else 0.0), cut, sem_i))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
                 for note, label in notes:

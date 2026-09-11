@@ -654,3 +654,70 @@ def ink_top_1000(text, basefont):
 def ink_top_pt(text, basefont, size):
     """`ink_top_1000` in POINTS at `size`."""
     return ink_top_1000(text, basefont) * size / 1000.0
+
+
+# ------------------------------------------------ vertical face metrics
+#
+# The two VERTICAL numbers the AFMs publish for each face, in the same
+# 1/1000 em units as `WIDTHS` and `INK_TOP`, transcribed from the same
+# Adobe Core 14 AFM files (1997 revision) named in this module's own SOURCE
+# note. `ASCENDER` is the AFM `Ascender` key, `DESCENDER` the AFM
+# `Descender` -- kept with the AFM's own SIGN, so a descender is negative.
+#
+# WHY THEY ARE PUBLIC. They are not font-width machinery: they are where a
+# BASELINE sits inside a line box. A text stack that stacks line fragments
+# from the top of its text frame (AppKit's, and since planning #263 Modern
+# PDF's own -- see `pdf._modern_descent`) puts a fragment's baseline
+# `height + Descender` below that fragment's top edge, so every consumer
+# that has to agree with this engine about where a Modern line lands needs
+# the identical figures rather than its own re-derivation. `INK_TOP` was
+# made public for the same reason and reads as the same kind of data.
+#
+# NOT the same quantity as `INK_TOP`. These are the face's DESIGN metrics
+# -- one pair per face, whatever text is set in it. `INK_TOP` answers a
+# question about a particular STRING's own glyphs. A line's baseline
+# placement is a face question; how much room that line's ink actually
+# needs above the baseline is a string question. Both exist because
+# neither substitutes for the other.
+#
+# SYMBOL AND ZAPFDINGBATS DECLARE NEITHER. Their AFMs carry no `Ascender`
+# and no `Descender` key at all (they do carry a `FontBBox`, which is a
+# different quantity -- the union of every glyph's outline, not the face's
+# nominal line metrics). They are therefore ABSENT from both tables rather
+# than filled in from the bounding box: an unmeasured face is named as
+# unmeasured, the same rule `pdf._MODERN_NATURAL_LINE` states for the same
+# two faces. A caller that needs a total answer chooses its own documented
+# fallback (Modern PDF takes the Times row).
+ASCENDER = {
+    'Courier': 629, 'Courier-Bold': 629,
+    'Courier-Oblique': 629, 'Courier-BoldOblique': 629,
+    'Helvetica': 718, 'Helvetica-Bold': 718,
+    'Helvetica-Oblique': 718, 'Helvetica-BoldOblique': 718,
+    'Times-Roman': 683, 'Times-Bold': 683,
+    'Times-Italic': 683, 'Times-BoldItalic': 683,
+}
+
+DESCENDER = {
+    'Courier': -157, 'Courier-Bold': -157,
+    'Courier-Oblique': -157, 'Courier-BoldOblique': -157,
+    'Helvetica': -207, 'Helvetica-Bold': -207,
+    'Helvetica-Oblique': -207, 'Helvetica-BoldOblique': -207,
+    'Times-Roman': -217, 'Times-Bold': -217,
+    'Times-Italic': -217, 'Times-BoldItalic': -217,
+}
+
+
+def ascender_pt(basefont, size):
+    """The face's AFM `Ascender` in POINTS at `size` -- None for a face that
+    declares none (Symbol, ZapfDingbats), so a caller must choose its own
+    fallback rather than receive a silent 0."""
+    v = ASCENDER.get(basefont)
+    return None if v is None else v * size / 1000.0
+
+
+def descender_pt(basefont, size):
+    """The face's AFM `Descender` in POINTS at `size`, NEGATIVE as the AFM
+    states it -- None for a face that declares none (Symbol,
+    ZapfDingbats)."""
+    v = DESCENDER.get(basefont)
+    return None if v is None else v * size / 1000.0
