@@ -6341,6 +6341,54 @@ def _printed_hf_right(doc, left):
     return left + rm_cols * _PDF_PT_PER_COL
 
 
+def _ctrl_k_even_page(txt, page_no):
+    """A `^K` (0x0B) in a header/footer line suppresses the blanks that
+    follow it, on EVEN-numbered pages only.
+
+    WordStar's own file-format document (quoted verbatim inside the corpus
+    document that tests it, `sawyer/REF/CTRL-K.H1`): "0Bh ^K  Within the
+    main text body, it is used around words or phrases to be indexed.  In a
+    header or footer line, on even numbered pages all blanks following the
+    ^K are suppressed."  Every other view strips the 0x0B as an ordinary
+    control byte (`emit.hf_runs`) and keeps the blanks, which is what an
+    ODD page does here too -- this is a PRINTED, page-parity rule.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/CTRL-K.H1`, which exists for exactly this and carries two
+    header/footer pairs (`.pn1` mid-document makes its sheets 7 and 9 even
+    PRINTED pages 2 and 4, which is the number the rule reads):
+
+      `.h1 ^K<55 blanks>Header / #`  odd  WS7 x 453.6pt == left 57.6 + 55
+                                          columns; even WS7 x **64.8pt**
+      `.f1 ^K<55 blanks>Footer / #`  same, both parities, same numbers
+      `.h1 ^K<59 blanks>^YPage #^Y`  odd  WS7 x 482.4pt == left + 59
+                                          columns; even WS7 x **64.8pt**
+
+    64.8pt is the left margin plus ONE column, not the left margin -- so
+    the blank run does not vanish entirely; exactly one column's worth
+    survives it.  The `^K` itself is what survives here (it costs zero
+    columns on an odd page, where 55 blanks account for 453.6pt to the
+    decipoint), so it is rendered as that one blank and the run after it
+    is dropped.  A `^K` with NO blanks after it would distinguish this
+    from "the run of blanks collapses to one" -- no document in the
+    corpus has one, and both readings give the identical answer on every
+    page that does exist; noted rather than guessed at.
+    """
+    if page_no % 2 or '\x0b' not in txt:
+        return txt
+    out, i = [], 0
+    while i < len(txt):
+        if txt[i] == '\x0b':
+            i += 1
+            while i < len(txt) and txt[i] == ' ':
+                i += 1
+            out.append(' ')
+            continue
+        out.append(txt[i])
+        i += 1
+    return ''.join(out)
+
+
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
                              head_hf_override=None, foot_hf_override=None,
@@ -6607,7 +6655,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                 saved_target_col = round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)
                 new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
                 txt = txt[:char_idx] + (' ' * new_cols) + suffix
-        return render(txt)
+        return render(_ctrl_k_even_page(txt, page_no))
 
     # The header block is anchored to the BODY, not the paper edge: its last
     # line sits `.hm` lines above the first body line, inside `.mt` (".MT ...

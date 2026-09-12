@@ -339,3 +339,36 @@ def test_pn_reanchors_the_count_even_when_its_number_repeats():
     numbers = pdf._resolve_page_numbers(cps, pages)
     # the `.pn1` sits on the third page, which it re-anchors to 1
     assert numbers == [1, 2, 1, 2], numbers
+
+
+def test_ctrl_k_suppresses_header_blanks_on_even_pages():
+    """`^K` in a `.h#`/`.f#` line kills the blanks after it -- even pages only.
+
+    WordStar's own file-format document, quoted verbatim inside the corpus
+    document that tests it (`sawyer/REF/CTRL-K.H1`): "In a header or footer
+    line, on even numbered pages all blanks following the ^K are
+    suppressed."
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on that
+    document: `.h1 ^K<55 blanks>Header / #` prints at x 453.6pt on an odd
+    page (left margin 57.6 + 55 columns) and at **64.8pt** on an even one
+    -- the left margin plus ONE column, so exactly one column survives the
+    run; the same pair of numbers for its `.f1`, and 482.4/64.8 for its
+    second, 59-blank `.h1`."""
+    text = '\x0b' + ' ' * 55 + 'Header / #'
+    assert pdf._ctrl_k_even_page(text, 3) == text
+    assert pdf._ctrl_k_even_page(text, 2) == ' Header / #'
+    # a blank run NOT introduced by a ^K is untouched on either parity
+    plain = 'A' + ' ' * 9 + 'B'
+    assert pdf._ctrl_k_even_page(plain, 2) == plain
+    # and the rule reaches the resolved header line the printed page draws
+    src = (b'.h1 \x0b' + b' ' * 55 + b'Header / #' + HARD
+           + b'body' + HARD + b'.pa' + HARD + b'body' + HARD)
+    doc = core.parse_ws(src)
+    kw = dict(page_h=792.0, lead=12.0, size=12.0, left=57.6, printed=True)
+    odd = pdf._resolve_head_foot_lines(doc, 1, **kw)['headers'][0][1]
+    even = pdf._resolve_head_foot_lines(doc, 2, **kw)['headers'][0][1]
+    # the 0x0B survives an odd page and costs nothing (`emit.hf_runs`
+    # strips it with every other control byte, as every view always has)
+    assert odd == '\x0b' + ' ' * 55 + 'Header / 1', repr(odd)
+    assert even == ' Header / 2', repr(even)
