@@ -30,6 +30,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     resolve_sentence_spacing as _resolve_sentence_spacing, \
     line_numbering_checkpoints as _line_numbering_checkpoints, \
     line_numbering_at as _line_numbering_at, \
+    expand_bare_tabs_texts as _expand_bare_tabs_texts, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
@@ -7021,106 +7022,27 @@ def _pcl_rect_ops(prog_ops, anchor_x, anchor_y, page_h, restore_gray):
     return ops
 
 
-# A bare 0x09 tab byte's print-time expansion target, in document columns --
-# WSFORMAT.WS's own file-format reference (WordStar's control-code table,
-# byte 09h ^I): "At print time the number of hard spaces required to reach
-# a modulus 8 print position is generated."
-_TAB_MODULUS = 8
-
-
 def _expand_bare_tabs_for_printed_layout(segs):
-    """Expand every bare 0x09 tab byte in `segs`' own text into the literal
-    spaces WordStar's print-time rule computes -- planning #244 (the
-    round-trip gauntlet fix).
+    """`segs` with every bare 0x09 tab byte in their text expanded into the
+    literal spaces WordStar's print-time rule computes.
 
-    This used to happen in `_decode_spans` at PARSE time (planning #202/
-    #237): a running document-column count since the start of the physical
-    line, and on a bare 0x09, pad with however many spaces are needed to
-    reach the next multiple of 8 (a tab already sitting on a stop still
-    advances a full `_TAB_MODULUS`, the standard tab convention). That was
-    the RIGHT structural rule but the WRONG place to apply it -- baking the
-    expansion into the parsed Span.text makes a computed space
-    indistinguishable from one the author actually typed, so the native
-    WordStar writer's round-trip (tests/test_writer.py's corpus gauntlet,
-    tools/roundtrip_census.py) re-emits spaces instead of the original
-    0x09 byte and never reproduces the source file (sawyer/MACROS/HOLYMAC/
-    -HOLYMAC.WS, sawyer/REF/WINDOWS7.WS, sawyer/REF/wordstar-file-format.ws
-    -- found 2026-09-08, planning #244). `_decode_spans` now keeps the
-    literal byte (`buf.append(b)`, restored to its pre-#237 form -- the
-    document model IS the source bytes, unexpanded); this function applies
-    the SAME rule here instead, at PRINTED-mode render time only, on a
-    transient copy of the segment text. The underlying Span.text the
-    writer reads back out is never touched -- Modern mode and every other
-    emitter (text, markdown, html, rtf) never call this and keep seeing
-    the bare, un-expanded byte, exactly their own pre-#237 behavior
-    (unchanged -- #237's fidelity fix was Printed-PDF-only in its own
-    evidence, WS7 LaserJet PCL captures, despite living in a function
-    every mode shared).
+    THE RULE ITSELF now lives in `core.expand_bare_tabs_texts` -- moved there
+    planning #264 item 1 (packet row B3) so Printed RTF and the fixed-pitch
+    HTML block can ask the SAME question this writer asks, instead of a
+    second copy of it drifting beside this one. Its docstring carries the
+    evidence (the modulus-8 rule from WSFORMAT.WS's own control-code table,
+    planning #244's parse-time-to-render-time move, and planning #237's
+    measured preceding-space-run shift); this function is only the shape
+    adapter for a `segs` entry, whose text is `entry[0]`.
 
-    Column-tracking matches `_decode_spans`'s own former semantics
-    exactly: a running count across the WHOLE physical line (every `segs`
-    entry, in order, regardless of style -- a font/colour change never
-    consumes a column), reset to 0 for each call (one call = one physical
-    line, since Printed mode renders physical lines verbatim, never
-    rewrapped). `segs` entries with no tab byte are returned unchanged --
-    most printed lines never carry one, so this is a no-op scan for them,
-    not a copy.
-
-    Planning #237 remainder (probed 2026-09-09, `research/2026-09-09_
-    space-tab-lattice-shift.md`): a literal space (or a WS5+ soft space,
-    0xA0 -- already collapsed to plain ' ' by decode, see `core.py`'s
-    `0xA0` branch) immediately preceding a bare 0x09 does NOT just occupy
-    its own column like any other character before the tab. WS7's
-    LaserJet driver computes the tab's modulus-8 stop from the column
-    BEFORE that trailing run of space(s) -- as if it had not yet flushed
-    them to its own column tracker -- then adds the run's length back on
-    top of that stop. Eight probe documents (four columns crossed with
-    space/no-space/on-stop, plus two documents reproducing WIN7.ETC's
-    exact ` Subject: <TAB>`/` To: <TAB>` shape) printed through real WS7
-    confirm this exactly, including a shape the corpus never previously
-    exercised (a trailing space run that itself lands EXACTLY on a
-    modulus-8 stop): probe `P4`, 7 characters then one space (column 8,
-    already on a stop) lands the next word at column 9, not the old
-    same-column rule's on-stop-advances-a-full-8 answer of 16. `space_run`
-    below tracks the length of the CONSECUTIVE run of literal space
-    characters immediately preceding the current position, across `segs`
-    entries; on a bare tab, the modulus lands on `col - space_run`,
-    falling back to the plain `col` when there is no preceding space run
-    (`space_run == 0`) -- the ORIGINAL rule, unchanged for every tab not
-    preceded by a space (confirmed clean by probes `P1`/`P3` and by the
-    already-fixed `wordstar-file-format.ws` case, neither of which has a
-    space before its tab)."""
-    if not any('\t' in entry[0] for entry in segs):
+    Column-tracking semantics are unchanged: one call is one physical line
+    (Printed mode renders physical lines verbatim, never rewrapped), and
+    `segs` with no tab byte in them come back as the same object.
+    """
+    texts = _expand_bare_tabs_texts([entry[0] for entry in segs])
+    if texts is None:
         return segs
-    col = 0
-    space_run = 0
-    out = []
-    for entry in segs:
-        text = entry[0]
-        if '\t' not in text:
-            col += len(text)
-            trailing = len(text) - len(text.rstrip(' '))
-            space_run = space_run + trailing if trailing == len(text) else trailing
-            out.append(entry)
-            continue
-        pieces = []
-        for ch in text:
-            if ch == '\t':
-                base = col - space_run
-                needed = _TAB_MODULUS - (base % _TAB_MODULUS)
-                pieces.append(' ' * needed)
-                col = base + needed + space_run
-                space_run = 0
-            elif ch == ' ':
-                pieces.append(ch)
-                col += 1
-                space_run += 1
-            else:
-                pieces.append(ch)
-                col += 1
-                space_run = 0
-        out.append((''.join(pieces),) + entry[1:])
-    return out
+    return [(t,) + entry[1:] for t, entry in zip(texts, segs)]
 
 
 def _justify_pieces_printed(text, pitch, x0, justify_right_x, basefont, pt):

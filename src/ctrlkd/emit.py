@@ -17,7 +17,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    DEFAULT_LH_48, GRAPHIC_CHARS, split_graphic_spans,
                    compile_toc, compile_index, detect_screenplay_blocks,
                    sentence_spacing_texts, sentence_spacing_spans,
-                   resolve_sentence_spacing,
+                   resolve_sentence_spacing, expand_bare_tabs_texts,
                    line_numbering_checkpoints, line_numbering_at)
 from .fontmap import font_stack, rtf_fonts
 
@@ -1389,6 +1389,33 @@ def _style_css(doc, printed=True, inline_styling=True):
     return '\n'.join(rules)
 
 
+def _expand_bare_tabs_spans(spans):
+    """One physical line's Spans, with every bare 0x09 tab byte expanded to
+    the spaces WordStar's own print-time rule computes -- planning #264 item 1
+    (packet row B3). The rule and its evidence are `core.expand_bare_tabs_
+    texts`; this is the Span-shaped adapter, the twin of `pdf.py`'s own
+    `_expand_bare_tabs_for_printed_layout` for segments.
+
+    PRINTED ONLY, and only where the text is MONOSPACED -- Printed RTF's
+    physical lines and the fixed-pitch HTML block (`p.ws-native`). There, a
+    column IS a character, so expanding a tab to spaces is exact and the
+    columns land where WordStar put them; the alternative is what shipped
+    until now, a raw tab byte landing on whatever default stops the reader
+    happens to have (measured 2026-09-12: 62 raw tabs survived in each RTF of
+    the file-format reference and 103-107 in each HTML, where a tab usually
+    collapses to a single space). Modern is deliberately excluded (packet row
+    B3, "not for Modern"): a reflowed proportional document has no print
+    columns for a tab to land on. Text and Markdown keep the raw byte too --
+    the same pre-#237 behaviour every non-PDF emitter has always had, not
+    changed here.
+
+    The line's own Span objects come back untouched when it carries no tab."""
+    texts = expand_bare_tabs_texts([s.text for s in spans])
+    if texts is None:
+        return spans
+    return [Span(t, s.styles) for t, s in zip(texts, spans)]
+
+
 def _slice_spans(spans, start, end=None):
     """`spans` cut to the character range [start, end) (end=None: to the
     end) -- modern_flow's own `.lm`-drop generalised to an arbitrary
@@ -1763,7 +1790,11 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # a literal newline relying on <pre>'s own whitespace handling,
             # so a long physical line still wraps at the READER's window
             # (the fixed 65-column look stays Printed/PDF's own domain).
-            lines = [_html_line(list(line.spans), refs, keep,
+            # planning #264 item 1 (packet row B3): a bare 0x09 lands on
+            # WordStar's own modulus-8 stop here, where the face is
+            # fixed-pitch (`p.ws-native`) and a column IS a character --
+            # see `_expand_bare_tabs_spans`. Modern never calls it.
+            lines = [_html_line(_expand_bare_tabs_spans(line.spans), refs, keep,
                                 keep_ws=True, shown_map=shown_map,
                                 inline_styling=inline_styling,
                                 pix_map=pix_map, pictures=pictures,
@@ -3328,8 +3359,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 # (same fix as `_rtf_style_margins`/`_style_css`'s HTML twin).
                 from .layout import rm_indent_cols
                 ri = rm_indent_cols(b.right_margin) * _RTF_TWIPS_PER_COL
-            # physical lines: \line at every printed break, soft or hard
-            lines = [numbered(rtf_seg(line.spans, b), bi)
+            # physical lines: \line at every printed break, soft or hard.
+            # planning #264 item 1 (packet row B3): a bare 0x09 expands to
+            # WordStar's own modulus-8 stop first -- Printed RTF is Courier,
+            # so a column IS a character and the expansion is exact. See
+            # `_expand_bare_tabs_spans`; Modern (below) never calls it.
+            lines = [numbered(rtf_seg(_expand_bare_tabs_spans(line.spans), b), bi)
                     for line in b.lines]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]

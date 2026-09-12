@@ -34,6 +34,20 @@ and Modern PDF) sees the bare, un-expanded tab byte now -- exactly their
 own pre-#237 behavior, since #237's own evidence (the WS7 LaserJet PCL
 capture above) was Printed-PDF-only despite living in a function every
 mode shared.
+
+THE TWO OTHER FIXED-PITCH SURFACES (planning #264 item 1, packet row B3,
+2026-09-12). Printed RTF and the fixed-pitch HTML block reproduce the same
+physical line in the same monospaced face the Printed PDF does, so the same
+question has the same answer there: a column IS a character and expanding
+the tab to spaces is exact. They were emitting the raw byte instead --
+measured on sawyer/REF/wordstar-file-format.ws, 62 surviving tabs in each
+RTF and 103-107 in each HTML, where a browser usually collapses the tab to
+a single space. Both now call `core.expand_bare_tabs_texts`, where the rule
+moved so that one function answers for all three surfaces. MODERN IS
+DELIBERATELY EXCLUDED (the packet's own "not for Modern"): a reflowed
+proportional document has no print columns for a tab to land on. Text and
+Markdown keep the raw byte in both modes -- unchanged, and not part of this
+row.
 """
 import re
 import zlib
@@ -184,11 +198,10 @@ def test_bare_tab_column_count_resets_at_the_next_physical_line_in_printed_pdf()
 
 
 def test_oj_off_default_text_mode_keeps_the_bare_tab_literal():
-    """Every mode OTHER than Printed PDF sees the raw, un-expanded byte --
-    the pre-#237 behavior, now deliberately restored rather than
-    accidentally shared. `mode='printed'` TEXT output (not PDF) is
-    included in that "every other mode": the layout-time fix lives in
-    `pdf.py`'s PDF writer alone, per this module's own header."""
+    """TEXT sees the raw, un-expanded byte in both modes -- the pre-#237
+    behavior, now deliberately restored rather than accidentally shared,
+    and NOT changed by planning #264 item 1 (which reaches Printed RTF and
+    the fixed-pitch HTML block only; see this module's own header)."""
     from ctrlkd import emit
     doc = core.parse_ws(b'From:\tWordStar' + HARD)
     text_out = emit.emit_text(doc, mode='printed')
@@ -263,3 +276,85 @@ def test_a_styled_mixed_line_with_a_bare_tab_is_still_drawn_correctly():
         b'.po 0"\r\n.lm 0\r\n' + b'AB\x02\tCD\x02EF.' + HARD)
     x = _word_x(pdf_bytes, 'EF.')
     assert x == (8 + 2) * 7.2, x
+
+
+# --------------------------------- Printed RTF and the fixed-pitch HTML block
+# planning #264 item 1 (packet row B3). The same rule, on the two other
+# surfaces that set a physical line in a monospaced face. `core.expand_bare_
+# tabs_texts` is the one implementation all three now call.
+
+def _emit(src: bytes, fmt: str, mode: str) -> str:
+    from ctrlkd import emit
+    doc = core.parse_ws(src)
+    return getattr(emit, 'emit_' + fmt)(doc, mode=mode)
+
+
+def test_core_expand_bare_tabs_texts_is_a_no_op_without_a_tab():
+    """The shared entry point returns None -- not a copy -- for a line with
+    no tab in it, so every caller keeps its own objects and the
+    overwhelming majority of printed lines cost one scan."""
+    assert core.expand_bare_tabs_texts(['abc', 'def']) is None
+    assert core.expand_bare_tabs_texts(['00h ^@', '\tFix']) == ['00h ^@', '  Fix']
+
+
+def test_printed_rtf_expands_a_bare_tab_to_the_modulus_8_stop():
+    """The WS7-verified line, in RTF: "00h ^@" is 6 characters, so the tab
+    is 2 spaces and "Fix." starts at column 8 -- where the document's own
+    continuation lines are already typed."""
+    out = _emit(b'.po 0"\r\n.lm 0\r\n' + b'00h ^@\tFix.' + HARD, 'rtf', 'printed')
+    assert '\t' not in out
+    assert '00h ^@  Fix.' in out
+
+
+def test_printed_html_expands_a_bare_tab_to_the_modulus_8_stop():
+    """The same line in the fixed-pitch HTML block (`p.ws-native`), where a
+    raw tab byte collapsed to a single space in a browser."""
+    out = _emit(b'.po 0"\r\n.lm 0\r\n' + b'00h ^@\tFix.' + HARD, 'html', 'printed')
+    assert '\t' not in out
+    assert '00h ^@  Fix.' in out
+
+
+def test_modern_rtf_and_html_keep_the_bare_tab():
+    """The packet's own exclusion, pinned: Modern reflows into a
+    proportional face with no print columns for a tab to land on, so the
+    byte stays exactly as it was.
+
+    Built as an IR document rather than parsed bytes on purpose -- the
+    surrounding tests' own source carries print-CONTROL bytes, which
+    `_printed(doc)` (correctly) forces into the printed path in either
+    mode, so a parsed fixture could never exercise the Modern branch."""
+    from ctrlkd import emit
+    doc = core.Document(
+        blocks=[core.Block('para',
+                           lines=[core.Line(spans=[core.Span('00h\tFix.')])])],
+        meta={'variant': 'ws5+'})
+    assert '\t' in emit.emit_rtf(doc, mode='modern')
+    assert '\t' in emit.emit_html(doc, mode='modern')
+    assert '\t' not in emit.emit_rtf(doc, mode='printed')
+    assert '\t' not in emit.emit_html(doc, mode='printed')
+
+
+def test_printed_rtf_column_count_resets_at_the_next_physical_line():
+    """One call is one physical line in RTF too -- line two's count starts
+    at 0, so "ab" + a tab lands on column 8, not on line one's 24."""
+    out = _emit(b'.po 0"\r\n.lm 0\r\n' + b'\tWordOne.' + HARD + b'ab\tWordTwo.' + HARD,
+                'rtf', 'printed')
+    assert ' ' * 8 + 'WordOne.' in out
+    assert 'ab' + ' ' * 6 + 'WordTwo.' in out
+
+
+def test_printed_rtf_honours_the_preceding_space_run_shift():
+    """Planning #237's measured remainder reaches RTF as well, because it
+    is part of the one shared rule: ` Subject: ` (10 characters, the last
+    a space) puts the next word at column 17, not 16."""
+    out = _emit(b'.po 0"\r\n.lm 0\r\n' + b' Subject: \tWord.' + HARD, 'rtf', 'printed')
+    assert ' Subject: ' + ' ' * 7 + 'Word.' in out
+
+
+def test_printed_text_and_markdown_still_carry_the_raw_byte():
+    """Row B3 named two surfaces. Text and Markdown are not among them and
+    do not move -- stated as a test so a later change to them is a
+    deliberate one."""
+    src = b'.po 0"\r\n.lm 0\r\n' + b'00h ^@\tFix.' + HARD
+    assert '\t' in _emit(src, 'text', 'printed')
+    assert '\t' in _emit(src, 'markdown', 'printed')

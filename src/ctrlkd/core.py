@@ -3949,6 +3949,89 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
+# A bare 0x09 tab byte's print-time expansion target, in document columns --
+# WSFORMAT.WS's own file-format reference (WordStar's control-code table,
+# byte 09h ^I): "At print time the number of hard spaces required to reach a
+# modulus 8 print position is generated."
+TAB_MODULUS = 8
+
+
+def expand_bare_tabs_texts(texts):
+    """One physical line's span texts, with every bare 0x09 tab byte expanded
+    into the literal spaces WordStar's print-time rule computes. Returns a new
+    list, or None when no text carries a tab (the caller keeps its own objects
+    -- most printed lines never carry one, so this is a no-op scan for them).
+
+    THE RULE lives here, in the IR module both `pdf.py` and `emit.py` import,
+    because it is the DOCUMENT's rule and not any one renderer's: every
+    fixed-pitch surface that reproduces a physical line has to answer it the
+    same way. `pdf.py`'s `_expand_bare_tabs_for_printed_layout` (segments) and
+    `emit.py`'s `_expand_bare_tabs_spans` (Spans) are both thin shape adapters
+    over this function.
+
+    It used to run in `_decode_spans` at PARSE time (planning #202/#237), and
+    that was the RIGHT structural rule in the WRONG place: baking the
+    expansion into the parsed `Span.text` makes a computed space
+    indistinguishable from one the author typed, so the native WordStar
+    writer's round-trip re-emitted spaces instead of the original 0x09 byte
+    and never reproduced the source file (planning #244). `_decode_spans`
+    keeps the literal byte -- the document model IS the source bytes,
+    unexpanded -- and a PRINTED-mode renderer applies this on a transient copy
+    instead. Modern never calls it: a reflowed proportional document has no
+    print columns for a tab to land on (packet row B3, planning #264).
+
+    COLUMN TRACKING: a running count across the WHOLE physical line (every
+    entry, in order, regardless of style -- a font or colour change never
+    consumes a column), reset for each call, so one call is one physical line.
+
+    Planning #237 remainder (probed 2026-09-09, `research/2026-09-09_
+    space-tab-lattice-shift.md`): a literal space (or a WS5+ soft space,
+    0xA0 -- already collapsed to plain ' ' by decode) immediately preceding a
+    bare 0x09 does NOT just occupy its own column like any other character
+    before the tab. WS7's LaserJet driver computes the tab's modulus-8 stop
+    from the column BEFORE that trailing run of space(s) -- as if it had not
+    yet flushed them to its own column tracker -- then adds the run's length
+    back on top of that stop. Eight probe documents printed through real WS7
+    confirm this exactly, including a trailing space run that itself lands
+    EXACTLY on a modulus-8 stop (probe `P4`: 7 characters then one space,
+    column 8, already on a stop, lands the next word at column 9, not the old
+    same-column rule's answer of 16). `space_run` tracks the length of the
+    CONSECUTIVE run of literal spaces immediately preceding the current
+    position, across entries; on a bare tab the modulus lands on `col -
+    space_run`, falling back to plain `col` when there is no preceding space
+    run -- the ORIGINAL rule, unchanged for every tab not preceded by a
+    space."""
+    if not any('\t' in t for t in texts):
+        return None
+    col = 0
+    space_run = 0
+    out = []
+    for text in texts:
+        if '\t' not in text:
+            col += len(text)
+            trailing = len(text) - len(text.rstrip(' '))
+            space_run = space_run + trailing if trailing == len(text) else trailing
+            out.append(text)
+            continue
+        pieces = []
+        for ch in text:
+            if ch == '\t':
+                base = col - space_run
+                needed = TAB_MODULUS - (base % TAB_MODULUS)
+                pieces.append(' ' * needed)
+                col = base + needed + space_run
+                space_run = 0
+            elif ch == ' ':
+                pieces.append(ch)
+                col += 1
+                space_run += 1
+            else:
+                pieces.append(ch)
+                col += 1
+                space_run = 0
+        out.append(''.join(pieces))
+    return out
+
 def _tab_columns(content: bytes):
     """Decode one type-9 block's content -> (columns, leader_byte). We can't
     reflow text to truly right/center/decimal-align a tab without knowing the
