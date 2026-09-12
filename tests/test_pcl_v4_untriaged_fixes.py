@@ -410,3 +410,32 @@ def test_a_note_tabs_its_own_text_where_the_document_says():
     assert rendered('(1)', (2,)) == '(1)Footnote One.'
     # and a note that tabs nothing keeps the previous join exactly
     assert rendered('1.', ()) == '1.Footnote One.'
+
+
+def test_a_footer_governs_the_page_it_is_read_on():
+    """A `.fo` reaches the page it appears on; a `.he` does not.
+
+    A header is emitted at the TOP of a page, so a `.he`/`.h#` read after
+    that page's first line cannot reach it. A footer is emitted at the
+    BOTTOM, so a `.fo`/`.f#` read anywhere before the page ends still
+    governs it. Both took the header's rule, which put every footer change
+    one page late.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/MACROS/HOLYMAC/8MAC`, which sets `.fo<31 blanks>#` after a
+    blank line -- so page 1 has already begun -- and clears it with a bare
+    `.fo` immediately AFTER its first page break. WS7 prints "286" at
+    280.8pt (column 31, exactly where the `#` sits) at the foot of page 1
+    and NO footer on pages 2-10; from the same commands it prints NO
+    header on page 1 and "HOLY MACRO!  #" on 2-10. This engine printed the
+    automatic page number on page 1 and the footer on page 2."""
+    from ctrlkd import pdf as pdfmod
+    src = HARD.join([b'', b'.he HEAD #', b'.fo FOOT #', b'one',
+                     b'.pa', b'.fo', b'two']) + HARD
+    doc = core.parse_ws(src)
+    pages = pdfmod._doc_to_pagelines(doc, True)
+    assert len(pages) >= 2, len(pages)
+    assert pages[0].footers.get(1) == 'FOOT #', pages[0].footers
+    assert not pages[0].headers, pages[0].headers      # `.he` is one line late
+    assert not pages[1].footers, pages[1].footers      # the bare `.fo` cleared it
+    assert pages[1].headers.get(1) == 'HEAD #', pages[1].headers

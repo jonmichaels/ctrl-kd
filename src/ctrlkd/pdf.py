@@ -5683,11 +5683,31 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             (cur_hdrs if kind == 'H' else cur_ftrs)[lno] = txt
             # cause 10: this event's own print controls travel with its text.
             (cur_hdrs_pcl if kind == 'H' else cur_ftrs_pcl)[lno] = pcl
-            if not page:                   # nothing printed on this page yet:
-                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
-                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
-                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
+            # A HEADER is emitted at the TOP of a page, so a `.he`/`.h#`
+            # read after the page's first line cannot reach it -- that is
+            # the `not page` gate, and it is right. A FOOTER is emitted at
+            # the BOTTOM, so a `.fo`/`.f#` read ANYWHERE before the page
+            # ends still governs that page. Both used to take the header's
+            # rule, which put every footer change one page late.
+            #
+            # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+            # sawyer/MACROS/HOLYMAC/8MAC, which sets `.fo<31 blanks>#`
+            # after a blank line (so page 1 has already begun) and clears
+            # it with a bare `.fo` immediately AFTER its first page break.
+            # WS7 prints "286" at 280.8pt -- column 31, exactly where the
+            # `#` sits -- at the foot of page 1 and NO footer on pages
+            # 2-10; and, from the same commands, NO header on page 1 and
+            # "HOLY MACRO!  #" on 2-10. This engine printed the automatic
+            # page number on page 1 (centred, 291.6pt) and the footer on
+            # page 2.
+            if kind == 'F':
+                page_ftrs = dict(cur_ftrs)
+                page_ftrs_pcl = dict(cur_ftrs_pcl)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
+            elif not page:                 # nothing printed on this page yet:
+                page_hdrs = dict(cur_hdrs)
+                page_hdrs_pcl = dict(cur_hdrs_pcl)
+                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
             continue
         if isinstance(l, tuple) and l and l[0] == 'cond':
             # strictly fewer than n lines left -> break; exactly n is enough.
