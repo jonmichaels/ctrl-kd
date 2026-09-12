@@ -20,6 +20,15 @@ states it, including the thresholds.
       examples; ordinary word wrapping folds both at the perfectly legal
       space between a label and its glyph.
 
+  planning #264 item 3 (packet row B4), 2026-09-12: the SAME rule reaches
+      HTML, where the fold was equally visible -- a border, a legend or a
+      substitution-table row broke in the middle of a narrow browser window
+      and stopped being the picture it drew. The rule itself now lives in
+      `core.graphic_row_clips`, called by both emitters; HTML drops its
+      third branch (a row with nowhere to break), because a browser never
+      breaks inside a word on its own, and expresses the other two as
+      `white-space:nowrap` on the row.
+
 Tier 1 here is synthetic (CLAUDE.md: synthetic fixtures only). The worked
 examples are tier 2 (`sawyer`), against three documents of Robert J.
 Sawyer's public WS7 archive that the committed answer key already carries.
@@ -29,7 +38,7 @@ import zlib
 
 import pytest
 
-from ctrlkd import core, pdf
+from ctrlkd import core, emit, pdf
 
 HARD = b'\r\n'
 
@@ -319,3 +328,79 @@ def test_lj6dtp_ws_sets_each_substitution_table_row_as_one_line(
     assert all(i[6] for i in table), 'every table row is clipped'
     out = pdf.emit_pdf(core.parse_ws(data), mode='modern')
     assert _pages(out) == 10
+
+
+# ------------------------------- packet row B4: the same rule, in HTML
+
+def _html_row(text, mode='modern'):
+    doc = core.Document(
+        blocks=[core.Block('para', lines=[core.Line(spans=[core.Span(text)])])],
+        meta={'variant': 'ws5+'})
+    return emit.emit_html(doc, mode=mode)
+
+
+def test_html_keeps_a_wholly_graphic_row_on_one_line():
+    out = _html_row('\u250c\u2500\u2500\u2500\u2510')
+    assert 'class="ws-nowrap"' in out
+    assert 'span.ws-nowrap{white-space:nowrap}' in out
+
+
+def test_html_keeps_a_mixed_legend_row_on_one_line():
+    """The field report's own shape: a prose label and its glyphs, which
+    ordinary wrapping folds at the perfectly legal space between them."""
+    assert 'class="ws-nowrap"' in _html_row('LL: \u2514 LR: \u2518 H: \u2550')
+
+
+def test_html_leaves_one_incidental_glyph_alone():
+    """The threshold is TWO, so an ordinary paragraph carrying a single
+    list marker still wraps like the prose it is."""
+    out = _html_row('\u25a0 one marker, and then ordinary prose that wraps')
+    assert 'ws-nowrap' not in out
+
+
+def test_html_does_not_mark_a_row_that_merely_has_nowhere_to_break():
+    """The rule's third branch is deliberately dropped in HTML: a browser
+    never breaks inside a word on its own, so the class would be markup
+    that changes nothing -- and every one-word row in every document would
+    carry it."""
+    assert 'ws-nowrap' not in _html_row('sawyer@sfwriter.com')
+    assert pdf._modern_clips_row([('sawyer@sfwriter.com', frozenset(),
+                                   'Times', 12, None, 0.0)])
+
+
+def test_html_marks_the_row_in_printed_mode_too():
+    """A picture is a picture in either view. The fixed-pitch block is
+    `white-space:pre-wrap`, where plain `nowrap` would also collapse the
+    column spacing that block exists to preserve -- so the rule inside it
+    is `pre`, `pre-wrap`'s non-wrapping twin."""
+    out = _html_row('\u250c\u2500\u2500\u2500\u2510', mode='printed')
+    assert 'class="ws-nowrap"' in out
+    assert 'p.ws-native span.ws-nowrap{white-space:pre}' in out
+
+
+def test_a_document_with_no_picture_row_pays_no_css_for_one():
+    """Same discipline as the `.ws-nonprop` and list rules: the stylesheet
+    grows only when a row actually used the class."""
+    out = _html_row('ordinary prose, no glyphs at all')
+    assert 'ws-nowrap' not in out
+
+
+def test_html_and_the_pdf_read_one_shared_rule():
+    """`core.graphic_row_clips` is the single implementation; `pdf._modern_
+    clips_row` is its token-shaped adapter and `emit._html_row_is_nowrap`
+    its HTML-shaped one."""
+    for text in ('\u2502    \u2502', 'LL: \u2514 LR: \u2518',
+                 '\u25a0 ordinary prose', 'no glyphs here at all'):
+        toks = [(text, frozenset(), 'Times', 12, None, 0.0)]
+        assert pdf._modern_clips_row(toks) == core.graphic_row_clips(text)
+
+
+@pytest.mark.sawyer
+def test_boxes_ws_html_keeps_every_legend_row_on_one_line(require_sawyer_doc):
+    """Tier 2, the worked example, in HTML this time: every legend row the
+    Modern PDF clips carries the class here."""
+    data = open(require_sawyer_doc('BOXES.WS'), 'rb').read()
+    out = emit.emit_html(core.parse_ws(data), mode='modern')
+    rows = [ln for ln in out.splitlines() if 'LL: ' in ln or 'UL: ' in ln]
+    assert rows, 'the legend rows are still in the document'
+    assert all('ws-nowrap' in ln for ln in rows)

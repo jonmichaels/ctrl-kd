@@ -32,6 +32,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     line_numbering_at as _line_numbering_at, \
     expand_bare_tabs_texts as _expand_bare_tabs_texts, \
     pm_first_line_indent_cols as _pm_first_line_indent_cols, \
+    graphic_row_clips as _graphic_row_clips, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
@@ -8300,45 +8301,16 @@ def _modern_para_is_graphic(item):
 
 
 def _modern_clips_row(toks):
-    """WHICH MODERN ROWS REFUSE TO WRAP (job 456, and the app's own b28
-    follow-up on it -- ported here, the app is the reference).
+    """Whether this row refuses to wrap -- job 456, the app's own rule.
 
-    A row of box-drawing or block characters is a picture, not a sentence:
-    broken across two visual lines it stops being the thing it draws. Three
-    shapes qualify, read off the row's own final rendered text:
-
-      wholly graphic       at least one graphic character, and nothing else
-                           on the row but graphic characters and spaces (a
-                           box border, a rule).
-      2+ graphic chars     job 456's own rule and the field report behind it
-                           ("I don't understand what happened in Modern.
-                           They have line returns in the middle"). A MIXED
-                           row -- a real prose label plus its glyphs -- is
-                           the case: a legend row ('LL: └ LR: ┘ ...
-                           Joins: ... Mixed: ...') or a substitution-table
-                           row, which ordinary word wrapping folds at the
-                           perfectly legal space between label and glyph.
-                           The threshold is TWO, not one, so an ordinary
-                           paragraph carrying a single incidental symbol (a
-                           list marker) still wraps like the prose it is.
-      nowhere to break     a row with no space in it at all. This engine's
-                           greedy wrap never breaks inside a token, so such
-                           a row already sets as one line; stated anyway,
-                           because it is part of the rule being ported and
-                           a renderer that CAN break a word must not.
-
-    A clipped row is set as ONE line and runs past the measure rather than
-    reflowing (`_modern_streams` gives it an unbounded wrap width) -- the
-    app's `.byClipping`. Read the row's FINAL tokens, after a centred row's
-    padding has come off and a def row's label/gap prefix has gone on."""
-    text = ''.join(t[0] for t in toks)
-    graphic = set(text) & GRAPHIC_CHARS
-    if graphic and all(ch in GRAPHIC_CHARS or ch in ' \u00a0\u2060'
-                       for ch in text):
-        return True
-    if sum(ch in GRAPHIC_CHARS for ch in text) > 1:
-        return True
-    return bool(text) and ' ' not in text
+    The rule and its evidence are `core.graphic_row_clips`, where planning
+    #264 item 3 (packet row B4) moved them so HTML can ask the same
+    question. This is the token-shaped adapter: read the row's FINAL tokens,
+    after a centred row's padding has come off and a def row's label/gap
+    prefix has gone on. A clipped row is set as ONE line and runs past the
+    measure rather than reflowing (`_modern_streams` gives it an unbounded
+    wrap width) -- the app's `.byClipping`."""
+    return _graphic_row_clips(''.join(t[0] for t in toks))
 
 
 def _slice_runs(runs, start, end):

@@ -3949,6 +3949,50 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
+def graphic_row_clips(text):
+    """WHICH ROWS REFUSE TO WRAP (job 456, and the app's own b28 follow-up
+    on it -- ported from Soft Return, the app is the reference; moved here
+    from `pdf.py` by planning #264 item 3, packet row B4, so HTML asks the
+    same question the Modern PDF asks).
+
+    A row of box-drawing or block characters is a picture, not a sentence:
+    broken across two visual lines it stops being the thing it draws. Three
+    shapes qualify, read off the row's own final rendered text:
+
+      wholly graphic       at least one graphic character, and nothing else
+                           on the row but graphic characters and spaces (a
+                           box border, a rule).
+      2+ graphic chars     job 456's own rule and the field report behind it
+                           ("I don't understand what happened in Modern.
+                           They have line returns in the middle"). A MIXED
+                           row -- a real prose label plus its glyphs -- is
+                           the case: a legend row ('LL: |_ LR: _| ...
+                           Joins: ... Mixed: ...') or a substitution-table
+                           row, which ordinary word wrapping folds at the
+                           perfectly legal space between label and glyph.
+                           The threshold is TWO, not one, so an ordinary
+                           paragraph carrying a single incidental symbol (a
+                           list marker) still wraps like the prose it is.
+      nowhere to break     a row with no space in it at all. A greedy
+                           wrapper never breaks inside a token, so such a
+                           row already sets as one line; stated anyway,
+                           because it is part of the rule and a renderer
+                           that CAN break a word must not.
+
+    The caller decides what "does not wrap" means in its own medium: the
+    PDF gives the row an unbounded wrap width (the app's `.byClipping`),
+    HTML gives it `white-space:nowrap` and asks only the first two branches
+    (a browser never breaks inside a word on its own, so the third would be
+    markup that changes nothing)."""
+    graphic = set(text) & GRAPHIC_CHARS
+    if graphic and all(ch in GRAPHIC_CHARS or ch in '  ⁠'
+                       for ch in text):
+        return True
+    if sum(ch in GRAPHIC_CHARS for ch in text) > 1:
+        return True
+    return bool(text) and ' ' not in text
+
+
 def pm_first_line_indent_cols(block):
     """`.pm`'s own first-line indent for one block, in document print
     columns, or None when the block never set `.pm` (`block.para_margin`).

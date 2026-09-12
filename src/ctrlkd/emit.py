@@ -18,7 +18,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    compile_toc, compile_index, detect_screenplay_blocks,
                    sentence_spacing_texts, sentence_spacing_spans,
                    resolve_sentence_spacing, expand_bare_tabs_texts,
-                   pm_first_line_indent_cols,
+                   pm_first_line_indent_cols, graphic_row_clips,
                    line_numbering_checkpoints, line_numbering_at)
 from .fontmap import font_stack, rtf_fonts
 
@@ -973,6 +973,20 @@ _KIND_LABEL = {'footnote': 'Footnotes', 'endnote': 'Endnotes',
                'annotation': 'Annotations', 'comment': 'Comments'}
 _KIND_PREFIX = {'footnote': 'fn', 'endnote': 'en', 'annotation': 'an', 'comment': 'cm'}
 
+def _html_row_is_nowrap(text):
+    """Whether this HTML row must be kept on one line -- planning #264 item
+    3 (packet row B4). The rule is `core.graphic_row_clips`, the same one
+    the Modern PDF reads; HTML drops its third branch (a row with nowhere
+    to break) because a browser never breaks inside a word on its own, so
+    emitting the class there would be markup that changes nothing. What
+    remains is exactly the two branches that DO change a browser's
+    behaviour: a wholly graphic row (a box border, a rule) and a mixed row
+    carrying more than one graphic character (a legend row, a substitution-
+    table row) -- the rows that fold in the middle in a narrow window and
+    stop being the picture they draw."""
+    return bool(set(text) & GRAPHIC_CHARS) and graphic_row_clips(text)
+
+
 def _is_graphic_text(text):
     """Whether TEXT is entirely cp437 box-drawing/shade/block/card-suit
     content (spaces allowed, e.g. a box's own top-border run of `─`) -- the
@@ -1146,7 +1160,20 @@ def _html_line(spans, refs, keep, keep_ws=False, shown_map=None, inline_styling=
                     out.append(_html_note_ref(note, label, shown))
                 continue
         out.append(_html_span(s, keep_ws, inline_styling, nonprop_fallback))
-    return ''.join(out)
+    html = ''.join(out)
+    # planning #264 item 3 (packet row B4): a picture row is kept on one
+    # line. Decided HERE because this function is the single choke point
+    # every HTML render path funnels through (printed physical lines,
+    # Modern paragraph units, `_html_slice`'s structure-row slices,
+    # headings) -- so a legend row reaches it as a row whether it ended up
+    # a <p>, a <dd> or a physical line, and the question is asked on the
+    # text this call is actually about to render, which is the rule's own
+    # "read the row's final tokens". An inline <span> rather than a
+    # property on the block element: a Modern paragraph unit can carry
+    # several rows, and only the picture among them must stop wrapping.
+    if html and _html_row_is_nowrap(''.join(s.text for s in spans)):
+        html = '<span class="ws-nowrap">%s</span>' % html
+    return html
 
 def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS, sentence_spacing=False):
     sections = []
@@ -2032,6 +2059,17 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # never pays a CSS-byte delta for one.
     if any('<ul' in p or '<dl' in p for p in parts):
         css += _list_css()
+    # planning #264 item 3 (packet row B4): the picture rows that must not
+    # fold. Same appended-only-when-used discipline as the two rules above.
+    # TWO rules, because the two blocks start from different whitespace
+    # handling: ordinary Modern prose wraps under `normal`, so `nowrap` is
+    # the change there; the fixed-pitch block (`p.ws-native`) is already
+    # `pre-wrap`, where `nowrap` would ALSO collapse the very column spacing
+    # that block exists to preserve -- `pre` is `pre-wrap`'s non-wrapping
+    # twin and is the right value inside it.
+    if any('ws-nowrap' in p for p in parts):
+        css += ('\nspan.ws-nowrap{white-space:nowrap}'
+                '\np.ws-native span.ws-nowrap{white-space:pre}')
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
     # end, gated by `--toc` (default off). HTML is non-paged: no page
     # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's
