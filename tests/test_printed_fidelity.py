@@ -610,6 +610,88 @@ def test_pm_column_normalization_matches_lm_flush_left():
     # 7.2pt/col) -- one column right of the file's own bytes.
 
 
+def test_rtf_pm_first_line_indent_does_not_double_count_a_typed_indent():
+    """Planning #264 item 2 (packet row B6). Printed RTF renders PHYSICAL
+    lines, so a first line that types its own leading spaces carries them
+    into the output as real characters -- and `\\fi` used to add `.pm`'s
+    full column on top of them, landing the line that many columns right of
+    where the Printed PDF puts it (the double-count planning #202 fixed for
+    the PDF alone). `.pm 6` is column 6 -> a 5-column offset, and the first
+    line types 10 columns of its own, so the resolved indent is 0 and
+    `li + fi` must come out at the document's own left edge: the ink lands
+    on the typed column 10, exactly as the PDF's does."""
+    src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
+           + b'.pm 6' + HARD + b'.lm 6' + HARD
+           + b' ' * 10 + b'"God the all-terrible! Thou who ordainest,' + HARD)
+    doc = core.parse_ws(src)
+    assert doc.blocks[0].para_margin == 5.0
+    assert core.pm_first_line_indent_cols(doc.blocks[0]) == 0.0
+    out = emit.emit_rtf(doc, mode='printed')
+    li = int(re.search(r'\\li(\d+)', out).group(1))
+    fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
+    assert li + fi == 0, (li, fi)
+
+
+def test_rtf_pm_first_line_indent_still_applies_with_no_typed_indent():
+    """The long-standing case is untouched: a paragraph that types no
+    indent of its own still gets `.pm`'s whole column, so `li + fi` lands
+    on it."""
+    src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
+           + b'.pm 6' + HARD + b'.lm 1' + HARD
+           + b'A paragraph with no typed indent at all.' + HARD)
+    doc = core.parse_ws(src)
+    assert core.pm_first_line_indent_cols(doc.blocks[0]) == 5.0
+    out = emit.emit_rtf(doc, mode='printed')
+    li = int(re.search(r'\\li(\d+)', out).group(1)) if re.search(r'\\li(\d+)', out) else 0
+    fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
+    assert li + fi == 5 * 144, (li, fi)          # 5 columns, 144 twips/column
+
+
+def test_rtf_pm_first_line_indent_tops_up_a_shorter_typed_indent():
+    """A typed indent SHORTER than `.pm`'s column is topped up to it, not
+    discarded -- the middle of the three cases, and the same arithmetic the
+    Printed PDF's own test pins."""
+    src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
+           + b'.pm 9' + HARD + b'.lm 1' + HARD
+           + b'   A paragraph typing three columns under a .pm of eight.' + HARD)
+    doc = core.parse_ws(src)
+    assert core.pm_first_line_indent_cols(doc.blocks[0]) == 5.0    # 8 - 3
+    out = emit.emit_rtf(doc, mode='printed')
+    li = int(re.search(r'\\li(\d+)', out).group(1)) if re.search(r'\\li(\d+)', out) else 0
+    fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
+    assert li + fi == 5 * 144, (li, fi)
+
+
+def test_rtf_pm_zero_never_pulls_a_typed_line_left_of_its_own_column():
+    """Planning #257's half of the rule, in RTF: a `.pm 0"` block whose
+    author centred a line with typed spaces has no margin mechanism behind
+    those spaces, so the clamp at zero must keep `.pm` from pulling the
+    first line LEFT of where it was typed."""
+    src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
+           + b'.pm 0"' + HARD + b'.lm 1' + HARD
+           + b' ' * 20 + b'A BANNER HEADING' + HARD)
+    doc = core.parse_ws(src)
+    assert core.pm_first_line_indent_cols(doc.blocks[0]) == 0.0
+    out = emit.emit_rtf(doc, mode='printed')
+    li_m = re.search(r'\\li(\d+)', out)
+    fi_m = re.search(r'\\fi(-?\d+)', out)
+    # `\\fi0` against `\\li0` is the paragraph state's own initial value, so
+    # the emitter writes no token at all -- absence IS zero here.
+    li = int(li_m.group(1)) if li_m else 0
+    fi = int(fi_m.group(1)) if fi_m else 0
+    assert li + fi == 0, (li, fi)
+
+
+def test_modern_rtf_carries_no_pm_indent_at_all():
+    """`.pm` is Printed-only by the 2026-08-17 ruling (packet row D8), and
+    this change does not alter that -- Modern emits no `\\fi` from it."""
+    src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
+           + b'.pm 6' + HARD + b'A paragraph under a paragraph margin.' + HARD)
+    doc = core.parse_ws(src)
+    out = emit.emit_rtf(doc, mode='modern')
+    assert '\\fi' not in _rtf_body_only(out)
+
+
 def test_psa_psb_add_printed_pdf_vertical_space():
     doc = core.parse_ws(
         ws7_block(0x00, bytes([0x70]) + bytes(15))

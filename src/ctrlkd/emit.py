@@ -18,6 +18,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    compile_toc, compile_index, detect_screenplay_blocks,
                    sentence_spacing_texts, sentence_spacing_spans,
                    resolve_sentence_spacing, expand_bare_tabs_texts,
+                   pm_first_line_indent_cols,
                    line_numbering_checkpoints, line_numbering_at)
 from .fontmap import font_stack, rtf_fonts
 
@@ -2932,21 +2933,32 @@ def _rtf_verse_tight_sl_twips():
 
 def _rtf_pm_fi_twips(b, li_twips):
     """`\\fi` (RTF's first-line indent, relative to `\\li`) from `.pm` --
-    `block.para_margin`, currently read by no emitter. WSFORMAT semantics,
-    corroborated by `core.py`'s own `Block.para_margin` docstring: ".pm is
-    the PARAGRAPH margin -- the first line's own indent", a column
-    position in the SAME absolute frame `.lm`/`.po` use, not a delta
-    against `.lm`. RTF's own model reads `\\fi` as relative to `\\li`, so
-    the direct token is the DIFFERENCE between .pm's absolute column (in
-    twips) and wherever `\\li` (the block's own style margin, round 4) is
-    already placing the body of the paragraph -- `\\li + \\fi` then lands
-    exactly on .pm's column, whether that's deeper (an ordinary indent) or
-    shallower (a hanging indent) than the body. None (the block never set
-    `.pm`) leaves `\\fi` untouched -- no override where there is no
-    evidence."""
-    if b.para_margin is None:
+    `block.para_margin`. WSFORMAT semantics, corroborated by `core.py`'s own
+    `Block.para_margin` docstring: ".pm is the PARAGRAPH margin -- the first
+    line's own indent", a column position in the SAME absolute frame
+    `.lm`/`.po` use, not a delta against `.lm`. RTF reads `\\fi` as relative
+    to `\\li`, so the direct token is the DIFFERENCE between the indent's own
+    absolute column (in twips) and wherever `\\li` (the block's own style
+    margin, round 4) already places the body -- `\\li + \\fi` then lands
+    exactly on it, whether that's deeper (an ordinary indent) or shallower (a
+    hanging indent) than the body. None (the block never set `.pm`) leaves
+    `\\fi` untouched -- no override where there is no evidence.
+
+    WHICH COLUMN (planning #264 item 2, packet row B6): `core.pm_first_line_
+    indent_cols`, the same function the Printed PDF calls, not `.pm`'s raw
+    value. Printed RTF renders PHYSICAL lines, so a first line that already
+    types its own leading spaces carries them into the output as real
+    characters; adding `.pm`'s full column on top of that is the same
+    double-count the PDF stopped doing in planning #202, and it is why such
+    a paragraph indented too far here. The resolved column is `max(0, .pm -
+    already typed)`, so `\\li + \\fi + the typed spaces` now lands where the
+    PDF puts the same line -- and the clamp at zero is planning #257's half
+    of it, which keeps a `.pm 0"` block from pulling its first line LEFT of
+    the column its author typed."""
+    cols = pm_first_line_indent_cols(b)
+    if cols is None:
         return None
-    return round(b.para_margin * _RTF_TWIPS_PER_COL) - li_twips
+    return round(cols * _RTF_TWIPS_PER_COL) - li_twips
 
 
 def _rtf_doc_spacing_twips(doc):

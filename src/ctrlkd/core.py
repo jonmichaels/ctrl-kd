@@ -3949,6 +3949,53 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
+def pm_first_line_indent_cols(block):
+    """`.pm`'s own first-line indent for one block, in document print
+    columns, or None when the block never set `.pm` (`block.para_margin`).
+
+    THE RULE, and both of its 2026-09 refinements, live here so that every
+    surface that can express a first-line indent asks the same question --
+    planning #264 item 2 (packet row B6) moved it out of `pdf.py`, where
+    Printed RTF could not reach it and so indented such a paragraph too far.
+
+    `.pm` is the PARAGRAPH margin: the column a paragraph's first line
+    auto-indents to when WordStar STARTS it under that margin. It is an
+    absolute column in the same frame `.lm`/`.po` use, NOT a delta against
+    `.lm`, and NOT an amount added on top of whatever the author already
+    typed there by hand.
+
+    TYPED-INDENT OFFSET (planning #202, PCL tier, WARPRAYR.WS). That
+    document's two Quote-styled blocks (`para_margin` 5, from the style
+    record rather than a literal `.pm`) open each stanza with 10 literal
+    leading spaces the author typed. Real WS7 (ws7-prints/v1/WARPRAYR.pcl/
+    .measurements.json, page 1 y=448.5 and page 2 y=326.1/369.6/513.3/556.5)
+    prints those lines at exactly left-edge + 10 typed columns (50.4 + 72.0
+    = 122.4pt) -- the style's own 5-column indent contributes NOTHING once
+    the typed text already reaches column 10. Modelled as `max(0, pm_cols -
+    already_typed_cols)`: a typed indent SHORTER than `.pm`'s column is
+    still topped up to it (a paragraph that types no indent at all gets the
+    full column, the long-standing case), one that already reaches or
+    passes it adds nothing further.
+
+    NO `.pm`, NO CONVENTION (planning #257, sawyer/REF/-HOW-TO.RJS). The
+    clamp at zero is the other half: a block under `.pm 0"` that centres a
+    banner with literal typed spaces has no margin mechanism behind those
+    spaces at all, so `.pm` must never pull its first line back to the left
+    of where the author typed it. `max(0, ...)` is what says so.
+
+    Blank leading lines are skipped -- this reads the block's first REAL
+    line, which is the line the indent is ultimately applied to."""
+    if block.para_margin is None:
+        return None
+    typed_cols = 0
+    first_real = next((ln for ln in block.lines
+                       if any(s.text.strip() for s in ln.spans)), None)
+    if first_real is not None:
+        text = ''.join(s.text for s in first_real.spans)
+        typed_cols = len(text) - len(text.lstrip(' '))
+    return max(0.0, block.para_margin - typed_cols)
+
+
 # A bare 0x09 tab byte's print-time expansion target, in document columns --
 # WSFORMAT.WS's own file-format reference (WordStar's control-code table,
 # byte 09h ^I): "At print time the number of hard spaces required to reach a

@@ -31,6 +31,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     line_numbering_checkpoints as _line_numbering_checkpoints, \
     line_numbering_at as _line_numbering_at, \
     expand_bare_tabs_texts as _expand_bare_tabs_texts, \
+    pm_first_line_indent_cols as _pm_first_line_indent_cols, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
@@ -1628,33 +1629,14 @@ def _printed_pm_fi_pt(block):
     li=0 an unstyled/WS4 Printed RTF paragraph already gets from the SAME
     round 6 code. None when the block never set `.pm`.
 
-    TYPED-INDENT OFFSET (PCL tier, WARPRAYR.WS): `.pm`'s column is where a
-    paragraph's first line auto-indents to when WordStar STARTS it under
-    that margin -- it is not an amount added on top of whatever the
-    author already typed there by hand. WARPRAYR's two Quote-styled
-    blocks (`para_margin` 5, from the style record, not a literal `.pm`)
-    open each stanza with 10 literal leading spaces the author typed --
-    real WS7 (ws7-prints/v1/WARPRAYR.pcl/.measurements.json, page 1 y=448.5
-    and page 2 y=326.1/369.6/513.3/556.5) prints those lines at exactly
-    left-edge + 10 typed columns (e.g. 50.4 + 72.0 = 122.4pt) -- the
-    style's own 5-column indent contributes NOTHING once the typed text
-    already reaches column 10. Modelled as `max(0, pm_cols -
-    already_typed_cols)`: a typed indent SHORTER than `.pm`'s column
-    still gets topped up to it (the pre-existing, already-tested case --
-    test_pm_shifts_printed_pdf_first_line_start_x types no indent at all
-    and gets the full column); one that already reaches or passes it
-    adds nothing further (the newly-measured WARPRAYR case). Blank
-    leading lines are skipped -- this reads the block's first REAL
-    (non-blank) line, the same line `_doc_to_pagelines`'s own
-    `first_line_of_block` gate ultimately applies `fi` to."""
-    if block.para_margin is None:
-        return None
-    typed_cols = 0
-    first_real = next((ln for ln in block.lines if any(s.text.strip() for s in ln.spans)), None)
-    if first_real is not None:
-        text = ''.join(s.text for s in first_real.spans)
-        typed_cols = len(text) - len(text.lstrip(' '))
-    return max(0.0, (block.para_margin - typed_cols) * _PDF_PT_PER_COL)
+    The rule itself -- `.pm`'s absolute column, reduced by whatever the
+    author already typed, clamped at zero -- is `core.pm_first_line_indent_
+    cols`, where planning #264 item 2 moved it so Printed RTF asks the same
+    question. Its docstring carries the WARPRAYR.WS (planning #202) and
+    -HOW-TO.RJS (planning #257) evidence. This function is only that answer
+    in points."""
+    cols = _pm_first_line_indent_cols(block)
+    return None if cols is None else cols * _PDF_PT_PER_COL
 
 
 def _printed_doc_spacing_pt(doc):
