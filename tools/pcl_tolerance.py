@@ -1548,7 +1548,8 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
         if len(pub) != len(text_chunks):
             mismatched_pages.append(pidx)
             continue
-        page_chunks = list(zip(pub, text_chunks))
+        page_chunks = [(pc, tc) for pc, tc in zip(pub, text_chunks)
+                       if not fg.is_job_control_chunk(pc['text'])]
         by_y = defaultdict(list)
         for pc, tc in page_chunks:
             by_y[pc['y_decipoints']].append((pc, tc))

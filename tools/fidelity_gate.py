@@ -1920,12 +1920,41 @@ def load_engine_chars(data: dict) -> dict:
 
 
 # ------------------------------------------------------------- WS7 loading
+def is_job_control_chunk(text: str) -> bool:
+    """True for a captured WS7 chunk that is printer JOB CONTROL, not ink.
+
+    A WordStar print-control tag can send its own PJL block mid-job: a UEL
+    `ESC%-12345X` followed by one or more `@PJL` command lines, ending when
+    PCL resumes at the next ESC. `pcl_text.py`/`pcl_render.py`'s extraction
+    grammar reads only "bytes >= 0x20 outside an escape are text", so those
+    command lines land in `chunks` at the cursor's last position as if they
+    had been typed on the page. MEASURED on `sawyer/REF/DPI.TAG`
+    (ws7-prints/v4), whose whole body is three print-control tags each
+    sending `ESC%-12345X@PJL SET RESOLUTION=n`: the capture records three
+    `@PJL SET RESOLUTION=...` chunks on the document's first three lines,
+    and real WS7 puts no ink on that sheet at all -- the engine, correctly,
+    draws nothing.
+
+    Matched on a LEADING `@PJL ` only, so `sawyer/REF/COURIER.WS`'s own
+    real printed line `Ec%-12345X@PJL` (a document ABOUT the sequence,
+    genuine ink, clean against this gate) is untouched. The rule lives
+    here, not in the extractor, because `pcl_tolerance.py` zips each
+    committed measurements.json page against a fresh re-parse of the same
+    .pcl and requires the two chunk counts to agree -- dropping the chunk
+    at extraction would make every already-captured document disagree
+    with its own committed measurements."""
+    return text.startswith('@PJL ')
+
+
 def ws7_page_tokens(page: dict, page_no: int) -> list:
     """measurements.json page['chunks'] -> the same token shape
     `engine_page_tokens` produces, so both sides compare like for like.
-    `x`/`y_top` stay PAGE-LOCAL, same reasoning as the engine side."""
+    `x`/`y_top` stay PAGE-LOCAL, same reasoning as the engine side. A
+    job-control chunk (`is_job_control_chunk`) is dropped: it is not ink."""
     out = []
     for c in page['chunks']:
+        if is_job_control_chunk(c['text']):
+            continue
         out.append({
             'text': c['text'],
             'x': c['x_decipoints'] / DECIPT_PER_PT,
