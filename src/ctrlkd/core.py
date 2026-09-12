@@ -1332,6 +1332,25 @@ class Document:
     # `_hf_line_ops` falls back to the baked text unchanged, byte-identical.
     header_tabs: dict = field(default_factory=dict)
     footer_tabs: dict = field(default_factory=dict)
+    # A `.h#`/`.f#` argument's own 0x0F USER PRINT CONTROLS, per line:
+    # `{line: [(char_idx, hmi, pcl_idx), ...]}` -- the same three numbers a
+    # body span's own 'pctl' mark carries, and empty/absent for every
+    # header or footer that has none (every document but `sawyer/LSRBOX/
+    # LSRBOX.WS`, whose `.h1` IS a LaserJet box-drawing control).
+    #
+    # WHY THE TEXT NO LONGER CARRIES THEM: a print control's display string
+    # is SCREEN-ONLY. On paper WordStar sends the control's raw printer
+    # payload and advances by the block's own HMI word -- the body-text path
+    # has done exactly that since the 'pctl' mark existed, but a running
+    # head had no such mechanism and printed the string as words. Measured
+    # against real WS7 (`ws7-prints/v4`, PRISTINE.EXE): LSRBOX.WS's own
+    # `.h1` is one control (HMI 0, a full-page shaded frame), and WS7 prints
+    # NO header text on any of its 7 pages -- it draws 38 rectangles on page
+    # 1 and 2 on every page after. This engine printed
+    # `«Shaded ┌00.500"hx00.500"v ─00.250" │10.000" ░015%   0-dot-wide
+    # lines»` across the top of all of them.
+    header_pcl: dict = field(default_factory=dict)
+    footer_pcl: dict = field(default_factory=dict)
     # Planning #255: a `.h#`/`.f#` argument's own embedded paragraph-style-
     # sheet reference (0x11 selection, the SAME symmetric-block mechanism a
     # body paragraph's style select uses -- WSFORMAT's own "Header Odd"/
@@ -1409,6 +1428,17 @@ class Document:
     # zipping the two together. None for a plain `.h1`/`.he`/`.f1`/`.fo`
     # event, else 'E'/'O' for `.h1e`/`.h1o`/`.f1e`/`.f1o`.
     hf_events_parity: list = field(default_factory=list)
+    # 2026-09-12 (cause 10 of the ws7-prints/v4 triage): `hf_events`'s own
+    # 0x0F USER PRINT CONTROLS, INDEX-ALIGNED with it exactly as
+    # `hf_events_parity` is and for exactly the same reason -- a SEPARATE
+    # list so every existing `hf_events` consumer stays byte-identical for
+    # the 388 corpus documents whose running heads carry none. Each entry is
+    # that event's own `[(char_idx, hmi, pcl_idx), ...]` (the list
+    # `Document.header_pcl` holds for the document's FINAL state; this is
+    # the per-EVENT value the Printed paginator's replay needs, since
+    # `sawyer/LSRBOX/LSRBOX.WS` restates `.h1` three times with a different
+    # control each time).
+    hf_events_pcl: list = field(default_factory=list)
     footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
                                                        # endnotes, and annotations, in document
                                                        # order -- all three are rendered the
@@ -3251,7 +3281,8 @@ def line_numbering_at(checkpoints, bi):
 
 
 def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
-                     tab_mark=None, align=None, style_attrs=None):
+                     tab_mark=None, align=None, style_attrs=None,
+                     pctl_marks=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -3273,6 +3304,17 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     leader, cols)` -- `rel` a BYTE offset from the start of `cmd` (the SAME
     coordinate space `_symmetric_blocks` recorded it in), the rest exactly
     what a body span's own tab mark carries. See `Document.header_tabs`.
+
+    `pctl_marks` (2026-09-12, cause 10 of the ws7-prints/v4 triage) is this
+    line's own `line_marks` 'pctl' entries -- `[(rel, hmi, shown_len,
+    pcl_idx), ...]`, `rel` in the SAME byte coordinate space `tab_mark`'s own
+    offset uses. A 0x0F user print control's display string is SCREEN-ONLY:
+    on paper WordStar sends the raw printer payload instead and advances by
+    the declared HMI. The body path has always done that (`_decode_spans`'s
+    'pctl' span tag); a running head kept the string and PRINTED it. Each
+    range is excised from the stored header/footer text here, and the three
+    numbers are recorded on `Document.header_pcl`/`footer_pcl` so the
+    printed renderer can draw the control's own rectangles instead.
 
     Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` (real corpus commands --
     sawyer/REF/GALLEYS.DOT etc; confirmed the ONLY header/footer line WSFORMAT
@@ -3306,6 +3348,21 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     # body uses -- control-range middles are chart glyphs, the rest are the
     # byte's own cp437 character.
     raw_txt = m.group(2)
+    # Excise every 0x0F print control's display string BEFORE anything else
+    # reads this text (see `pctl_marks` in the docstring). Working right to
+    # left keeps the earlier offsets valid; `pctl_here` collects the
+    # controls in source order, each with the CHARACTER index in the final
+    # text where it sat, so a header that mixes real words with a control
+    # (LSRBOX.WS's own later `.h1`: `Sawyer * LSRBOX * #` followed by a
+    # `VrtLin` rule control) keeps its words exactly where they were.
+    pctl_here = []
+    if pctl_marks:
+        for rel, hmi, shown_len, pcl_idx in sorted(pctl_marks, reverse=True):
+            off = rel - m.start(2)
+            if 0 <= off <= len(raw_txt) and shown_len >= 0:
+                raw_txt = raw_txt[:off] + raw_txt[off + shown_len:]
+                pctl_here.append((off, hmi, pcl_idx))
+        pctl_here.reverse()
     tab_byte_idx = tab_mark[0] - m.start(2) if tab_mark is not None else None
     tab_char_idx = None
     parts, pos = [], 0
@@ -3347,6 +3404,8 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     else:
         tab_val = None
     which_tabs[line] = tab_val
+    which_pcl = doc.header_pcl if kind == 'H' else doc.footer_pcl
+    which_pcl[line] = pctl_here
     which_align = doc.header_align if kind == 'H' else doc.footer_align
     which_align[line] = align
     which_style_attrs = (doc.header_style_attrs if kind == 'H'
@@ -3370,6 +3429,7 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     if anchor is not None:
         doc.hf_events.append((kind, line, text, anchor))
         doc.hf_events_parity.append(parity)
+        doc.hf_events_pcl.append(pctl_here)
 
 
 def _cp_lines(cmd: bytes) -> int:
@@ -5560,6 +5620,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # bytes, never this line's own marks.
             hf_tab_mark = next(((rel, m[1], m[2], m[3]) for rel, m in line_marks
                                if m[0] == 'tab'), None)
+            # 2026-09-12 (cause 10): this line's own 0x0F user print
+            # controls, found exactly the way `hf_tab_mark` is -- see
+            # `_parse_head_foot`'s own `pctl_marks`.
+            hf_pctl_marks = [(rel, m[1], m[2], m[3]) for rel, m in line_marks
+                            if m[0] == 'pctl']
             # Planning #255: a `.h#`/`.f#` argument can ALSO open with its own
             # 0x11 paragraph-style-select (GALLEYS.DOT/ADVANCE.DOT's `.h1o`/
             # `.h1e` -- "Header Odd"/"Header Even"), found the same way
@@ -5598,7 +5663,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                              font_idx=(hf_font_idx if hf_font_idx is not None
                                       else hf_style_font_idx),
                              tab_mark=hf_tab_mark,
-                             align=hf_align, style_attrs=hf_style_attrs)
+                             align=hf_align, style_attrs=hf_style_attrs,
+                             pctl_marks=hf_pctl_marks)
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.

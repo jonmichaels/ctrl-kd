@@ -6671,7 +6671,7 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "exact-drift": 750,
-        "extra-word-in-engine": 72,
+        "extra-word-in-engine": 20,
         "line-start-shift": 11,
         "univers-drift-exceeds-tolerance": 3,
         "word-unmatched": 23
@@ -7480,118 +7480,6 @@
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
           "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "\u00abShaded"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            50.4,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.500\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            108.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "-00.250\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            244.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            309.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?015%"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            374.4,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "0-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            432.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "lines\u00bb"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            511.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 1,
           "line_y_top_pt": 227.0,
           "words": [
             "sawyer@sfwriter.com"
@@ -7602,150 +7490,6 @@
             227.0
           ],
           "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "2\u00abVrtLin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            511.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.500\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            576.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            712.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "10-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            784.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "line\u00bb\u00abVrtLin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            871.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.600\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            964.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1101.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "10-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1173.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "line\u00bb"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1260.0,
-            56.6
-          ],
-          "font_class": "fixed",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
@@ -7768,150 +7512,6 @@
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
           "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "3\u00abVrtLin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            511.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.500\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            576.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            712.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "10-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            784.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "line\u00bb\u00abVrtLin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            871.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.600\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            964.8,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1101.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "10-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1173.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "line\u00bb"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1260.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 3,
           "line_y_top_pt": 261.0,
           "words": [
             "INSTALLATION"
@@ -7927,15 +7527,175 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 97.0,
           "words": [
-            "4\u00abVrtLin"
+            "FUDGEHORFIX=-050"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            511.2,
-            56.6
+            86.4,
+            97.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 169.0,
+          "words": [
+            "FUDGEHORFIX=-055"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            169.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 241.0,
+          "words": [
+            "FUDGEHORFIX=-060"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            241.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 313.0,
+          "words": [
+            "FUDGEHORFIX=-065"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            313.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 385.0,
+          "words": [
+            "FUDGEHORFIX=-070"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            385.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 457.0,
+          "words": [
+            "FUDGEHORFIX=-075"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            457.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 529.0,
+          "words": [
+            "FUDGEHORFIX=-080"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            529.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 601.0,
+          "words": [
+            "FUDGEHORFIX=-085"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            601.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 673.0,
+          "words": [
+            "FUDGEHORFIX=-090"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            673.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 745.0,
+          "words": [
+            "FUDGEHORFIX=-095"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            745.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 769.0,
+          "words": [
+            "all"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            72.0,
+            769.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -7943,15 +7703,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 769.0,
           "words": [
-            "?00.500\"hx00.500\"v"
+            "the"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            576.0,
-            56.6
+            100.8,
+            769.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -7959,15 +7719,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 769.0,
           "words": [
-            "|10.000\""
+            "LSRBOX"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            712.8,
-            56.6
+            129.6,
+            769.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -7975,15 +7735,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 769.0,
           "words": [
-            "10-dot-wide"
+            "fudge"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            784.8,
-            56.6
+            180.0,
+            769.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -7991,15 +7751,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 781.0,
           "words": [
-            "line\u00bb\u00abVrtLin"
+            "factors,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            871.2,
-            56.6
+            50.4,
+            781.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -8007,15 +7767,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 781.0,
           "words": [
-            "?00.600\"hx00.500\"v"
+            "FUDGEHORFIX"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            964.8,
-            56.6
+            115.2,
+            781.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -8023,95 +7783,15 @@
         },
         {
           "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
+          "page": 7,
+          "line_y_top_pt": 781.0,
           "words": [
-            "|10.000\""
+            "the"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            1101.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "10-dot-wide"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1173.6,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "line\u00bb"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            1260.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "5\u00abVrtLin"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            511.2,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "?00.500\"hx00.500\"v"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            576.0,
-            56.6
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__LSRBOX__LSRBOX_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 56.6,
-          "words": [
-            "|10.000\""
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            712.8,
-            56.6
+            223.2,
+            781.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",

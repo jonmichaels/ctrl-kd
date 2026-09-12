@@ -4015,7 +4015,7 @@ class Page(list):
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
                 'explicit_break', 'explicit_break_bi',
                 'columns', 'column_gutter_pt', 'column_width_pt',
-                'column_top_offset_pt',
+                'column_top_offset_pt', 'header_pcl', 'footer_pcl',
                 'header_lines', 'footer_lines', 'auto_pageno',
                 'head_hf_override', 'foot_hf_override', 'footer_in_use')
 
@@ -4083,6 +4083,16 @@ class Page(list):
         # non-columnar page, same "no opinion" convention as the three
         # above.
         self.column_top_offset_pt = None
+        # `header_pcl`/`footer_pcl` (2026-09-12, cause 10 of the
+        # ws7-prints/v4 triage): the 0x0F user print controls IN FORCE on
+        # this page's own running head/foot, `{line: [(char_idx, hmi,
+        # pcl_idx), ...]}` -- replayed from `doc.hf_events_pcl` exactly as
+        # `headers`/`footers` are replayed from `doc.hf_events`, because a
+        # document may restate `.h1` with a different control on different
+        # pages (`sawyer/LSRBOX/LSRBOX.WS` does, three times). `{}` on every
+        # page of every document whose running heads carry none.
+        self.header_pcl = {}
+        self.footer_pcl = {}
         # #228 (research/2026-09-08_trailing-pa-rule.md, planning #228): a
         # trailing `.pa` followed by at least one more real content
         # paragraph -- even a blank one -- before EOF opens a final page
@@ -4419,6 +4429,10 @@ def _apply_columns(doc, pages, size):
         # `_apply_columns` merges from the document's `.co3` region.
         merged.headers = getattr(pg, 'headers', None)
         merged.footers = getattr(pg, 'footers', None)
+        # cause 10: the running head's own print controls travel with its
+        # text through the merge, same passthrough as `headers`/`footers`.
+        merged.header_pcl = getattr(pg, 'header_pcl', None) or {}
+        merged.footer_pcl = getattr(pg, 'footer_pcl', None) or {}
         merged.footer_in_use = getattr(pg, 'footer_in_use', False)
         # planning #250: carry the source page's own parity font/tab
         # override through the merge, same passthrough as headers/footers
@@ -4655,9 +4669,14 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # right variant below.
     hf_events = getattr(doc, 'hf_events', ())
     hf_parity = getattr(doc, 'hf_events_parity', None) or [None] * len(hf_events)
+    # 2026-09-12 (cause 10): `doc.hf_events_pcl` is INDEX-ALIGNED with
+    # `hf_events` the same way `hf_events_parity` is -- see that field's own
+    # comment. `()` for every document whose running heads carry no 0x0F
+    # user print control, which is all but `sawyer/LSRBOX/LSRBOX.WS`.
+    hf_pcl = getattr(doc, 'hf_events_pcl', None) or [()] * len(hf_events)
     hf_by_block = {}
-    for (kind, lno, txt, anchor), parity in zip(hf_events, hf_parity):
-        hf_by_block.setdefault(anchor, []).append((kind, lno, txt, parity))
+    for (kind, lno, txt, anchor), parity, pcl in zip(hf_events, hf_parity, hf_pcl):
+        hf_by_block.setdefault(anchor, []).append((kind, lno, txt, parity, pcl))
     # round 17 (RULINGS-LEDGER row 5/7): `.pm`/`.psa`/`.psb` extend round 6's
     # RTF vertical-space model to Printed PDF, same relative-computation
     # rules, Printed only (Modern's own `else` branch below never reads
@@ -5198,6 +5217,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     pages, page, spent = [], [], 0.0
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
+    # cause 10: the 0x0F print-control siblings of `cur_hdrs`/`page_hdrs`,
+    # snapshotted at exactly the same moments -- see `Page.header_pcl`.
+    cur_hdrs_pcl, cur_ftrs_pcl = {}, {}
+    page_hdrs_pcl, page_ftrs_pcl = {}, {}
     # planning #250: the SAME flat/snapshot machinery as `cur_hdrs`/
     # `page_hdrs` above, one independent pair per parity -- `.h1e`/`.f1e`
     # write only `cur_hdrs_e`/`cur_ftrs_e`, `.h1o`/`.f1o` only `cur_hdrs_o`/
@@ -5245,6 +5268,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        # cause 10: kept UNFILTERED, unlike the text dicts just above -- a
+        # header line whose whole content was one print control has EMPTY
+        # text and a real control to draw, which is exactly LSRBOX.WS's own
+        # `.h1`.
+        pg.header_pcl = {k: v for k, v in page_hdrs_pcl.items() if v}
+        pg.footer_pcl = {k: v for k, v in page_ftrs_pcl.items() if v}
         pg.footer_in_use = bool(page_ftrs)
         # #228: only ever True from the post-loop trailing-`.pa` branch
         # below, and only when `page` (this closing page's own body) is
@@ -5453,7 +5482,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             col_group_index, col_offset_pt = 0, 0.0
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
-            _, kind, lno, txt, parity = l
+            _, kind, lno, txt, parity, pcl = l
             # planning #250: `.h1e`/`.f1e` write ONLY `cur_hdrs_e`/
             # `cur_ftrs_e`, `.h1o`/`.f1o` ONLY `cur_hdrs_o`/`cur_ftrs_o` --
             # a plain `.h1`/`.fo` (parity is None) still ALSO writes the
@@ -5465,8 +5494,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             elif parity == 'O':
                 (cur_hdrs_o if kind == 'H' else cur_ftrs_o)[lno] = txt
             (cur_hdrs if kind == 'H' else cur_ftrs)[lno] = txt
+            # cause 10: this event's own print controls travel with its text.
+            (cur_hdrs_pcl if kind == 'H' else cur_ftrs_pcl)[lno] = pcl
             if not page:                   # nothing printed on this page yet:
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
                 page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
             continue
@@ -5510,6 +5542,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             if short and page:
                 _close_page(); _advance_column(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
                 page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
             continue
@@ -5559,6 +5592,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             if page or l is None:
                 _close_page(); _advance_column(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
                 page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
                 # organic overflow (see `_recompute_geom`'s docstring,
@@ -6158,7 +6192,8 @@ def _printed_hf_right(doc, left):
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
                              head_hf_override=None, foot_hf_override=None,
-                             footer_in_use=None):
+                             footer_in_use=None, headers_pcl=None,
+                             footers_pcl=None):
     """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
     (each line's `y`; `x` is simply the caller's already-resolved `left`,
     since -- unlike `y` -- no header/footer line's own starting x has ever
@@ -6313,7 +6348,16 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     if footer_in_use is None:
         footer_in_use = bool(footers)
     show_auto_num = printed and auto_page_number and not footer_in_use
-    if not (headers or footers or show_auto_num) or not printed:
+    # 2026-09-12 (cause 10): a running head whose ENTIRE content was a 0x0F
+    # user print control has empty text and a real rule to draw --
+    # `sawyer/LSRBOX/LSRBOX.WS`'s own `.h1` is exactly that. Only the PDF
+    # WRITER passes these (`_running_ops`); the shared head/foot MODEL
+    # (`_attach_head_foot_lines_printed`, the `layout` JSON) does not, so
+    # its own resolved lines -- and that JSON -- stay byte-identical.
+    headers_pcl = headers_pcl or {}
+    footers_pcl = footers_pcl or {}
+    if (not (headers or footers or show_auto_num or headers_pcl or footers_pcl)
+            or not printed):
         return None
     page = doc.meta.get('page') or {}
     # `.op` does NOT suppress a `#` in a header or footer. MEASURED on WordStar 4
@@ -6525,7 +6569,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # install and never actually distinguished from this simpler rule
     # until `-README`'s own `ws7-prints/v3` PRISTINE.EXE recapture.
     hm = float(page.get('hm_lines', 2))
-    top_head = max(headers, default=1)
+    top_head = max(set(headers) | set(headers_pcl), default=1)
     head_base = max(0.0, mt - hm - top_head)
     # Planning #255: a document with NO real body blocks at all
     # (GALLEYS.DOT/ADVANCE.DOT) never runs `_close_page`'s own `.poe`/
@@ -6559,8 +6603,9 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # anyway since `_hf_align_x` already treats None as "no alignment").
     right_edge = _printed_hf_right(doc, left)
     resolved_headers = []
-    for n, txt in sorted(headers.items()):
-        if not txt:
+    for n in sorted(set(headers) | set(headers_pcl)):
+        txt = headers.get(n) or ''
+        if not txt and not headers_pcl.get(n):
             continue
         y = page_h - (head_base + n - 1) * LEAD - size
         # planning #250: `head_hf_override` (this page's own `.h1e`/`.h1o`
@@ -6594,8 +6639,9 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # acted on.
     foot_line = pl - mb + fm
     resolved_footers = []
-    for n, txt in sorted(footers.items()):
-        if not txt:
+    for n in sorted(set(footers) | set(footers_pcl)):
+        txt = footers.get(n) or ''
+        if not txt and not footers_pcl.get(n):
             continue
         y = page_h - (foot_line + n - 1) * lead - size
         if y < 0:
@@ -6631,7 +6677,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
 def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                  headers=None, footers=None, res=None, auto_page_number=False,
                  head_hf_override=None, foot_hf_override=None,
-                 footer_in_use=None):
+                 footer_in_use=None, headers_pcl=None, footers_pcl=None):
     """Header and footer text for one page, as content-stream ops -- a
     thin RENDERING shell over `_resolve_head_foot_lines` (planning
     #251(d)): that function resolves WHERE (`y`, and this page's own
@@ -6646,7 +6692,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     resolved = _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left,
                                         printed, headers, footers, auto_page_number,
                                         head_hf_override, foot_hf_override,
-                                        footer_in_use)
+                                        footer_in_use, headers_pcl, footers_pcl)
     if resolved is None:
         return []
 
@@ -6768,11 +6814,50 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             x += _natural_width_pt(run_text, basefont, pt)
         return ops
 
+    def _hf_pcl_ops(controls, y, x0):
+        """The rectangles a running head/foot's own 0x0F USER PRINT CONTROLS
+        draw, at this line's own resolved position (2026-09-12, cause 10 of
+        the ws7-prints/v4 triage).
+
+        A print control's display string is SCREEN-ONLY -- core.py excises
+        it from the header text (see `Document.header_pcl`) -- and what WS7
+        actually sends is the control's raw printer payload. The body-text
+        path has drawn these since register C2 (`_line_ops_printed`'s own
+        'pctl' branch); a running head drew nothing at all and printed the
+        string as words instead. MEASURED against real WS7 (`ws7-prints/v4`,
+        PRISTINE.EXE): `sawyer/LSRBOX/LSRBOX.WS` -- whose `.h1` IS a
+        LaserJet box-drawing control -- has 38 rectangles on page 1 and 2 on
+        every page after it; this engine drew 17 and 0.
+
+        The anchor, the frame correction and the gray restore are all the
+        SAME ones the body path uses -- see `_line_ops_printed`'s own
+        'pctl' branch and `_pcl_rect_ops`'s docstring. Every control in the
+        corpus's running heads declares HMI 0 (a rule-drawing control moves
+        the print position not at all), so `x` never advances here; the
+        advance is applied anyway, from the control's own declared HMI, so a
+        control that did move the pen would move it.
+        """
+        out, x = [], x0
+        for char_idx, hmi, pcl_idx in controls:
+            if (pcl_idx is not None and 0 <= pcl_idx < len(doc.pcl_programs)):
+                prog = _parse_pcl_program(doc.pcl_programs[pcl_idx])
+                out += _pcl_rect_ops(prog, x + _PCL_ABS_X_OFFSET_UNITS * _PCL_UNIT_PT,
+                                     y - _PCL_ABS_Y_OFFSET_UNITS * _PCL_UNIT_PT,
+                                     page_h, 0.0)
+            x += hmi / HMI_PER_POINT
+        return out
+
     ops = []
+    hdr_pcl = headers_pcl or {}
+    ftr_pcl = footers_pcl or {}
     for _n, txt, y, font_idx, x0, style_attrs in resolved['headers']:
         ops += _hf_line_ops(_euro_texts([txt], euro)[0], y, font_idx, x0, style_attrs)
+        if printed and hdr_pcl.get(_n):
+            ops += _hf_pcl_ops(hdr_pcl[_n], y, x0)
     for _n, txt, y, font_idx, x0, style_attrs in resolved['footers']:
         ops += _hf_line_ops(_euro_texts([txt], euro)[0], y, font_idx, x0, style_attrs)
+        if printed and ftr_pcl.get(_n):
+            ops += _hf_pcl_ops(ftr_pcl[_n], y, x0)
     if resolved['auto'] is not None:
         text, x, y = resolved['auto']
         ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
@@ -7072,7 +7157,14 @@ def _split_indent(segs):
 # group) sets only the vertical -- LJ6DTP's checkerboard uses both shapes in
 # the same control.
 _PCL_POS_RE = _re.compile(rb'\x1b\*p(?:([+-]?\d+)x)?([+-]?\d+)Y')
-_PCL_FILL_RE = _re.compile(rb'\x1b\*c(\d+)a(\d+)b(\d+)(?:g(\d+))?P')
+# `(\d*)` on the third group, NOT `(\d+)`: HP's parameterized escapes are
+# VALUE+LETTER pairs and an OMITTED value means zero, so `...b` followed
+# straight by `g0P` is a legal, common sequence -- `sawyer/LSRBOX/LSRBOX.WS`
+# sends 16 of them (`*c0001a0150bg0P`, `*c0600a0006bg0P`, `*c0010a3000bg0P`,
+# `*c0001a2850bg0P`: its thin rules and vertical lines), every one of which
+# this pattern dropped as 'ignored' before. See `_parse_pcl_program`'s own
+# note on which captured group is which parameter.
+_PCL_FILL_RE = _re.compile(rb'\x1b\*c(\d+)a(\d+)b(\d*)(?:g(\d+))?P')
 _PCL_PUSH_RE = _re.compile(rb'\x1b&f0S')
 _PCL_POP_RE = _re.compile(rb'\x1b&f1S')
 
@@ -7123,17 +7215,27 @@ def _parse_pcl_program(data: bytes) -> list:
             continue
         m = _PCL_FILL_RE.match(data, i)
         if m:
-            w, h, f, g = m.groups()
-            w, h, f = int(w), int(h), int(f)
-            if g is not None:
-                # Shading pattern: `f` here is the ink PERCENTAGE (0-100),
-                # not a fill-type code -- 100% reads as solid black, same
-                # as fill type 0 below.
-                ops.append(('fill', w, h, 1.0 - f / 100.0))
-            elif f == 0:
-                ops.append(('fill', w, h, 0.0))   # solid black -- the only
-                                                   # plain fill type this
-                                                   # document ever sends
+            # HP's parameterized escape is a run of VALUE+LETTER pairs, so
+            # WHICH parameter a captured group holds depends on how many
+            # pairs the sequence actually wrote:
+            #   `*c<w>a<h>b<t>P`            -- `t` is the FILL TYPE (`P`).
+            #   `*c<w>a<h>b<pat>g<t>P`      -- `pat` is the shading pattern
+            #                                  (`g`, ink percent) and `t`
+            #                                  the fill type (`P`).
+            # An omitted value is zero (`...bg0P` -- pattern 0, fill type
+            # 0), which is why the third group is `\d*`.
+            w, h, third, fourth = m.groups()
+            w, h = int(w), int(h)
+            if fourth is not None:
+                fill_type, pattern = int(fourth), int(third or 0)
+            else:
+                fill_type, pattern = int(third or 0), 0
+            if fill_type == 0:
+                ops.append(('fill', w, h, 0.0))        # solid black
+            elif fill_type == 2:
+                # Shaded fill: `pattern` is the ink PERCENTAGE (0-100);
+                # 100% reads as solid black, same as fill type 0 above.
+                ops.append(('fill', w, h, 1.0 - pattern / 100.0))
             else:
                 ops.append(('ignored', m.group(0)))
             i = m.end()
@@ -9719,7 +9821,11 @@ def _emit_pdf_inner(doc, printed, options):
                                    head_hf_override=(getattr(pl, 'head_hf_override', None)
                                                      if show_headers else None),
                                    foot_hf_override=(getattr(pl, 'foot_hf_override', None)
-                                                     if show_headers else None))
+                                                     if show_headers else None),
+                                   headers_pcl=(getattr(pl, 'header_pcl', None)
+                                                if show_headers else None),
+                                   footers_pcl=(getattr(pl, 'footer_pcl', None)
+                                                if show_headers else None))
             if saved_pg is not None:
                 doc.meta['page'] = saved_pg
             streams.append(_page_stream(pl, page_top, page_h, lead, size, left,

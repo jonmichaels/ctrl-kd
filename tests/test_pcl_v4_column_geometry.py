@@ -32,6 +32,7 @@ so the rules stay covered with no corpus at all.
      2225pt, right off the sheet.
 """
 import collections
+import re
 import json
 
 import pytest
@@ -252,3 +253,76 @@ def test_the_layout_json_publishes_the_column_top_offset():
     assert out['version'] == 8
     pages = [p for p in out['printed']['pages'] if p.get('columns')]
     assert pages and pages[0]['column_top_offset_pt'] == pytest.approx(24.0)
+
+
+# ------------------------------------------------------------- mechanism F
+def _pctl_control(shown, payload, hmi=0):
+    """A 0x0F USER PRINT CONTROL block, exactly WSFORMAT.TXT's own shape and
+    `sawyer/LSRBOX/LSRBOX.WS`'s: a word of HMIs, a byte of display-string
+    length, the display string itself, then the raw printer payload
+    ("the remaining bytes ... will be sent directly to the printer")."""
+    content = hmi.to_bytes(2, 'little') + bytes([len(shown)]) + shown + payload
+    count = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + count + b'\x0f' + content + count + b'\x1d'
+
+
+_RULE_PCL = b'\x1b*p0062x0145Y\x1b*c0010a3000bg0P'
+
+
+def test_a_print_controls_display_string_never_reaches_a_running_head():
+    """A 0x0F user print control's display string is SCREEN-ONLY -- on paper
+    WordStar sends the raw printer payload instead. The body path has done
+    that since register C2; a running head kept the string and PRINTED it.
+    Measured on `sawyer/LSRBOX/LSRBOX.WS`, whose `.h1` IS one such control
+    (a full-page shaded frame, HMI 0): real WS7 prints no header text at all
+    on any of its 7 pages, and this engine printed
+    `«Shaded ...  0-dot-wide lines»` across the top of every one."""
+    ctrl = _pctl_control(b'\xaeShaded 00.500"h\xaf', _RULE_PCL)
+    src = b'.h1' + ctrl + HARD + HARD.join(b'body %d' % n for n in range(1, 60)) + HARD
+    doc = core.parse(src)
+    assert doc.headers[1] == '', 'the display string is not header text'
+    assert doc.header_pcl[1] == [(0, 0, 0)], '(char_idx, hmi, pcl_idx)'
+    assert len(doc.pcl_programs) == 1
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'Shaded' not in out
+
+
+def test_a_running_heads_print_control_draws_its_own_rectangles():
+    """...and what WS7 actually sends is drawn. LSRBOX.WS's own later `.h1`
+    carries TWO rule controls beside its real text, and real WS7 puts 2
+    rectangles on every page that head governs; this engine drew none."""
+    ctrl = _pctl_control(b'\xaeVrtLin\xaf', _RULE_PCL)
+    src = (b'.h1 Sawyer' + ctrl + HARD
+           + HARD.join(b'body %d' % n for n in range(1, 130)) + HARD)
+    doc = core.parse(src)
+    assert doc.headers[1].strip() == 'Sawyer', 'the real words stay'
+    out = pdf.emit_pdf(doc, mode='printed')
+    streams = re.findall(rb'stream\n(.*?)\nendstream', out, re.S)
+    assert len(streams) >= 2
+    for s in streams[:2]:
+        assert len(re.findall(rb'\bre\b', s)) == 1, 'one rule per page'
+
+
+def test_a_header_with_no_control_draws_nothing_new():
+    """The negative: an ordinary running head is byte-identical to before
+    this existed -- no rectangle, no empty header line, no extra op."""
+    src = b'.h1 Plain head' + HARD + HARD.join(b'body %d' % n
+                                               for n in range(1, 60)) + HARD
+    doc = core.parse(src)
+    assert not doc.header_pcl.get(1)
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert not re.findall(rb'\bre\b', out)
+
+
+def test_a_fill_with_an_omitted_value_is_solid_black():
+    """HP's parameterized escapes are VALUE+LETTER pairs and an omitted
+    value means zero, so `...bg0P` is pattern 0, fill type 0 -- solid black.
+    `_PCL_FILL_RE` required a digit there and dropped 16 of LSRBOX.WS's own
+    fills (its thin rules and vertical lines) as unrecognised."""
+    assert pdf._parse_pcl_program(b'\x1b*c0010a3000bg0P') == [
+        ('fill', 10, 3000, 0.0)]
+    # unchanged: the two shapes that already parsed
+    assert pdf._parse_pcl_program(b'\x1b*c2250a0003b0P') == [
+        ('fill', 2250, 3, 0.0)]
+    shaded = pdf._parse_pcl_program(b'\x1b*c0075a3000b0015g2P')
+    assert shaded[0][0] == 'fill' and abs(shaded[0][3] - 0.85) < 1e-9
