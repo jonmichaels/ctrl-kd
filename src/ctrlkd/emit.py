@@ -895,6 +895,34 @@ section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
 hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
 
+def _list_css():
+    """Planning #264 item 5, the HTML half of packet row C3: explicit list
+    geometry, so a definition or bullet list lands on WordStar's own ladder
+    instead of whatever the browser's default happens to be.
+
+    The SAME two numbers the Modern PDF lays (`pdf.MODERN_LEVEL_STEP_COLS`,
+    `pdf.MODERN_DEF_HANG_PT`), read from those constants rather than
+    restated here: one nesting step is 4 print columns -- 0.4in at 10 CPI,
+    WordStar's own frame -- and a definition's body column, where a wrapped
+    continuation lands, is a fixed 72pt past the margin.
+
+    `<dt>` floats and `<dd>` starts at the hang, which is the standard
+    hanging-definition idiom and reproduces the PDF's own row exactly: a
+    label longer than the hang pushes the body right on the FIRST line and
+    the continuations still land on the column. Lazy import, same reason
+    `_rtf_toc_index` imports `pdf` lazily."""
+    from .pdf import MODERN_LEVEL_STEP_COLS, MODERN_DEF_HANG_PT
+    step = MODERN_LEVEL_STEP_COLS * 0.1                  # print cols -> inches
+    hang = MODERN_DEF_HANG_PT / 72.0                     # points -> inches
+    return ('\nul{margin:0 0 1em;padding-left:%.2fin}'
+            '\ndl{margin:0 0 1em;padding-left:0}'
+            '\nli{margin:0}'
+            '\nul ul,ul dl,dl ul,dl dl{margin-bottom:0}'
+            '\ndt{float:left;clear:left;margin:0;min-width:%.2fin;'
+            'box-sizing:border-box;padding-right:.5em}'
+            '\ndd{margin:0 0 0 %.2fin}' % (step, hang, hang))
+
+
 # The full attribute mapping (round 5 audit): every attribute the model
 # carries gets a real semantic tag here -- all six, no exceptions, since
 # HTML has native elements for every one of them. RUN-level attrs go
@@ -1966,6 +1994,12 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # breaking cross-format consistency for the exact same document.
     if nonprop_fallback and any('ws-nonprop' in p for p in parts):
         css += '\nspan.ws-nonprop{font-family:ui-monospace,Menlo,Consolas,monospace}'
+    # planning #264 item 5 (HTML half of packet row C3): appended only when
+    # the document actually produced a list, the same discipline the
+    # `.ws-nonprop` rule just above follows -- a document with no list
+    # never pays a CSS-byte delta for one.
+    if any('<ul' in p or '<dl' in p for p in parts):
+        css += _list_css()
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
     # end, gated by `--toc` (default off). HTML is non-paged: no page
     # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's
@@ -2982,6 +3016,84 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
     parts.append(para + r'\par ')
 
 
+def _rtf_structure_indent_hang(s, doc, marker_text):
+    r"""`(li, fi)` in twips for one structured def/bullet row -- planning
+    #264 item 5 (packet row C3), the SAME ladder the Modern PDF already
+    lays (`pdf._modern_structure_indent_hang`, backported from the app by
+    Jon's ruling 2026-09-11: "Definitely backport. We spent a long time
+    getting that looking nice.").
+
+    THE LADDER: `max(level - 1, 0)` steps of `MODERN_LEVEL_STEP_COLS` past
+    the margin, level 1 sitting AT the margin. The row's own declared
+    column is deliberately unused -- see that constant's own comment.
+
+    THE HANG, where a wrapped continuation lands:
+      def     a fixed `MODERN_DEF_HANG_PT` past the margin, shared by
+              every row of the list.
+      bullet  the marker's own advance. The PDF measures it in the face
+              that draws it; RTF cannot know the reader's face, so it
+              measures the same two characters in the same base-14
+              Times at the same Modern body size the PDF's own fontless
+              Modern token uses -- one number both engines compute
+              identically, and far closer than a whole-column count (the
+              PDF rejected a column-count hang precisely because a marker
+              and its gap never land on a whole monospace cell in a
+              proportional face).
+
+    RTF expresses a hanging indent as `\li` (where the wrapped lines sit)
+    with a NEGATIVE `\fi` of the same size (pulling the first line, which
+    carries the label or marker, back out to the ladder position).
+
+    Lazy imports, same reason `_rtf_toc_index` imports `pdf` lazily."""
+    from .pdf import (MODERN_LEVEL_STEP_COLS, MODERN_DEF_HANG_PT,
+                      MODERN_BODY_PT)
+    from .afm import string_width_pt
+    # `cw_120` is 1/120in units; 0.6pt each (the PDF's own `col_pt`), and
+    # 20 twips to the point -- 12 twips per unit, 144 for the default 12.
+    col_twips = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 12.0
+    indent = max(s.get('level', 0) - 1, 0) * MODERN_LEVEL_STEP_COLS * col_twips
+    if s['kind'] == 'def':
+        hang = MODERN_DEF_HANG_PT * 20.0
+    else:
+        hang = string_width_pt(marker_text, 'Times-Roman', MODERN_BODY_PT) * 20.0
+    return int(round(indent + hang)), -int(round(hang))
+
+
+def _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg, doc, li, ri):
+    r"""One definition or bullet row as a hanging paragraph (planning #264
+    item 5, packet row C3). Modern RTF used to render both as plain
+    paragraphs, so a wrapped definition returned to the left margin
+    instead of hanging under its own text.
+
+    A def row is rewritten LABEL + a two-space gap + body rather than the
+    author's own raw column padding -- `pdf._modern_def_runs`' rule, and
+    the same thing HTML's `<dt>`/`<dd>` pair already does. The slice
+    offsets are character counts the classifier took from this row's own
+    text, so the spans are sliced (never re-joined from strings) and every
+    style crossing the boundary survives. A bullet row keeps its marker:
+    the marker IS what hangs."""
+    raw = ''.join(sp.text for sp in line.spans)
+    lead = len(raw) - len(raw.lstrip(' '))
+    label_len, body_len = len(s.get('label') or ''), len(s.get('body') or '')
+    seg = None
+    if s['kind'] == 'def' and label_len and body_len \
+            and lead + label_len <= len(raw) - body_len:
+        seg = (rtf_seg(_slice_spans(line.spans, lead, lead + label_len), b)
+               + '  '
+               + rtf_seg(_slice_spans(line.spans, len(raw) - body_len), b))
+        marker = ''
+    else:
+        # a bullet row, or a def row whose own label/body offsets do not
+        # line up (the PDF declines the rewrite in exactly that case too)
+        seg = rtf_seg(_slice_spans(line.spans, lead), b)
+        marker = raw[lead:lead + 2]
+    if not seg.strip():
+        return
+    li_twips, fi_twips = _rtf_structure_indent_hang(s, doc, marker)
+    _rtf_emit_para(parts, rtf_state, b, [seg], li=li + li_twips, ri=ri,
+                   fi_twips=fi_twips)
+
+
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', note_refs='word', headers=True,
              line_numbers=True, inline_styling=True, toc=False,
@@ -3154,6 +3266,11 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # continuing some large running total). Blank physical lines are
     # numbered exactly like text-bearing ones (measured; the previous
     # `has_text` guard here was unverified).
+    # planning #264 item 5 (packet rows C3+C4): ONE document-wide
+    # structure classification, the same call (and therefore the same
+    # verdicts) emit_html makes -- bullet-marker discovery and nesting
+    # both need the whole row order, not one block in isolation.
+    block_rows = {} if printed else _classify_modern_blocks(doc)
     line_no_checkpoints = line_numbering_checkpoints(doc) if printed else None
     line_numbers_enabled = printed and line_numbers
     line_no_state = [None, 0]
@@ -3258,39 +3375,102 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # grouping is prose that merely happens to carry more than one
         # Line).
         dominant = block_dominant_styles(merged_lines(b))
-        for unit in assemble_paragraphs(
-                    b, margin, head_position=head_position.get(id(b), False),
-                    convention_indent=convention_indent):
-            first = _maybe_strip_align(b, list(unit[0].spans))
-            indent_cols, first = split_leading_indent(first)
-            if quote:
-                # round 4: same relative-not-absolute fix as HTML -- the
-                # quote GROUP's own first paragraph sets \fi for every
-                # paragraph in the group, not each one's own raw column
-                # count (see the block comment above `quote_open`).
-                if quote_fi_cols is None:
-                    quote_fi_cols = indent_cols
-                indent_cols = quote_fi_cols
-            is_verse = len(unit) > 1 and (looks_like_verse(unit, dominant)
-                                          or bi in screenplay_blocks)
-            rendered = [rtf_seg(first, b)]
-            for line in unit[1:]:
-                spans = _maybe_strip_align(b, list(line.spans))
-                if not is_verse:
-                    _, spans = split_leading_indent(spans)
-                rendered.append(rtf_seg(spans, b))
-            if len(unit) > 1 and not is_verse:
-                lines = [' '.join(t for t in rendered if t.strip())]
-            else:
-                lines = rendered
-            # round 20 (slate item 4): verse-classified units and
-            # centered units (which may themselves wrap in the reader,
-            # "wrapped centered units") get tighter internal spacing --
-            # a deliberate, scoped exception to round 6's "Modern RTF
-            # doesn't do line spacing" rule, exactly as disclosed there.
-            tight_sl = _rtf_verse_tight_sl_twips() if (is_verse or b.align == 'center') else 0
-            _rtf_emit_para(parts, rtf_state, b, lines, indent_cols, li=li, ri=ri,
-                           sl=tight_sl)
+        # planning #264 item 5 (packet rows C3+C4): the structure rules
+        # pull definition, bullet and spaces-centred rows out of the flow
+        # FIRST -- the identical verdicts HTML has consumed since the
+        # modern-structure-rules round (`_classify_modern_blocks`, one
+        # document-wide classification) -- and everything left over
+        # assembles into paragraph units exactly as it always did. Same
+        # shape as `emit_html`'s own Modern branch, down to
+        # `plain_run_is_block_start`.
+        rows = block_rows.get(bi)
+        if rows is None:
+            rows = [(line, None) for line in merged_lines(b)]
+        plain_run_lines = []
+        plain_run_is_block_start = [True]
+
+        def flush_plain_run(b=b, bi=bi, li=li, ri=ri, quote=quote,
+                            dominant=dominant, rows_lines=plain_run_lines,
+                            block_start=plain_run_is_block_start):
+            nonlocal quote_fi_cols
+            if not rows_lines:
+                return
+            # `wrap` copied from the real block, same reason emit_html's
+            # own `mini` does it: `assemble_paragraphs` reads
+            # `block.wrap is False` directly (Register C23).
+            mini = Block(kind=b.kind, lines=list(rows_lines), wrap=b.wrap,
+                         align=b.align, style_id=b.style_id,
+                         heading=b.heading)
+            for unit in assemble_paragraphs(
+                        mini, margin,
+                        head_position=(head_position.get(id(b), False)
+                                       if block_start[0] else False),
+                        convention_indent=(convention_indent
+                                           if block_start[0] else None)):
+                first = _maybe_strip_align(b, list(unit[0].spans))
+                indent_cols, first = split_leading_indent(first)
+                if quote:
+                    # round 4: same relative-not-absolute fix as HTML --
+                    # the quote GROUP's own first paragraph sets \fi for
+                    # every paragraph in the group, not each one's own raw
+                    # column count (see the comment above `quote_open`).
+                    if quote_fi_cols is None:
+                        quote_fi_cols = indent_cols
+                    indent_cols = quote_fi_cols
+                is_verse = len(unit) > 1 and (looks_like_verse(unit, dominant)
+                                              or bi in screenplay_blocks)
+                rendered = [rtf_seg(first, b)]
+                for line in unit[1:]:
+                    spans = _maybe_strip_align(b, list(line.spans))
+                    if not is_verse:
+                        _, spans = split_leading_indent(spans)
+                    rendered.append(rtf_seg(spans, b))
+                if len(unit) > 1 and not is_verse:
+                    lines = [' '.join(t for t in rendered if t.strip())]
+                else:
+                    lines = rendered
+                # round 20 (slate item 4): verse-classified units and
+                # centered units (which may themselves wrap in the reader,
+                # "wrapped centered units") get tighter internal spacing --
+                # a deliberate, scoped exception to round 6's "Modern RTF
+                # doesn't do line spacing" rule, exactly as disclosed there.
+                tight_sl = (_rtf_verse_tight_sl_twips()
+                            if (is_verse or b.align == 'center') else 0)
+                _rtf_emit_para(parts, rtf_state, b, lines, indent_cols,
+                               li=li, ri=ri, sl=tight_sl)
+            rows_lines.clear()
+
+        for line, s in rows:
+            if s is None or s['kind'] is None:
+                if s is not None and s['centered'] and s['center_via'] == 'spaces':
+                    # C4: the author centred this line by TYPING spaces.
+                    # Modern RTF rendered the padding literally, so the row
+                    # sat off centre AND wrapped early (the padding spends
+                    # measure). Strip it and let `\qc` do the work -- the
+                    # same M3 rule a real `.oc` tag has always followed, on
+                    # the classifier verdict HTML has used all along.
+                    flush_plain_run()
+                    plain_run_is_block_start[0] = False
+                    raw = ''.join(sp.text for sp in line.spans)
+                    lead = len(raw) - len(raw.lstrip(' '))
+                    trail = len(raw) - len(raw.rstrip(' '))
+                    seg = rtf_seg(_slice_spans(line.spans, lead,
+                                               len(raw) - trail), b)
+                    if seg.strip():
+                        centred = Block(kind=b.kind, align='center',
+                                        style_id=b.style_id, wrap=b.wrap)
+                        _rtf_emit_para(parts, rtf_state, centred, [seg],
+                                       li=li, ri=ri,
+                                       sl=_rtf_verse_tight_sl_twips())
+                else:
+                    plain_run_lines.append(line)
+                continue
+            # C3: a definition or bullet row is a HANGING paragraph.
+            flush_plain_run()
+            plain_run_is_block_start[0] = False
+            _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg,
+                               doc, li, ri)
+        flush_plain_run()
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
         # and command codes are invisible.
