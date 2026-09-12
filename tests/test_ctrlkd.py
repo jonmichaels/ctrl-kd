@@ -3548,8 +3548,11 @@ def test_left_aligned_documents_are_byte_identical_to_before():
     from ctrlkd.emit import emit_html, emit_rtf
     doc = core.parse_ws(ws4_text('Just ordinary text.') + HARD)
     assert 'text-align' not in emit_html(doc, mode='modern')
-    assert r'\qc' not in emit_rtf(doc, mode='modern')
-    assert r'\ql' not in emit_rtf(doc, mode='modern')
+    # planning #264 item 3: the automatic page-number footer is centred
+    # (`\qc`) by design, so this BODY-alignment check opts out of it --
+    # tests/test_rtf_page_numbers.py asserts that footer on its own.
+    assert r'\qc' not in emit_rtf(doc, mode='modern', page_numbers='off')
+    assert r'\ql' not in emit_rtf(doc, mode='modern', page_numbers='off')
 
 
 def test_justify_is_not_faked_with_padding_in_plain_text():

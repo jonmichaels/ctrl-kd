@@ -567,7 +567,10 @@ def test_modern_rtf_poem_stays_one_par_with_line_breaks():
         b'     line four closes it.',
     ]
     doc = _typed_paragraph_doc(lines)
-    r = emit.emit_rtf(doc, mode='modern')
+    # planning #264 item 3: this test counts BODY paragraphs, so it opts
+    # out of the automatic page-number footer (its own `\par`), which
+    # tests/test_rtf_page_numbers.py asserts on its own.
+    r = emit.emit_rtf(doc, mode='modern', page_numbers='off')
     assert r.count(r'\par') == 1
     assert r.count(r'\line') == 3
 
@@ -664,7 +667,10 @@ def test_modern_prose_lines_each_get_own_paragraph():
              f'     {long} three'.encode()]
     doc = _typed_paragraph_doc(lines)
     h = emit.emit_html(doc, mode='modern')
-    r = emit.emit_rtf(doc, mode='modern')
+    # planning #264 item 3: this test counts BODY paragraphs, so it opts
+    # out of the automatic page-number footer (its own `\par`), which
+    # tests/test_rtf_page_numbers.py asserts on its own.
+    r = emit.emit_rtf(doc, mode='modern', page_numbers='off')
     md = emit.emit_markdown(doc, mode='modern')
     t = emit.emit_text(doc, mode='modern')
     assert h.count('<p') == 3 and '<br>' not in h
@@ -698,7 +704,10 @@ def test_modern_non_verse_multiline_unit_flows_in_all_four_formats():
     assert not core.looks_like_verse(units[0], dominant)    # decisively prose
 
     h = emit.emit_html(doc, mode='modern')
-    r = emit.emit_rtf(doc, mode='modern')
+    # planning #264 item 3: this test counts BODY paragraphs, so it opts
+    # out of the automatic page-number footer (its own `\par`), which
+    # tests/test_rtf_page_numbers.py asserts on its own.
+    r = emit.emit_rtf(doc, mode='modern', page_numbers='off')
     md = emit.emit_markdown(doc, mode='modern')
     t = emit.emit_text(doc, mode='modern')
     assert h.count('<p') == 1 and '<br>' not in h
@@ -1586,7 +1595,10 @@ def test_round5_style_level_bold_reaches_markdown_and_rtf_runs():
     assert doc.blocks[0].style_attrs == frozenset({'b', 'i'})
 
     h = emit.emit_html(doc, mode='modern')
-    r = emit.emit_rtf(doc, mode='modern')
+    # planning #264 item 3: this test counts BODY paragraphs, so it opts
+    # out of the automatic page-number footer (its own `\par`), which
+    # tests/test_rtf_page_numbers.py asserts on its own.
+    r = emit.emit_rtf(doc, mode='modern', page_numbers='off')
     md = emit.emit_markdown(doc, mode='modern')
 
     assert 'font-weight:bold' in h and 'font-style:italic' in h   # unaffected (CSS path)
@@ -1688,7 +1700,10 @@ def test_round7_wrap_off_block_never_splits_in_any_modern_format():
     assert not _wrap_off_rendering_issues(doc)
 
     h = emit.emit_html(doc, mode='modern')
-    r = emit.emit_rtf(doc, mode='modern')
+    # planning #264 item 3: this test counts BODY paragraphs, so it opts
+    # out of the automatic page-number footer (its own `\par`), which
+    # tests/test_rtf_page_numbers.py asserts on its own.
+    r = emit.emit_rtf(doc, mode='modern', page_numbers='off')
     md = emit.emit_markdown(doc, mode='modern')
     t = emit.emit_text(doc, mode='modern')
     assert h.count('<p') == 1 and h.count('<br>') == 2

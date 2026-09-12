@@ -2494,9 +2494,43 @@ def hf_runs(txt):
     return runs
 
 
-def _rtf_running_heads(doc):
+def _rtf_auto_page_number(doc, page_numbers='auto'):
+    """Whether WordStar's own AUTOMATIC page number -- the one `.pc`
+    positions, never a `#` the author typed into a real `.he`/`.fo` -- is
+    on for this document (planning #264 item 3, packet row A1).
+
+    `auto` (the default) asks the document's own `.pn`/`.pg`/`.op` state,
+    the same `pdf._pgnum_checkpoints` the PDF reads, resolved AT THE
+    DOCUMENT'S FIRST BLOCK: RTF has one section and one footer, so a
+    document that turns numbering off half-way through cannot be expressed
+    here (that needs the section spine, packet section 3, deliberately not
+    built). `on`/`off` force it either way, exactly as for the PDF.
+
+    Lazy import, same reason `_rtf_toc_index` imports `pdf` lazily."""
+    if page_numbers == 'off':
+        return False
+    if page_numbers == 'on':
+        return True
+    from .pdf import _pgnum_checkpoints, _pgnum_at
+    return bool(_pgnum_at(_pgnum_checkpoints(doc), 0))
+
+
+def _rtf_running_heads(doc, headers=True, auto_page_number=False):
     """Modern RTF `\\header`/`\\footer` groups from the document's own
     running heads (ruling 2026-08-06: Modern keeps headers).
+
+    Planning #264 item 3 (packet row A1): a document that declares no
+    footer of its own still gets WordStar's automatic page number, centred
+    at the foot of every page -- a `\\footer` group carrying `\\chpgn`,
+    the reader's own current-page field. The PDF's rule, unchanged here:
+    the automatic number appears only when no `.fo` is IN USE
+    (WSFORMAT.WS, "active only when the footers are not in use") -- a
+    declared footer pre-empts it, and a `#` inside that footer is already
+    rendered as `\\chpgn` below. `headers` gates this whole function, the
+    automatic number included -- that flag's own documented scope is
+    "headers, footers, and page numbers in the paged surfaces", and the
+    2026-08-17 ruling that put page numbers in every paged surface
+    required the toggle. `--page-numbers` is the finer control inside it.
 
     RTF carries ONE header per section; a document that redefines its head
     mid-file keeps the FIRST definition of each line slot (the common case
@@ -2513,7 +2547,16 @@ def _rtf_running_heads(doc):
             d[lno] = txt
             if first_anchor is None or anchor < first_anchor:
                 first_anchor = anchor
-    if not hdr and not ftr:
+    # "In use" is a property of the DOCUMENT, not of what we end up
+    # drawing, and not of the `headers` flag: LJ6DTP.WS's own `.f1` is two
+    # 0x0F bytes and renders nothing visible, yet the footer is declared
+    # and WordStar's automatic number stays off -- which is exactly what
+    # `pdf._close_page` records (`footer_in_use = bool(page_ftrs)`, before
+    # the empty slots are dropped).
+    show_auto_num = headers and auto_page_number and not ftr
+    if not headers:
+        hdr, ftr = {}, {}
+    if not hdr and not ftr and not show_auto_num:
         return ''
     # planning #264 item 1: a running head is the document's own text and
     # takes the driver's substitutions like any other (`emit_rtf`'s own
@@ -2547,8 +2590,15 @@ def _rtf_running_heads(doc):
         return (r'{\%s \pard\plain \f0\fs22 %s\par}'
                 % (name, r'\line '.join(rendered)))
 
-    out = (group('header', hdr, getattr(doc, 'header_fonts', {}))
-           + group('footer', ftr, getattr(doc, 'footer_fonts', {})))
+    foot = group('footer', ftr, getattr(doc, 'footer_fonts', {}))
+    if show_auto_num:
+        # WordStar's stock automatic number: bottom of the page, centred.
+        # `.pc` repositions it on the printed page; RTF's footer is a
+        # paragraph, so the position it can honestly carry is its
+        # ALIGNMENT, and centred is both WordStar's own default and what
+        # the PDF draws for a document that never sets `.pc`.
+        foot = r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}'
+    out = group('header', hdr, getattr(doc, 'header_fonts', {})) + foot
     if first_anchor and first_anchor > 0:
         out = r'\titlepg{\headerf \pard\plain\par}' + out
     return out
@@ -2792,7 +2842,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
              fonts_target='office', note_refs='word', headers=True,
              line_numbers=True, inline_styling=True, toc=False,
              pictures='off', pix_results=None, sentence_spacing='auto',
-             **_options):
+             page_numbers='auto', **_options):
     # Round 19 (PIX images RULED IN): resolved/decoded doc.graphics entries
     # (ctrlkd.pictures.resolve_document_pictures, called once by the
     # caller -- library or CLI -- and handed to every emit_* call for this
@@ -3177,6 +3227,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     paperw = int(round(float(page.get('pw_in', 8.5)) * 1440))
     pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
                  % (paperw, paperh, margl, margl, margt, margb))
+    # planning #264 item 3 (packet row A2): `.pn` sets the number of the
+    # page it appears on, so a document that says "start numbering at 7"
+    # must not start at 1. `\pgnstart` is the document-level beginning
+    # page number; only ever written when the document actually asked for
+    # one (a mid-document `.pn` re-anchor needs the section spine and is
+    # out of scope -- see `_rtf_auto_page_number`).
+    pn_start = int(page.get('pn_start', 1) or 1)
+    if pn_start != 1:
+        pagesetup += r'\pgnstart%d' % pn_start
     if landscape:
         pagesetup += r'\landscape'
     # round 17 (RULINGS-LEDGER row 1, register B1/B2 + Paged-surface doctrine
@@ -3186,7 +3245,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # specific behavior to add; it was simply never called for `printed`.
     # `headers` (default True per the ruled flag defaults) now gates BOTH
     # modes uniformly, closing the "+ toggle flag" half of the ruling too.
-    running = _rtf_running_heads(doc) if headers else ''
+    # planning #264 item 3 (packet rows A1/A2): `--page-numbers` was
+    # accepted by the command line and swallowed by this emitter's own
+    # `**_options` -- a flag that silently did nothing, which the packet
+    # rightly called worse than not offering it. It is a named parameter
+    # now, and `headers` no longer gates the automatic number with it.
+    running = _rtf_running_heads(
+        doc, headers=headers,
+        auto_page_number=_rtf_auto_page_number(doc, page_numbers))
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
     # gated by `--toc` (default off, the ruled default).
     toc_index = _rtf_toc_index(doc, printed) if toc else ''
