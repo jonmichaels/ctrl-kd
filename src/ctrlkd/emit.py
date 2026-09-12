@@ -3597,7 +3597,10 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # page number; only ever written when the document actually asked for
     # one (a mid-document `.pn` re-anchor needs the section spine and is
     # out of scope -- see `_rtf_auto_page_number`).
-    pn_start = int(page.get('pn_start', 1) or 1)
+    # `.pn 0` is a real command (HOLYMAC's own chapter restarts open with one)
+    # and means page ZERO, not "unset" -- only an ABSENT `.pn` falls back to 1.
+    pn_start = page.get('pn_start')
+    pn_start = 1 if pn_start is None else int(pn_start)
     if pn_start != 1:
         pagesetup += r'\pgnstart%d' % pn_start
     if landscape:

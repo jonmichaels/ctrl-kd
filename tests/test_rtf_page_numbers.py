@@ -131,3 +131,9 @@ def test_a_real_pn_document_starts_where_it_says(require_sawyer_doc, mode):
         doc = core.parse(fh.read())
     assert (doc.meta.get('page') or {}).get('pn_start') == 22
     assert r'\pgnstart22' in emit.emit_rtf(doc, mode=mode)
+
+
+def test_pn_zero_really_starts_at_zero():
+    """`.pn 0` is a real command (the archive's macro chapters open with one)
+    and means page ZERO, not "unset" -- only an ABSENT `.pn` falls back to 1."""
+    assert r'\pgnstart0' in emit.emit_rtf(_doc(pn_start=0))
