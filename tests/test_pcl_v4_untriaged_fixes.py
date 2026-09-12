@@ -23,6 +23,8 @@ same shapes so the rules stay covered without the corpus.
 """
 import re
 
+import pytest
+
 from ctrlkd import core, pdf
 
 
@@ -141,3 +143,45 @@ def test_note_wrap_places_the_marker_on_its_own_line():
     assert flat[0] == ''
     assert flat[1].startswith('[When?]')
     assert flat[2] == 'When?'
+
+
+# ---------------------------------------------------------------- mechanism D
+def test_column_width_is_the_rm_itself_not_rm_minus_po():
+    """`.co` newspaper columns: `.rm` IS the column's own width, measured
+    from the `.po` origin -- nothing is subtracted.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/WINGDING.CHT` (`.po .3"`, `.rm .88"`, `.co5, .75"`):
+    column origins 21.6 / 138.9 / 256.3 / 373.6 / 491.0 pt, i.e. a pitch of
+    63.36 + 54 = 117.36pt. Subtracting `.po` gave a pitch of 95.76 and put
+    every column after the first 21.6pt per column too far left, printing
+    them on top of column 1 (`sawyer/REVIEW.DOC` page 1 was unreadable).
+    `sawyer/REF/SYMBOL.CHT`, the document planning #227's research checked
+    against, has `.po .0"` -- both formulas agree there, which is why the
+    subtraction survived."""
+    from ctrlkd import pdf as pdfmod
+    body = HARD.join([b'word%d' % n for n in range(1, 60)])
+    src = b'.po .3"' + HARD + b'.rm .88"' + HARD + b'.co5,  .75"' + HARD + body
+    doc = core.parse_ws(src)
+    pages = pdfmod._doc_to_pagelines(doc, True)
+    lefts = sorted({round(ln.left, 2) for pg in pages for ln in pg
+                    if getattr(ln, 'left', None) is not None})
+    assert len(lefts) >= 2, lefts
+    # 21.6 + i * (63.36 + 54) -- the pitch WS7 measures, per column.
+    expected = [round(21.6 + i * 117.36, 2) for i in range(len(lefts))]
+    assert lefts == pytest.approx(expected, abs=0.05), lefts
+
+
+def test_column_width_unchanged_when_po_is_zero():
+    """`sawyer/REF/SYMBOL.CHT`'s shape -- the one the old formula agreed
+    with. Guards the fix against 'well, it moved everything'."""
+    from ctrlkd import pdf as pdfmod
+    body = HARD.join([b'word%d' % n for n in range(1, 60)])
+    src = b'.po .0"' + HARD + b'.rm .78"' + HARD + b'.co5,  .4i' + HARD + body
+    doc = core.parse_ws(src)
+    pages = pdfmod._doc_to_pagelines(doc, True)
+    lefts = sorted({round(ln.left, 2) for pg in pages for ln in pg
+                    if getattr(ln, 'left', None) is not None})
+    assert len(lefts) >= 2, lefts
+    expected = [round(0.0 + i * (56.16 + 28.8), 2) for i in range(len(lefts))]
+    assert lefts == pytest.approx(expected, abs=0.05), lefts

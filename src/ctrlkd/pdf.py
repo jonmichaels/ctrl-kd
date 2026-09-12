@@ -4373,10 +4373,32 @@ def _apply_columns(doc, pages, size):
                     merged.append(pl)
                     continue
                 base_left = pl.left if pl.left is not None else _printed_left(doc, size)
-                # `rm_pt` is column 0's own right edge, measured from the
-                # SAME page-left origin `base_left` is -- so `rm_pt -
-                # base_left` is exactly one column's own width (docstring).
-                column_width_pt = rm_pt - base_left
+                # `.rm` IS the column's own width. WordStar measures `.rm`
+                # from the `.po` origin, not from the paper's left edge --
+                # the same reading `_printed_hf_right` already uses for an
+                # ordinary line's right edge (`left + rm_cols *
+                # _PDF_PT_PER_COL`) -- so there is nothing to subtract.
+                #
+                # This used to read `rm_pt - base_left`, and planning
+                # #227's own research validated that against
+                # `sawyer/REF/SYMBOL.CHT`, whose `.po .0"` is ZERO: the
+                # two formulas are identical when `.po` is 0, which is why
+                # the subtraction survived. Every OTHER `.co` document in
+                # the corpus has a non-zero `.po`, and all of them landed
+                # their columns `.po` points too far left, overprinting
+                # column 1 (`sawyer/REVIEW.DOC` page 1 is unreadable for
+                # it). MEASURED against real WS7 (ws7-prints/v4,
+                # PRISTINE.EXE), column origins in points:
+                #   REF/WINGDING.CHT  `.po .3"` `.rm .88"` gutter .75"
+                #       WS7: 21.6 / 138.9 / 256.3 / 373.6 / 491.0
+                #       this formula: 21.6 + i*(63.36 + 54)  -- exact
+                #       old formula: 21.6 + i*(41.76 + 54)   -- 21.6pt/col short
+                #   REVIEW.DOC        `.po` 8 cols `.rm 3.13"` gutter .25"
+                #       WS7: 57.6 / 300.9;  this formula: 57.6 / 300.96
+                #   REF/SYMBOL.CHT    `.po .0"` `.rm .78"` gutter .4i
+                #       WS7: 0 / 84.9 / 169.9 / 254.8 -- unchanged either
+                #       way, the document that hid the bug.
+                column_width_pt = rm_pt
                 if merged.column_width_pt is None:
                     merged.column_width_pt = column_width_pt
                 pl.left = base_left + col_idx * (column_width_pt + gutter_pt)
