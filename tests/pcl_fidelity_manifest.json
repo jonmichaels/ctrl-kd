@@ -3597,9 +3597,9 @@
       "n_engine_pages": 4,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 302,
-        "extra-word-in-engine": 109,
-        "word-unmatched": 109
+        "baseline-shift": 335,
+        "extra-word-in-engine": 76,
+        "word-unmatched": 76
       },
       "divergences": [
         {
@@ -4517,14 +4517,14 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 332.0,
+          "line_y_top_pt": 334.0,
           "words": [
-            "can"
+            "margin"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
-            332.0
+            218.2,
+            334.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -4533,62 +4533,14 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 332.0,
+          "line_y_top_pt": 334.0,
           "words": [
-            "print"
+            "that"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            86.4,
-            332.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 332.0,
-          "words": [
-            "two"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            151.2,
-            332.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 344.0,
-          "words": [
-            "more"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            344.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 344.0,
-          "words": [
-            "newspaper-style"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.6,
-            344.0
+            268.6,
+            334.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -4645,54 +4597,6 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "columns."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "When"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "you"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            172.8,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 358.0,
           "words": [
             "left"
@@ -4717,54 +4621,6 @@
           "pdf_pos": [
             254.2,
             358.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "reach"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            368.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            368.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "end"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            129.6,
-            368.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -4821,54 +4677,6 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "column,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "text"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            115.2,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "wraps"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            151.2,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 382.0,
           "words": [
             "line"
@@ -4917,38 +4725,6 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 392.0,
-          "words": [
-            "automatically"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            392.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 392.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            180.0,
-            392.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 394.0,
           "words": [
             "graph"
@@ -4981,14 +4757,62 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 418.0,
           "words": [
-            "next"
+            "The"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            247.0,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 418.0,
+          "words": [
+            "first"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            283.0,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 418.0,
+          "words": [
+            "line"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            326.2,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 428.0,
+          "words": [
+            "create"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            404.0
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -4997,14 +4821,14 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "column."
+            "professional-"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            93.6,
-            404.0
+            108.0,
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -5013,14 +4837,14 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "This"
+            "outlines,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            158.4,
-            404.0
+            407.5,
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -5029,14 +4853,190 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 416.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "feature"
+            "where"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            479.5,
+            428.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "looking"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            416.0
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "newsletters"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            115.2,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "you"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "want"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            436.3,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            472.3,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "and"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "presentations."
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "numbers"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "hang"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            486.7,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 464.0,
+          "words": [
+            "out"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            464.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 464.0,
+          "words": [
+            "left"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            486.7,
+            464.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -5125,13 +5125,13 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 312.0,
+          "line_y_top_pt": 324.0,
           "words": [
-            "Set"
+            "margin"
           ],
           "ws7_pos": [
             378.7,
-            312.0
+            324.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -5141,61 +5141,13 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 312.0,
+          "line_y_top_pt": 324.0,
           "words": [
-            "paragraph"
+            "that"
           ],
           "ws7_pos": [
-            421.9,
-            312.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "can"
-          ],
-          "ws7_pos": [
-            57.6,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "print"
-          ],
-          "ws7_pos": [
-            86.4,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "two"
-          ],
-          "ws7_pos": [
-            151.2,
-            336.0
+            429.1,
+            324.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -5226,7 +5178,7 @@
             "than"
           ],
           "ws7_pos": [
-            378.7,
+            275.7,
             336.0
           ],
           "pdf_pos": null,
@@ -5242,7 +5194,7 @@
             "the"
           ],
           "ws7_pos": [
-            414.7,
+            311.7,
             336.0
           ],
           "pdf_pos": null,
@@ -5253,13 +5205,13 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 336.0,
+          "line_y_top_pt": 348.0,
           "words": [
             "left"
           ],
           "ws7_pos": [
-            443.5,
-            336.0
+            218.1,
+            348.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -5269,93 +5221,13 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 336.0,
+          "line_y_top_pt": 348.0,
           "words": [
             "margin"
           ],
           "ws7_pos": [
-            479.5,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "more"
-          ],
-          "ws7_pos": [
-            57.6,
+            254.1,
             348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "newspaper-style"
-          ],
-          "ws7_pos": [
-            93.6,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "columns."
-          ],
-          "ws7_pos": [
-            57.6,
-            360.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "When"
-          ],
-          "ws7_pos": [
-            136.8,
-            360.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "you"
-          ],
-          "ws7_pos": [
-            172.8,
-            360.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -5415,54 +5287,6 @@
           "page": 2,
           "line_y_top_pt": 372.0,
           "words": [
-            "reach"
-          ],
-          "ws7_pos": [
-            57.6,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": [
-            100.8,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "end"
-          ],
-          "ws7_pos": [
-            129.6,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
             "line"
           ],
           "ws7_pos": [
@@ -5511,70 +5335,6 @@
           "page": 2,
           "line_y_top_pt": 384.0,
           "words": [
-            "column,"
-          ],
-          "ws7_pos": [
-            57.6,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "text"
-          ],
-          "ws7_pos": [
-            115.2,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "wraps"
-          ],
-          "ws7_pos": [
-            151.2,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "graph"
-          ],
-          "ws7_pos": [
-            218.1,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
             "automatically."
           ],
           "ws7_pos": [
@@ -5591,75 +5351,11 @@
           "page": 2,
           "line_y_top_pt": 384.0,
           "words": [
-            "the"
+            "graph"
           ],
           "ws7_pos": [
-            501.1,
+            378.7,
             384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 396.0,
-          "words": [
-            "automatically"
-          ],
-          "ws7_pos": [
-            57.6,
-            396.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "next"
-          ],
-          "ws7_pos": [
-            57.6,
-            408.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "column."
-          ],
-          "ws7_pos": [
-            93.6,
-            408.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "This"
-          ],
-          "ws7_pos": [
-            158.4,
-            408.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -5681,10 +5377,314 @@
           "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "first"
+          ],
+          "ws7_pos": [
+            282.9,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "line"
+          ],
+          "ws7_pos": [
+            326.1,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "create"
+          ],
+          "ws7_pos": [
+            57.6,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "professional-"
+          ],
+          "ws7_pos": [
+            108.0,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "outlines,"
+          ],
+          "ws7_pos": [
+            407.5,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "where"
+          ],
+          "ws7_pos": [
+            479.5,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "looking"
+          ],
+          "ws7_pos": [
+            57.6,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "newsletters"
+          ],
+          "ws7_pos": [
+            115.2,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "you"
+          ],
+          "ws7_pos": [
+            407.5,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "want"
+          ],
+          "ws7_pos": [
+            436.3,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "and"
+          ],
+          "ws7_pos": [
+            57.6,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "presentations."
+          ],
+          "ws7_pos": [
+            86.4,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "numbers"
+          ],
+          "ws7_pos": [
+            407.5,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "hang"
+          ],
+          "ws7_pos": [
+            486.7,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "out"
+          ],
+          "ws7_pos": [
+            407.5,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": [
+            457.9,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "left"
+          ],
+          "ws7_pos": [
+            486.7,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 480.0,
+          "words": [
+            "margin"
+          ],
+          "ws7_pos": [
+            407.5,
+            480.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 480.0,
+          "words": [
+            "(espe-"
+          ],
+          "ws7_pos": [
+            457.9,
+            480.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 81,
+        "n": 95,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -13412,343 +13412,19 @@
     },
     "sawyer__PLAYBILL_EXT_DOC": {
       "doc": "sawyer__PLAYBILL_EXT_DOC",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/PLAYBILL.DOC",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "exact-drift": 13,
-        "line-start-shift": 3
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "opening",
-            "opening"
-          ],
-          "ws7_pos": [
-            237.6,
-            168.0
-          ],
-          "pdf_pos": [
-            234.0,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "night",
-            "night"
-          ],
-          "ws7_pos": [
-            295.2,
-            168.0
-          ],
-          "pdf_pos": [
-            291.6,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "with",
-            "with"
-          ],
-          "ws7_pos": [
-            338.4,
-            168.0
-          ],
-          "pdf_pos": [
-            334.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            374.4,
-            168.0
-          ],
-          "pdf_pos": [
-            370.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Shakespeare",
-            "Shakespeare"
-          ],
-          "ws7_pos": [
-            126.0,
-            180.0
-          ],
-          "pdf_pos": [
-            122.4,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Company",
-            "Company"
-          ],
-          "ws7_pos": [
-            212.4,
-            180.0
-          ],
-          "pdf_pos": [
-            208.8,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "inaugurates",
-            "inaugurates"
-          ],
-          "ws7_pos": [
-            270.0,
-            180.0
-          ],
-          "pdf_pos": [
-            266.4,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "this",
-            "this"
-          ],
-          "ws7_pos": [
-            356.4,
-            180.0
-          ],
-          "pdf_pos": [
-            352.8,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "special",
-            "special"
-          ],
-          "ws7_pos": [
-            392.4,
-            180.0
-          ],
-          "pdf_pos": [
-            388.8,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "season",
-            "season"
-          ],
-          "ws7_pos": [
-            450.0,
-            180.0
-          ],
-          "pdf_pos": [
-            446.4,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Theatre",
-            "Theatre"
-          ],
-          "ws7_pos": [
-            234.0,
-            192.0
-          ],
-          "pdf_pos": [
-            226.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            313.2,
-            192.0
-          ],
-          "pdf_pos": [
-            306.0,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Park.",
-            "Park."
-          ],
-          "ws7_pos": [
-            342.0,
-            192.0
-          ],
-          "pdf_pos": [
-            334.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "gala",
-            "gala"
-          ],
-          "ws7_pos": [
-            201.6,
-            168.0
-          ],
-          "pdf_pos": [
-            198.0,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -3.60pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "City",
-            "City"
-          ],
-          "ws7_pos": [
-            90.0,
-            180.0
-          ],
-          "pdf_pos": [
-            86.4,
-            180.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -3.60pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__PLAYBILL_EXT_DOC",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            205.2,
-            192.0
-          ],
-          "pdf_pos": [
-            198.0,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual -7.20pt (tolerance 2.5pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 12,
         "median_dx": 0.0,
-        "iqr_dx": 0.9
+        "iqr_dx": 0.0
       }
     },
     "sawyer__PLAYS_EXT_DOC": {
@@ -17662,9 +17338,9 @@
       "n_engine_pages": 4,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 302,
-        "extra-word-in-engine": 109,
-        "word-unmatched": 109
+        "baseline-shift": 335,
+        "extra-word-in-engine": 76,
+        "word-unmatched": 76
       },
       "divergences": [
         {
@@ -18582,14 +18258,14 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 332.0,
+          "line_y_top_pt": 334.0,
           "words": [
-            "can"
+            "margin"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            57.6,
-            332.0
+            218.2,
+            334.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -18598,62 +18274,14 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 332.0,
+          "line_y_top_pt": 334.0,
           "words": [
-            "print"
+            "that"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            86.4,
-            332.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 332.0,
-          "words": [
-            "two"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            151.2,
-            332.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 344.0,
-          "words": [
-            "more"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            344.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 344.0,
-          "words": [
-            "newspaper-style"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.6,
-            344.0
+            268.6,
+            334.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -18710,54 +18338,6 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "columns."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "When"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 356.0,
-          "words": [
-            "you"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            172.8,
-            356.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 358.0,
           "words": [
             "left"
@@ -18782,54 +18362,6 @@
           "pdf_pos": [
             254.2,
             358.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "reach"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            368.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            100.8,
-            368.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 368.0,
-          "words": [
-            "end"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            129.6,
-            368.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -18886,54 +18418,6 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "column,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "text"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            115.2,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 380.0,
-          "words": [
-            "wraps"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            151.2,
-            380.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 382.0,
           "words": [
             "line"
@@ -18982,38 +18466,6 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 392.0,
-          "words": [
-            "automatically"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            392.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 392.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            180.0,
-            392.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
           "line_y_top_pt": 394.0,
           "words": [
             "graph"
@@ -19046,14 +18498,62 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 418.0,
           "words": [
-            "next"
+            "The"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            247.0,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 418.0,
+          "words": [
+            "first"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            283.0,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 418.0,
+          "words": [
+            "line"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            326.2,
+            418.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 428.0,
+          "words": [
+            "create"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            404.0
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19062,14 +18562,14 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "column."
+            "professional-"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            93.6,
-            404.0
+            108.0,
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19078,14 +18578,14 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 404.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "This"
+            "outlines,"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            158.4,
-            404.0
+            407.5,
+            428.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19094,14 +18594,190 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 416.0,
+          "line_y_top_pt": 428.0,
           "words": [
-            "feature"
+            "where"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            479.5,
+            428.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "looking"
           ],
           "ws7_pos": null,
           "pdf_pos": [
             57.6,
-            416.0
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "newsletters"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            115.2,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "you"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "want"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            436.3,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 440.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            472.3,
+            440.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "and"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "presentations."
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            86.4,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "numbers"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 452.0,
+          "words": [
+            "hang"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            486.7,
+            452.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 464.0,
+          "words": [
+            "out"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            407.5,
+            464.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 464.0,
+          "words": [
+            "left"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            486.7,
+            464.0
           ],
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
@@ -19190,13 +18866,13 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 312.0,
+          "line_y_top_pt": 324.0,
           "words": [
-            "Set"
+            "margin"
           ],
           "ws7_pos": [
             378.7,
-            312.0
+            324.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -19206,61 +18882,13 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 312.0,
+          "line_y_top_pt": 324.0,
           "words": [
-            "paragraph"
+            "that"
           ],
           "ws7_pos": [
-            421.9,
-            312.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "can"
-          ],
-          "ws7_pos": [
-            57.6,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "print"
-          ],
-          "ws7_pos": [
-            86.4,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "two"
-          ],
-          "ws7_pos": [
-            151.2,
-            336.0
+            429.1,
+            324.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -19291,7 +18919,7 @@
             "than"
           ],
           "ws7_pos": [
-            378.7,
+            275.7,
             336.0
           ],
           "pdf_pos": null,
@@ -19307,7 +18935,7 @@
             "the"
           ],
           "ws7_pos": [
-            414.7,
+            311.7,
             336.0
           ],
           "pdf_pos": null,
@@ -19318,13 +18946,13 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 336.0,
+          "line_y_top_pt": 348.0,
           "words": [
             "left"
           ],
           "ws7_pos": [
-            443.5,
-            336.0
+            218.1,
+            348.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -19334,93 +18962,13 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 2,
-          "line_y_top_pt": 336.0,
+          "line_y_top_pt": 348.0,
           "words": [
             "margin"
           ],
           "ws7_pos": [
-            479.5,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "more"
-          ],
-          "ws7_pos": [
-            57.6,
+            254.1,
             348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "newspaper-style"
-          ],
-          "ws7_pos": [
-            93.6,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "columns."
-          ],
-          "ws7_pos": [
-            57.6,
-            360.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "When"
-          ],
-          "ws7_pos": [
-            136.8,
-            360.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 360.0,
-          "words": [
-            "you"
-          ],
-          "ws7_pos": [
-            172.8,
-            360.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -19480,54 +19028,6 @@
           "page": 2,
           "line_y_top_pt": 372.0,
           "words": [
-            "reach"
-          ],
-          "ws7_pos": [
-            57.6,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": [
-            100.8,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "end"
-          ],
-          "ws7_pos": [
-            129.6,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 372.0,
-          "words": [
             "line"
           ],
           "ws7_pos": [
@@ -19576,70 +19076,6 @@
           "page": 2,
           "line_y_top_pt": 384.0,
           "words": [
-            "column,"
-          ],
-          "ws7_pos": [
-            57.6,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "text"
-          ],
-          "ws7_pos": [
-            115.2,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "wraps"
-          ],
-          "ws7_pos": [
-            151.2,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "graph"
-          ],
-          "ws7_pos": [
-            218.1,
-            384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 384.0,
-          "words": [
             "automatically."
           ],
           "ws7_pos": [
@@ -19656,75 +19092,11 @@
           "page": 2,
           "line_y_top_pt": 384.0,
           "words": [
-            "the"
+            "graph"
           ],
           "ws7_pos": [
-            501.1,
+            378.7,
             384.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 396.0,
-          "words": [
-            "automatically"
-          ],
-          "ws7_pos": [
-            57.6,
-            396.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "next"
-          ],
-          "ws7_pos": [
-            57.6,
-            408.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "column."
-          ],
-          "ws7_pos": [
-            93.6,
-            408.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 408.0,
-          "words": [
-            "This"
-          ],
-          "ws7_pos": [
-            158.4,
-            408.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -19746,10 +19118,314 @@
           "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "first"
+          ],
+          "ws7_pos": [
+            282.9,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 408.0,
+          "words": [
+            "line"
+          ],
+          "ws7_pos": [
+            326.1,
+            408.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "create"
+          ],
+          "ws7_pos": [
+            57.6,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "professional-"
+          ],
+          "ws7_pos": [
+            108.0,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "outlines,"
+          ],
+          "ws7_pos": [
+            407.5,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 432.0,
+          "words": [
+            "where"
+          ],
+          "ws7_pos": [
+            479.5,
+            432.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "looking"
+          ],
+          "ws7_pos": [
+            57.6,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "newsletters"
+          ],
+          "ws7_pos": [
+            115.2,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "you"
+          ],
+          "ws7_pos": [
+            407.5,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "want"
+          ],
+          "ws7_pos": [
+            436.3,
+            444.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "and"
+          ],
+          "ws7_pos": [
+            57.6,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "presentations."
+          ],
+          "ws7_pos": [
+            86.4,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "numbers"
+          ],
+          "ws7_pos": [
+            407.5,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "hang"
+          ],
+          "ws7_pos": [
+            486.7,
+            456.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "out"
+          ],
+          "ws7_pos": [
+            407.5,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "the"
+          ],
+          "ws7_pos": [
+            457.9,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 468.0,
+          "words": [
+            "left"
+          ],
+          "ws7_pos": [
+            486.7,
+            468.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 480.0,
+          "words": [
+            "margin"
+          ],
+          "ws7_pos": [
+            407.5,
+            480.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__PRINT_EXT_TST",
+          "page": 2,
+          "line_y_top_pt": 480.0,
+          "words": [
+            "(espe-"
+          ],
+          "ws7_pos": [
+            457.9,
+            480.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
-        "n": 81,
+        "n": 95,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -21102,162 +20778,15 @@
     },
     "sawyer__REF__-INDEX_EXT_HOW": {
       "doc": "sawyer__REF__-INDEX_EXT_HOW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/-INDEX.HOW",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 2,
       "n_engine_pages": 2,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "extra-word-in-engine": 9
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "Sawyer\\,"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            372.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "Robert"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            122.4,
-            372.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Origins"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            57.6,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Consciousness"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            259.2,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Breakdown"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            288.0,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "the"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            381.6,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Bicameral"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            410.4,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__-INDEX_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 384.0,
-          "words": [
-            "Mind"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            482.4,
-            384.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 48,
         "median_dx": 0.0,
@@ -24722,162 +24251,15 @@
     },
     "sawyer__REF__DPI_EXT_TAG": {
       "doc": "sawyer__REF__DPI_EXT_TAG",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/DPI.TAG",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "word-unmatched": 9
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "@PJL"
-          ],
-          "ws7_pos": [
-            57.6,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "SET"
-          ],
-          "ws7_pos": [
-            93.6,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "RESOLUTION=300"
-          ],
-          "ws7_pos": [
-            122.4,
-            48.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "@PJL"
-          ],
-          "ws7_pos": [
-            57.6,
-            60.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "SET"
-          ],
-          "ws7_pos": [
-            93.6,
-            60.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "RESOLUTION=600"
-          ],
-          "ws7_pos": [
-            122.4,
-            60.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "@PJL"
-          ],
-          "ws7_pos": [
-            57.6,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "SET"
-          ],
-          "ws7_pos": [
-            93.6,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__DPI_EXT_TAG",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "RESOLUTION=1200"
-          ],
-          "ws7_pos": [
-            122.4,
-            72.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 0,
         "median_dx": null,
