@@ -450,9 +450,14 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
             seg = sentence_spacing_texts(seg)
         return ''.join(seg)
 
+    # planning #264 item 4 (packet row A10, extended): a bare trailing `.pa`
+    # marks nothing -- see `_trailing_pa_skip_index`.
+    skip_pa = _trailing_pa_skip_index(doc)
     out = []
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
+            if bi == skip_pa:
+                continue
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
         if printed:
@@ -753,9 +758,14 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # returns above, inside its own fenced-facsimile branch) -- see
     # emit_text's identical comment for the doctrine.
     screenplay_blocks = detect_screenplay_blocks(doc)
+    # planning #264 item 4 (packet row A10, extended): see
+    # `_trailing_pa_skip_index`.
+    skip_pa = _trailing_pa_skip_index(doc)
     out = []
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
+            if bi == skip_pa:
+                continue
             out.append('---')
             continue
         if b.heading:
@@ -972,6 +982,30 @@ _TAG = {'b': 'strong', 'i': 'em', 'u': 'u', 'sup': 'sup', 'sub': 'sub', 'strike'
 _KIND_LABEL = {'footnote': 'Footnotes', 'endnote': 'Endnotes',
                'annotation': 'Annotations', 'comment': 'Comments'}
 _KIND_PREFIX = {'footnote': 'fn', 'endnote': 'en', 'annotation': 'an', 'comment': 'cm'}
+
+def _trailing_pa_skip_index(doc):
+    """The index of a trailing `.pa` block that must draw NOTHING, or None.
+
+    Planning #264 item 2 (packet row A10), extended to every emitter by item
+    4 of the same round. A `.pa` that is the document's own LAST block only
+    opens a page when at least one more real line of content was typed after
+    it before EOF -- real WS7's rule, measured over eleven harness probes
+    (planning #228, research/2026-09-08_trailing-pa-rule.md), and already
+    parsed as `doc.meta['pa_eof_blank_after']`. The PDF has read that fact
+    since #228 and the RTF since #264 item 2; HTML, text and Markdown were
+    still marking a break the document never earned -- a dashed rule, a form
+    feed and a horizontal rule respectively, each of them the LAST thing in
+    the file, separating the document from nothing.
+
+    One fact, one reading, every emitter -- not a second detector. A
+    mid-document `.pa` is untouched, and a document that never ends in one
+    carries no `pa_eof_blank_after` at all and is unchanged."""
+    if not doc.blocks or doc.blocks[-1].kind != 'pagebreak':
+        return None
+    if doc.meta.get('pa_eof_blank_after'):
+        return None
+    return len(doc.blocks) - 1
+
 
 def _html_row_is_nowrap(text):
     """Whether this HTML row must be kept on one line -- planning #264 item
@@ -1777,11 +1811,17 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     block_rows = {} if printed else _classify_modern_blocks(doc)
     builder = _HtmlListBuilder()
 
+    # planning #264 item 4 (packet row A10, extended): see
+    # `_trailing_pa_skip_index`. The list/quote buffers are still closed --
+    # only the RULE is dropped, since everything before it stands.
+    skip_pa = _trailing_pa_skip_index(doc)
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             if not printed:
                 builder.flush(parts)
             _flush_quote()
+            if bi == skip_pa:
+                continue
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
@@ -3370,21 +3410,16 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                     + rendered_line)
         return rendered_line
 
-    # planning #264 item 2 (packet row A10): a trailing `.pa` -- the
-    # document's own LAST block -- only opens a page when at least one more
-    # real line of content was typed after it before EOF. That fact is
-    # already parsed (`doc.meta['pa_eof_blank_after']`, planning #228,
-    # research/2026-09-08_trailing-pa-rule.md) and until now was read only
-    # by the PDF: every `.pa`-ending document got an extra, permanently
-    # blank RTF page the PDF knew better than to open. STRENGTH.WS (False)
-    # must not get one; PAGESIZE.WS (True) still must.
-    last_bi = len(doc.blocks) - 1
-    trailing_pa_opens_page = bool(doc.meta.get('pa_eof_blank_after'))
+    # planning #264 item 2 (packet row A10): a trailing `.pa` opens no page
+    # unless the document earned one. The reading moved to
+    # `_trailing_pa_skip_index` when item 4 gave the other emitters the same
+    # rule -- same fact, same answer, one place.
+    skip_pa = _trailing_pa_skip_index(doc)
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             quote_open = False
             quote_fi_cols = None
-            if bi == last_bi and not trailing_pa_opens_page:
+            if bi == skip_pa:
                 continue
             parts.append(r'\page ')
             continue
