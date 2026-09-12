@@ -252,6 +252,66 @@ def _printed_cap_for(doc, mt_lines, mb_lines, pl_lines=None):
     return max(local, _printed_cap(doc))
 
 
+def _printed_budget_pt(doc, cap, default_lead, mt_lines=None, mb_lines=None,
+                       pl_lines=None):
+    """A printed page's own vertical budget IN POINTS -- the real text
+    height `.pl - .mt - .mb` measures on paper, at the 6 LPI grid those
+    three commands are counted on (`LEAD`, 12pt a line), NOT that height
+    re-quantized to a whole number of DEFAULT leads.
+
+    `_printed_cap` answers a different question -- "how many default-lead
+    lines fit" -- and answering it requires a FLOOR (`int(usable * 8 /
+    lh_48)`). Spending the floored count back out as `cap * default_lead`
+    throws away the page's own fractional remainder: up to one default
+    lead of real paper that WordStar does put lines on whenever the lines
+    that land there are SHORTER than the default. Measured against real
+    WS7 (`ws7-prints/v4`, PRISTINE.EXE), on the three documents that pair
+    a fractional-inch `.mt` with an explicit `.lh 14pt` and open with two
+    12pt lines before the `.lh` takes effect:
+
+    | Doc | `.mt`/`.mb` | usable | cap x 14pt | WS7 lines | old | new |
+    |---|---|---:|---:|---:|---:|---:|
+    | REF/WINGDING.CHT | 1.6"/.3" | 655.2pt | 46 x 14 = 644 | 2 + 45 | 2 + 44 | 2 + 45 |
+    | REF/SYMBOL.CHT | 1.2"/.3" | 684.0pt | 48 x 14 = 672 | 2 + 47 | 2 + 46 | 2 + 47 |
+    | PRINTERS/fontcrib.ws | .4"/.3" | 741.6pt | 52 x 14 = 728 | 2 + 51 | 2 + 50 | 2 + 51 |
+
+    Every one of them lost EXACTLY one line per page to the remainder, on
+    every column of every page. `sawyer/PRINTER.PS` (same shape) is the
+    fourth.
+
+    BYTE-IDENTICAL WHEREVER THE LEAD IS UNIFORM, which is the whole
+    corpus outside those documents: with every line on a page carrying
+    the same lead L, `n` lines fit iff `n*L <= usable_pt`, i.e. `n <=
+    floor(usable_pt / L)` -- and when `L` is the document default that
+    floor IS `cap`, so the answer does not move. The remainder can only
+    ever be spent by a line whose own lead is SMALLER than the default,
+    which is exactly the mixed-`.lh` page this corrects (register open
+    question #15's second half: "accumulate points until the text height
+    is used up" -- now measured rather than guessed).
+
+    NEVER BELOW `cap * default_lead`: `_printed_cap`/`_printed_cap_for`
+    carry two rulings that RAISE the line count above what this page's
+    own `.pl/.mt/.mb` would give -- the `FOOTNOTE_FLOOR + 1` floor, and
+    b26-mtmb-general's `max(local, global)` (a mid-document margin change
+    may loosen a page, never tighten it). Both are expressed in lines, so
+    they are re-applied here as `cap * default_lead` and win when they are
+    the larger number; a `.pl 0` document (capacity 10**9, page breaks
+    off) falls out of the same max with no special case."""
+    from .core import (DEFAULT_PL_LINES, DEFAULT_MT_LINES, DEFAULT_MB_LINES)
+    page = doc.meta.get('page') or {}
+    pl = pl_lines if pl_lines is not None else page.get('pl_lines', DEFAULT_PL_LINES)
+    mt = mt_lines if mt_lines is not None else page.get('mt_lines', DEFAULT_MT_LINES)
+    mb = mb_lines if mb_lines is not None else page.get('mb_lines', DEFAULT_MB_LINES)
+    ruled_floor = cap * default_lead
+    try:
+        usable_pt = (float(pl) - float(mt) - float(mb)) * LEAD
+    except (TypeError, ValueError):
+        return ruled_floor
+    if not _math.isfinite(usable_pt):
+        return ruled_floor
+    return max(ruled_floor, usable_pt)
+
+
 def _mt_mb_checkpoints(doc):
     """[(block_index, mt_lines, mb_lines), ...] in ascending block order --
     the .mt/.mb pair IN FORCE from that block onward, at BLOCK granularity
@@ -3955,6 +4015,7 @@ class Page(list):
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
                 'explicit_break', 'explicit_break_bi',
                 'columns', 'column_gutter_pt', 'column_width_pt',
+                'column_top_offset_pt',
                 'header_lines', 'footer_lines', 'auto_pageno',
                 'head_hf_override', 'foot_hf_override', 'footer_in_use')
 
@@ -4011,6 +4072,17 @@ class Page(list):
         self.columns = None
         self.column_gutter_pt = None
         self.column_width_pt = None
+        # `column_top_offset_pt` (planning #227 follow-up, 2026-09-12): how
+        # far BELOW this sheet's own first text line every column of the
+        # group begins -- the height of the non-columnar prefix (a title
+        # and its blank) the sheet opened with, in points, 0.0 when the
+        # region owns the sheet from its first line. Column 0's own lines
+        # are drawn straight down from the top and simply pass through the
+        # prefix; columns 1..n-1 restart at this offset, which is where
+        # real WS7 puts them (see `_apply_columns`). None on every
+        # non-columnar page, same "no opinion" convention as the three
+        # above.
+        self.column_top_offset_pt = None
         # #228 (research/2026-09-08_trailing-pa-rule.md, planning #228): a
         # trailing `.pa` followed by at least one more real content
         # paragraph -- even a blank one -- before EOF opens a final page
@@ -4199,6 +4271,53 @@ def _ws4_spacing_blank_indices(doc, ls_confirmed):
     return spacing_map
 
 
+def _region_first_bi(doc, bi):
+    """The FIRST block of the contiguous `.co n>1` region block `bi` belongs
+    to -- planning #227 follow-up (2026-09-12), the block whose `.rm`/`.co`
+    pair the author wrote together and which therefore fixes the whole
+    region's column grid.
+
+    A REGION'S COLUMN WIDTH IS SET ONCE, BY THE `.co` THAT OPENED IT. `.rm`
+    is stateful and a document may move it INSIDE a live region:
+    `sawyer/MICKEE/MICKEE.WS` alternates `.rm 0.7"` (the little box-drawing
+    figures its `.co2` sets in columns) with `.rm 6.5"` (full-measure prose)
+    all through both of its columnar regions, and `sawyer/PRINTERS/
+    fontcrib.ws` and `sawyer/PRINTER.PS` restate `.rm 6.9i` at the top of
+    every sheet after the first, before restating `.rm .88"` and `.co5`.
+    Reading the width off whichever columnar block a SHEET happens to open
+    with then hands that sheet a completely different column pitch from the
+    one before it -- measured on fontcrib.ws, `.rm 6.9i` gives a 496.8pt
+    column against the region's real 63.4pt one, walking columns 2-5 out to
+    x = 572/1123/1674/2225pt, right off an 8.5in sheet, where real WS7 keeps
+    all five columns in the same place on both sheets. MICKEE.WS's own two
+    columns overprinted for the same reason. A later `.rm` inside a region
+    still moves ordinary lines' right edge, exactly as `.rm` always does; it
+    just no longer re-cuts the column grid.
+
+    SENTINEL BLOCKS ARE SKIPPED, not treated as the region's edge --
+    `pagebreak`/`colbreak`/`condpage`/`condcolumn` blocks carry no columns
+    state at all (`columns` reads 1 on every one of them), and the corpus's
+    columnar documents are full of them: fontcrib.ws's own region is broken
+    by a `.pa` every 51 blocks, the author's manual column-simulation
+    convention that `_doc_to_pagelines` absorbs. This is the same "real
+    ('para') blocks only" rule `_doc_to_pagelines`'s own `prev_cols` tracker
+    already follows."""
+    if bi is None or not (0 <= bi < len(doc.blocks)):
+        return bi
+    first = bi
+    k = bi - 1
+    while k >= 0:
+        b = doc.blocks[k]
+        if b.kind != 'para':
+            k -= 1
+            continue
+        if (b.columns or 1) <= 1:
+            break
+        first = k
+        k -= 1
+    return first
+
+
 def _apply_columns(doc, pages, size):
     """Planning #227 (research/2026-09-08_columns-rule.md): regroup a
     finished, ordinary single-column `pages` list into real `.co n`
@@ -4265,7 +4384,7 @@ def _apply_columns(doc, pages, size):
             out.append(pg)
             i += 1
             continue
-        blk = doc.blocks[first_col_bi]
+        blk = doc.blocks[_region_first_bi(doc, first_col_bi)]
         gutter_cols = blk.column_gutter or 0.0
         rm_cols = blk.right_margin if blk.right_margin is not None else 65.0
         gutter_pt = gutter_cols * _PDF_PT_PER_COL
@@ -4327,6 +4446,37 @@ def _apply_columns(doc, pages, size):
         merged.columns = cols
         merged.column_gutter_pt = gutter_pt
         merged.column_width_pt = None
+        # planning #227 follow-up (2026-09-12): A COLUMN GROUP SHARES ONE
+        # TOP. Every column of this sheet begins where the COLUMNAR REGION
+        # begins on it, not at the sheet's own first text line -- so a
+        # sheet that opened with a non-columnar prefix (`REF/WINGDING.CHT`
+        # and `REF/SYMBOL.CHT`: a title line and its blank, ahead of the
+        # `.co5`; `PRINTERS/fontcrib.ws` and `PRINTER.PS`: the same shape)
+        # pushes columns 1..n-1 down by exactly that prefix's own height.
+        # MEASURED against real WS7 (`ws7-prints/v4`, PRISTINE.EXE):
+        #   REF/WINGDING.CHT  WS7 columns 2-5 open at 153.2pt, which is
+        #                     `.mt 1.6"` (115.2) + 12 + 12 + their own
+        #                     14pt lead -- NOT the sheet's own 129.2pt
+        #                     first line. Same 45 lines as column 1's
+        #                     columnar part; this engine gave them 46.
+        #   REF/SYMBOL.CHT    WS7 124.4pt, 47 lines (engine: 100.4pt, 48).
+        #   PRINTERS/fontcrib.ws, PRINTER.PS   WS7 66.8pt, 51 lines
+        #                     (engine: 42.8pt, 52).
+        # Summed from the prefix lines' OWN leads, the same quantity
+        # `_doc_to_pagelines`'s pagination loop charged against each
+        # column's budget (`col_offset_pt`) -- derived twice from the same
+        # leads rather than threaded, so a page this pass merges from a
+        # plain-list source page (the notes paginator's own shape, which
+        # carries no such state) still gets the right answer.
+        prefix_pt = 0.0
+        for pl0 in pages[i]:
+            pl0_bi = getattr(pl0, 'bi', None)
+            if (pl0_bi is not None and 0 <= pl0_bi < len(doc.blocks)
+                    and (doc.blocks[pl0_bi].columns or 1) > 1):
+                break
+            prefix_pt += (getattr(pl0, 'lead', None)
+                         or _printed_lead(doc))
+        merged.column_top_offset_pt = prefix_pt
         group_end = min(i + cols, n_pages)
         # A later sub-page belonging to a DIFFERENT columns/gutter pair (a
         # new `.co` restatement) or a non-columnar page ends the group
@@ -4341,10 +4491,10 @@ def _apply_columns(doc, pages, size):
                           if getattr(pl, 'bi', None) is not None
                           and 0 <= pl.bi < len(doc.blocks)
                           and (doc.blocks[pl.bi].columns or 1) > 1), None)
-            sub_cols = ((doc.blocks[sub_bi].columns or 1)
-                       if sub_bi is not None else 1)
-            sub_gutter = (doc.blocks[sub_bi].column_gutter or 0.0
-                         if sub_bi is not None else 0.0)
+            sub_blk = (doc.blocks[_region_first_bi(doc, sub_bi)]
+                      if sub_bi is not None else None)
+            sub_cols = (sub_blk.columns or 1) if sub_blk is not None else 1
+            sub_gutter = (sub_blk.column_gutter or 0.0) if sub_blk is not None else 0.0
             if sub_cols != cols or sub_gutter != gutter_cols:
                 break
             for pl in sub:
@@ -5020,15 +5170,24 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # a new page when the next advance would leave the text area -- so a
     # document that varies its leading (LJ6DTP's title page swaps 10pt/14pt/
     # 16pt leads around 72pt banners) fits more or fewer lines than the
-    # default-lead count says. The budget is (cap - 1) leads at the document
-    # default -- the first line sits at the top, each following line spends
-    # its own lead -- which makes a uniform-lead document paginate EXACTLY as
-    # the old line count did (n - 1 defaults == cap - 1 defaults at n == cap),
-    # so no fontless byte moves. Overprint lines spend no lead at all, on
-    # paper and here. (Resolves register #15's visible symptom -- an orphan
-    # line pushed onto its own page ahead of a `.pa`.)
+    # default-lead count says. The budget is the page's own text HEIGHT
+    # (`_printed_budget_pt`) and EVERY line -- the first one included --
+    # spends its own lead out of it, which is exactly where each line's
+    # baseline lands on paper (`_page_stream`: the first line sits at
+    # `top` plus its OWN lead, each later one a further lead down). A
+    # uniform-lead page therefore paginates EXACTLY as the old line count
+    # did (n leads fit iff n <= floor(height / lead) == cap), so no
+    # fontless byte moves; only a page that MIXES leads can now reach
+    # into the fractional remainder `cap`'s own floor discarded -- see
+    # `_printed_budget_pt`, which measures that against real WS7.
+    # Overprint lines spend no lead at all, on paper and here. (Resolves
+    # register #15 -- both its visible symptom, an orphan line pushed
+    # onto its own page ahead of a `.pa`, and the capacity question
+    # itself.)
     default_lead = _printed_lead(doc) if printed else LEAD
-    budget = (cap - 1) * default_lead
+    budget = (_printed_budget_pt(doc, cap, default_lead, global_mt, global_mb,
+                                 global_pl) if printed
+              else (cap - 1) * default_lead)
     # round 17b (RULINGS-LEDGER row 5/6, register C8): `.sb` suppresses
     # blank lines specifically at the TOP of a page -- WordStar's own
     # pagination concern, not a text-content one, so it belongs in THIS
@@ -5050,44 +5209,36 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     cur_hdrs_e, cur_hdrs_o, cur_ftrs_e, cur_ftrs_o = {}, {}, {}, {}
     page_hdrs_e, page_hdrs_o, page_ftrs_e, page_ftrs_o = {}, {}, {}, {}
     def _cost(ln):
+        """This line's own vertical advance, in points -- what it spends
+        out of `budget` (the page's real text height, `_printed_budget_pt`).
+
+        EVERY line spends its own lead, the page's first one included:
+        `_page_stream` places that first baseline at `top` plus its OWN
+        lead, so on paper it has already consumed exactly that much of the
+        text height. This used to credit the first line as free against a
+        budget one default lead short (`(cap - 1) * default_lead`), which
+        is the same arithmetic whenever that line's lead is at or above
+        the document default -- but a page opening on a line SHORTER than
+        the default (sawyer/REF/WINGDING.CHT's own 12pt title under its
+        `.lh 14pt`) was charged the full default for it and lost the
+        difference. See `_printed_budget_pt` for the measurements.
+
+        b26-mtmb-general (pictures-mode pagination, -README.WS) and
+        planning #236 (sawyer/INTERVU.WS) both fall straight out of this
+        rule rather than needing their own credits: an embedded image's
+        `.lead` is a RESERVED-BAND total (`_pix_reserved_advance` -- the
+        pix tag's own line plus its contiguous following blanks), and
+        charging it in full is precisely what the `pictures=off` path
+        spends on the same band as ordinary per-line advances, so the two
+        modes break in the same place wherever the band lands; and a
+        page whose first body line runs at a STYLE's own larger VMI
+        (INTERVU.WS's 24pt "MS Body Copy" against an unset 12pt `.lh`) no
+        longer pockets phantom room it never had.
+
+        An OVERPRINT line shares the previous line's baseline and spends
+        nothing, on paper and here."""
         lead = getattr(ln, 'lead', None) or default_lead
-        if not page:                              # first line on page is free
-            # b26-mtmb-general (pictures-mode pagination parity, -README.WS):
-            # an embedded image's `.lead` is a RESERVED-BAND total (the pix
-            # tag's own line plus its contiguous following blanks --
-            # `_pix_reserved_advance`), not one physical line's advance. The
-            # "first line is free" rule below assumes the opposite -- that
-            # `.lead` represents exactly the ONE source line `budget`'s own
-            # `(cap - 1)` already accounts for (see `budget`'s comment) --
-            # so crediting the WHOLE reserved band when the image happens to
-            # land as a page's first line freed 7 extra lines' worth of
-            # budget (96pt reserved band, 84pt of which should have stayed
-            # charged) that the `pictures=off` path, where the SAME tag
-            # line and blanks are ordinary PageLines and only the tag
-            # line's own one-line advance is ever free, never received --
-            # off matches WS7's real page break exactly, embed ran several
-            # lines longer before this fix. Only the amount ABOVE one
-            # line's own advance is charged even at a page's own start, so
-            # embed's image-band cost matches off's natural per-line
-            # accumulation exactly, regardless of where either mode's
-            # break happens to fall.
-            # planning #236 remainder (sawyer/INTERVU.WS): the credit
-            # above is scoped to `default_lead`'s OWN worth, same as the
-            # image case just above -- a page's first line was always
-            # free even when a STYLE (not `.lh`) gives it a bigger real
-            # lead than the document default, over-crediting the page by
-            # (real lead - default_lead) points of budget that were never
-            # actually free. INTERVU.WS's whole body runs at the "MS Body
-            # Copy" style's own 24pt VMI while the document's `.lh`
-            # (hence `default_lead`) stays the unset 12pt default -- every
-            # page opening on a body line pockets 12pt of phantom room
-            # this way, which is exactly the margin a later `.cp2` needed
-            # to correctly push a whole paragraph to the next page.
-            # Mathematically identical to the previous flat `0.0` for
-            # every document whose first line's lead already equals
-            # `default_lead` (the overwhelming common case).
-            return max(0.0, lead - default_lead)
-        if getattr(page[-1], 'overprint', False):
+        if page and getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
         return lead
     def _close_page(explicit=False, break_bi=None):
@@ -5247,6 +5398,59 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # opens a page depends on doc.meta['pa_eof_blank_after'] (see the
     # post-loop branch below).
     trailing_pagebreak = False
+    # Planning #227 follow-up (2026-09-12): A COLUMN GROUP SHARES ONE TOP.
+    # `_apply_columns` folds every N consecutive sub-"pages" of a `.co n`
+    # region into one physical sheet, side by side -- so those N sub-pages
+    # are N COLUMNS OF THE SAME SHEET, and on paper they all begin at the
+    # SAME vertical position: wherever the columnar region itself began on
+    # that sheet, BELOW any non-columnar prefix (a title line and its
+    # blank) the sheet opened with. Each column therefore has that much
+    # LESS room than a whole page, not a whole page's worth.
+    #
+    # Measured against real WS7 (`ws7-prints/v4`, PRISTINE.EXE) -- every
+    # column of every one of these begins at the region's own top, and
+    # every column holds the same number of lines as column 1's own
+    # columnar part, never more:
+    #   REF/WINGDING.CHT   prefix 2 lines (24pt): WS7 columns 2-5 start at
+    #                      153.2pt and hold 45 lines; this engine started
+    #                      them at the sheet's own first text line (129pt)
+    #                      and gave them 46.
+    #   REF/SYMBOL.CHT     prefix 2 lines (24pt): WS7 124.4pt / 47 lines;
+    #                      engine 100.4pt / 48.
+    #   PRINTERS/fontcrib.ws, PRINTER.PS  prefix 2 lines (24pt): WS7
+    #                      66.8pt / 51 lines; engine 42.8pt / 52.
+    # `col_offset_pt` is that prefix's own height in points, captured from
+    # `spent` at the moment the group's FIRST columnar line is admitted --
+    # the same quantity `_apply_columns` re-derives per merged sheet for
+    # the DRAW side (`Page.column_top_offset_pt`), from the same lines'
+    # own leads. It is charged against `budget` for every column of the
+    # group EXCEPT the first (which pays the prefix itself, out of the
+    # same budget, line by line), and released when the group wraps onto a
+    # fresh sheet or the region ends.
+    col_group_cols = 1                # `.co n` of the region the open page is in
+    col_group_index = 0               # which column of the group the open page is
+    col_offset_pt = 0.0               # the group's shared prefix height, in points
+    def _line_cols(ln):
+        bi = getattr(ln, 'bi', None)
+        if bi is None or not (0 <= bi < len(doc.blocks)):
+            return None
+        return doc.blocks[bi].columns or 1
+    def _col_cut():
+        """How much of `budget` this OPEN page must leave to the group's
+        shared prefix: nothing for column 0, which pays that prefix line
+        by line out of the same budget, and the prefix's own height for
+        every column after it, which starts BELOW it."""
+        return col_offset_pt if col_group_index else 0.0
+    def _advance_column():
+        """One sub-page closed: the NEXT one is the next column of this
+        group, until the group wraps onto a fresh physical sheet (where
+        there is no prefix above the region any more)."""
+        nonlocal col_group_index, col_offset_pt
+        if not printed or col_group_cols <= 1:
+            return
+        col_group_index += 1
+        if col_group_index >= col_group_cols:
+            col_group_index, col_offset_pt = 0, 0.0
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt, parity = l
@@ -5300,11 +5504,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     seen += 1
                     if seen >= l[1]:
                         break
-                short = (budget - spent) < needed - 1e-6
+                short = (budget - _col_cut() - spent) < needed - 1e-6
             else:
                 short = (cap - len(page)) < l[1]
             if short and page:
-                _close_page(); page, spent = [], 0.0
+                _close_page(); _advance_column(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
                 page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
@@ -5318,8 +5522,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
             cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
-            budget = (cap - 1) * default_lead
-        overflow = (spent + _cost(l) > budget + 1e-6) if printed \
+            budget = _printed_budget_pt(doc, cap, default_lead,
+                                        cur_mt, cur_mb, cur_pl)
+        # A line LEAVING the columnar region releases the group's shared
+        # prefix before this page's own room is judged -- the break that
+        # carried us here was forced by that same state change
+        # (`_doc_to_pagelines`'s own `prev_cols` gate), so the page it
+        # opens is an ordinary whole one again.
+        if printed and col_group_cols > 1 and _line_cols(l) == 1:
+            col_group_cols, col_group_index, col_offset_pt = 1, 0, 0.0
+        overflow = (spent + _cost(l) > budget - _col_cut() + 1e-6) if printed \
                   else len(page) >= cap
         # Finding 1 (round 26 visual pass): the FIRST `ws4_spacing`
         # blank (see `_ws4_spacing_blank_indices`) to overflow a page's
@@ -5340,12 +5552,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # own 2-3 blank run): forgiving every blank in a run over-admits
         # a whole extra real line one measured source's own WS7 capture
         # didn't have.
-        already_over = printed and spent > budget + 1e-6
+        already_over = printed and spent > budget - _col_cut() + 1e-6
         full = overflow and not (printed and getattr(l, 'ws4_spacing', False)
                                  and not already_over)
         if l is None or full:
             if page or l is None:
-                _close_page(); page, spent = [], 0.0
+                _close_page(); _advance_column(); page, spent = [], 0.0
                 page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
                 page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
@@ -5356,7 +5568,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 if printed and full and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
                     cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
-                    budget = (cap - 1) * default_lead
+                    budget = _printed_budget_pt(doc, cap, default_lead,
+                                                cur_mt, cur_mb, cur_pl)
             if l is None:
                 trailing_pagebreak = True
                 continue
@@ -5365,6 +5578,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 and not any(t.strip() for t, _ in l)):
             continue          # `.sb`: a blank line at the top of a page doesn't print
         if printed:
+            lc = _line_cols(l)
+            if lc is not None and lc > 1 and col_group_cols == 1:
+                # The group starts HERE: whatever this page has already
+                # spent is the prefix every column of it shares.
+                col_group_cols, col_group_index, col_offset_pt = lc, 0, spent
             spent += _cost(l)
         page.append(l)
     if page:
@@ -7725,7 +7943,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
 def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
                  colour_map=None, roll_pt=None, ul_continuous=False,
-                 line_no_checkpoints=None, pcl_programs=()):
+                 line_no_checkpoints=None, pcl_programs=(),
+                 column_top_offset_pt=0.0):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -7813,7 +8032,16 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         cur_col = getattr(line, 'col', None)
         if n and not prev_overprint:
             if cur_col is not None and cur_col != prev_col:
-                y = page_h - top - (getattr(line, 'lead', None) or lead)
+                # planning #227 follow-up (2026-09-12): a new column
+                # restarts at the COLUMNAR REGION's own top on this sheet
+                # (`Page.column_top_offset_pt`, the height of whatever
+                # non-columnar prefix the sheet opened with), not at the
+                # sheet's own first text line -- measured against real
+                # WS7, see `_apply_columns`. 0.0 on a sheet the region
+                # owns outright, which is what the reset used to assume
+                # unconditionally.
+                y = (page_h - top - column_top_offset_pt
+                     - (getattr(line, 'lead', None) or lead))
             else:
                 y -= getattr(line, 'lead', None) or lead
         prev_col = cur_col
@@ -9497,7 +9725,8 @@ def _emit_pdf_inner(doc, printed, options):
             streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_checkpoints,
-                                        doc.pcl_programs))
+                                        doc.pcl_programs,
+                                        getattr(pl, 'column_top_offset_pt', None) or 0.0))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
         # pages at the document's own end (Jon: "It should probably export
         # in all formats even though non-paged ones couldn't be

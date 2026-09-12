@@ -816,10 +816,11 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     document's own default applies) — a document with no `.po`/`.poe`/
     `.poo` override and no `.co n>1` region anywhere emits byte-identical
     JSON to version 1. `col` is the field a consumer MUST use to decide
-    "this line starts a new column, reset the vertical cursor to the page
-    top" — an ordinary `left` change (a mid-document `.po`/`.poe`/`.poo`
-    override) is NOT that signal and must not reset the flow; only a `col`
-    change is.
+    "this line starts a new column, reset the vertical cursor" — an
+    ordinary `left` change (a mid-document `.po`/`.poe`/`.poo` override) is
+    NOT that signal and must not reset the flow; only a `col` change is.
+    (Version 8 corrects WHERE it resets to: the page top PLUS that page's
+    own `column_top_offset_pt`, not the page top itself.)
 
     version 3 (planning #251(b), 2026-09-09): each printed line MAY now
     carry 'justify_word_x' — `[{'text': str, 'x': float, 'width': float},
@@ -887,6 +888,19 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     neither anywhere emits byte-identical JSON to version 5. The raw
     `headers`/`footers` dict (unsubstituted template strings) stays
     exactly as it was; this is purely additive.
+
+    version 8 (planning #227 follow-up, 2026-09-12): a printed PAGE that
+    carries 'columns' now also carries 'column_top_offset_pt' — how far
+    BELOW that sheet's own first text line every column AFTER the first
+    restarts, in points. It is 0.0 on a sheet whose `.co n>1` region owns
+    the sheet from its first line, and the height of the non-columnar
+    prefix (a title and its blank) otherwise. A consumer that resets the
+    vertical cursor on a 'col' change (version 2's own rule) MUST reset it
+    to `top + column_top_offset_pt`, not to `top`: real WS7 starts every
+    column of a sheet where the REGION starts on it, not where the sheet
+    does — measured on sawyer/REF/WINGDING.CHT, REF/SYMBOL.CHT,
+    PRINTERS/fontcrib.ws and PRINTER.PS. Pages with no 'columns' key are
+    unaffected and emit byte-identical JSON to version 7.
 
     version 7 (planning #251 follow-up, 2026-09-10, found by the app
     coder job 348): a `modern['items']` entry of kind 'para' or 'note'
@@ -1018,6 +1032,10 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             pg['columns'] = pg_columns
             pg['column_gutter_pt'] = getattr(page, 'column_gutter_pt', None)
             pg['column_width_pt'] = getattr(page, 'column_width_pt', None)
+            # version 8 (planning #227 follow-up, 2026-09-12): where a new
+            # column's vertical cursor RESTARTS -- see the version note.
+            pg['column_top_offset_pt'] = round(
+                float(getattr(page, 'column_top_offset_pt', None) or 0.0), 1)
         printed_pages.append(pg)
 
     modern_out = modern_flow(doc, notes=notes, note_refs=note_refs)
@@ -1054,7 +1072,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 7,
+        'version': 8,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
