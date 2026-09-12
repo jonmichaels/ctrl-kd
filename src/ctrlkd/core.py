@@ -1816,12 +1816,44 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
         raw_extras['breaks'] = []
         raw_extras['eof_tail'] = b''
 
-    def _emit(text_start, text_end, brk):
+    def _emit(text_start, text_end, brk, after=b''):
         # A BARE CR is ^PM Overprint Line (WSFORMAT and the WS4 manual
         # agree): the next line prints at THIS line's baseline. Only WS
         # documents opt in (`overprint_cr`) -- a CR-only text file (classic
         # Mac line endings) must never have its every line overprint.
-        if brk == b'\x0d' and overprint_cr:
+        #
+        # ...UNLESS A FORM FEED FOLLOWS IT. <0D 0C> -- in the file <0D 8C>,
+        # the flagged/soft ^L the `_FLAGGED` translate above has already
+        # de-flagged -- is WordStar's own record of a COLUMN BREAK, the
+        # 0x0C closing the line the break happened on exactly as a flagged
+        # 0x0A closes a soft-wrapped one. It is NOT a bare CR, and the line
+        # in front of it is not overprinted by anything. Counted in the
+        # Sawyer archive's own WS7 documents, <0D 8C> tallies column break
+        # for column break:
+        #   REF/WINGDING.CHT      4   one sheet, `.co5`   -- 4 breaks
+        #   PRINTERS/fontcrib.ws  8   two sheets, `.co5`  -- 4 + 4
+        #   PRINTER.PS           12   three sheets,`.co5` -- 4 + 4 + 4
+        #   MICKEE/MICKEE.WS      6   ARTICLES/FORMFEED.WS 1 -- each one
+        #                             directly after an explicit `.cb`
+        #   LSRBOX/LSRBOX.WS      1   its one `.co2` sheet, page 7
+        # Read as an overprint, the line BEFORE every column break spent no
+        # vertical room at all (`pdf._cost` credits the line after an
+        # overprint with a free lead). Measured on LSRBOX.WS page 7: real
+        # WS7 ends column 1 after its tenth `.lh 1"` line -- 720pt of a
+        # 766.8pt text height, the eleventh line's own 55.44pt lead not
+        # fitting -- and this engine spent 0pt on the tenth, swallowed four
+        # more lines out of column 2 and printed two of them off the foot
+        # of the sheet.
+        #
+        # The 0x0C itself is deliberately NOT consumed as part of the
+        # break: it stays the next line's leading byte, where #246's own
+        # form-feed peeling (`_ff_lead`, measured on PRINT.TST) turns it
+        # into the page eject real WS7 performs there. This test only
+        # stops the CR in front of it being mistaken for ^PM.
+        # Both spellings are tested: the `_FLAGGED` translate runs only on
+        # the WS5+ document path, so a caller that reaches this splitter
+        # without it still sees the file's own 0x8C.
+        if brk == b'\x0d' and overprint_cr and after not in (b'\x0c', b'\x8c'):
             kind = 'over'
         else:
             kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
@@ -1858,7 +1890,7 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             data, re.S):
         if m.group(1) is None:
             continue                          # wrapped triple: text, not a break
-        _emit(seg, m.start(1), m.group(1))
+        _emit(seg, m.start(1), m.group(1), data[m.end(1):m.end(1) + 1])
         seg = m.end(1)
     _emit(seg, len(data), b'')
 

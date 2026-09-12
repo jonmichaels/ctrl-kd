@@ -326,3 +326,82 @@ def test_a_fill_with_an_omitted_value_is_solid_black():
         ('fill', 2250, 3, 0.0)]
     shaded = pdf._parse_pcl_program(b'\x1b*c0075a3000b0015g2P')
     assert shaded[0][0] == 'fill' and abs(shaded[0][3] - 0.85) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# F. <0D 8C> IS A COLUMN BREAK'S OWN TERMINATOR, NOT A BARE-CR OVERPRINT.
+#
+# WordStar records a column break by closing the line it happened on with a
+# FLAGGED form feed -- <0D 8C> in the file, de-flagged to <0D 0C> by core's
+# own `_FLAGGED` translate -- exactly as it closes a soft-wrapped line with a
+# flagged line feed. Counted in Robert J. Sawyer's own WS7 archive the tally
+# is the column-break tally, document for document: REF/WINGDING.CHT 4 (one
+# sheet, `.co5`), PRINTERS/fontcrib.ws 8 (two sheets), PRINTER.PS 12 (three),
+# LSRBOX/LSRBOX.WS 1, and MICKEE.WS 6 / ARTICLES/FORMFEED.WS 1 each directly
+# after an explicit `.cb`.
+#
+# Read as a BARE CR it is ^PM Overprint Line instead, and the line in front
+# of every column break spends no vertical room at all (`pdf._cost` credits
+# the line AFTER an overprint with a free lead). Measured on LSRBOX.WS page 7
+# against the ws7-prints/v4 PRISTINE.EXE capture: real WS7 ends column 1
+# after its tenth `.lh 1"` line -- 720pt of a 766.8pt text height, the
+# eleventh line's own 55.44pt lead not fitting -- and this engine spent 0pt
+# on the tenth, swallowed four more lines out of column 2, and printed two of
+# them off the foot of the sheet at the left margin.
+# ---------------------------------------------------------------------------
+
+COLBRK = b'\r\x8c'          # as it appears in a real WS7 file
+
+
+def test_f_a_column_break_terminator_is_not_an_overprint():
+    """The mechanism, at its smallest: the line closed by <0D 8C> is an
+    ordinary line, and the one after it pays its own lead."""
+    src = b'first' + COLBRK + b'second' + HARD
+    doc = core.parse(src)
+    lines = [ln for b in doc.blocks for ln in getattr(b, 'lines', [])]
+    texts = [''.join(s.text for s in ln.spans) for ln in lines]
+    assert 'first' in texts[0]
+    assert not lines[0].overprint, '<0D 8C> is a terminator, not a bare CR'
+
+
+def test_f_a_genuine_bare_cr_still_overprints():
+    """The negative that keeps ^PM Overprint Line working: a <0D> with
+    anything but a form feed after it is unchanged. (Same document shape as
+    the case above -- the 0x8C in its own tail is what makes `detect()` read
+    both as a WS document, where `overprint_cr` is on.)"""
+    src = b'under\rover' + HARD + b'tail' + COLBRK + b'end' + HARD
+    doc = core.parse(src)
+    lines = [ln for b in doc.blocks for ln in getattr(b, 'lines', [])]
+    assert lines[0].overprint, 'a real bare CR is still ^PM'
+
+
+def test_f_the_form_feed_still_leads_the_next_line():
+    """The 0x0C is deliberately NOT consumed as part of the break: it stays
+    the next line's leading byte, where planning #246's own form-feed peel
+    (measured on PRINT.TST, where WS7 prints no `.pm1` text at all, only the
+    page eject) turns it into a page break and re-tests what follows it for
+    dot-command-ness."""
+    doc = core.parse(b'body' + COLBRK + b'.pm1' + HARD + b'after' + HARD)
+    kinds = [b.kind for b in doc.blocks]
+    assert 'pagebreak' in kinds, 'the form feed still ejects'
+    out = pdf.emit_pdf(doc, mode='printed')
+    assert b'.pm1' not in out, 'and what follows it is still a dot command'
+
+
+def test_f_a_column_breaks_last_line_pays_its_lead():
+    """LSRBOX.WS page 7's shape, synthetic: a `.co2` region whose column 1
+    is filled by ten 72pt lines, the last of them closed by <0D 8C>, and
+    whose next line's own lead (`.lh .77"`, 55.44pt) does not fit in what
+    the page has left. Column 1 must hold exactly those ten lines."""
+    head = (b'.mt .35"' + HARD + b'.mb 0' + HARD + b'.lh 1"' + HARD
+            + b'.rm 2.75"' + HARD + b'.co2, 1.00"' + HARD)
+    rows = HARD.join(b'row %02d' % n for n in range(1, 10))
+    tail = (COLBRK + b'.lh .77"' + HARD + HARD + b'.lh 12pt' + HARD + HARD
+            + HARD.join(b'col two line %02d' % n for n in range(1, 20)) + HARD)
+    doc = core.parse_ws(head + rows + HARD + b'row 10' + tail)
+    page = pdf._doc_to_pagelines(doc, True)[0]
+    cols = [getattr(ln, 'col', 0) for ln in page]
+    first_col2 = cols.index(1)
+    texts = [''.join(t for t, _ in ln) for ln in page]
+    assert first_col2 == 10, (first_col2, texts[:13])
+    assert texts[9].strip() == 'row 10'
