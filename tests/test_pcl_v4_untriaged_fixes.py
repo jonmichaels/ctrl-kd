@@ -312,3 +312,30 @@ def test_column_under_a_prefix_never_overflows_the_text_bottom():
                 continue          # column 0 pays the prefix line by line
             spent = sum((getattr(r, 'lead', None) or lead) for r in rows)
             assert top + spent <= budget + lead, (ci, top, spent, budget)
+
+
+def test_pn_reanchors_the_count_even_when_its_number_repeats():
+    """A `.pn` restarts the numbering at the page it appears on, always.
+
+    `_pn_checkpoints` used to drop a checkpoint whose VALUE equalled the
+    last one recorded -- a guard that compared against the previous
+    checkpoint's number instead of against the number this page would
+    otherwise have taken, so every restart to an already-used number was
+    thrown away.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/CTRL-K.H1`: five pages numbered 1-5, then a mid-document
+    `.pn1`, and WS7 numbers the remaining sheets 6, 7, 8, 9 as pages
+    1, 2, 3, 4 -- which is also the parity its own `^K` even-page header
+    rule reads."""
+    src = HARD.join([b'one', b'.pa', b'two', b'.pa', b'three',
+                     b'.pn1', b'four', b'.pa', b'five']) + HARD
+    doc = core.parse_ws(src)
+    cps = pdf._pn_checkpoints(doc)
+    assert len(cps) == 2, cps
+    assert cps[0] == (0, 1) and cps[1][1] == 1, cps
+    assert cps[1][0] > 0, cps
+    pages = pdf._doc_to_pagelines(doc, True)
+    numbers = pdf._resolve_page_numbers(cps, pages)
+    # the `.pn1` sits on the third page, which it re-anchors to 1
+    assert numbers == [1, 2, 1, 2], numbers

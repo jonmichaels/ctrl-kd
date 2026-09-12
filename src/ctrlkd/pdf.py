@@ -635,7 +635,25 @@ def _pn_checkpoints(doc):
             value = int(float(m.group(1)))
         except (TypeError, ValueError):
             continue
-        if value != checkpoints[-1][1]:
+        # A `.pn` RE-ANCHORS the count at the page it appears on, so it is
+        # a real checkpoint even when its VALUE repeats one already seen --
+        # the old guard (`value != checkpoints[-1][1]`) compared against
+        # the last checkpoint's number rather than against the number this
+        # page would otherwise have taken, and so threw away every
+        # restart-to-a-number-already-used. MEASURED against real WS7
+        # (ws7-prints/v4, PRISTINE.EXE) on `sawyer/REF/CTRL-K.H1`, whose
+        # mid-document `.pn1` follows five pages numbered 1-5: WS7 numbers
+        # its remaining sheets 6, 7, 8, 9 as pages **1, 2, 3, 4**, and its
+        # own `^K` even-page rule (`_ctrl_k_even_page`) fires on sheets 7
+        # and 9 accordingly. With the checkpoint dropped, the engine
+        # numbered those sheets 6-9 and read the parity off the sheet.
+        #
+        # Two `.pn` commands inside the SAME block keep the last one (the
+        # later command wins, as for any other stateful dot command); a
+        # `.pn` in block 0 replaces the seed rather than doubling it.
+        if checkpoints[-1][0] == bi:
+            checkpoints[-1] = (bi, value)
+        else:
             checkpoints.append((bi, value))
     return checkpoints
 
