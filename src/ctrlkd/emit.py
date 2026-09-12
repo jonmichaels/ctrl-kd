@@ -2978,10 +2978,22 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                     + rendered_line)
         return rendered_line
 
+    # planning #264 item 2 (packet row A10): a trailing `.pa` -- the
+    # document's own LAST block -- only opens a page when at least one more
+    # real line of content was typed after it before EOF. That fact is
+    # already parsed (`doc.meta['pa_eof_blank_after']`, planning #228,
+    # research/2026-09-08_trailing-pa-rule.md) and until now was read only
+    # by the PDF: every `.pa`-ending document got an extra, permanently
+    # blank RTF page the PDF knew better than to open. STRENGTH.WS (False)
+    # must not get one; PAGESIZE.WS (True) still must.
+    last_bi = len(doc.blocks) - 1
+    trailing_pa_opens_page = bool(doc.meta.get('pa_eof_blank_after'))
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             quote_open = False
             quote_fi_cols = None
+            if bi == last_bi and not trailing_pa_opens_page:
+                continue
             parts.append(r'\page ')
             continue
         li, ri = direct_margins.get(b.style_id, (0, 0))
