@@ -2515,9 +2515,117 @@ def _rtf_auto_page_number(doc, page_numbers='auto'):
     return bool(_pgnum_at(_pgnum_checkpoints(doc), 0))
 
 
-def _rtf_running_heads(doc, headers=True, auto_page_number=False):
-    """Modern RTF `\\header`/`\\footer` groups from the document's own
-    running heads (ruling 2026-08-06: Modern keeps headers).
+_RTF_HF_ALIGN = {'right': r'\qr', 'center': r'\qc'}
+
+
+def _hf_slots(doc, which):
+    """`({slot: {parity: text}}, first_anchor)` for `which` ('H'|'F') --
+    every `.he`/`.h1`-`.h5`/`.fo`/`.f1`-`.f5` the document declared, keyed
+    by line slot and then by PAGE PARITY: 'O' for `.h1o`/`.f1o` (odd, the
+    right-hand page), 'E' for `.h1e`/`.f1e` (even, the left-hand one), None
+    for a plain definition that applies to both.
+
+    `hf_events_parity` is INDEX-ALIGNED with `hf_events` (planning #250);
+    first definition of each (slot, parity) wins, exactly as the flat
+    reading did before parity existed."""
+    events = list(getattr(doc, 'hf_events', ()))
+    parities = list(getattr(doc, 'hf_events_parity', ()))
+    parities += [None] * (len(events) - len(parities))
+    slots, first_anchor = {}, None
+    for (kind, lno, txt, anchor), parity in zip(events, parities):
+        if kind != which or not txt:
+            continue
+        by_parity = slots.setdefault(lno, {})
+        if parity not in by_parity:
+            by_parity[parity] = txt
+            if first_anchor is None or anchor < first_anchor:
+                first_anchor = anchor
+    return slots, first_anchor
+
+
+def _hf_variant(slots, parity):
+    """`{slot: text}` for one side of the sheet. A slot defined only for
+    the OTHER parity prints nothing on this side -- which is the whole
+    point of `.h1o`/`.h1e` -- while a plain definition applies to both."""
+    out = {}
+    for lno, by_parity in slots.items():
+        txt = by_parity.get(parity, by_parity.get(None))
+        if txt:
+            out[lno] = txt
+    return out
+
+
+def _hf_attr(doc, which, field, parity):
+    """`{slot: value}` of one per-line head/foot attribute (`fonts`,
+    `align`, ...) for one page parity, with the same "parity wins, plain
+    is the fallback" rule `_hf_variant` applies to the text."""
+    plain = getattr(doc, '%s_%s' % (which, field), {}) or {}
+    by_parity = getattr(doc, '%s_%s_parity' % (which, field), {}) or {}
+    out = dict(plain)
+    for lno, per in by_parity.items():
+        if parity in per:
+            out[lno] = per[parity]
+    return out
+
+
+def _rtf_head_foot_distance(page, head_slots, printed):
+    r"""`(\headery, \footery)` in twips, or `(None, None)` for Modern.
+
+    WordStar anchors the header block to the BODY, not to the paper edge:
+    its last line sits `.hm` lines above the first body line, inside `.mt`
+    (WSFORMAT: ".MT ... the header is printed within this margin"; ".HM
+    ... the distance between the header and the text"). The PDF resolves
+    that as `head_base = max(0, mt - hm - top_head)` whole 12pt lines from
+    the top of the sheet (`pdf._resolve_head_foot_lines`, mechanism W --
+    `hm` participates unconditionally, confirmed against the PRISTINE.EXE
+    recapture), and the footer as line `pl - mb + fm`, which leaves
+    `mb - fm - 1` lines under it. `\headery`/`\footery` are exactly those
+    two distances, so RTF's own gap matches the page the PDF draws
+    instead of the reader's default.
+
+    PRINTED ONLY. Modern's page is its own fixed Letter and Modern carries
+    no vertical space of ours (ruling 2026-08-17, "never Modern"; packet
+    row D9) -- a Modern reader keeps its own head/foot gap, the same way
+    it keeps its own leading."""
+    if not printed:
+        return None, None
+    line = 240                                       # one line at 6 LPI
+    mt = float(page.get('mt_lines', 3))
+    hm = float(page.get('hm_lines', 2))
+    top_head = max(head_slots, default=1)
+    pl = float(page.get('pl_lines', 66))
+    mb = float(page.get('mb_lines', 8))
+    fm = float(page.get('fm_lines', 2))
+    return (int(round(max(0.0, mt - hm - top_head) * line)),
+            int(round(max(0.0, mb - fm - 1) * line)))
+
+
+def _rtf_po_parity(doc):
+    """`(.poe, .poo)` in print columns, or `(None, None)` -- the document's
+    own even/odd page offsets (planning #231), resolved AT BLOCK 0.
+
+    The same `pdf._poe_poo_checkpoints`/`_po_at` machinery `_close_page`
+    and `_resolve_head_foot_lines` already use, called at block 0 because
+    RTF has one section: whatever is in force where the document opens is
+    the only answer this format can carry. Block 0 is also the only anchor
+    a `.DOT` TEMPLATE has at all -- GALLEYS.DOT and ADVANCE.DOT declare
+    `.poe`/`.poo` (and their `.h1o`/`.h1e` pair) before any block would
+    ever open, and have no body lines for the per-line
+    `Line.poe_cols`/`poo_cols` state to ride on. Lazy import, same reason
+    `_rtf_toc_index` imports `pdf` lazily."""
+    from .pdf import (_poe_poo_checkpoints, _po_at, _POE_CMD_RE, _POO_CMD_RE)
+    poe_cp = _poe_poo_checkpoints(doc, _POE_CMD_RE)
+    poo_cp = _poe_poo_checkpoints(doc, _POO_CMD_RE)
+    return (_po_at(poe_cp, 0) if poe_cp else None,
+            _po_at(poo_cp, 0) if poo_cp else None)
+
+
+def _rtf_running_heads(doc, headers=True, auto_page_number=False,
+                       printed=True):
+    """RTF `\\header`/`\\footer` groups from the document's own running
+    heads (ruling 2026-08-06: Modern keeps headers), plus the
+    `(needs_facing_pages, headery, footery)` the page setup has to carry
+    for them. Returns `(groups, facingp, headery, footery)`.
 
     Planning #264 item 3 (packet row A1): a document that declares no
     footer of its own still gets WordStar's automatic page number, centred
@@ -2532,6 +2640,24 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False):
     2026-08-17 ruling that put page numbers in every paged surface
     required the toggle. `--page-numbers` is the finer control inside it.
 
+    Planning #264 item 4 (packet rows A3-A5):
+
+      A3  `.h1o`/`.h1e`/`.f1o`/`.f1e` -- a head that differs by page
+          parity -- become `\\headerr`/`\\headerl` (odd is the RIGHT-hand
+          page) under `\\facingp`. GALLEYS.DOT sets "TITLE" on right-hand
+          pages and the author's name on left-hand ones; the RTF used to
+          print "TITLE" on every page and the author's name on none,
+          because the flat `hf_events` reading kept whichever came first.
+      A4  the head's own alignment (`header_align`/`footer_align`, the
+          `.h#`/`.f#` argument's embedded style-sheet reference, planning
+          #255) becomes `\\qr`/`\\qc` on the group's paragraph. RTF's
+          header is ONE paragraph carrying every declared line, so the
+          alignment applied is the FIRST rendered line's -- no corpus
+          document declares two head lines with different alignments, and
+          splitting the group into a paragraph per line would change the
+          bytes of every multi-line head to buy that case.
+      A5  `\\headery`/`\\footery` -- see `_rtf_head_foot_distance`.
+
     RTF carries ONE header per section; a document that redefines its head
     mid-file keeps the FIRST definition of each line slot (the common case
     -- OLDTIMES -- defines each exactly once). WordStar's `#` token becomes
@@ -2539,25 +2665,23 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False):
     opening block gets \\titlepg with an empty first-page header: the
     manuscript convention (no running head on page 1), and exactly what
     WordStar itself printed when `.h1` follows page 1's title."""
-    hdr, ftr = {}, {}
-    first_anchor = None
-    for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
-        d = hdr if kind == 'H' else ftr
-        if lno not in d and txt:
-            d[lno] = txt
-            if first_anchor is None or anchor < first_anchor:
-                first_anchor = anchor
+    hdr_slots, head_anchor = _hf_slots(doc, 'H')
+    ftr_slots, foot_anchor = _hf_slots(doc, 'F')
+    first_anchor = min([a for a in (head_anchor, foot_anchor) if a is not None],
+                       default=None)
     # "In use" is a property of the DOCUMENT, not of what we end up
     # drawing, and not of the `headers` flag: LJ6DTP.WS's own `.f1` is two
     # 0x0F bytes and renders nothing visible, yet the footer is declared
     # and WordStar's automatic number stays off -- which is exactly what
     # `pdf._close_page` records (`footer_in_use = bool(page_ftrs)`, before
     # the empty slots are dropped).
-    show_auto_num = headers and auto_page_number and not ftr
+    show_auto_num = headers and auto_page_number and not ftr_slots
     if not headers:
-        hdr, ftr = {}, {}
-    if not hdr and not ftr and not show_auto_num:
-        return ''
+        hdr_slots, ftr_slots = {}, {}
+    headery, footery = _rtf_head_foot_distance(doc.meta.get('page') or {},
+                                               hdr_slots, printed)
+    if not hdr_slots and not ftr_slots and not show_auto_num:
+        return '', False, None, None
     # planning #264 item 1: a running head is the document's own text and
     # takes the driver's substitutions like any other (`emit_rtf`'s own
     # document-wide pass cannot reach it -- a head lives in `hf_events`,
@@ -2568,10 +2692,10 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False):
     from .layout import driver_substituter
     subst = driver_substituter(doc)
 
-    def group(name, lines, faces):
+    def group(name, lines, faces, aligns):
         if not lines:
             return ''
-        rendered = []
+        rendered, align_ctl = [], ''
         for n in sorted(lines):
             txt = lines[n]
             if subst is not None:
@@ -2581,27 +2705,47 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False):
             runs = hf_runs(txt)
             if not runs:
                 continue                     # control-bytes-only head
+            if not rendered:
+                align_ctl = _RTF_HF_ALIGN.get(aligns.get(n), '')
             rendered.append(''.join(
                 '{' + ''.join(_RTF_ON.get(st, '') for st in sorted(styles))
                 + _rtf_escape(text).replace('#', r'{\chpgn }') + '}'
                 for text, styles in runs))
         if not rendered:
             return ''
-        return (r'{\%s \pard\plain \f0\fs22 %s\par}'
-                % (name, r'\line '.join(rendered)))
+        return (r'{\%s \pard\plain %s\f0\fs22 %s\par}'
+                % (name, align_ctl, r'\line '.join(rendered)))
 
-    foot = group('footer', ftr, getattr(doc, 'footer_fonts', {}))
+    def sided(which, name, slots):
+        """One head/foot family, as `\\headerl`/`\\headerr` when the
+        document declares a parity variant anywhere in it, else the plain
+        single group it always was."""
+        if not any(p is not None for by in slots.values() for p in by):
+            return group(name, _hf_variant(slots, None),
+                         _hf_attr(doc, which, 'fonts', None),
+                         _hf_attr(doc, which, 'align', None)), False
+        out = ''
+        for parity, side in (('O', name + 'r'), ('E', name + 'l')):
+            out += group(side, _hf_variant(slots, parity),
+                         _hf_attr(doc, which, 'fonts', parity),
+                         _hf_attr(doc, which, 'align', parity))
+        return out, bool(out)
+
+    head_group, head_facing = sided('header', 'header', hdr_slots)
+    foot_group, foot_facing = sided('footer', 'footer', ftr_slots)
     if show_auto_num:
         # WordStar's stock automatic number: bottom of the page, centred.
         # `.pc` repositions it on the printed page; RTF's footer is a
         # paragraph, so the position it can honestly carry is its
         # ALIGNMENT, and centred is both WordStar's own default and what
-        # the PDF draws for a document that never sets `.pc`.
-        foot = r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}'
-    out = group('header', hdr, getattr(doc, 'header_fonts', {})) + foot
+        # the PDF draws for a document that never sets `.pc`. Centred is
+        # the same on both sides of a sheet, so this stays the plain
+        # `\footer` group even under `\facingp`.
+        foot_group = r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}'
+    out = head_group + foot_group
     if first_anchor and first_anchor > 0:
         out = r'\titlepg{\headerf \pard\plain\par}' + out
-    return out
+    return out, (head_facing or foot_facing), headery, footery
 
 
 def _rtf_toc_index(doc, printed):
@@ -3225,19 +3369,6 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # width joined the page model 2026-08-06: A4-tall documents get the
     # 210mm sheet; everything else (and every default) stays 12240 twips
     paperw = int(round(float(page.get('pw_in', 8.5)) * 1440))
-    pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
-                 % (paperw, paperh, margl, margl, margt, margb))
-    # planning #264 item 3 (packet row A2): `.pn` sets the number of the
-    # page it appears on, so a document that says "start numbering at 7"
-    # must not start at 1. `\pgnstart` is the document-level beginning
-    # page number; only ever written when the document actually asked for
-    # one (a mid-document `.pn` re-anchor needs the section spine and is
-    # out of scope -- see `_rtf_auto_page_number`).
-    pn_start = int(page.get('pn_start', 1) or 1)
-    if pn_start != 1:
-        pagesetup += r'\pgnstart%d' % pn_start
-    if landscape:
-        pagesetup += r'\landscape'
     # round 17 (RULINGS-LEDGER row 1, register B1/B2 + Paged-surface doctrine
     # point 1): Printed RTF was the one paged surface `_rtf_running_heads`
     # never reached (Printed PDF and Modern RTF both already rendered
@@ -3250,9 +3381,47 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # `**_options` -- a flag that silently did nothing, which the packet
     # rightly called worse than not offering it. It is a named parameter
     # now, and `headers` no longer gates the automatic number with it.
-    running = _rtf_running_heads(
+    running, facingp, headery, footery = _rtf_running_heads(
         doc, headers=headers,
-        auto_page_number=_rtf_auto_page_number(doc, page_numbers))
+        auto_page_number=_rtf_auto_page_number(doc, page_numbers),
+        printed=printed)
+    # planning #264 item 4 (packet row A6): `.poe`/`.poo` -- a wider margin
+    # on the binding side -- become `\margmirror` under `\facingp`, which
+    # is RTF's own inside/outside reading of `\margl`/`\margr`: on an odd
+    # (right-hand) page the left margin is `\margl`, on an even one it is
+    # `\margr`. WordStar's `.poo` is the odd page's own offset and `.poe`
+    # the even one's, so they land in that order. The pair is all the
+    # geometry RTF has for this, which is why the right margin stops
+    # mirroring the left here -- a document that declares `.poe`/`.poo` is
+    # asking for exactly that alternation. Printed only: Modern's page is
+    # its own fixed Letter (packet row D9).
+    poe_cols, poo_cols = _rtf_po_parity(doc) if printed else (None, None)
+    mirror_margins = poe_cols is not None or poo_cols is not None
+    margr = margl
+    if mirror_margins:
+        inside = poo_cols if poo_cols is not None else page.get('po_cols', 8.0)
+        outside = poe_cols if poe_cols is not None else page.get('po_cols', 8.0)
+        margl = int(round(float(inside) * 144))
+        margr = int(round(float(outside) * 144))
+    pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
+                 % (paperw, paperh, margl, margr, margt, margb))
+    if facingp or mirror_margins:
+        pagesetup += r'\facingp'
+    if mirror_margins:
+        pagesetup += r'\margmirror'
+    if headery is not None:
+        pagesetup += r'\headery%d\footery%d' % (headery, footery)
+    # planning #264 item 3 (packet row A2): `.pn` sets the number of the
+    # page it appears on, so a document that says "start numbering at 7"
+    # must not start at 1. `\pgnstart` is the document-level beginning
+    # page number; only ever written when the document actually asked for
+    # one (a mid-document `.pn` re-anchor needs the section spine and is
+    # out of scope -- see `_rtf_auto_page_number`).
+    pn_start = int(page.get('pn_start', 1) or 1)
+    if pn_start != 1:
+        pagesetup += r'\pgnstart%d' % pn_start
+    if landscape:
+        pagesetup += r'\landscape'
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
     # gated by `--toc` (default off, the ruled default).
     toc_index = _rtf_toc_index(doc, printed) if toc else ''
