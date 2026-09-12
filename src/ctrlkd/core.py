@@ -3949,7 +3949,7 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
-def graphic_row_clips(text):
+def graphic_row_clips(text, chars=None):
     """WHICH ROWS REFUSE TO WRAP (job 456, and the app's own b28 follow-up
     on it -- ported from Soft Return, the app is the reference; moved here
     from `pdf.py` by planning #264 item 3, packet row B4, so HTML asks the
@@ -3983,12 +3983,28 @@ def graphic_row_clips(text):
     PDF gives the row an unbounded wrap width (the app's `.byClipping`),
     HTML gives it `white-space:nowrap` and asks only the first two branches
     (a browser never breaks inside a word on its own, so the third would be
-    markup that changes nothing)."""
-    graphic = set(text) & GRAPHIC_CHARS
-    if graphic and all(ch in GRAPHIC_CHARS or ch in '  ⁠'
-                       for ch in text):
+    markup that changes nothing).
+
+    WHICH CHARACTERS COUNT is the caller's too, because the two surfaces
+    genuinely mean different sets and this package keeps them apart on
+    purpose. `chars` defaults to THIS module's `GRAPHIC_CHARS` -- the
+    CONTENT classification (box-drawing, shades, blocks, the card suits,
+    smiley, sun and triple bar), the same set `split_graphic_spans` and
+    HTML's own `ws-graphic` rule read. `pdf.py` passes its OWN
+    `GRAPHIC_CHARS` instead, which shadows this one: the union of that
+    module's per-glyph DRAWING tables, which also holds the four arc corners
+    (produced only by the LJ6DTP Univers substitution at render time, never
+    decoded from a file) and `₧`, the peseta -- a glyph the PDF draws as
+    geometry because no base-14 face carries it (planning #266), but an
+    ordinary currency character in prose rather than box art. Asking the
+    drawing set in HTML would put a "this row is a picture" verdict on a
+    price list, which is exactly what it did to the archive's printer
+    character charts before this argument existed."""
+    chars = GRAPHIC_CHARS if chars is None else chars
+    graphic = set(text) & chars
+    if graphic and all(ch in chars or ch in '  ⁠' for ch in text):
         return True
-    if sum(ch in GRAPHIC_CHARS for ch in text) > 1:
+    if sum(ch in chars for ch in text) > 1:
         return True
     return bool(text) and ' ' not in text
 

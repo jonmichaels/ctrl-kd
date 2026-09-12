@@ -8305,12 +8305,16 @@ def _modern_clips_row(toks):
 
     The rule and its evidence are `core.graphic_row_clips`, where planning
     #264 item 3 (packet row B4) moved them so HTML can ask the same
-    question. This is the token-shaped adapter: read the row's FINAL tokens,
-    after a centred row's padding has come off and a def row's label/gap
-    prefix has gone on. A clipped row is set as ONE line and runs past the
-    measure rather than reflowing (`_modern_streams` gives it an unbounded
-    wrap width) -- the app's `.byClipping`."""
-    return _graphic_row_clips(''.join(t[0] for t in toks))
+    question -- but NOT with the same character set: THIS module's own
+    `GRAPHIC_CHARS` (the union of its per-glyph DRAWING tables, the four arc
+    corners and the peseta included) is what decides here, exactly as before
+    the move, while HTML asks `core.GRAPHIC_CHARS`, the content
+    classification. This is the token-shaped adapter: read the row's FINAL
+    tokens, after a centred row's padding has come off and a def row's
+    label/gap prefix has gone on. A clipped row is set as ONE line and runs
+    past the measure rather than reflowing (`_modern_streams` gives it an
+    unbounded wrap width) -- the app's `.byClipping`."""
+    return _graphic_row_clips(''.join(t[0] for t in toks), GRAPHIC_CHARS)
 
 
 def _slice_runs(runs, start, end):

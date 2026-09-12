@@ -35,8 +35,8 @@
  },
  "engine_version": "4.6.0",
  "generator": {
-  "date": "2026-09-12T12:20:15-04:00",
-  "git_sha": "da2fd21ca5c8d6ee4a92a09b9e324bb0ae5e8f6c",
+  "date": "2026-09-12T12:23:26-04:00",
+  "git_sha": "dd2f13fc4f7e020d84868eb9055b3eb85e0a193f",
   "tool": "tools/answer_key.py"
  },
  "groups": {

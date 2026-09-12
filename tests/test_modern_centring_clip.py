@@ -395,6 +395,30 @@ def test_html_and_the_pdf_read_one_shared_rule():
         assert pdf._modern_clips_row(toks) == core.graphic_row_clips(text)
 
 
+def test_the_two_surfaces_ask_about_two_different_character_sets():
+    """The PDF's `GRAPHIC_CHARS` is the union of its own per-glyph DRAWING
+    tables and holds two things the content classification deliberately
+    does not: the four arc corners (produced only by the LJ6DTP Univers
+    substitution at render time, never decoded from a file) and `\u20a7`,
+    the peseta -- drawn as geometry because no base-14 face carries it
+    (planning #266), but an ordinary currency character in prose.
+
+    A price row is the case that matters: the archive's own printer
+    character charts carry rows like `158  \u20a7 \u20a7`, which the
+    drawing set reads as TWO graphic characters (a picture) and the content
+    set reads as none (prose). HTML must ask the content set -- the same
+    one `_is_graphic_text` and `split_graphic_spans` read -- or every such
+    row gets a nowrap it should never have had."""
+    row = '158  \u20a7 \u20a7'
+    assert '\u20a7' in pdf.GRAPHIC_CHARS
+    assert '\u20a7' not in core.GRAPHIC_CHARS
+    assert core.graphic_row_clips(row) is False
+    assert core.graphic_row_clips(row, pdf.GRAPHIC_CHARS) is True
+    assert 'ws-nowrap' not in _html_row(row)
+    # ... and the PDF's own adapter keeps asking the drawing set, unchanged.
+    assert pdf._modern_clips_row([(row, frozenset(), 'Times', 12, None, 0.0)])
+
+
 @pytest.mark.sawyer
 def test_boxes_ws_html_keeps_every_legend_row_on_one_line(require_sawyer_doc):
     """Tier 2, the worked example, in HTML this time: every legend row the
