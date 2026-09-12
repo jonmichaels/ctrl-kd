@@ -1992,6 +1992,31 @@ def render_engine_pdf(ws_path: str) -> bytes:
 
 
 # ------------------------------------------------------------------ match
+def _match_key(text: str) -> str:
+    """The form a word is ALIGNED on -- the engine's own documented PDF
+    text-encoding fallbacks applied to BOTH sides, so a pair that differs
+    only by one of them still pairs up and is judged on POSITION, which is
+    what this gate measures.
+
+    `pdf.py`'s `_ESC_FALLBACK` (register C9) is the one definition: a
+    handful of characters WinAnsi -- the encoding every base-14 PDF face
+    uses -- has no glyph for at all, which the engine substitutes on the
+    way out ('∙' U+2219 BULLET OPERATOR to '·', the box-drawing rules to
+    '-'/'='/'|'). Real WS7 prints the original glyph from the printer's
+    own symbol set, so a document carrying one used to report the SAME
+    word twice -- once unmatched on each side -- at the SAME coordinates.
+    All 19 of the Sawyer archive's TAGS/ annotations end in that bullet
+    operator and reported exactly that pair.
+
+    This is deliberately NOT a general "fold lookalikes" rule: only the
+    engine's own published substitution table, read from the engine
+    itself, never a list maintained here. The reported `words` keep the
+    real characters from each side -- this key governs alignment only, so
+    a genuine placement difference on a substituted character is still
+    reported in full."""
+    return text.translate(pdfmod._ESC_FALLBACK)
+
+
 def match_doc(ws7_tokens: list, engine_tokens: list) -> dict:
     """Align two WHOLE-DOCUMENT token lists (each already concatenated in
     page/reading order, every token carrying its own 'page' number) by
@@ -2008,8 +2033,8 @@ def match_doc(ws7_tokens: list, engine_tokens: list) -> dict:
     globally on text finds the true correspondence regardless of which
     page either side put it on, and a pair's `page` fields then tell you
     whether that correspondence crossed a page boundary."""
-    ws7_words = [t['text'] for t in ws7_tokens]
-    eng_words = [t['text'] for t in engine_tokens]
+    ws7_words = [_match_key(t['text']) for t in ws7_tokens]
+    eng_words = [_match_key(t['text']) for t in engine_tokens]
     sm = difflib.SequenceMatcher(None, ws7_words, eng_words, autojunk=False)
     pairs = []
     unmatched_ws7, unmatched_engine = [], []

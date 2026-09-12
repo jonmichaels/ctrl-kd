@@ -1196,6 +1196,20 @@ class Note:
     one model covers them; `kind` is what lets callers tell them apart."""
     kind: str                  # 'footnote' | 'endnote' | 'annotation' | 'comment'
     text: str = ''
+    text_lines: tuple = ()     # the note's own PHYSICAL text lines, in order, with
+                                # its dot-command lines already removed and its EMPTY
+                                # lines kept -- `text` is these joined with a space
+                                # (see `_strip_dot_commands`), which is what every
+                                # flowing consumer wants and what this field exists
+                                # to complement. WordStar prints a note in the page-
+                                # bottom (or endnote) area as the author typed it:
+                                # a hard return inside the note text is a hard return
+                                # on paper. MEASURED (ws7-prints/v4, PRISTINE.EXE):
+                                # the Sawyer archive's TAGS/ annotations each store a
+                                # LEADING EMPTY line, and real WS7 prints the note's
+                                # tag alone on the area's first line with the text on
+                                # the next -- `text` alone cannot express that.
+                                # Empty tuple for a note with no text at all.
     number: int | None = None  # footnote/endnote only, and only when untagged: the
                                 # file's own note number (else None -- annotations/
                                 # comments have no numeric identity in the spec, and
@@ -1209,6 +1223,18 @@ class Note:
                                 # verified only, see test_ctrlkd.py). A tagged note's
                                 # display MUST use this and must never be renumbered.
                                 # comments carry neither -- spec-documented "not used"
+    tag_line: int = 0          # WHICH of `text_lines` the note's own marker (a
+                                # footnote/endnote number, an annotation's tag) sits
+                                # on. WordStar stores the marker INLINE in the note's
+                                # own text stream, so a note whose text begins with a
+                                # hard return carries its marker on the SECOND line,
+                                # not the first. MEASURED (ws7-prints/v4): `sawyer/
+                                # TAGS/WHY` stores the tag first and prints
+                                # "[Why?] / Why?" on the area's two lines; `sawyer/
+                                # TAGS/WHEN` stores a return BEFORE the tag and real
+                                # WS7 prints a blank line, then "[When?]", then
+                                # "When?". 0 (the marker on the first line) for every
+                                # note that does not do this.
     line_count: int = 0        # WordStar's stored text height -- cheap pagination
     number_format: int = 0     # conv-flag high nybble: 0 symbols,1 upper,2 lower,3
                                 # numeric -- meaningless for annotations (spec: "not
@@ -1770,7 +1796,26 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
         else:
             kind = 'eof' if not brk else ('soft' if brk[0] in (0x8D, 0x8A) else 'hard')
         text = data[text_start:text_end]
-        if text or kind != 'eof':
+        # A zero-length final line (no text, no terminator) is the file's
+        # own tail and is normally not a line at all -- EXCEPT when a note
+        # REFERENCE is anchored inside it. A note's own bytes contribute
+        # nothing to the cleaned stream, so a document whose entire body is
+        # one note block reduces to exactly this case: an empty EOF line
+        # holding an `fnref` mark and nothing else. Dropping it dropped the
+        # reference, left the document with no blocks, and printed a
+        # completely BLANK page where real WS7 prints the annotation's tag
+        # on the first body line and the annotation itself at the page
+        # bottom (measured, ws7-prints/v4 PRISTINE.EXE: all 19 documents in
+        # the Sawyer archive's TAGS/ directory, e.g. `sawyer/TAGS/WHY`).
+        # Only `fnref` counts here: every other mark kind is forward-looking
+        # STATE (a colour, font or style change) with nothing after it to
+        # apply to, and materialising a line for one of those would add a
+        # blank line no WordStar ever printed.
+        if text or kind != 'eof' or any(
+                m[0] == 'fnref'
+                for off, mlist in (marks or {}).items()
+                if text_start <= off <= text_end
+                for m in mlist):
             # `machine_indent`: this line's leading whitespace was emitted by
             # WordStar from a TAB, not typed by the author. See the wrap test.
             starts.append((text_start, len(text), len(lines)))
@@ -1865,8 +1910,32 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             # still carrying style toggles (bold-on and nothing else). Emitting
             # b'' would drop the toggle and unstyle everything after it. The
             # consumer decodes spans as usual; they simply render to nothing.
+            # A VISUALLY blank line at EOF (no terminator after it) is the
+            # file's own trailing padding and is dropped -- except when it
+            # carries MARKS. A mark is a note/graphic/style reference that
+            # WordStar anchored at this point in the text; the line looks
+            # blank only because the reference itself contributes no
+            # characters. Dropping it deletes the reference, and with it
+            # the note the reference is the ONLY anchor for.
+            #
+            # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE): 19
+            # documents in the Sawyer archive's TAGS/ directory are a
+            # single annotation block and nothing else -- no body text, no
+            # terminator after the block. Real WS7 prints all three parts
+            # of such a file (the annotation's tag on the first body line,
+            # the 20-dash rule, and the annotation text at the page
+            # bottom, plus the page number); ctrl-kd emitted a completely
+            # BLANK page for every one of them, because this branch
+            # dropped the one line the annotation was anchored to and the
+            # document then had no blocks at all. `sawyer/TAGS/WHY` is one
+            # byte-for-byte example: `1D`-block, `[Why?]`, `Why?`, `1D`,
+            # then straight to the `1A` padding.
             if kind != 'eof':
                 out.append((text, 'blank-soft' if kind == 'soft' else 'blank-hard', _mk))
+                if raw_extras is not None:
+                    raw_extras['breaks'].append(brks[i])
+            elif _mk:
+                out.append((text, 'eof', _mk))
                 if raw_extras is not None:
                     raw_extras['breaks'].append(brks[i])
             i += 1
@@ -3708,7 +3777,7 @@ SENT_HEADING = None
 # WordStar never prints -- they're only reachable through the model.
 NOTE_KINDS = {0x03: 'footnote', 0x04: 'endnote', 0x05: 'annotation', 0x06: 'comment'}
 
-def _strip_dot_commands(raw: bytes, encoding: str):
+def _strip_dot_commands(raw: bytes, encoding: str, tag_raw_line: int = 0):
     """Split note text into physical lines (the same hard-return bytes the
     body splits on) and pull any dot-command lines out of it -- a note can
     carry its own dot commands (a .rr ruler, a '..' comment line) exactly
@@ -3717,17 +3786,43 @@ def _strip_dot_commands(raw: bytes, encoding: str):
     surviving text lines are cleaned the same way note text always was and
     rejoined with a space (notes are short callouts, not reflowed prose)."""
     lines = re.split(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a', bytes(raw))
-    kept, dots = [], []
-    for line in lines:
+    kept, dots, physical = [], [], []
+    tag_line = 0
+    for idx, line in enumerate(lines):
+        if idx == tag_raw_line:
+            # Where the marker lands AFTER dot-command lines are removed --
+            # `physical`'s own index, which is what the note area renders
+            # from. Same line for the overwhelmingly common note with no
+            # dot commands of its own.
+            tag_line = len(physical)
         stripped = bytes(b & 0x7F for b in line)      # same masking the body uses
         if stripped[:1] == b'.':
             dots.append(stripped.rstrip().decode(encoding, 'replace'))
             continue
         clean = bytes(c for c in line if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
         piece = clean.decode(encoding, 'replace').strip()
+        # `physical` keeps EVERY surviving line, empty ones included, in
+        # order -- the note's own hard returns, which the page-bottom note
+        # area prints (Note.text_lines). `kept` drops the empties, because
+        # `text` is the FLOWED form every other consumer reads.
+        physical.append(piece)
         if piece:
             kept.append(piece)
-    return ' '.join(kept), dots
+    # A note's text block is stored with a trailing return, so the split
+    # above always yields ONE extra empty element after the last real line
+    # -- the terminator, not a line the author typed. Exactly one is
+    # dropped, never a run of them: a note that really does end in a blank
+    # line reserves that line on paper. Verified against `Note.line_count`
+    # (WordStar's own stored text height) and against real WS7:
+    # `sawyer/TAGS/WHY` stores 2 lines and prints its note area 2 lines
+    # tall (tag at 672.0pt, text at 684.0pt), `sawyer/TAGS/SIMPLIFY`
+    # stores 3 -- the same two lines plus a trailing blank -- and prints 3,
+    # the whole area sitting one line HIGHER for it (tag 660.0, text
+    # 672.0, blank 684.0). Dropping every trailing empty made those two
+    # documents render identically, which they are not.
+    if physical and not physical[-1]:
+        physical.pop()
+    return ' '.join(kept), dots, tuple(physical), min(tag_line, max(0, len(physical) - 1))
 
 def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
     """Decode one note block's content (the bytes between the type byte and
@@ -3765,6 +3860,11 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
     remainder = content[5:]
 
     text_bytes = bytearray()
+    # The note's marker is stored INLINE, wherever its nested sequence sits
+    # in the text stream -- so its LINE is however many breaks the text has
+    # already produced when that sequence is reached (see `Note.tag_line`).
+    tag_raw_line = 0
+    _BREAK_RE = re.compile(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a')
     i = 0
     while i < len(remainder):
         if remainder[i] == 0x1D and i + 3 <= len(remainder):
@@ -3803,12 +3903,14 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
                     raw_tag = bytes(c for c in inner_content[5:]
                                     if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
                     tag = raw_tag.decode(encoding, 'replace').strip() or None
+                tag_raw_line = len(_BREAK_RE.findall(bytes(text_bytes)))
             i += jump + 3                                # skip the whole nested sequence
         else:
             text_bytes.append(remainder[i])
             i += 1
 
-    text, dots = _strip_dot_commands(bytes(text_bytes), encoding)
+    text, dots, text_lines, tag_line = _strip_dot_commands(
+        bytes(text_bytes), encoding, tag_raw_line)
     if kind == 'annotation' or tag is not None:
         # spec: "Byte: Conversion flag. Not used for annotations" -- and,
         # by the same words, "used only when there is no internal tag":
@@ -3819,7 +3921,9 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
         number_format, convert_to = 0, 0
     else:
         number_format, convert_to = (conv_flag >> 4) & 0x0F, conv_flag & 0x0F
-    return Note(kind=kind, text=text, number=number, tag=tag, line_count=line_count,
+    return Note(kind=kind, text=text, text_lines=text_lines, tag_line=tag_line,
+                number=number, tag=tag,
+                line_count=line_count,
                 number_format=number_format, convert_to=convert_to,
                 dot_commands=dots, offset=offset)
 

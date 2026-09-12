@@ -3006,12 +3006,53 @@ def _notes_marker_pad_cols(doc):
         return None
     return max(widths) + 2
 
-def _note_wrap(marker, text, width):
+def _note_texts(note, sentence_spacing, euro):
+    """One note's own PHYSICAL text lines (`Note.text_lines`), with the
+    sentence-spacing and euro-table passes already applied -- what the
+    page-bottom and endnote areas actually print.
+
+    WordStar stores a note as the author typed it and prints it the same
+    way: a hard return inside the note text is a hard return on paper.
+    MEASURED (ws7-prints/v4, PRISTINE.EXE): each of the 19 TAGS/
+    annotations in the Sawyer archive stores a LEADING EMPTY line, and
+    real WS7 prints the tag alone on the note area's first line with the
+    text on the next -- e.g. `sawyer/TAGS/WHY` puts "[Why?]" at 672.0pt
+    and "Why?" at 684.0pt. Flowing the note's lines into one string put
+    both on a single line and lifted the whole (bottom-anchored) area a
+    line, which is what every one of those 19 documents was reporting.
+
+    A note with no `text_lines` at all -- a dot-line comment, a synthetic
+    fixture built by hand -- falls back to its flowed `text` as one line,
+    byte-identical to this function's predecessor."""
+    raw = list(getattr(note, 'text_lines', ()) or ()) or [note.text]
+    if sentence_spacing:
+        raw = _sentence_spacing_texts(raw)
+    return _euro_texts(raw, euro)
+
+
+def _note_wrap(marker, texts, width, tag_line=0):
     """One note's rendered lines for the page-bottom area or the endnote
     listing -- wrapped with the same engine body text uses. WordStar prints
     note text in the default font (no styling carried from the reference),
-    so this only ever wraps plain text."""
-    return _wrap_line([(marker, frozenset()), (text, frozenset())], width) or [[]]
+    so this only ever wraps plain text.
+
+    `texts` is the note's own physical lines (`_note_texts`); each starts
+    its own line, so the note's own hard returns survive to paper, and
+    `tag_line` (`Note.tag_line`) says which of them the MARKER joins --
+    WordStar stores the marker inline in the note's own text stream, so a
+    note whose text opens with a hard return carries it on the second
+    line (`sawyer/TAGS/WHEN`), not the first (`sawyer/TAGS/WHY`). A plain
+    string is still accepted and behaves exactly as it always did."""
+    if isinstance(texts, str):
+        texts = [texts]
+    texts = list(texts) or ['']
+    tag_line = min(max(0, tag_line), len(texts) - 1)
+    out = []
+    for n, line in enumerate(texts):
+        spans = ([(marker, frozenset()), (line, frozenset())] if n == tag_line
+                 else [(line, frozenset())])
+        out.extend(_wrap_line(spans, width) or [[]])
+    return out
 
 def _pix_dims_pt(r, max_w_pt):
     """An embedded pix image's (width_pt, height_pt) -- the ONE sizing rule
@@ -3574,10 +3615,9 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
                 is_terminal = True
             i += 1
             for label, note in refs:
-                note_text = _euro_texts(
-                    [_sentence_spacing_texts([note.text])[0]
-                     if sentence_spacing else note.text], euro)[0]
-                queue.append(_note_wrap(_note_marker(note, label, pad_cols), note_text, width))
+                queue.append(_note_wrap(_note_marker(note, label, pad_cols),
+                                        _note_texts(note, sentence_spacing, euro),
+                                        width, getattr(note, 'tag_line', 0)))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         area = _render_area(entries)
         if entries:
@@ -3685,10 +3725,9 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
     for k, (note, label) in enumerate(endnotes):
         if k:
             lines.append([])
-        note_text = _euro_texts(
-            [_sentence_spacing_texts([note.text])[0]
-             if sentence_spacing else note.text], euro)[0]
-        lines.extend(_note_wrap(_endnote_marker(label, pad_cols), note_text, width))
+        lines.extend(_note_wrap(_endnote_marker(label, pad_cols),
+                                _note_texts(note, sentence_spacing, euro), width,
+                                getattr(note, 'tag_line', 0)))
     pages = []
     continuing = bool(last_page and last_page_cost < cap)
     if continuing:
@@ -3933,12 +3972,20 @@ class Page(list):
                 'explicit_break', 'explicit_break_bi',
                 'columns', 'column_gutter_pt', 'column_width_pt',
                 'header_lines', 'footer_lines', 'auto_pageno',
-                'head_hf_override', 'foot_hf_override')
+                'head_hf_override', 'foot_hf_override', 'footer_in_use')
 
     def __init__(self, seq=()):
         super().__init__(seq)
         self.headers = {}
         self.footers = {}
+        # Whether this page has a running FOOTER at all, INCLUDING a `.fo`
+        # whose text is empty. `footers` above drops empty slots (nothing
+        # to draw), but "is a footer in use" is a different question from
+        # "is there footer text to draw": a bare `.fo` draws nothing and
+        # still silences WordStar's automatic bottom-of-page number. See
+        # `_resolve_head_foot_lines`'s own `footer_in_use` comment for the
+        # measurement. False for every document that never writes `.fo`.
+        self.footer_in_use = False
         # planning #250: `{1: (font_idx, tab_rec, align)}` (align added
         # planning #255) -- set ONLY by
         # `_close_page`'s own `_parity_hf`, only when THIS page's line 1
@@ -4269,6 +4316,7 @@ def _apply_columns(doc, pages, size):
         # `_apply_columns` merges from the document's `.co3` region.
         merged.headers = getattr(pg, 'headers', None)
         merged.footers = getattr(pg, 'footers', None)
+        merged.footer_in_use = getattr(pg, 'footer_in_use', False)
         # planning #250: carry the source page's own parity font/tab
         # override through the merge, same passthrough as headers/footers
         # just above -- None on every page this feature never touches.
@@ -4884,11 +4932,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             for note, label in placeable:
                 marker = (_endnote_marker(label) if note.kind == 'endnote'
                           else _note_marker(note, label))
-                note_text = _euro_texts(
-                    [_sentence_spacing_texts([note.text])[0]
-                     if sentence_spacing else note.text], euro)[0]
-                lines.extend(_wrap_line([(marker + note_text, frozenset())],
-                                        MAX_COLS))
+                note_texts = _note_texts(note, sentence_spacing, euro)
+                tag_line = min(max(0, getattr(note, 'tag_line', 0)),
+                               len(note_texts) - 1)
+                for n, line in enumerate(note_texts):
+                    lines.extend(_wrap_line(
+                        [((marker + line) if n == tag_line else line, frozenset())],
+                        MAX_COLS) or [[]])
     # Finding 3 (b26-print-fidelity-2): a fresh page picks up whatever
     # .mt/.mb was in force at its OWN first block, not the document's
     # first-occurrence pair -- see _mt_mb_checkpoints. `global_mt`/
@@ -5038,6 +5088,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pg = Page(page)
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
+        pg.footer_in_use = bool(page_ftrs)
         # #228: only ever True from the post-loop trailing-`.pa` branch
         # below, and only when `page` (this closing page's own body) is
         # empty -- a page WITH content already carries real `.bi`-bearing
@@ -5668,7 +5719,8 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             footers=getattr(pg, 'footers', None),
             auto_page_number=auto_page_number,
             head_hf_override=getattr(pg, 'head_hf_override', None),
-            foot_hf_override=getattr(pg, 'foot_hf_override', None))
+            foot_hf_override=getattr(pg, 'foot_hf_override', None),
+            footer_in_use=getattr(pg, 'footer_in_use', None))
         if saved_pg is not None:
             doc.meta['page'] = saved_pg
         if resolved is None:
@@ -5881,7 +5933,8 @@ def _printed_hf_right(doc, left):
 
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
-                             head_hf_override=None, foot_hf_override=None):
+                             head_hf_override=None, foot_hf_override=None,
+                             footer_in_use=None):
     """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
     (each line's `y`; `x` is simply the caller's already-resolved `left`,
     since -- unlike `y` -- no header/footer line's own starting x has ever
@@ -6003,7 +6056,38 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                                     doc.footer_align_parity.get(1, {}).get(letter),
                                     doc.footer_style_attrs_parity.get(1, {})
                                     .get(letter) or frozenset())}
-    footer_in_use = bool(footers) and any(footers.values())
+    # A `.fo` the author WROTE puts footers in use even when its text is
+    # EMPTY -- `.fo` with nothing after it is WordStar's own documented way
+    # to silence the automatic bottom-of-page number without `.op`, and it
+    # is how several real documents do it. This used to read `bool(footers)
+    # and any(footers.values())`, so a blank `.fo` counted as "no footer"
+    # and the automatic number printed anyway.
+    #
+    # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE): the Sawyer
+    # archive's LSRBOX.WS carries a bare `.fo` and NO `.op`/`.pn`/`.pg` at
+    # all, and real WS7 prints no bottom-of-page number on any of its 7
+    # pages -- the blank footer alone is what silences it. Four further
+    # documents (the HOLYMAC macro set's 4MAC2/4MAC3/7MAC2/7MAC3) pair a
+    # bare `.fo` with `.op` and then a later `.pn`, which `_pgnum_
+    # checkpoints` reads as "numbering back on"; real WS7 prints no number
+    # on any of their 41/53/35/35 pages either, and the blank footer is the
+    # one rule that explains every one of them. The counter-direction is
+    # covered too: WSFORMAT.WS's own `.fo` carries real (0x1D-block) text
+    # and WS7 prints that footer, never the automatic number.
+    #
+    # `footers` is `{}` for a document with no `.fo` at all (and for the
+    # TOC/index call sites, which pass `footers={}` explicitly), so this
+    # only ever changes a document that really does carry one.
+    #
+    # The per-page `footers` dict a real page hands in has ALREADY had its
+    # empty slots dropped (`_close_page`: `{k: v for ... if v}` -- there
+    # is no text to draw), so "did this page have a `.fo`" cannot be read
+    # back off it. `Page.footer_in_use` carries that answer forward and
+    # arrives here as the `footer_in_use` argument; None means "no caller
+    # opinion, derive it from `footers`", which is what every call site
+    # that passes an explicit dict (TOC/index: `{}`) wants.
+    if footer_in_use is None:
+        footer_in_use = bool(footers)
     show_auto_num = printed and auto_page_number and not footer_in_use
     if not (headers or footers or show_auto_num) or not printed:
         return None
@@ -6322,7 +6406,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
 
 def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                  headers=None, footers=None, res=None, auto_page_number=False,
-                 head_hf_override=None, foot_hf_override=None):
+                 head_hf_override=None, foot_hf_override=None,
+                 footer_in_use=None):
     """Header and footer text for one page, as content-stream ops -- a
     thin RENDERING shell over `_resolve_head_foot_lines` (planning
     #251(d)): that function resolves WHERE (`y`, and this page's own
@@ -6336,7 +6421,8 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     row layout) -- this docstring covers rendering only."""
     resolved = _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left,
                                         printed, headers, footers, auto_page_number,
-                                        head_hf_override, foot_hf_override)
+                                        head_hf_override, foot_hf_override,
+                                        footer_in_use)
     if resolved is None:
         return []
 
@@ -9497,6 +9583,8 @@ def _emit_pdf_inner(doc, printed, options):
                                    size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}),
+                                   footer_in_use=(getattr(pl, 'footer_in_use', None)
+                                                  if show_headers else None),
                                    res=res, auto_page_number=auto_page_number,
                                    head_hf_override=(getattr(pl, 'head_hf_override', None)
                                                      if show_headers else None),
