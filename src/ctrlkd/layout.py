@@ -92,6 +92,7 @@ the requested `note_refs` scheme.
 
 import re
 from collections import Counter
+from dataclasses import replace as _replace
 
 from .core import (merged_lines, Span, trailing_blank_lines,
                    effective_span_styles, assemble_paragraphs,
@@ -1070,3 +1071,102 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
         },
     }
     return json.dumps(out, ensure_ascii=False, indent=1) + '\n'
+
+
+# ------------------------------------------ driver substitutions for emitters
+#
+# Planning #264 item 1 (B1+B2), Jon's ruling 2026-08-06 (M7: the driver's
+# character substitutions are CONTENT) and 2026-09-11 (the driver-keyed euro
+# at cp437 158). Both rules reached the PDF views only; RTF, HTML and plain
+# text kept the raw typed characters -- measured 2026-09-12 on LJ6DTP.WS: 7
+# smiley faces where a (c) belongs, 4 suns where an ellipsis belongs, 11 `«`
+# and 11 `»` where curly double quotes belong, 4 `≡` where an en
+# dash belongs, the four card suits where the box corners belong; and on
+# -README.WS a peseta where the euro belongs.
+#
+# ONE table for every non-PDF export, deliberately the SEMANTIC flow's own
+# (`LJ_SUBST` + `LJ_SUBST_UNIVERS` above), not the Printed PDF's variant:
+#
+#   - every mapping here is ONE character for ONE character, so a Printed
+#     facsimile (text, Printed RTF, the fixed-pitch HTML block) keeps its
+#     columns. `pdf._lj_substitute`'s extra step -- collapsing a KERNED
+#     `` `` ``/`''` pair to a single curly DOUBLE quote, register C7 -- is a
+#     glyph-geometry refinement for a renderer that positions each glyph
+#     itself: it shortens the row by one column, which a monospace
+#     facsimile cannot absorb.
+#   - the box corners are the square `┌┐└┘` the semantic flow already uses,
+#     not `pdf.ARC_CORNERS`' rounded `╭╮╰╯`. The rounded pair exists there
+#     because the PDF DRAWS those four as vector arcs; this is the same
+#     choice `modern_flow` (above) already makes for every consumer of the
+#     layout contract, including Soft Return's Modern view.
+#
+# The euro rule is applied to EVERY span (it is keyed on the driver name
+# alone); the LJ6DTP table is applied only to spans in a PROPORTIONAL face,
+# and its box corners only in Univers -- the document's own chart's face
+# rules, the same gate `pdf._lj_substitute` and `modern_flow` apply.
+
+_SUBST_EXEMPT_PREFIXES = ('pctl', 'pix', 'pcl')
+
+
+def _subst_exempt(styles):
+    """True for a span whose text is a MARKER rather than prose: a note
+    reference (`fnref` -- its text is the label a caller resolves notes
+    by), a print control's screen-only display string (`pctl<N>`), or a
+    picture/PCL placeholder (`pix<N>`/`pcl<N>`, whose text carries a real
+    FILE NAME -- and `_` -> em dash would rewrite one)."""
+    return 'fnref' in styles or any(
+        t.startswith(_SUBST_EXEMPT_PREFIXES) for t in styles)
+
+
+def driver_substituter(doc):
+    """`(text, span_styles) -> text` applying this document's own
+    driver-keyed content substitutions, or None when neither rule applies
+    to it (the overwhelmingly common case -- callers skip the whole pass
+    and nothing is copied)."""
+    lj = (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP'
+    euro = peseta_euro_table(doc)
+    if not lj and euro is None:
+        return None
+    fonts = getattr(doc, 'fonts', ()) or ()
+
+    def apply(text, styles=frozenset()):
+        if not text:
+            return text
+        if lj:
+            entry = _entry_for(styles, fonts)
+            if entry is not None and entry.get('proportional'):
+                text = text.translate(LJ_SUBST)
+                if (entry.get('typestyle_name') or '').startswith('Univers'):
+                    text = text.translate(LJ_SUBST_UNIVERS)
+        if euro is not None:
+            text = text.translate(euro)
+        return text
+    return apply
+
+
+def driver_substituted(doc):
+    """`doc` with `driver_substituter`'s substitutions applied to every
+    body span and note text -- the SAME Document object when the document
+    carries neither rule, else a copy (the original is never mutated: one
+    `convert()` call hands the same Document to several emitters).
+
+    Emitters call this ONCE, at entry, before anything else reads the
+    blocks: every later pass (paragraph assembly, structure
+    classification, sentence spacing) then sees the characters the
+    document actually printed."""
+    subst = driver_substituter(doc)
+    if subst is None:
+        return doc
+    blocks = []
+    for b in doc.blocks:
+        lines = []
+        for ln in b.lines:
+            spans = [sp if _subst_exempt(sp.styles)
+                     else Span(subst(sp.text, sp.styles), sp.styles)
+                     for sp in ln.spans]
+            lines.append(_replace(ln, spans=spans) if spans else ln)
+        blocks.append(_replace(b, lines=lines) if lines else b)
+    notes = [_replace(n, text=subst(n.text),
+                      text_lines=tuple(subst(t) for t in n.text_lines))
+             for n in doc.notes]
+    return _replace(doc, blocks=blocks, notes=notes)

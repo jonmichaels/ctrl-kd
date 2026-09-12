@@ -88,6 +88,20 @@ def load_plugins():
             fn = ep.load()
             _REGISTRY[ep.name] = {'fn': fn, 'ext': getattr(fn, 'ext', '.' + ep.name)}
 
+def _driver_substituted(doc):
+    """Planning #264 item 1 (B1+B2): the document's own driver-keyed
+    character substitutions (Jon's rulings 2026-08-06 M7 and 2026-09-11)
+    applied to every span and note text before this emitter reads them --
+    see `layout.driver_substituted`. Returns the SAME object for the
+    documents (nearly all of them) that declare no patched driver.
+
+    Lazy import, same reason `_rtf_toc_index` imports `pdf` lazily:
+    `layout.py` imports FROM this module, so a top-level import here
+    would cycle."""
+    from .layout import driver_substituted
+    return driver_substituted(doc)
+
+
 def _printed(doc):
     return doc.meta.get('variant') == 'printstream' or doc.meta.get('columnar')
 
@@ -374,6 +388,10 @@ def _txt_note_mark(kind, label):
 
 def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
               sentence_spacing='auto', **_options):
+    # planning #264 item 1: the driver's own character substitutions and
+    # the driver-keyed euro are CONTENT (rulings 2026-08-06 M7 /
+    # 2026-09-11) -- applied once, here, before anything reads the blocks.
+    doc = _driver_substituted(doc)
     # RULED EXCLUSION (round 5, 2026-08-17, attribute-surface audit): plain
     # text has no character-attribute vocabulary at all -- no bold, no
     # italic, no underline/strikeout, no sub/superscript, style-declared
@@ -685,6 +703,11 @@ def _md_unit_lines(unit, refs, keep, b, pix_map=None, pictures='off', image_link
 def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
                   pictures='off', pix_results=None, image_links=None,
                   sentence_spacing='auto', **_options):
+    # planning #264 item 1: see emit_text's identical call. Printed
+    # Markdown inherits it anyway (its body IS emit_text's output, below);
+    # this is what keeps MODERN Markdown from being the one export where
+    # the same document's characters differ.
+    doc = _driver_substituted(doc)
     # Round 19: see emit_rtf's identical comment. Printed mode's own body
     # is emit_text's output inside a code fence (see below) -- a fenced
     # verbatim block is the emitter saying "this is exact text", so
@@ -1566,6 +1589,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
               styles=True, note_refs='word', inline_styling=True, toc=False,
               pictures='off', pix_results=None, image_links=None,
               sentence_spacing='auto', **_options):
+    # planning #264 item 1: see emit_text's identical call.
+    doc = _driver_substituted(doc)
     # Round 19 (PIX images RULED IN): see emit_rtf's identical comment.
     # `image_links` ({index: relative-path-string}) is only consulted in
     # export mode -- built by the caller via
@@ -2490,13 +2515,27 @@ def _rtf_running_heads(doc):
                 first_anchor = anchor
     if not hdr and not ftr:
         return ''
+    # planning #264 item 1: a running head is the document's own text and
+    # takes the driver's substitutions like any other (`emit_rtf`'s own
+    # document-wide pass cannot reach it -- a head lives in `hf_events`,
+    # not in a block). The head's FACE is `header_fonts`/`footer_fonts`'
+    # own `doc.fonts` index (register C6), handed to the substituter as
+    # the `fontN` tag a body span would carry, so the same
+    # proportional-only/Univers-only face rules apply.
+    from .layout import driver_substituter
+    subst = driver_substituter(doc)
 
-    def group(name, lines):
+    def group(name, lines, faces):
         if not lines:
             return ''
         rendered = []
         for n in sorted(lines):
-            runs = hf_runs(lines[n])
+            txt = lines[n]
+            if subst is not None:
+                idx = faces.get(n)
+                txt = subst(txt, frozenset() if idx is None
+                            else frozenset({'font%d' % idx}))
+            runs = hf_runs(txt)
             if not runs:
                 continue                     # control-bytes-only head
             rendered.append(''.join(
@@ -2508,7 +2547,8 @@ def _rtf_running_heads(doc):
         return (r'{\%s \pard\plain \f0\fs22 %s\par}'
                 % (name, r'\line '.join(rendered)))
 
-    out = group('header', hdr) + group('footer', ftr)
+    out = (group('header', hdr, getattr(doc, 'header_fonts', {}))
+           + group('footer', ftr, getattr(doc, 'footer_fonts', {})))
     if first_anchor and first_anchor > 0:
         out = r'\titlepg{\headerf \pard\plain\par}' + out
     return out
@@ -2757,6 +2797,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # (ctrlkd.pictures.resolve_document_pictures, called once by the
     # caller -- library or CLI -- and handed to every emit_* call for this
     # doc). {index: PixResult} for O(1) lookup from a span's 'pix<N>' tag.
+    # planning #264 item 1: see emit_text's identical call.
+    doc = _driver_substituted(doc)
     pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
