@@ -267,3 +267,48 @@ def test_oni_index_entry_prints_nothing_but_keeps_its_row():
     modern = pdfmod._doc_to_pagelines(doc, False)
     kept = [seg[0] for pg in modern for ln in pg for seg in ln]
     assert any('Sawyer' in t for t in kept), kept
+
+
+def test_column_under_a_prefix_never_overflows_the_text_bottom():
+    """A column group shares one top -- in the NOTE-BEARING paginator too.
+
+    `_doc_to_pagelines`'s own main loop already charges a columnar group's
+    shared non-columnar PREFIX against every column of the group except
+    the first; `_paginate_printed_notes` -- the paginator every document
+    with a footnote/endnote/annotation takes instead -- did not, so a
+    later column kept a whole page's capacity while starting BELOW the
+    page top and ran off the bottom of the sheet.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/PRINT.TST` page 2 -- `.co3, .20"` under a "Paragraph Styles"
+    prefix. WS7 opens all three columns at 288.0pt and, with a text
+    bottom of 720.0pt (`.mt 1"`/`.mb 1"`/`.pl 11"`) at a 12pt lead, gives
+    each 36 rows: column 1 holds 15 and ends on its own `.cb`, column 2
+    holds 21 and ends on `.cc 19`, column 3 holds 23. This engine gave
+    column 2 the full 54-row page, never reached the `.cc`, and placed 51
+    lines from y 286 down to y 884 -- past the text bottom, past the
+    sheet (792), through the page number at 756 -- leaving column 3
+    empty."""
+    from ctrlkd import pdf as pdfmod
+    prefix = HARD.join([b'prefix line %d' % n for n in range(1, 16)])
+    body = HARD.join([b'body word %d' % n for n in range(1, 140)])
+    src = (b'.mt 1"' + HARD + b'.mb 1"' + HARD + prefix + HARD
+           + b'.rm 2"' + HARD + b'.co3,  .2"' + HARD + body + HARD
+           + ws7_annotation(b'a note', b'[N]') + HARD)
+    doc = core.parse_ws(src)
+    pages = pdfmod._doc_to_pagelines(doc, True)
+    cols_pages = [pg for pg in pages if getattr(pg, 'columns', None)]
+    assert cols_pages, [getattr(pg, 'columns', None) for pg in pages]
+    lead = pdfmod._printed_lead(doc)
+    for pg in cols_pages:
+        top = getattr(pg, 'column_top_offset_pt', 0.0) or 0.0
+        by_col = {}
+        for pl in pg:
+            by_col.setdefault(getattr(pl, 'col', 0), []).append(pl)
+        budget = pdfmod._printed_budget_pt(
+            doc, pdfmod._printed_cap(doc), lead, None, None, None)
+        for ci, rows in by_col.items():
+            if ci == 0:
+                continue          # column 0 pays the prefix line by line
+            spent = sum((getattr(r, 'lead', None) or lead) for r in rows)
+            assert top + spent <= budget + lead, (ci, top, spent, budget)

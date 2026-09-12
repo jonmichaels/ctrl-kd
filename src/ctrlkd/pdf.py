@@ -3598,6 +3598,56 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
         own_lead = getattr(pl, 'lead', None) or default_lead
         return own_lead / default_lead
 
+    # planning #227 follow-up (2026-09-12): A COLUMN GROUP SHARES ONE TOP,
+    # and this paginator has to know it too. `_doc_to_pagelines`'s own
+    # main loop already charges a columnar group's shared non-columnar
+    # PREFIX against every column of the group except the first (its
+    # `_col_cut`); this function -- the paginator every NOTE-BEARING
+    # document takes instead -- had no such notion, and its own comment
+    # below ("a column's own height always equals the page's") was true
+    # only before that finding. The result: a later column kept a whole
+    # page's worth of capacity while starting `column_top_offset_pt`
+    # BELOW the page top, so it ran off the bottom of the sheet.
+    #
+    # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    # `sawyer/PRINT.TST` page 2 -- `.co3, .20"`, a 3-column region under a
+    # 17.8-line "Paragraph Styles" prefix. WS7 opens all three columns at
+    # 288.0pt and, with a text bottom of 720.0pt (`.mt 1"`/`.mb 1"`/
+    # `.pl 11"`) and a 12pt lead, gives each 36 rows: column 1 holds 15
+    # and ends on its own `.cb`, column 2 holds 24 and ends on `.cc 19`
+    # (36 - 24 = 12 rows left, fewer than the 19 asked for), column 3
+    # holds 26. This engine gave column 2 the full 54-row page and so
+    # never reached the `.cc` break at all: it placed 51 lines from
+    # y 286 down to y 884 -- past the text bottom, past the sheet itself
+    # (792), straight through the page number at 756 -- and drew nothing
+    # in column 3.
+    #
+    # `_col_cap()` is this function's own capacity in its own LINE units:
+    # the page's `cap` for column 0 (which pays the prefix line by line
+    # out of the same budget) and `cap - prefix` for every column after
+    # it, which starts below that prefix. That is exactly
+    # `(text bottom - column top) / lead`, per column.
+    col_group_cols = 1                # `.co n` of the region the open page is in
+    col_group_index = 0               # which column of the group the open page is
+    col_offset = 0.0                  # the group's shared prefix, in line units
+
+    def _item_cols(pl):
+        bi = getattr(pl, 'bi', None)
+        if bi is None or not (0 <= bi < len(doc.blocks)):
+            return None
+        return doc.blocks[bi].columns or 1
+
+    def _col_cap():
+        return cap - (col_offset if col_group_index else 0.0)
+
+    def _advance_column():
+        nonlocal col_group_index, col_offset, col_group_cols
+        if col_group_cols <= 1:
+            return
+        col_group_index += 1
+        if col_group_index >= col_group_cols:
+            col_group_cols, col_group_index, col_offset = 1, 0, 0.0
+
     last_idx = -1
     for i, item in enumerate(stream):
         # planning #245: a `('cond', n)` sentinel (`.cp`/`.cc`, see
@@ -3640,18 +3690,26 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
                 # check just below uses, so no column-aware variant of
                 # this room computation is needed (research §4: a
                 # column's own height always equals the page's).
-                room = cap - body_len - _area_size(entries)
+                room = _col_cap() - body_len - _area_size(entries)
                 i += 1
                 if room < item[1] and body:
                     break                        # forced break: page ends here
                 continue
             spans, refs = item
+            lc = _item_cols(spans)
+            if lc is not None and lc > 1 and col_group_cols == 1:
+                # the group starts HERE: whatever this page has already
+                # spent is the prefix every column of it shares
+                col_group_cols, col_group_index, col_offset = lc, 0, body_len
+            elif lc == 1 and col_group_cols > 1:
+                # a line LEAVING the region releases the shared prefix
+                col_group_cols, col_group_index, col_offset = 1, 0, 0.0
             cost = _line_cost(spans)
             # `body` non-empty guard: an image taller than the whole page
             # must still be admitted somewhere or this loop would never
             # advance -- a slightly overflowing page beats a hang or lost
             # content (the same doctrine _admit_footnotes documents).
-            if body and body_len + cost + _area_size(entries) > cap:
+            if body and body_len + cost + _area_size(entries) > _col_cap():
                 break                            # natural page-full: line moves on
             body.append(spans)
             body_len += cost
@@ -3702,6 +3760,7 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             if override > 0:
                 area = [PageLine(area[0], lead=override)] + area[1:]
         pages.append(body + area)
+        _advance_column()
         last_page_cost = body_len + _area_size(entries)
         last_page_has_area = bool(entries)
     # Whatever's STILL queued once the document is exhausted prints at the
