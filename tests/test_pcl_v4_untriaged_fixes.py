@@ -185,3 +185,52 @@ def test_column_width_unchanged_when_po_is_zero():
     assert len(lefts) >= 2, lefts
     expected = [round(0.0 + i * (56.16 + 28.8), 2) for i in range(len(lefts))]
     assert lefts == pytest.approx(expected, abs=0.05), lefts
+
+
+# --------------------------------------------- mechanism D (long tail, 09-12)
+def _centre_tab(abs_hmi, run_hmi=None):
+    """A WS5+ type-9 TAB block -- WordStar's own encoding of a centred
+    line's leading padding. content[0:2] is the run's width, content[2:4]
+    the ABSOLUTE stop in HMIs, content[4] the fill character."""
+    import struct
+    run = abs_hmi if run_hmi is None else run_hmi
+    return ws7_block(0x09, struct.pack('<HH', run, abs_hmi) + b'\x20\x11')
+
+
+def _centred_line_x(text, abs_hmi):
+    from ctrlkd import pdf as pdfmod
+    src = (b'.oc on' + HARD + _centre_tab(abs_hmi) + text + HARD)
+    doc = core.parse_ws(src)
+    pages = pdfmod._doc_to_pagelines(doc, True)
+    line = next(ln for pg in pages for ln in pg
+                if any(seg[0].strip() for seg in ln))
+    tag = next(t for t in line[0][1] if t.startswith('tabhmi'))
+    return int(tag[6:]) / 180.0
+
+
+def test_centred_line_ignores_its_own_trailing_blanks():
+    """A `.oc on` line is re-centred at PRINT time on its ink alone.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/PLAYBILL.DOC`, whose 12 centred lines each carry their own
+    type-9 centring tab. The three lines whose stored text ends in blanks
+    are exactly the three WS7 prints somewhere other than the stored tab:
+    `A gala opening night with the ` at column 18 (file: 17.5),
+    `City ... special season ` at 4.5 (file: 4), `for Theatre in the
+    Park.  ` at 20.5 (file: 19.5). The editor counted the trailing blanks
+    when it centred; the printer does not. All 12 land on
+    `(65 - ink) / 2`."""
+    # 29 characters of ink, one trailing blank: (65 - 29) / 2 = 18.0
+    assert _centred_line_x(b'A gala opening night with the ', 3150) == 18.0
+    # 24 characters of ink, two trailing blanks: (65 - 24) / 2 = 20.5
+    assert _centred_line_x(b'for Theatre in the Park.  ', 3510) == 20.5
+
+
+def test_centred_line_with_no_trailing_blanks_keeps_its_stored_tab():
+    """The other nine PLAYBILL lines: the editor's own arithmetic already
+    agrees with the printer's, and nothing moves."""
+    # 24 characters of ink, no trailing blank -- the file's 3690 (20.5) is
+    # already `(65 - 24) / 2`.
+    assert _centred_line_x(b'TENTH ANNIVERSARY SEASON', 3690) == 20.5
+    # 19 characters: (65 - 19) / 2 = 23.0, the file's own 4140.
+    assert _centred_line_x(b'THEATRE IN THE PARK', 4140) == 23.0

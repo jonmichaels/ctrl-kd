@@ -4564,6 +4564,64 @@ def _apply_columns(doc, pages, size):
     return out
 
 
+def _recentred_centre_tab_spans(spans, blk, doc):
+    """A centred line's own centring tab, recomputed for the PRINTER.
+
+    WordStar 5+ centres a `.oc on` line at EDITOR time and stores the
+    result as an absolute tab mark (`tabhmi<N>`, core._symmetric_blocks)
+    on the line's own leading padding span. That stored number is the
+    EDITOR's arithmetic, and the editor counted the line's TRAILING
+    BLANKS as part of the text it was centring. Real WS7 does not: it
+    re-centres the line on the ink, with trailing blanks off.
+
+    MEASURED against ws7-prints/v4/sawyer__PLAYBILL_EXT_DOC (a `.oc on`
+    playbill, every line a centring tab of its own). Of its 12 centred
+    lines, 9 carry a stored tab that already equals the re-centred value
+    and 3 do not -- and those 3 are exactly the 3 lines whose stored text
+    ends in blanks (one, one, and two). WS7 prints all 12 at
+    `(rm - ink_cols) / 2`: `A gala opening night with the ` at column 18
+    where the file stores 17.5, `City ... special season ` at 4.5 where
+    the file stores 4, `for Theatre in the Park.  ` at 20.5 where the
+    file stores 19.5. All 12 land on WS7's own decipoint.
+
+    ONLY a line whose every span is FIXED-PITCH is recomputed. A
+    proportionally-set centred line's stored tab is the editor's own
+    measurement of a font WE DO NOT HAVE (LYING's and WARPRAYR's title
+    pages store fractional-column tabs for exactly that reason, and both
+    are clean against WS7 today); recomputing those from a substituted
+    face's metrics would replace a real measurement with a guess. Their
+    stored tab is left exactly as WordStar wrote it.
+    """
+    if not spans or blk.align != 'center':
+        return spans
+    tag = next((t for t in spans[0][1] if t.startswith('tabhmi')), None)
+    if tag is None:
+        return spans
+    fonts = doc.fonts or ()
+    for _t, _styles in spans:
+        ftag = next((t for t in _styles
+                     if t.startswith('font') and t[4:].isdigit()), None)
+        if ftag is None:
+            continue
+        fidx = int(ftag[4:])
+        if 0 <= fidx < len(fonts) and fonts[fidx].get('proportional'):
+            return spans
+    ink = ''.join(t for t, _ in spans).strip(' ')
+    if not ink:
+        return spans
+    lm = blk.left_margin if blk.left_margin is not None else 0.0
+    rm = blk.right_margin if blk.right_margin is not None else 65.0
+    cols = lm + (rm - lm - len(ink)) / 2.0
+    if cols < lm:
+        cols = lm
+    want = 'tabhmi%d' % round(cols * _TAB_HMI_PER_COL)
+    if want == tag:
+        return spans
+    head_text, head_styles = spans[0]
+    styles = frozenset(t for t in head_styles if t != tag) | {want}
+    return [(head_text, styles)] + list(spans[1:])
+
+
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                       sentence_spacing=False):
     """IR -> list of pages, each a list of segment-lines.
@@ -5053,6 +5111,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # (WSFORMAT.TXT gives no numeric default; confirmed instead
                 # against CTRL-K_EXT_H1.pcl's real flush-right edge, 525.6pt
                 # = the same default .po 8 cols (57.6pt) + 65 cols (468pt)).
+                if printed:
+                    # A `.oc on` line's own centring tab is the EDITOR's
+                    # arithmetic; the printer re-centres on the ink alone
+                    # (see _recentred_centre_tab_spans).
+                    spans = _recentred_centre_tab_spans(spans, b, doc)
                 justify_right_x = None
                 if (printed and b.align == 'justify'
                         and _idx < len(blk_lines) - 1):
