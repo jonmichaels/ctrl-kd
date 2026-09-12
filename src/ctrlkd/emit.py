@@ -2802,6 +2802,14 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
           bytes of every multi-line head to buy that case.
       A5  `\\headery`/`\\footery` -- see `_rtf_head_foot_distance`.
 
+    Planning #264 item 5: the head's OWN print attributes
+    (`header_style_attrs`/`footer_style_attrs`, the same style-sheet
+    reference A4 reads its alignment from, planning #255) join every run on
+    their line, exactly as a body paragraph's `style_attrs` do -- so a head
+    whose bold comes from its style, not from an inline toggle byte, prints
+    bold here as it already does in the PDF. Per line and per parity, so a
+    two-sided template's two variants can differ.
+
     RTF carries ONE header per section; a document that redefines its head
     mid-file keeps the FIRST definition of each line slot (the common case
     -- OLDTIMES -- defines each exactly once). WordStar's `#` token becomes
@@ -2836,7 +2844,7 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     from .layout import driver_substituter
     subst = driver_substituter(doc)
 
-    def group(name, lines, faces, aligns):
+    def group(name, lines, faces, aligns, attrs):
         if not lines:
             return ''
         rendered, align_ctl = [], ''
@@ -2851,8 +2859,21 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
                 continue                     # control-bytes-only head
             if not rendered:
                 align_ctl = _RTF_HF_ALIGN.get(aligns.get(n), '')
+            # planning #264 item 5 (planning #255's `header_style_attrs`):
+            # the print attributes the head's OWN style turns on. A
+            # `.h#`/`.f#` argument can name a style-sheet entry, and that
+            # entry's bold/italic/underline belong to every run on the
+            # line exactly as a body paragraph's `style_attrs` do -- core
+            # parses them, the PDF has drawn them since #255
+            # (`_hf_natural_width_pt`'s own `styles | style_attrs`), and
+            # RTF read only the line's inline toggle bytes, so a head
+            # whose weight came from its style printed light. The archive's
+            # galley template is the case: its `.h1o`/`.h1e` both declare
+            # a bold style and carry no toggle byte at all.
+            line_attrs = attrs.get(n) or frozenset()
             rendered.append(''.join(
-                '{' + ''.join(_RTF_ON.get(st, '') for st in sorted(styles))
+                '{' + ''.join(_RTF_ON.get(st, '')
+                              for st in sorted(styles | line_attrs))
                 + _rtf_escape(text).replace('#', r'{\chpgn }') + '}'
                 for text, styles in runs))
         if not rendered:
@@ -2867,12 +2888,14 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
         if not any(p is not None for by in slots.values() for p in by):
             return group(name, _hf_variant(slots, None),
                          _hf_attr(doc, which, 'fonts', None),
-                         _hf_attr(doc, which, 'align', None)), False
+                         _hf_attr(doc, which, 'align', None),
+                         _hf_attr(doc, which, 'style_attrs', None)), False
         out = ''
         for parity, side in (('O', name + 'r'), ('E', name + 'l')):
             out += group(side, _hf_variant(slots, parity),
                          _hf_attr(doc, which, 'fonts', parity),
-                         _hf_attr(doc, which, 'align', parity))
+                         _hf_attr(doc, which, 'align', parity),
+                         _hf_attr(doc, which, 'style_attrs', parity))
         return out, bool(out)
 
     head_group, head_facing = sided('header', 'header', hdr_slots)
