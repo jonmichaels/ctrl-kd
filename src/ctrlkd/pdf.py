@@ -4706,6 +4706,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     refs_all = _ref_pairs(_annotated_notes(doc))
 
     def _keep_span(s):
+        # a ^ONI index ENTRY is the index file's text, not the page's --
+        # real WS7 spends the row and prints nothing on it (MEASURED,
+        # ws7-prints/v4 sawyer/REF/-INDEX.HOW; see core._symmetric_blocks'
+        # cmd 0x0E branch). PRINTED only: every other emitter keeps the
+        # phrase exactly as it always did.
+        if printed and 'ixentry' in s.styles:
+            return False
         # a comment's reference mark is position, not ink -- it renders
         # nowhere on this path (printed facsimile, or the plain line layer)
         if 'fnref' in s.styles and s.text.isdigit():

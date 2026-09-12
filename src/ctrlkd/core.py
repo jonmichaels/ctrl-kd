@@ -3623,7 +3623,7 @@ def _font_entry(w, h, style, offset):
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
                   font_at=(), fonts=(), pctl_at=(), colour_at=(),
-                  pix_at=(), tab_target_at=()) -> list:
+                  pix_at=(), tab_target_at=(), ix_at=()) -> list:
     """One physical line of bytes -> list of Span. `active` persists across lines
     (WordStar styles span line breaks).
 
@@ -3677,6 +3677,12 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     # pen with NO printed padding at all) without re-deriving it from the
     # (already-expanded) text.
     pending_tab = sorted(tab_target_at)
+    # ^ONI index entries, same mechanism again: one span for the whole
+    # stored phrase, tagged 'ixentry'. The phrase is the INDEX's text, not
+    # the page's -- real WS7 prints nothing for it (see _symmetric_blocks'
+    # own cmd 0x0E branch) -- so the Printed facsimile skips such a span
+    # and every other consumer keeps it.
+    pending_ix = sorted(ix_at)
     i = 0
     while i < len(raw) or pending or pending_fonts or pending_colours:
         # Drain EVERY mark-consuming queue at the CURRENT `i`, re-checking
@@ -3713,6 +3719,13 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 if pcl_idx is not None:
                     tags.add('pcl%d' % pcl_idx)
                 spans.append(Span(text, frozenset(active | tags)))
+                i += count
+                advanced = True
+            while pending_ix and pending_ix[0][0] <= i < len(raw):
+                _, count = pending_ix.pop(0)
+                flush()
+                text = raw[i:i + count].decode(encoding, 'replace')
+                spans.append(Span(text, frozenset(active | {'ixentry'})))
                 i += count
                 advanced = True
             while pending_pix and pending_pix[0][0] <= i < len(raw):
@@ -4644,13 +4657,24 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
                 marks.setdefault(len(out), []).append(('pix', idx, len(placeholder)))
                 out += placeholder
             elif cmd == 0x0E:                                     # index item
-                # An inline indexed PHRASE. WordStar prints the phrase in the
-                # body -- the index ENTRY is the non-printing part -- so
-                # dropping the block risks losing text outright when the phrase
-                # is not duplicated in the visible stream.
+                # A ^ONI index ENTRY, stored as a symmetrical sequence. The
+                # phrase belongs to the index file (*._IX), not to the page:
+                # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+                # `sawyer/REF/-INDEX.HOW`, whose own prose introduces two of
+                # these blocks with "^ONI command -- which creates a
+                # symmetrical sequence such as these:" -- WS7 gives each of
+                # the two lines its own row (the rows between "as these:" at
+                # 348.0pt and "Using .ix" at 408.0pt are spent) and puts NO
+                # INK on either. The bytes stay in the stream, tagged
+                # `ixentry`, so every text/Markdown/HTML/RTF consumer keeps
+                # the phrase exactly as before and only the Printed facsimile
+                # -- the one judged against paper -- leaves it undrawn.
                 content = block[3:-3] if len(block) >= 6 else block[3:]
-                out += bytes(c & 0x7F for c in content
-                             if 0x20 <= (c & 0x7F) < 0x7F)
+                phrase = bytes(c & 0x7F for c in content
+                               if 0x20 <= (c & 0x7F) < 0x7F)
+                if phrase:
+                    marks.setdefault(len(out), []).append(('ixentry', len(phrase)))
+                out += phrase
             elif cmd == 0x11 and len(block) >= 6:                 # paragraph style
                 # Four LE16 style HANDLES (WSFORMAT: new / previously selected /
                 # previous 'modified' temp / previous-previous). All 1,727 blocks
@@ -5813,6 +5837,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         pctl_at = []
         colour_at = []
         pix_at = []
+        ix_at = []
         tab_target_at = []
         if carried_marks:                 # see the dot-command branch above
             line_marks = [(0, m) for m in carried_marks] + list(line_marks)
@@ -5938,11 +5963,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 colour_at.append((rel, m[1]))
             elif m[0] == 'pix':
                 pix_at.append((rel, m[1], m[2]))
+            elif m[0] == 'ixentry':
+                ix_at.append((rel, m[1]))
             elif m[0] == 'tab':
                 tab_target_at.append((rel, m[1], m[2], m[3]))
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
-                              pctl_at, colour_at, pix_at, tab_target_at)
+                              pctl_at, colour_at, pix_at, tab_target_at,
+                              ix_at)
         if pending_marks and spans:
             # a content line arrived: deferred dot-comment marks land at
             # its head, the position the comment line occupied

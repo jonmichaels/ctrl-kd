@@ -234,3 +234,36 @@ def test_centred_line_with_no_trailing_blanks_keeps_its_stored_tab():
     assert _centred_line_x(b'TENTH ANNIVERSARY SEASON', 3690) == 20.5
     # 19 characters: (65 - 19) / 2 = 23.0, the file's own 4140.
     assert _centred_line_x(b'THEATRE IN THE PARK', 4140) == 23.0
+
+
+def test_oni_index_entry_prints_nothing_but_keeps_its_row():
+    """A ^ONI index ENTRY (a type-0x0E symmetrical block) belongs to the
+    index file, not to the page.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/-INDEX.HOW`, whose own prose introduces two of them with
+    "^ONI command -- which creates a symmetrical sequence such as
+    these:". WS7 spends both rows (its "as these:" line sits at 348.0pt
+    and the next printed line, "Using .ix", at 408.0pt -- five 12pt rows
+    apart, exactly the blank/entry/entry/blank the file stores) and puts
+    NO INK on either. ctrl-kd printed both phrases.
+
+    Printed only: the phrase stays in the IR, tagged `ixentry`, so every
+    text/Markdown/HTML/RTF consumer keeps it."""
+    from ctrlkd import pdf as pdfmod
+    src = (b'before' + HARD + ws7_block(0x0E, b'Sawyer\\, Robert J.')
+           + HARD + b'after' + HARD)
+    doc = core.parse_ws(src)
+    tagged = [s for b in doc.blocks for l in b.lines for s in l.spans
+              if 'ixentry' in s.styles]
+    assert [s.text for s in tagged] == ['Sawyer\\, Robert J.']
+    printed = pdfmod._doc_to_pagelines(doc, True)
+    drawn = [seg[0] for pg in printed for ln in pg for seg in ln]
+    assert 'Sawyer\\, Robert J.' not in drawn, drawn
+    assert 'before' in drawn and 'after' in drawn
+    # the entry's own row is still spent: three lines, not two
+    rows = [ln for pg in printed for ln in pg]
+    assert len(rows) >= 3, rows
+    modern = pdfmod._doc_to_pagelines(doc, False)
+    kept = [seg[0] for pg in modern for ln in pg for seg in ln]
+    assert any('Sawyer' in t for t in kept), kept
