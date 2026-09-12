@@ -1235,6 +1235,24 @@ class Note:
                                 # WS7 prints a blank line, then "[When?]", then
                                 # "When?". 0 (the marker on the first line) for every
                                 # note that does not do this.
+    text_indents: tuple = ()   # per entry of `text_lines`: the column that line's
+                                # own text starts in, measured from the note area's
+                                # left margin, or 0 for a line with no indent of its
+                                # own. WordStar stores a note exactly as typed, and
+                                # what it typed can include the note's own LEADING
+                                # TAB -- a nested type-9 block, absolute size in
+                                # HMIs -- and real WS7 honours it.
+                                # MEASURED (ws7-prints/v4, PRISTINE.EXE) on
+                                # `sawyer/REF/NOTES.TST`: its footnotes carry a tab
+                                # to HMI 540 and WS7 prints "Footnote One." at
+                                # column 3 (79.2pt, left margin 57.6); its endnotes
+                                # carry one to HMI 900 and WS7 prints "Endnote one."
+                                # at column 5 (93.6pt). Its ANNOTATIONS carry no tab
+                                # at all -- their stored text simply opens with one
+                                # blank after the tag -- and WS7 prints "Annotation
+                                # One" at column 4 (86.4pt), which is the marker's
+                                # own plain single-space join. Empty tuple for every
+                                # note that tabs nothing, the common case.
     line_count: int = 0        # WordStar's stored text height -- cheap pagination
     number_format: int = 0     # conv-flag high nybble: 0 symbols,1 upper,2 lower,3
                                 # numeric -- meaningless for annotations (spec: "not
@@ -3882,16 +3900,27 @@ SENT_HEADING = None
 # WordStar never prints -- they're only reachable through the model.
 NOTE_KINDS = {0x03: 'footnote', 0x04: 'endnote', 0x05: 'annotation', 0x06: 'comment'}
 
-def _strip_dot_commands(raw: bytes, encoding: str, tag_raw_line: int = 0):
+def _strip_dot_commands(raw: bytes, encoding: str, tag_raw_line: int = 0,
+                        tab_cols: dict | None = None):
     """Split note text into physical lines (the same hard-return bytes the
     body splits on) and pull any dot-command lines out of it -- a note can
     carry its own dot commands (a .rr ruler, a '..' comment line) exactly
     like the body can, and the body already never renders those as text.
     Unrecognised dot commands are kept verbatim, in order, not dropped;
     surviving text lines are cleaned the same way note text always was and
-    rejoined with a space (notes are short callouts, not reflowed prose)."""
+    rejoined with a space (notes are short callouts, not reflowed prose).
+
+    `tab_cols` (2026-09-12, `sawyer/REF/NOTES.TST`) is `{raw line index:
+    column}` for the note's OWN tabs, which `_parse_note` reads off the
+    nested type-9 blocks in the note's text stream, and comes back out as
+    the per-physical-line `indents` (`Note.text_indents`). A tab's column
+    is ABSOLUTE -- measured from the note area's own left margin -- which
+    is why it travels as a number rather than as whitespace: the text
+    itself is still `.strip()`ed exactly as it always was, so no consumer
+    reading `text`/`text_lines` sees anything it did not see before."""
+    tab_cols = tab_cols or {}
     lines = re.split(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a', bytes(raw))
-    kept, dots, physical = [], [], []
+    kept, dots, physical, indents = [], [], [], []
     tag_line = 0
     for idx, line in enumerate(lines):
         if idx == tag_raw_line:
@@ -3906,6 +3935,7 @@ def _strip_dot_commands(raw: bytes, encoding: str, tag_raw_line: int = 0):
             continue
         clean = bytes(c for c in line if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
         piece = clean.decode(encoding, 'replace').strip()
+        indents.append(tab_cols.get(idx, 0) if piece else 0)
         # `physical` keeps EVERY surviving line, empty ones included, in
         # order -- the note's own hard returns, which the page-bottom note
         # area prints (Note.text_lines). `kept` drops the empties, because
@@ -3927,7 +3957,10 @@ def _strip_dot_commands(raw: bytes, encoding: str, tag_raw_line: int = 0):
     # documents render identically, which they are not.
     if physical and not physical[-1]:
         physical.pop()
-    return ' '.join(kept), dots, tuple(physical), min(tag_line, max(0, len(physical) - 1))
+    del indents[len(physical):]
+    return (' '.join(kept), dots, tuple(physical),
+            min(tag_line, max(0, len(physical) - 1)),
+            tuple(indents) if any(indents) else ())
 
 def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
     """Decode one note block's content (the bytes between the type byte and
@@ -3969,6 +4002,15 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
     # in the text stream -- so its LINE is however many breaks the text has
     # already produced when that sequence is reached (see `Note.tag_line`).
     tag_raw_line = 0
+    # 2026-09-12 (`sawyer/REF/NOTES.TST`): a note's own text stream can
+    # carry a TAB of its own -- a nested type-9 block, the same one a body
+    # line uses, whose second word is the absolute tab size in HMIs. Real
+    # WS7 honours it and starts the note's text in that column; this walk
+    # used to skip every nested block that was not the internal tag, so the
+    # number was thrown away and the note area imposed its own computed
+    # hang column instead. Keyed by RAW line index (breaks seen so far),
+    # which `_strip_dot_commands` maps onto the surviving physical lines.
+    tab_cols = {}
     _BREAK_RE = re.compile(rb'\x8d\x0a|\x0d\x0a|\x8d|\x0d|\x0a')
     i = 0
     while i < len(remainder):
@@ -4009,13 +4051,20 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
                                     if 0x20 <= c < 0x7F or c >= 0x80 or c == 0x09)
                     tag = raw_tag.decode(encoding, 'replace').strip() or None
                 tag_raw_line = len(_BREAK_RE.findall(bytes(text_bytes)))
+            elif inner_cmd == 0x09:                     # the note's OWN tab
+                inner_content = inner[3:-3] if len(inner) >= 6 else inner[3:]
+                if len(inner_content) >= 4:
+                    abs_hmi = int.from_bytes(inner_content[2:4], 'little')
+                    cols = round(abs_hmi / TAB_HMI_PER_COL)
+                    li = len(_BREAK_RE.findall(bytes(text_bytes)))
+                    tab_cols[li] = max(tab_cols.get(li, 0), cols)
             i += jump + 3                                # skip the whole nested sequence
         else:
             text_bytes.append(remainder[i])
             i += 1
 
-    text, dots, text_lines, tag_line = _strip_dot_commands(
-        bytes(text_bytes), encoding, tag_raw_line)
+    text, dots, text_lines, tag_line, text_indents = _strip_dot_commands(
+        bytes(text_bytes), encoding, tag_raw_line, tab_cols)
     if kind == 'annotation' or tag is not None:
         # spec: "Byte: Conversion flag. Not used for annotations" -- and,
         # by the same words, "used only when there is no internal tag":
@@ -4027,6 +4076,7 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
     else:
         number_format, convert_to = (conv_flag >> 4) & 0x0F, conv_flag & 0x0F
     return Note(kind=kind, text=text, text_lines=text_lines, tag_line=tag_line,
+                text_indents=text_indents,
                 number=number, tag=tag,
                 line_count=line_count,
                 number_format=number_format, convert_to=convert_to,

@@ -3055,9 +3055,23 @@ def _notes_marker_pad_cols(doc):
     by two functions that don't otherwise share state, so one
     document-global number is what lets both agree without new
     cross-function plumbing. A comment's reference has no note-area
-    entry of its own (see `_keep_span`) and never reaches here."""
+    entry of its own (see `_keep_span`) and never reaches here.
+
+    2026-09-12 (`sawyer/REF/NOTES.TST`): a note that carries its OWN tab
+    (`Note.text_indents`, a nested type-9 block in the note's own text
+    stream) states where its text goes and is left out of this vote
+    entirely -- WS7 obeys the document, not a hang column derived from
+    the other notes. `-SCREEN.WS` and `DISPLAY.WS`, the documents this
+    finding was measured on, turn out to tab BOTH their notes to column
+    5, which is exactly the number this function returned for them, so
+    they render identically either way; NOTES.TST tabs its footnotes to
+    3 and its endnotes to 5, and only its (untabbed) annotations still
+    ask this question -- of one marker width, so the answer is None and
+    their own single-space join stands, which is what WS7 prints."""
     widths = set()
     for note, label in _annotated_notes(doc):
+        if any(getattr(note, 'text_indents', ()) or ()):
+            continue
         if note.kind == 'footnote':
             widths.add(len(f'{label}.'))
         elif note.kind == 'endnote':
@@ -3092,7 +3106,7 @@ def _note_texts(note, sentence_spacing, euro):
     return _euro_texts(raw, euro)
 
 
-def _note_wrap(marker, texts, width, tag_line=0):
+def _note_wrap(marker, texts, width, tag_line=0, indents=()):
     """One note's rendered lines for the page-bottom area or the endnote
     listing -- wrapped with the same engine body text uses. WordStar prints
     note text in the default font (no styling carried from the reference),
@@ -3104,15 +3118,34 @@ def _note_wrap(marker, texts, width, tag_line=0):
     WordStar stores the marker inline in the note's own text stream, so a
     note whose text opens with a hard return carries it on the second
     line (`sawyer/TAGS/WHEN`), not the first (`sawyer/TAGS/WHY`). A plain
-    string is still accepted and behaves exactly as it always did."""
+    string is still accepted and behaves exactly as it always did.
+
+    `indents` (`Note.text_indents`, 2026-09-12) is the note's own TAB per
+    physical line -- an ABSOLUTE column from the note area's left margin,
+    0 for a line that tabs nothing. A tab MOVES RIGHT only: WordStar
+    cannot pull text back over a marker already printed, so a column at
+    or left of where the line already stands is spent and leaves no gap
+    (the same reading a body tab gets).
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/NOTES.TST`: footnote marker "1." at 57.6pt with its text
+    tabbed to HMI 540 prints "Footnote One." at 79.2pt (column 3);
+    endnote "(1)" with HMI 900 prints "Endnote one." at 93.6pt (column
+    5)."""
     if isinstance(texts, str):
         texts = [texts]
     texts = list(texts) or ['']
+    indents = list(indents or ())
     tag_line = min(max(0, tag_line), len(texts) - 1)
     out = []
     for n, line in enumerate(texts):
-        spans = ([(marker, frozenset()), (line, frozenset())] if n == tag_line
-                 else [(line, frozenset())])
+        col = indents[n] if n < len(indents) else 0
+        if n == tag_line:
+            head = marker.ljust(col) if col > len(marker) else marker
+            spans = [(head, frozenset()), (line, frozenset())]
+        else:
+            spans = [(' ' * col, frozenset()), (line, frozenset())] if col else \
+                    [(line, frozenset())]
         out.extend(_wrap_line(spans, width) or [[]])
     return out
 
@@ -3742,7 +3775,8 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             for label, note in refs:
                 queue.append(_note_wrap(_note_marker(note, label, pad_cols),
                                         _note_texts(note, sentence_spacing, euro),
-                                        width, getattr(note, 'tag_line', 0)))
+                                        width, getattr(note, 'tag_line', 0),
+                                        getattr(note, 'text_indents', ())))
             _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
         area = _render_area(entries)
         if entries:
@@ -3853,7 +3887,8 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
             lines.append([])
         lines.extend(_note_wrap(_endnote_marker(label, pad_cols),
                                 _note_texts(note, sentence_spacing, euro), width,
-                                getattr(note, 'tag_line', 0)))
+                                getattr(note, 'tag_line', 0),
+                                getattr(note, 'text_indents', ())))
     pages = []
     continuing = bool(last_page and last_page_cost < cap)
     if continuing:

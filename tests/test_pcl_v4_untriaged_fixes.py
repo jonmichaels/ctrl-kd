@@ -372,3 +372,41 @@ def test_ctrl_k_suppresses_header_blanks_on_even_pages():
     # strips it with every other control byte, as every view always has)
     assert odd == '\x0b' + ' ' * 55 + 'Header / 1', repr(odd)
     assert even == ' Header / 2', repr(even)
+
+
+def test_a_note_tabs_its_own_text_where_the_document_says():
+    """A note's own TAB positions its text; the hang column yields to it.
+
+    A note's text stream can carry a nested type-9 tab block -- the same
+    one a body line uses, second word the absolute tab size in HMIs -- and
+    real WS7 starts the note's text in that column. `_parse_note` skipped
+    every nested block that was not the internal tag, so the number was
+    thrown away, and `_notes_marker_pad_cols`'s computed hang column
+    (widest marker + 2) positioned every note instead.
+
+    MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
+    `sawyer/REF/NOTES.TST`, left margin 57.6pt: its footnotes tab to HMI
+    540 and WS7 prints "Footnote One." at 79.2pt (column 3); its endnotes
+    tab to HMI 900 and print "Endnote one." at 93.6pt (column 5); its
+    annotations tab nothing and print "Annotation One" at 86.4pt (column
+    4) -- tag "AC1" plus the marker's own single space. The engine put all
+    three at column 5. `-SCREEN.WS` and `DISPLAY.WS`, the documents the
+    hang column was measured on, tab BOTH their notes to column 5, so
+    they render identically either way."""
+    from ctrlkd import pdf as pdfmod
+    tab = ws7_block(0x09, (540).to_bytes(2, 'little') * 2 + b' \x01')
+    note = (ws7_block(0x03, b'\x01\x00\x09\x80\x33'
+                      + ws7_block(0x03, b'\x00\x00\x00\x00\x33')
+                      + tab + b'Footnote One.' + HARD))
+    doc = core.parse_ws(b'body' + note + b' more' + HARD)
+    fns = [n for n in doc.notes if n.kind == 'footnote']
+    assert fns and fns[0].text_indents == (3,), [n.text_indents for n in fns]
+    def rendered(marker, indents):
+        rows = pdfmod._note_wrap(marker, ['Footnote One.'], 65, 0, indents)
+        return ''.join(t for t, _ in rows[0])
+    assert rendered('1.', (3,)) == '1. Footnote One.'      # column 3
+    assert rendered('(1)', (5,)) == '(1)  Footnote One.'   # column 5
+    # a tab at or left of where the marker already ends leaves no gap
+    assert rendered('(1)', (2,)) == '(1)Footnote One.'
+    # and a note that tabs nothing keeps the previous join exactly
+    assert rendered('1.', ()) == '1.Footnote One.'
