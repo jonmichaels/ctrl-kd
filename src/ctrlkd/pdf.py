@@ -3300,6 +3300,11 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             spans = []
             refs = []
             for s in line.spans:
+                # a ^ONI index ENTRY is the index file's text, not the
+                # page's -- see `_keep_span`, which applies the same rule
+                # on the plain (note-free) printed path
+                if 'ixentry' in s.styles:
+                    continue
                 styles = _effective_span_styles(s, b, heading_bold=True)
                 if 'fnref' in s.styles and s.text.isdigit():
                     k = int(s.text)
