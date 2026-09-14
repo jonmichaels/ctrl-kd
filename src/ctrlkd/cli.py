@@ -285,7 +285,13 @@ def main(argv=None):
         # modern and the input can only render printed, say so once instead
         # of silently disobeying the flag. The override itself stands -- a
         # print stream has no soft returns to unwrap.
+        # planning #264, mail-merge scope: a MailMerge DATA file saved in
+        # non-document mode classifies as `printstream` on its bytes and
+        # reflows perfectly well -- it is a record list, not a captured
+        # page -- so the notice must not tell its reader otherwise.
+        from .core import MERGE_DATA_KIND
         if (mode_explicit and a.mode == 'modern'
+                and doc.meta.get('kind') != MERGE_DATA_KIND
                 and (doc.meta.get('variant') == 'printstream'
                      or doc.meta.get('columnar'))):
             kind = ('print stream' if doc.meta.get('variant') == 'printstream'

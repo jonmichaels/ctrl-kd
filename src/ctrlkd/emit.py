@@ -124,6 +124,16 @@ def _merge_pageno_dropped(doc):
 
 
 def _printed(doc):
+    # planning #264, mail-merge scope: a MailMerge DATA file is a record
+    # list, never a captured page, so it never forces the printed
+    # facsimile on itself -- a `.DTA` written in non-document mode
+    # classifies as `printstream` on its bytes (plain ASCII, hard returns,
+    # no machinery) and would otherwise render as a typescript in one
+    # shape and as prose in the other, purely by how its author saved it.
+    # `--mode printed` still reaches it; what this drops is the OVERRIDE.
+    from .core import MERGE_DATA_KIND
+    if doc.meta.get('kind') == MERGE_DATA_KIND:
+        return False
     return doc.meta.get('variant') == 'printstream' or doc.meta.get('columnar')
 
 # ---------------------------------------------------------------- notes

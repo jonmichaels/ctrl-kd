@@ -1627,6 +1627,200 @@ def _count_symmetric_blocks(data: bytes) -> int:
         i = end + 1
 
 
+# ------------------------------------------------- MailMerge data files
+#
+# Jon's rulings 2026-09-13 (planning #264, MAIL MERGE SCOPE and its two
+# addenda), verbatim: "the list of name and addresses? Those we should be
+# able to open and people should be able to get that list out into
+# something useful"; "we should probably have some code to detect a file as
+# a MailMerge data file. It should show up listed as such in Document Info.
+# And yes we should be kind and strip out the codes on export."
+#
+# A WordStar MailMerge data file is comma-separated quoted records -- CSV
+# before anyone called it that -- read by a merge document's `.df`, one
+# field per `.rv` name. It is not a document: it has no dot commands, no
+# prose, and nothing to lay out. What it has is a LIST, and the point of
+# opening it here is that a document-mode one is full of WordStar's own
+# machinery (bit-7 word marks, soft returns and soft spaces, cp437
+# characters, trailing ^Z padding) that makes it unreadable anywhere else.
+#
+# THE TEST IS STRUCTURAL AND ONLY STRUCTURAL. The Corpus-And-Filetype-Index
+# states the rule this has to satisfy -- `detect()` must be corroborated by
+# STRUCTURE, never by a usage string, because that is exactly how `.PDF`
+# false-positived on binaries carrying help text. So nothing below looks
+# for a word, a name, a header row or a field label. Five structural facts,
+# every one of which must hold:
+#
+#   1. no symmetric blocks and no wrapped extended characters past the
+#      opening header (a list carries no footnotes, fonts or style
+#      library -- this is what keeps a real DOCUMENT out);
+#   2. at least two records;
+#   3. every non-blank record parses as a comma-separated field list, and
+#      an unterminated quote disqualifies the whole file;
+#   4. every record has the SAME field count, and at least two fields --
+#      the strongest single signal, and the one prose cannot fake;
+#   5. most fields are QUOTED. Jon's own description: "already
+#      comma-separated quoted records (CSV without headers)."
+#
+#   and one more that is not about shape: no record may be a dot command.
+#   A `.df`/`.rv` line means this is the merge LETTER, not its data.
+_MERGE_DATA_MIN_RECORDS = 2
+_MERGE_DATA_MIN_FIELDS = 2
+_MERGE_DATA_QUOTED_SHARE = 0.5
+
+
+def split_merge_fields(text):
+    """One MailMerge data record -> `[(value, was_quoted), ...]`, or None
+    when the line is not a well-formed record.
+
+    Fields are comma-separated; a field may be wrapped in `"`, inside
+    which a comma is literal and `""` is one quote character. Space around
+    a field is not part of it. An unterminated quote returns None -- a
+    half-quoted line is not a record, and accepting one would let ordinary
+    prose containing a quotation mark through."""
+    out, i, n = [], 0, len(text)
+    while True:
+        while i < n and text[i] == ' ':
+            i += 1
+        if i < n and text[i] == '"':
+            i += 1
+            buf = []
+            while True:
+                if i >= n:
+                    return None                    # unterminated quote
+                if text[i] == '"':
+                    if i + 1 < n and text[i + 1] == '"':
+                        buf.append('"')
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                buf.append(text[i])
+                i += 1
+            out.append((''.join(buf), True))
+        else:
+            j = text.find(',', i)
+            end = n if j < 0 else j
+            out.append((text[i:end].strip(), False))
+            i = end
+        while i < n and text[i] == ' ':
+            i += 1
+        if i >= n:
+            return out
+        if text[i] != ',':
+            return None                            # rubbish after a field
+        i += 1
+
+
+def _is_dot_command_line(text):
+    """`.xx` -- a dot command, the one thing a data file never carries."""
+    t = text.lstrip()
+    return (len(t) >= 3 and t[0] == '.' and t[1].isalpha()
+            and (t[2].isalpha() or t[2] in ' \t'))
+
+
+def merge_data_records(lines):
+    """`[[field, ...], ...]` when `lines` (already decoded to text) are the
+    records of a MailMerge data file, else None. The five structural facts
+    are listed above this function's own comment block; this is where they
+    are applied, and it is the ONE place -- `detect` and `parse_merge_data`
+    both come here, so the classification and the reading can never
+    disagree about what a record is."""
+    records, quoted, fields_total = [], 0, 0
+    for text in lines:
+        if not text.strip():
+            continue
+        if _is_dot_command_line(text):
+            return None
+        parsed = split_merge_fields(text)
+        if parsed is None or len(parsed) < _MERGE_DATA_MIN_FIELDS:
+            return None
+        if records and len(parsed) != len(records[0]):
+            return None
+        records.append([v for v, _q in parsed])
+        quoted += sum(1 for _v, q in parsed if q)
+        fields_total += len(parsed)
+    if len(records) < _MERGE_DATA_MIN_RECORDS or not fields_total:
+        return None
+    if quoted < fields_total * _MERGE_DATA_QUOTED_SHARE:
+        return None
+    return records
+
+
+def _merge_data_text_lines(data):
+    """`data` reduced to candidate record lines, or None when its shape
+    rules a data file out before any parsing.
+
+    A cheap byte-level decode, not the engine's -- `detect` runs before
+    anything is parsed. It drops the trailing ^Z padding, steps over an
+    opening WS5+ header block (a document-mode data file has one and
+    nothing else), refuses any file carrying further symmetric blocks or
+    wrapped extended characters, masks WordStar's bit-7 word marks off,
+    and splits on returns of BOTH kinds. `parse_merge_data` re-reads the
+    same file through the real engine; this only has to be good enough to
+    classify.
+
+    A SOFT return ends a candidate record here, and that is deliberate: it
+    ends a `Line` in the engine too (WS4 reads a short soft-broken line as
+    a deliberate break by its own fit heuristic, and even where WS5+ reads
+    one as wrap the record halves reach this test separately). A record
+    long enough to WRAP therefore leaves two malformed halves and the file
+    is declined rather than half-read -- conservative, and it keeps this
+    test and `parse_merge_data`'s engine-decoded reading from ever
+    disagreeing about where a record ends. No corpus data file exists to
+    argue otherwise (the archive carries none at all), so the safe answer
+    is the one taken."""
+    eof = _bare_eof(data)
+    core = data[:eof] if eof != -1 else data
+    if len(core) >= 8 and core[0] == 0x1D and core[3] == 0x00:
+        jump = int.from_bytes(core[1:3], 'little')
+        end = 2 + jump
+        if 8 <= jump < 0x400 and end < len(core) and core[end] == 0x1D:
+            core = core[end + 1:]
+    if not core:
+        return None
+    if _count_symmetric_blocks(core) or re.search(rb'\x1b.\x1c', core, re.S):
+        return None
+    core = core.replace(b'\x8d\x0a', b'\x0d\x0a')   # a return is a return
+    out = []
+    for raw in core.split(b'\x0d\x0a'):
+        if any(b & 0x7F < 0x20 and b not in (0x09,) for b in raw):
+            return None                             # control bytes: not a list
+        out.append(bytes(b & 0x7F for b in raw).decode('ascii', 'replace'))
+    return out
+
+
+def detect_merge_data(data: bytes):
+    """`[[field, ...], ...]` when `data` is a MailMerge data file, else
+    None. Structural throughout -- see the comment block above
+    `split_merge_fields`."""
+    lines = _merge_data_text_lines(data)
+    return None if lines is None else merge_data_records(lines)
+
+
+MERGE_DATA_KIND = 'MailMerge data file'
+
+
+def _with_merge_data_kind(data, result):
+    """`result` with `kind`/`records` added when the file is a MailMerge
+    data file (planning #264, mail-merge scope 2026-09-13).
+
+    The VARIANT is left exactly as the byte statistics found it -- a
+    document-mode data file really is a `ws5+` file and a non-document one
+    really is plain text, and everything downstream that branches on
+    `variant` must go on seeing what it always saw. The kind is an
+    additional fact about the same bytes, which is also the shape the apps
+    asked for: "It should show up listed as such in Document Info."
+    Applied at every non-binary return, so a data file is recognised
+    whichever way its bytes classify."""
+    records = detect_merge_data(data)
+    if records is None:
+        return result
+    return {**result, 'kind': MERGE_DATA_KIND,
+            'merge_records': len(records),
+            'merge_fields': len(records[0])}
+
+
 def detect(data: bytes) -> dict:
     """Classify a file by CONTENT (names and extensions lie).
 
@@ -1646,10 +1840,12 @@ def detect(data: bytes) -> dict:
         if (8 <= jump < 0x400 and end < len(data) and data[end] == 0x1D
                 and int.from_bytes(data[end-2:end], 'little') == jump
                 and data[4] in (0x50, 0x55, 0x60, 0x70)):
-            return {'variant': 'ws5+',
-                    'reason': 'opens with a valid header block (declared '
-                              f'release {data[4] >> 4}.{data[4] & 0x0F})',
-                    'size': len(data)}
+            return _with_merge_data_kind(
+                data,
+                {'variant': 'ws5+',
+                 'reason': 'opens with a valid header block (declared '
+                           f'release {data[4] >> 4}.{data[4] & 0x0F})',
+                 'size': len(data)})
     # The first 0x1A is not reliably EOF either: it can be a legitimate
     # in-content control byte (REF/ROUNDED.BRD's box-drawing template opens
     # with page-setup dot commands then hits a bare 0x1A at offset 48 that
@@ -1707,7 +1903,7 @@ def detect(data: bytes) -> dict:
     if blocks_1d >= 1 or dense_trips:
         # Well-formed 1D symmetric blocks and 1B..1C wrapped extended
         # characters are WS5+ machinery regardless of anything else
-        return {'variant': 'ws5+', **ev}
+        return _with_merge_data_kind(data, {'variant': 'ws5+', **ev})
     # soft returns are strong WS evidence on their own; high-bit density alone is
     # not — binaries are full of high bytes — unless the file is mostly text.
     # `soft` is a two-byte sequence, so it needs the same density floor the
@@ -1725,12 +1921,12 @@ def detect(data: bytes) -> dict:
         # settled it above; blocks_1d is necessarily 0 by the time we get
         # here, so this branch is about returns alone.)
         if dense_soft and hi < soft // 4:
-            return {'variant': 'ws5+', **ev}
-        return {'variant': 'ws4', **ev}
+            return _with_merge_data_kind(data, {'variant': 'ws5+', **ev})
+        return _with_merge_data_kind(data, {'variant': 'ws4', **ev})
     if txt >= 90 and hard >= 2:
-        return {'variant': 'printstream', **ev}
+        return _with_merge_data_kind(data, {'variant': 'printstream', **ev})
     if txt >= 90:
-        return {'variant': 'text', **ev}
+        return _with_merge_data_kind(data, {'variant': 'text', **ev})
     return {'variant': 'binary', 'reason': f'{txt}% text but no structure', **ev}
 
 # ---------------------------------------------------------------- line engine
@@ -6661,6 +6857,65 @@ class ParseError(ValueError):
         self.detection = detection or {}
 
 
+def parse_merge_data(data: bytes, encoding: str = 'cp437',
+                     det: dict = None) -> Document:
+    """A MailMerge data file as READABLE RECORDS -- one block per record,
+    one line per field (Jon's ruling 2026-09-13, the amendment: "a plain
+    list: names (and addresses if present) on lines, one record per block
+    -- not a table export").
+
+    DECODED THROUGH THE ENGINE, and that is the whole reason this exists.
+    Jon's addendum: "a .DTA made in document mode carries WordStar's
+    high-bit marks, control codes, Ctrl-Z padding and cp437 characters;
+    the reader must decode through the engine (strip marks, cp437 ->
+    Unicode) so the list is clean -- that is the point of opening it in
+    Soft Return." So the file is read by the SAME parser its variant would
+    always have used, and the records are split out of the text that
+    parser produced. The bit-7 word marks, the soft returns and soft
+    spaces, the cp437 mapping and the ^Z padding are therefore handled
+    exactly once, by the code that already handles them everywhere else --
+    not a second time, differently, here.
+
+    `detect`'s own cheap byte-level reading (`_merge_data_text_lines`) is
+    what CLASSIFIED the file; this re-reads it properly. The two share
+    `merge_data_records`, so they cannot disagree about what a record is;
+    if the engine's own decode turns out not to yield records after all,
+    the file falls back to the ordinary parse for its variant rather than
+    losing anything.
+
+    NO MERGE IS EVER EXECUTED, here or anywhere (register, "Mail Merge --
+    scope", and the 2026-08-06 permanent ruling). This reads a list."""
+    det = det or detect(data)
+    v = det.get('variant')
+    base = (parse_ws(data, encoding) if v in ('ws4', 'ws5+')
+            else parse_printstream(data, encoding))
+    # `merged_lines`, not `b.lines`: a record long enough to WRAP is stored
+    # as two Lines joined by a soft return, and it is still one record.
+    # That merge is the parser's own, so the join happens exactly where
+    # every other reader of this document would see it happen.
+    text_lines = [''.join(sp.text for sp in ln.spans)
+                  for b in base.blocks for ln in merged_lines(b)]
+    records = merge_data_records(text_lines)
+    if records is None:
+        return base
+    doc = Document()
+    doc.meta.update(base.meta)
+    doc.meta['kind'] = MERGE_DATA_KIND
+    doc.meta['merge_records'] = len(records)
+    doc.meta['merge_fields'] = len(records[0])
+    # One block per record, one line per field, and a blank line BETWEEN
+    # records -- "one record per block", and the blank is what makes that
+    # visible in a format with no blocks of its own (plain text, and the
+    # printed surfaces, which render stored lines verbatim). The last
+    # record gets none: a trailing blank is not a separator.
+    for k, fields in enumerate(records):
+        lines = [Line(spans=[Span(field)]) for field in fields]
+        if k < len(records) - 1:
+            lines.append(Line())
+        doc.blocks.append(Block('para', lines=lines))
+    return doc
+
+
 def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document:
     """Detect (unless told) and parse. This is the library's main entry.
 
@@ -6673,6 +6928,11 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document
                           'size': 0})
     det = {'variant': variant} if variant else detect(data)
     v = det['variant']
+    # planning #264, mail-merge scope (ruled 2026-09-13): a data file opens
+    # as its own records, not as a document that happens to be full of
+    # commas. See `parse_merge_data`.
+    if det.get('kind') == MERGE_DATA_KIND:
+        return parse_merge_data(data, encoding, det)
     if v in ('ws4', 'ws5+'):
         return parse_ws(data, encoding)
     if v in ('printstream', 'text'):
