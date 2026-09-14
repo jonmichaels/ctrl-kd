@@ -245,6 +245,26 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # EXCLUDED_V4's own entry for detail. Named in every run, same as the rest
 # of this dict, so a future fix removes it from this list rather than the
 # gate silently going green on an unreviewed change).
+#
+# One further class, Jon's ruling 2026-09-13 (planning #270 item 28),
+# parked onto the standing LJ6DTP issue (planning #210) rather than
+# opening a new one:
+#
+#   'font-chart' (4 documents).  Robert J. Sawyer's own printer-font
+#   CHARACTER SUBSTITUTION CHARTS: REF/SYMBOL.CHT, REF/WINGDING.CHT,
+#   PRINTERS/fontcrib.ws and PRINTER.PS (its byte-identical duplicate
+#   PRINTERS/FONTCRIB.PS was already excluded above).  Each exists to show
+#   what every character CODE prints as in a printer-resident font we do
+#   not have -- WordStar sends the raw code and lets the LaserJet's
+#   Symbol/WingDings (or the PostScript Symbol/Zapf Dingbats) font decide
+#   the shape, while we must pick a Unicode character and draw it in a font
+#   we do have.  A chart OF a font we cannot obtain cannot be reproduced
+#   faithfully by construction, and the residual is the chart's subject
+#   matter, not a placement bug (triage cause 8 / Q2,
+#   research/2026-09-12_pcl-v4-untriaged-triage.md).  Jon's ruling: "Let's
+#   move them to the LJ6DTP category. Exclude them from tests for now. At
+#   some point later we can see if we can tackle them properly... I'd
+#   rather support user's actual WordStar files, not font charts."
 # Full detail (sha256, which half was kept, cross-references) lives
 # in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this
 # dict only carries what this PUBLIC repo needs: the doc_name these tests
@@ -295,6 +315,14 @@ EXCLUDED_V4 = {
     # evidence about `.pa` in general. See
     # research/2026-09-08_trailing-pa-rule.md's own "CHECKER.BRD" section.
     'sawyer__LSRBOX__CHECKER_EXT_BRD': "parked: unexplained extra page, graphics overflow suspected — Jon 2026-09-08",
+    # planning #270 item 28, Jon's ruling 2026-09-13: the four printer-font
+    # charts leave the tier as their own class, parked with LJ6DTP on
+    # planning #210. See the 'font-chart' paragraph in this dict's own
+    # header for the mechanism and the ruling's own words.
+    'sawyer__REF__SYMBOL_EXT_CHT': "font-chart: a printed chart of the printer-resident Symbol font (sawyer/REF/SYMBOL.CHT) -- a chart OF a font we do not have cannot be reproduced faithfully; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
+    'sawyer__REF__WINGDING_EXT_CHT': "font-chart: a printed chart of the printer-resident WingDings font (sawyer/REF/WINGDING.CHT) -- a chart OF a font we do not have cannot be reproduced faithfully; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
+    'sawyer__PRINTERS__fontcrib_EXT_ws': "font-chart: the LaserJet character-substitution crib sheet (sawyer/PRINTERS/fontcrib.ws) -- a chart OF the printer's own resident fonts; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
+    'sawyer__PRINTER_EXT_PS': "font-chart: the PostScript Symbol/Zapf-Dingbats character-substitution crib sheet (sawyer/PRINTER.PS) -- a chart OF fonts we do not have; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
 }
 
 MANIFEST_PATH = os.path.join(

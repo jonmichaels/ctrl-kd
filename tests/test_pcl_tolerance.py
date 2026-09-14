@@ -865,3 +865,36 @@ def test_page_calibration_rtf_wrap_probes_no_longer_contaminate_line_starts():
     contaminated = [it for it in items if it not in chosen]
     for w, e, d in contaminated:
         assert d['dx'] - offset['median_dx'] == 450.0
+
+
+# ------------------------------------------------ the v4 exclusion classes
+def test_the_four_printer_font_charts_are_excluded_as_font_chart():
+    """planning #270 item 28, Jon's ruling 2026-09-13 ("Let's move them to
+    the LJ6DTP category. Exclude them from tests for now... I'd rather
+    support user's actual WordStar files, not font charts.").
+
+    Robert J. Sawyer's four printer-font CHARACTER SUBSTITUTION CHARTS --
+    REF/SYMBOL.CHT, REF/WINGDING.CHT, PRINTERS/fontcrib.ws and PRINTER.PS
+    (whose byte-identical duplicate PRINTERS/FONTCRIB.PS was already an
+    excluded 'duplicate') -- leave the pcl tier as their own named class.
+    Each prints every character CODE of a printer-RESIDENT font we do not
+    have; the residual is the chart's subject matter, not a placement bug
+    (triage cause 8 / Q2). Parked with LJ6DTP on planning #210, so this
+    opens no new issue -- and the class name is asserted here, not just
+    the membership, because the reason string is what the tier prints for
+    each of them on every run."""
+    charts = {
+        'sawyer__REF__SYMBOL_EXT_CHT',
+        'sawyer__REF__WINGDING_EXT_CHT',
+        'sawyer__PRINTERS__fontcrib_EXT_ws',
+        'sawyer__PRINTER_EXT_PS',
+    }
+    for doc in charts:
+        assert doc in pt.CAPTURED_DOCS, f'{doc} must still be collected by name'
+        assert doc in pt.EXCLUDED_V4, f'{doc} must be excluded from the pcl tier'
+        assert pt.EXCLUDED_V4[doc].startswith('font-chart: '), pt.EXCLUDED_V4[doc]
+        assert 'planning #210' in pt.EXCLUDED_V4[doc]
+    # exactly four -- a fifth document joining this class is a real ruling,
+    # not a drive-by edit
+    font_charts = {d for d, r in pt.EXCLUDED_V4.items() if r.startswith('font-chart: ')}
+    assert font_charts == charts
