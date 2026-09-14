@@ -442,6 +442,67 @@ def test_engine_chars_does_not_snap_a_raised_marker_across_a_real_gap():
     assert texts == ['cat', '2'], texts
 
 
+# ------------------------------------- Q11: the rise floor is the LINE's, not a constant
+# Jon's ruling 2026-09-14 (planning #270 item 44): "a run is a rise if it is
+# raised/lowered relative to the line's dominant baseline AND the dominant
+# baseline carries more characters than the run, whatever the counts."
+def _chars_to_texts(chars):
+    data = {'schema_version': fg.ENGINE_CHARS_SCHEMA_VERSION, 'n_pages': 1,
+            'chars': chars, 'rasters': []}
+    return [t['text'] for t in fg.load_engine_chars(data)['eng_tokens']]
+
+
+def test_three_subscript_digits_on_one_baseline_are_still_a_rise():
+    """`sawyer/REF/SUB-SUPE.TST` page 1: caffeine's C4H5N3O puts THREE
+    digits on one lowered baseline. Under the retired absolute floor
+    (3 characters = a real printed LINE) that baseline was a line of its
+    own and the digits never rejoined the formula. Nothing about the
+    count decides it now -- the letters' baseline carries more characters
+    than the digits' does, so the digits are the rise."""
+    y, yr = 300.0, 304.5           # the digits sit 4.5pt BELOW the letters
+    chars = [
+        _char_dict('C', 57.6, 63.15, y, size=9.25),
+        _char_dict('4', 63.15, 70.35, yr),
+        _char_dict('H', 70.35, 75.9, y, size=9.25),
+        _char_dict('5', 75.9, 83.1, yr),
+        _char_dict('N', 83.1, 88.65, y, size=9.25),
+        _char_dict('3', 88.65, 95.85, yr),
+        _char_dict('O', 95.85, 101.4, y, size=9.25),
+    ]
+    assert _chars_to_texts(chars) == ['C4H5N3O']
+
+
+def test_a_raised_word_after_a_space_keeps_its_own_baseline():
+    """The same document's own opposite case: a whole PHRASE printed on a
+    raised baseline, beginning after a typed space. WS7 prints it raised
+    and reads it as its own line; this side must too, or every word in it
+    reports a baseline-shift against a capture that is not wrong. A rise
+    continues a WORD -- ink glued to ink -- never a gap."""
+    y, yr = 300.0, 295.5
+    chars = [
+        _char_dict('w', 57.6, 64.8, y), _char_dict('a', 64.8, 72.0, y),
+        _char_dict('s', 72.0, 79.2, y), _char_dict(' ', 79.2, 86.4, y),
+        _char_dict('u', 86.4, 93.6, yr), _char_dict('p', 93.6, 100.8, yr),
+        _char_dict('t', 100.8, 108.0, yr),
+    ]
+    assert _chars_to_texts(chars) == ['upt', 'was']   # raised line first: y ascending
+
+
+def test_two_runs_printed_on_top_of_each_other_never_interleave():
+    """`sawyer/TAGS/-README` page 1: the note labels `[Expand]` and
+    `[Establish]` print at the SAME x, one baseline apart. Neither is a
+    rise off the other -- a rise sits in horizontal space the line leaves
+    empty -- and merging them produces character salad
+    (`[EExsptaanbdl]ish]`), which is how this was found."""
+    y, yr = 300.0, 295.5
+    chars = []
+    for i, ch in enumerate('abcde'):
+        chars.append(_char_dict(ch, 100.0 + 7.2 * i, 107.2 + 7.2 * i, y))
+    for i, ch in enumerate('vwx'):
+        chars.append(_char_dict(ch, 100.1 + 7.2 * i, 107.3 + 7.2 * i, yr))
+    assert _chars_to_texts(chars) == ['vwx', 'abcde']
+
+
 def test_engine_page_tokens_folds_a_real_ts_rise_into_the_tracked_y():
     """The actual fix (planning #202 batch): a genuinely-raised superscript
     -- alone on its own printed line (a real word-gap on every side, well

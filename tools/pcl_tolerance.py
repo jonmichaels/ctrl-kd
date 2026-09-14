@@ -699,13 +699,11 @@ _is_box_drawing_text = fg._is_box_drawing_text
 # character at all (catches ",", ".", "),", ".]", ":", "!", single
 # letters, "'s") -- kept deliberately simple and generic rather than a
 # WordStar-specific punctuation table.
-def _is_unreliable_to_align(text: str) -> bool:
-    stripped = text.strip()
-    if not stripped:
-        return True
-    if len(stripped) <= 2:
-        return True
-    return not any(ch.isalnum() for ch in stripped)
+# The definition moved to fg (2026-09-14, Q11): the engine side now
+# consults the SAME rule when it decides whether a raised run that starts
+# after a space is a marker this side would stitch into a gap
+# (`_find_offbaseline_occupant`) or a real word it would leave alone.
+_is_unreliable_to_align = fg.is_unreliable_to_align
 
 
 # ------------------------------------------------- WS7 chunk-splitting fixes
@@ -1544,6 +1542,66 @@ OFFBASELINE_OCCUPANT_LEAD_SLACK_DP = 80  # 8pt -- planning #259 (2026-09-10):
                        # comfortably inside it.
 
 
+def _snap_raised_chunk_baselines(page_chunks):
+    """MUTATES every chunk on one WS7 PAGE in place: a chunk sitting on a
+    baseline that a NEARBY baseline dominates -- Jon's ruling 2026-09-14
+    (planning #270 item 44, triage Q11): dominance is relative, "the
+    dominant baseline carries more characters than the run, whatever the
+    counts" -- has its own `y_decipoints` rewritten to that dominant
+    baseline when its x-run continues it with no real word gap. The WS7
+    half of `fg.snap_raised_baselines`, sharing that function's own
+    `_resolved_dominant` test and its own gap rule, so a raised or lowered
+    run is one line on BOTH sides or neither (mechanism Z's own lesson:
+    a segmentation rule applied to one side only turns clean documents
+    divergent).
+
+    WHY THE WS7 SIDE NEEDS IT TOO (`sawyer/REF/SUB-SUPE.TST`, page 1):
+    caffeine's C4H5N3O prints its three digits on their own baseline,
+    45 decipoints off the line they belong to. Grouped strictly by
+    `y_decipoints`, those three characters became a printed LINE of their
+    own -- and `_find_offbaseline_occupant`, running for THAT line, then
+    absorbed the real letters 'H' and 'N' out of the line below into its
+    own two gaps, so WS7 read `4H5N3` where the engine reads `C4H5N3O`.
+    Snapping the run onto the line it continues, before any of that,
+    leaves one line on each side with the same characters in it.
+
+    Conservative in exactly the ways the engine-side function is: nothing
+    moves without a dominant baseline within RISE_SNAP_WINDOW_PT, nothing
+    moves across a real word gap, and nothing moves BACKWARD (a chunk
+    starting left of the previous chunk's end has restarted a line, not
+    continued one -- a same-position overlay, mechanism Z's own case)."""
+    counts = defaultdict(int)
+    for pc, _tc in page_chunks:
+        counts[pc['y_decipoints'] / fg.DECIPT_PER_PT] += len(pc['text'])
+    memo = {}
+    target = {y: fg._resolved_dominant(counts, y, memo) for y in counts}
+    if not any(t is not None for t in target.values()):
+        return
+
+    clusters = defaultdict(list)
+    minority_ids = set()
+    for pc, tc in page_chunks:
+        y = pc['y_decipoints'] / fg.DECIPT_PER_PT
+        dy = target[y]
+        clusters[y if dy is None else dy].append(pc)
+        if dy is not None:
+            minority_ids.add(id(pc))
+
+    slack_pt = fg.WORD_GAP_SLACK_PT
+    for dy, members in clusters.items():
+        members.sort(key=lambda pc: pc['x_decipoints'])
+        prev_end = prev_space = None
+        for pc in members:
+            x0 = pc['x_decipoints'] / fg.DECIPT_PER_PT
+            width = fg.afm.string_width_pt(pc['text'], pc.get('font'), pc['size_pt'])
+            space_w = fg.char_space_width_pt(pc.get('font'), pc['size_pt'])
+            if prev_end is not None and id(pc) in minority_ids:
+                gap = x0 - prev_end
+                if -slack_pt <= gap < min(prev_space, space_w) - slack_pt:
+                    pc['y_decipoints'] = round(dy * fg.DECIPT_PER_PT)
+            prev_end, prev_space = x0 + width, space_w
+
+
 def _find_offbaseline_occupant(page_chunks, gap_x0_dp, gap_x1_dp, line_y_dp,
                                anchor_size_pt=None):
     """A super/subscript character sits on a DIFFERENT y than the line it
@@ -1851,6 +1909,7 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             continue
         page_chunks = [(pc, tc) for pc, tc in zip(pub, text_chunks)
                        if not fg.is_job_control_chunk(pc['text'])]
+        _snap_raised_chunk_baselines(page_chunks)   # Q11, before any grouping
         by_y = defaultdict(list)
         for pc, tc in page_chunks:
             by_y[pc['y_decipoints']].append((pc, tc))

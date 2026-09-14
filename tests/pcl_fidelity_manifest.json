@@ -19005,7 +19005,7 @@
       "counts_by_reason": {},
       "divergences": [],
       "document_frame_offset_pt": {
-        "n": 17,
+        "n": 15,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -19517,7 +19517,7 @@
       "counts_by_reason": {
         "exact-drift": 118,
         "extra-word-in-engine": 1,
-        "word-unmatched": 2
+        "word-unmatched": 1
       },
       "divergences": [
         {
@@ -20339,22 +20339,6 @@
         {
           "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
           "page": 1,
-          "line_y_top_pt": 204.0,
-          "words": [
-            "4H5N3"
-          ],
-          "ws7_pos": [
-            63.1,
-            204.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
           "line_y_top_pt": 588.0,
           "words": [
             "\"Tabernacle,"
@@ -20370,7 +20354,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 91,
+        "n": 90,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }

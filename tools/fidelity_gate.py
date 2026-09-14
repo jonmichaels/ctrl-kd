@@ -1204,23 +1204,84 @@ RISE_SNAP_WINDOW_PT = 8.0  # same magnitude, same reasoning as tools/
                            # (always at least one whole leading away in
                            # this corpus, never under 8pt).
 
-RISE_SNAP_MIN_DOMINANT_CHARS = 3  # a baseline carrying at least this many
-                           # characters is a real page LINE, never a
-                           # superscript/subscript run -- every confirmed
-                           # real one in this corpus is 1-2 characters
-                           # (a private paper's '1'/'2', -SCREEN's '2', a 'TM'-style
-                           # marker), comfortably under this floor, while a
-                           # real printed line (even a short one) all but
-                           # always clears it.
+# NO absolute floor lives here any more. It used to: a baseline carrying
+# at least 3 characters was declared a real page LINE outright, on the
+# reasoning that "every confirmed real raised run in this corpus is 1-2
+# characters". `sawyer/REF/SUB-SUPE.TST` is the counter-example that
+# retired it -- caffeine's C4H5N3O puts THREE subscript digits on one
+# baseline, which cleared the floor and became a "line" of its own, so
+# `4`/`5`/`3` never snapped back onto the text they continue while the
+# WS7 side spliced `H` and `N` down INTO them and read `4H5N3`. Both
+# sides wrong, in opposite directions, from one constant.
+#
+# Jon's ruling 2026-09-14 (planning #270 item 44, triage Q11): the floor
+# is a property of the LINE, not a constant -- a run is a rise if it is
+# raised or lowered relative to the line's dominant baseline AND that
+# dominant baseline carries MORE characters than the run, whatever the
+# counts. `_dominant_baseline_for` below is that test.
+
+
+def is_unreliable_to_align(text: str) -> bool:
+    """A token too short or too punctuation-only to align on its own.
+
+    The ONE definition; `tools/pcl_tolerance.py` binds its own
+    `_is_unreliable_to_align` to this (it used to hold the only copy, and
+    both sides of the comparison now consult it -- see
+    `snap_raised_baselines`' own space clause)."""
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if len(stripped) <= 2:
+        return True
+    return not any(ch.isalnum() for ch in stripped)
+
+
+def _dominant_baseline_for(counts: dict, y: float) -> float:
+    """The baseline `y`'s own characters are a RISE off, or None.
+
+    Jon's ruling (above): dominance is relative. A baseline is a rise off
+    a nearby one when that neighbour carries strictly MORE characters
+    than it does -- 1 off 2 and 3 off 40 both qualify, 3 off 3 does not
+    (neither dominates the other, so both stay where they are). The
+    nearest qualifying neighbour within RISE_SNAP_WINDOW_PT wins; ties in
+    distance go to the one carrying the most characters, so the answer
+    never depends on dict order.
+
+    Chains resolve transitively (a 1-character run off a 2-character run
+    off a 40-character line all land on the line), and cannot loop: every
+    hop moves to a strictly larger count."""
+    best, best_key = None, None
+    for oy, n in counts.items():
+        if oy == y or n <= counts[y]:
+            continue
+        dist = abs(oy - y)
+        if dist > RISE_SNAP_WINDOW_PT:
+            continue
+        key = (dist, -n)
+        if best_key is None or key < best_key:
+            best, best_key = oy, key
+    return best
+
+
+def _resolved_dominant(counts: dict, y: float, memo: dict) -> float:
+    """`_dominant_baseline_for` followed to the end of its chain (None when
+    `y` is itself dominant -- nothing nearby carries more characters)."""
+    if y in memo:
+        return memo[y]
+    memo[y] = None                       # guard: a chain is acyclic by count,
+                                          # but never recurse on y itself
+    step = _dominant_baseline_for(counts, y)
+    memo[y] = step if step is None else (_resolved_dominant(counts, step, memo) or step)
+    return memo[y]
 
 
 def snap_raised_baselines(chars: list, y_key: str = 'y') -> list:
     """MUTATES `chars` (a list of char dicts sharing this file's own
     'x_start'/'x_end'/'space_width_pt'/'size' shape, spanning a WHOLE PAGE,
     not yet split into per-baseline groups) in place: any character on a
-    MINORITY baseline (fewer than RISE_SNAP_MIN_DOMINANT_CHARS characters
-    at that `y_key` value) has its own `y_key` reassigned to a nearby
-    DOMINANT baseline (>= that many characters) when BOTH:
+    MINORITY baseline (one a nearby baseline carries strictly MORE
+    characters than -- `_dominant_baseline_for`, Jon's 2026-09-14 ruling)
+    has its own `y_key` reassigned to that DOMINANT baseline when BOTH:
       (a) that dominant baseline's own `y_key` lies within
           RISE_SNAP_WINDOW_PT of this character's own (the nearest one,
           when more than one dominant baseline happens to be in range --
@@ -1240,37 +1301,114 @@ def snap_raised_baselines(chars: list, y_key: str = 'y') -> list:
     immediately preceding neighbour is a real word-gap away (a genuinely
     isolated raised marker with nothing to attach to), is left exactly
     where it was -- unmatched, same as before this function existed, never
-    force-merged. Returns `chars` (same list object) for a caller's
-    convenience; every mutation is in place on each character's own dict."""
+    force-merged.
+
+    (b) is judged for a RUN, not a character (see the loop), and ALSO
+    refuses a BACKWARD step (`gap` below -WORD_GAP_SLACK_PT).
+
+    A run that begins after a SPACE is refused unless it is
+    `is_unreliable_to_align` -- a lone marker, never a real word. That
+    clause is what keeps the two sides symmetric. This side walks real
+    space CHARACTERS; the WS7 side has none (WS7 spends a positioning
+    command instead of printing a space), so what THAT side does across a
+    gap is exactly this: `_find_offbaseline_occupant` stitches in an
+    off-baseline occupant only when it `_is_unreliable_to_align`, and
+    leaves a real raised word alone. Measured on `REF/SUB-SUPE.TST`, both
+    halves: without the clause a superscripted PHRASE ('had long been
+    known', and three more) was pulled down here while WS7 kept it raised
+    -- 11 `baseline-shift`s; with the clause applied to real words only,
+    'For half a second' 's lowered 'a' still snaps, as WS7's own occupant
+    stitch already puts it in 'halfa'.
+
+    A BACKWARD step is refused because a
+    character that starts left of where the previous one ended has not
+    continued that line, it has restarted one. The old absolute floor hid
+    this case -- a real printed line always carried 3+ characters and so
+    was dominant by definition, and never became a candidate at all. Under
+    the relative test a genuinely short printed line (or a second column)
+    CAN be the minority of a longer neighbour within the 8pt window, and
+    its first character sits at the left margin, i.e. far BEHIND the
+    neighbour's own last character: measured on `REF/SUB-SUPE.TST` without
+    this clause, whole real lines snapped into the line above (121 named
+    divergences became 141, with 11 new `baseline-shift`s). A rise
+    continues its line forward, never backward.
+
+    Returns `chars` (same list object) for a caller's convenience; every
+    mutation is in place on each character's own dict."""
     counts = defaultdict(int)
     for c in chars:
         counts[round(c[y_key], 3)] += 1
-    dominant_ys = sorted(y for y, n in counts.items() if n >= RISE_SNAP_MIN_DOMINANT_CHARS)
-    if not dominant_ys:
+    memo = {}
+    target = {y: _resolved_dominant(counts, y, memo) for y in counts}
+    if not any(t is not None for t in target.values()):
         return chars
 
     clusters = defaultdict(list)   # dominant y -> [char, ...] (dominant + in-window minority)
     minority_ids = set()
     for c in chars:
         cy = round(c[y_key], 3)
-        if cy in dominant_ys:
+        dy = target[cy]
+        if dy is None:
             clusters[cy].append(c)
             continue
-        nearest = min(dominant_ys, key=lambda dy: abs(dy - cy))
-        if abs(nearest - cy) <= RISE_SNAP_WINDOW_PT:
-            clusters[nearest].append(c)
-            minority_ids.add(id(c))
+        clusters[dy].append(c)
+        minority_ids.add(id(c))
 
     for dy, members in clusters.items():
         members.sort(key=lambda c: c['x_start'])
-        prev = None
-        for c in members:
-            if prev is not None and id(c) in minority_ids:
-                gap = c['x_start'] - prev['x_end']
-                threshold = min(prev['space_width_pt'], c['space_width_pt'])
-                if gap < threshold - WORD_GAP_SLACK_PT:
-                    c[y_key] = dy
-            prev = c
+        on_line = [(c['x_start'], c['x_end']) for c in members
+                   if id(c) not in minority_ids]
+
+        def _overlaps_the_line(x0, x1, _spans=on_line):
+            """True when the line itself already occupies this horizontal
+            space. A rise sits in a gap the line leaves; two runs drawn
+            ON TOP of each other are two separate things, however close
+            their baselines. `sawyer/TAGS/-README` is the case: the note
+            labels `[Establish]` and `[Expand]` print at the same x, one
+            baseline apart, and without this they interleave character by
+            character into `[EExsptaanbdl]ish]`."""
+            slack = WORD_GAP_SLACK_PT
+            return any(a < x1 - slack and b > x0 + slack for a, b in _spans)
+
+        prev, prev_on_line = None, False
+        i, n = 0, len(members)
+        while i < n:
+            if id(members[i]) not in minority_ids:
+                prev, prev_on_line = members[i], True
+                i += 1
+                continue
+            # A minority RUN, judged whole: the space clause and the
+            # chain below both describe a RUN continuing a line, and a
+            # per-character verdict would split one (first character
+            # refused, the rest pulled down: 'l' raised, 'ong' on the
+            # line -- measured on REF/SUB-SUPE.TST).
+            j = i
+            while j < n and id(members[j]) in minority_ids:
+                j += 1
+            run = members[i:j]
+            allowed = prev is not None and prev_on_line
+            # "Glued" is INK to INK. A space either side of the boundary --
+            # the line's last character, or the run's first -- is the gap
+            # WS7 spends a positioning command on rather than printing, so
+            # the run is across a gap however small its measured distance.
+            if allowed and (prev['is_space'] or run[0]['is_space']):
+                allowed = is_unreliable_to_align(''.join(c['text'] for c in run))
+            if allowed and _overlaps_the_line(min(c['x_start'] for c in run),
+                                              max(c['x_end'] for c in run)):
+                allowed = False
+            p = prev
+            for c in run:
+                if not allowed:
+                    break
+                gap = c['x_start'] - p['x_end']
+                threshold = min(p['space_width_pt'], c['space_width_pt'])
+                if not (-WORD_GAP_SLACK_PT <= gap < threshold - WORD_GAP_SLACK_PT):
+                    allowed = False      # the chain breaks here and stays broken
+                    break
+                c[y_key] = dy
+                p = c
+            prev, prev_on_line = members[j - 1], allowed
+            i = j
     return chars
 
 
