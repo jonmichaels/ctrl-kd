@@ -2827,6 +2827,64 @@ def _rtf_cols_control(cols, gutter):
     return r'\cols%d\colsx%d' % (cols, gap)
 
 
+def _rtf_keep_plan(doc):
+    r"""`{block_index: (keep, keepn)}` -- the paragraphs `.cp n`/`.cc n`
+    asked to be kept together (planning #264 R2, packet row A8, ruled
+    2026-09-14 "Yes add it").
+
+    WHAT WORDSTAR ASKED FOR. `.cp n` says "break to a new page unless at
+    least n lines still fit here", and `.cc n` says the same of a column.
+    The author's purpose is never the break: it is that the n lines AFTER
+    the command arrive together -- `.cp` exists precisely so a heading is
+    not stranded at the foot of a page (`core.DOT_CONDPAGE`'s own note
+    says the same).
+
+    WHAT RTF CAN SAY. Not "break here" -- R6 declined imposed page
+    positions outright, and a reader paginating with its own fonts would
+    fight one anyway. It can say `\keepn` (keep this paragraph with the
+    next) and `\keep` (do not split this paragraph across a page), which
+    are CONSTRAINTS the reader honours while paginating rather than
+    positions imposed on it. That is the packet's own reason this row
+    works where A12's did not.
+
+    THE MAPPING. After a `.cp n`/`.cc n`, the following `para` blocks are
+    walked until their combined stored-line count first reaches n. Every
+    paragraph in that run gets `\keep`; every one but the LAST also gets
+    `\keepn`. A run of one paragraph -- which is the common case in
+    Printed RTF, where a whole WordStar block is one `\par` with `\line`
+    separators -- gets `\keep` alone, because the n lines the author
+    asked for are already inside it and nothing needs to be held to what
+    follows. The line count is the document's OWN stored lines, the same
+    number the printed paginator counts, in both modes: `n` is a fact
+    about the file, not about a reader's measure.
+
+    Both modes. The rule reads the same blocks either way, and a stranded
+    heading is as wrong in a reflowed export as in a facsimile."""
+    plan = {}
+    for bi, b in enumerate(doc.blocks):
+        if b.kind not in ('condpage', 'condcolumn'):
+            continue
+        want = max(1, int(b.heading or 1))
+        run, counted = [], 0
+        for k in range(bi + 1, len(doc.blocks)):
+            nxt = doc.blocks[k]
+            if nxt.kind in ('condpage', 'condcolumn'):
+                continue                 # a sentinel spends no lines
+            if nxt.kind != 'para':
+                break                    # a real break ends the run
+            lines = len(merged_lines(nxt))
+            if not lines:
+                continue
+            run.append(k)
+            counted += lines
+            if counted >= want:
+                break
+        for j, k in enumerate(run):
+            keep, keepn = plan.get(k, (False, False))
+            plan[k] = (True, keepn or j < len(run) - 1)
+    return plan
+
+
 def _rtf_section_breaks(doc, printed):
     r"""`{block_index: (cols, gutter, hdr_slots, ftr_slots)}` -- THE SECTION
     SPINE (planning #264 R1, ruled 2026-09-14; packet section 3's
@@ -3294,7 +3352,7 @@ def _rtf_doc_spacing_twips(doc):
 
 
 def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=0,
-                   sl=0, sb=0, sa=0, fi_twips=None):
+                   sl=0, sb=0, sa=0, fi_twips=None, keep=False, keepn=False):
     """Append one `\\par`-terminated paragraph to `parts`.
 
     `fi_twips`, when given, OVERRIDES `fi_cols` with an exact twip value
@@ -3357,6 +3415,20 @@ def _rtf_emit_para(parts, rtf_state, b, lines, fi_cols=0, force=False, li=0, ri=
     if sa != rtf_state['sa']:
         parts.append(r'\sa%d ' % sa)
         rtf_state['sa'] = sa
+    # planning #264 R2 (packet row A8, ruled 2026-09-14 "Yes add it"):
+    # `.cp n`/`.cc n`'s own request, in the only vocabulary a reflowing
+    # reader has for it. `\keep` = do not split this paragraph across a
+    # page; `\keepn` = keep it with the one after. Both PERSIST across
+    # `\par` exactly as the six above do, so both are tracked and reset.
+    # And note WHY this row works where imposed page positions do not (the
+    # packet's own remark on A8): it is a CONSTRAINT the reader honours
+    # while paginating, not a position we impose on it.
+    if keep != rtf_state['keep']:
+        parts.append(r'\keep ' if keep else r'\keep0 ')
+        rtf_state['keep'] = keep
+    if keepn != rtf_state['keepn']:
+        parts.append(r'\keepn ' if keepn else r'\keepn0 ')
+        rtf_state['keepn'] = keepn
     if b.style_id in rtf_state['styled_slots']:
         # style pass-through: tag the paragraph with its \sN so a
         # consumer can act on the named style (Word can still edit it by
@@ -3409,7 +3481,8 @@ def _rtf_structure_indent_hang(s, doc, marker_text):
     return int(round(indent + hang)), -int(round(hang))
 
 
-def _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg, doc, li, ri):
+def _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg, doc, li, ri,
+                       keep=False, keepn=False):
     r"""One definition or bullet row as a hanging paragraph (planning #264
     item 5, packet row C3). Modern RTF used to render both as plain
     paragraphs, so a wrapped definition returned to the left margin
@@ -3441,7 +3514,7 @@ def _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg, doc, li, ri):
         return
     li_twips, fi_twips = _rtf_structure_indent_hang(s, doc, marker)
     _rtf_emit_para(parts, rtf_state, b, [seg], li=li + li_twips, ri=ri,
-                   fi_twips=fi_twips)
+                   fi_twips=fi_twips, keep=keep, keepn=keepn)
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
@@ -3542,7 +3615,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         resolved_leads_48 = resolved_printed_leads_48(doc)
     parts = []
     rtf_state = {'align': 'left', 'fi': 0, 'li': 0, 'ri': 0,
-                 'sl': 0, 'sb': 0, 'sa': 0, 'styled_slots': styled_slots}
+                 'sl': 0, 'sb': 0, 'sa': 0, 'keep': False, 'keepn': False,
+                 'styled_slots': styled_slots}
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
     # Quote-group first-line indent (round 4, mirrors emit_html): computed
@@ -3659,6 +3733,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # here and emits exactly the bytes it always did.
     section_breaks = _rtf_section_breaks(doc, printed)
     columns_state = _rtf_columns_state(doc) if printed else None
+    # planning #264 R2 (packet row A8): `.cp n`/`.cc n` -> `\keep`/`\keepn`
+    # on the paragraphs they asked to hold together. See `_rtf_keep_plan`.
+    keep_plan = _rtf_keep_plan(doc)
     for bi, b in enumerate(doc.blocks):
         if bi in section_breaks:
             cols, gutter, hdr_slots, ftr_slots = section_breaks[bi]
@@ -3681,7 +3758,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # section properties reset the paragraph state the running text
             # was carrying, so the next paragraph restates its own
             rtf_state.update({'align': 'left', 'fi': 0, 'li': 0, 'ri': 0,
-                              'sl': 0, 'sb': 0, 'sa': 0})
+                              'sl': 0, 'sb': 0, 'sa': 0,
+                              'keep': False, 'keepn': False})
             quote_open = False
             quote_fi_cols = None
         if b.kind == 'colbreak':
@@ -3717,6 +3795,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 continue
             parts.append(r'\page ')
             continue
+        # NB `keep` is already `emit_rtf`'s note-kind set; these two are
+        # the PARAGRAPH keep properties and are named apart from it.
+        keep_para, keepn_para = keep_plan.get(bi, (False, False))
         li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
             # round 17 (RULINGS-LEDGER row 8, register C9b/2026-08-17 point 8):
@@ -3757,7 +3838,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             pm_fi = _rtf_pm_fi_twips(b, li)
             _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri,
                            sl=sl, sb=(doc_sb or 0), sa=(doc_sa or 0),
-                           fi_twips=pm_fi)
+                           fi_twips=pm_fi, keep=keep_para, keepn=keepn_para)
             continue
         if b.heading:
             quote_open = False
@@ -3769,7 +3850,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             lines = [rtf_seg(_maybe_strip_align(b, list(line.spans)), b)
                      for line in merged_lines(b)]
             lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
-            _rtf_emit_para(parts, rtf_state, b, lines, li=li, ri=ri)
+            _rtf_emit_para(parts, rtf_state, b, lines, li=li, ri=ri,
+                           keep=keep_para, keepn=keepn_para)
             parts.extend([r'\par '] * trailing_blank_lines(b))
             continue
         quote = _is_quote_style(b)
@@ -3808,7 +3890,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
 
         def flush_plain_run(b=b, bi=bi, li=li, ri=ri, quote=quote,
                             dominant=dominant, rows_lines=plain_run_lines,
-                            block_start=plain_run_is_block_start):
+                            block_start=plain_run_is_block_start,
+                            keep_flags=(keep_para, keepn_para)):
             nonlocal quote_fi_cols
             if not rows_lines:
                 return
@@ -3854,7 +3937,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 tight_sl = (_rtf_verse_tight_sl_twips()
                             if (is_verse or b.align == 'center') else 0)
                 _rtf_emit_para(parts, rtf_state, b, lines, indent_cols,
-                               li=li, ri=ri, sl=tight_sl)
+                               li=li, ri=ri, sl=tight_sl,
+                               keep=keep_flags[0], keepn=keep_flags[1])
             rows_lines.clear()
 
         for line, s in rows:
@@ -3878,7 +3962,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                                         style_id=b.style_id, wrap=b.wrap)
                         _rtf_emit_para(parts, rtf_state, centred, [seg],
                                        li=li, ri=ri,
-                                       sl=_rtf_verse_tight_sl_twips())
+                                       sl=_rtf_verse_tight_sl_twips(),
+                                       keep=keep_para, keepn=keepn_para)
                 else:
                     plain_run_lines.append(line)
                 continue
@@ -3886,7 +3971,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             flush_plain_run()
             plain_run_is_block_start[0] = False
             _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg,
-                               doc, li, ri)
+                               doc, li, ri, keep=keep_para, keepn=keepn_para)
         flush_plain_run()
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
