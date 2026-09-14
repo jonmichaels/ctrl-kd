@@ -501,6 +501,69 @@ REASON_RASTER_POSITION_SHIFT = 'raster-position-shift'
 REASON_RASTER_SIZE_MISMATCH = 'raster-size-mismatch'
 REASON_RASTER_COUNT_MISMATCH = 'raster-count-mismatch'
 
+# ------------------------------------------- the printer's right ceiling
+# Planning #270 item 27 / triage Q1, Jon's ruling 2026-09-13: "We are sure
+# it's a WordStar doc. Assuming it is, it's what WordStar is doing. We
+# shouldn't 'correct' it in Native or Printed. It's 'corrected' in Modern."
+# -- the RENDERING is unchanged (Printed and Native keep placing a word at
+# its true position, off the sheet, exactly where WordStar puts it); what
+# changes is what this COMPARATOR says about it.
+#
+# THE MECHANISM. Some documents (`REF/MACBOOK.AIR`, `REF/WIN7.ETC`,
+# `REF/WINDOWS.8` and the three `RTF-RJS` files) carry lines far longer
+# than the measure. WordStar prints the start of such a line and then
+# simply stops moving right: the LaserJet's own horizontal position
+# counter saturates, and the capture -- which records each chunk's x in
+# DECIPOINTS -- reports every word past that point at exactly 9999
+# decipoints, 999.9pt. Our engine has no such counter and keeps counting,
+# so it reports the word's TRUE x (1015.2pt, 1166.4pt, ...).
+#
+# 999.9pt is 13.89 inches. The sheet is 8.5 x 11 inches, so a word at the
+# ceiling is at least 388pt off the right edge of the paper, and so is any
+# engine word beyond that same edge. NEITHER SIDE DEPOSITS INK. The two
+# numbers differ only in how far off an invisible word is -- the on-paper
+# result is identical, which is the condition Jon's ruling names.
+#
+# The guard below therefore scores such a PAIR a match, and is written to
+# be conservative in all three directions:
+#   * the WS7 side must actually be AT the saturation value -- a word at
+#     990pt is a real measurement and stays judged;
+#   * the engine side must start beyond the WIDEST edge of the physical
+#     sheet the capture itself records (`max(page_size_in)`, so a
+#     landscape capture is bounded by its 11in side, never its 8.5in
+#     one) -- an engine word still ON the paper against a saturated WS7
+#     one is a REAL divergence and stays reported, which is what keeps
+#     the `RTF-RJS` documents' own `line-start-shift` findings (engine
+#     x = 0.0 against a saturated WS7 x) visible;
+#   * and the sheet must itself be narrower than the ceiling, so the
+#     "the WS7 word is off the paper too" half of the claim is checked
+#     per document rather than assumed.
+PCL_X_CEILING_PT = 999.9
+
+
+def both_words_are_off_the_paper(ws7_x_pt: float, engine_x_pt: float,
+                                 sheet_right_pt: float) -> bool:
+    """True when WS7's own position counter has saturated AND the engine's
+    word starts past the right edge of the sheet -- i.e. neither side puts
+    any ink on the paper, so the printed result is identical however far
+    apart the two invisible coordinates are. Planning #270 item 27."""
+    if sheet_right_pt is None or sheet_right_pt >= PCL_X_CEILING_PT:
+        return False
+    return ws7_x_pt >= PCL_X_CEILING_PT and engine_x_pt >= sheet_right_pt
+
+
+def sheet_right_edge_pt(ws7_meta: dict) -> float:
+    """The widest edge of the PHYSICAL sheet a capture records, in points.
+    `page_size_in` is the paper, not the rotated page (a `.pr or=l`
+    capture still records [8.5, 11.0]), so the widest side is the
+    conservative bound: a word beyond it is off the paper in EITHER
+    orientation. None when the capture doesn't record a size."""
+    size = (ws7_meta or {}).get('page_size_in')
+    if not size:
+        return None
+    return max(float(v) for v in size) * 72.0
+
+
 ALL_REASONS = frozenset({
     REASON_PAGE_COUNT_MISMATCH, REASON_PCL_REPARSE_MISMATCH,
     REASON_WORD_UNMATCHED, REASON_EXTRA_WORD_IN_ENGINE,
@@ -2042,6 +2105,10 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
                    f"to match this engine's stock-default rendering at 0.0pt")
 
     no_substitute_word_count = 0
+    # Planning #270 item 27 (triage Q1): the physical sheet this capture
+    # was printed on, so a pair BOTH of whose sides land off its right
+    # edge can be scored a match -- see both_words_are_off_the_paper.
+    sheet_right_pt = sheet_right_edge_pt(ws7_meta)
     for page, items in sorted(by_page.items()):
         calibration_items = _page_calibration_items(items)
         offset = fg.frame_offset([d for (_, _, d) in calibration_items])
@@ -2066,6 +2133,17 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
                     pdf_pos, tier, detail=f"WS7 page {d['ws7_page']} word matched an engine "
                                  f"word on page {d['engine_page']} instead")
                 continue
+
+            # Planning #270 item 27 (triage Q1), Jon's ruling 2026-09-13.
+            # WS7's own position counter has saturated at 999.9pt and the
+            # engine's word starts past the sheet's right edge: neither
+            # side puts ink on the paper, so the printed result is
+            # identical and this pair is a MATCH. Raw positions, never
+            # the page-calibrated residuals -- the question is where the
+            # two words are on the physical sheet, not how they drift.
+            if both_words_are_off_the_paper(w['x'], e['x'], sheet_right_pt):
+                continue
+
             resid_dx = d['dx'] - mx
             resid_dy = d['dy'] - my
 

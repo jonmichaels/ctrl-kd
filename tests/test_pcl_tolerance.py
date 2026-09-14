@@ -944,3 +944,58 @@ def test_lsrbox_is_parked_with_lj6dtp_and_loses_no_sole_coverage():
             assert f'def {name}(' in src, (
                 f'{name} is LSRBOX.WS mechanism coverage and LSRBOX.WS is '
                 f'parked out of the pcl tier -- {filename} must keep it')
+
+
+# -------------------------------------------- the printer's right ceiling
+def test_a_saturated_ws7_x_and_an_off_paper_engine_x_are_a_match():
+    """planning #270 item 27 / triage Q1, Jon's ruling 2026-09-13 ("We
+    shouldn't 'correct' it in Native or Printed. It's 'corrected' in
+    Modern.").
+
+    WordStar prints the start of an over-long line and then stops moving
+    right: the LaserJet's horizontal position counter saturates and the
+    capture reports every later word at exactly 9999 decipoints
+    (999.9pt). Our engine keeps counting and reports the word's true x.
+    Both are far off the right edge of an 8.5x11in sheet, so NEITHER
+    deposits ink and the printed result is identical -- a match. Real
+    numbers, `REF/MACBOOK.AIR` page 1: WS7 999.9 against engine 1015.2,
+    1051.2, 1080.0 and 1166.4."""
+    letter = pt.sheet_right_edge_pt({'page_size_in': [8.5, 11.0]})
+    assert letter == 792.0   # the WIDEST side, so either orientation is covered
+    for engine_x in (1015.2, 1051.2, 1080.0, 1166.4):
+        assert pt.both_words_are_off_the_paper(999.9, engine_x, letter)
+
+
+def test_an_engine_word_still_on_the_paper_is_never_scored_a_match():
+    """The other half of the same ruling: "when the on-paper ink is
+    identical". A saturated WS7 word against an engine word that is still
+    ON the sheet is a REAL divergence -- one side prints something, the
+    other prints nothing -- and must stay reported. This is what keeps the
+    three `RTF-RJS` documents' own line-start findings (engine x = 0.0,
+    the left margin, against a saturated WS7 x) visible."""
+    letter = pt.sheet_right_edge_pt({'page_size_in': [8.5, 11.0]})
+    for engine_x in (0.0, 57.6, 300.0, 611.0, 791.9):
+        assert not pt.both_words_are_off_the_paper(999.9, engine_x, letter)
+
+
+def test_a_ws7_x_short_of_the_ceiling_is_a_real_measurement():
+    """A WS7 word at 990pt is not saturated -- it is where the printer
+    actually put it -- so the guard must not fire, however far off the
+    sheet it is. Only the ceiling value itself means "we cannot know"."""
+    letter = pt.sheet_right_edge_pt({'page_size_in': [8.5, 11.0]})
+    assert pt.PCL_X_CEILING_PT == 999.9
+    assert not pt.both_words_are_off_the_paper(990.0, 1200.0, letter)
+    assert not pt.both_words_are_off_the_paper(999.8, 1200.0, letter)
+    assert pt.both_words_are_off_the_paper(999.9, 1200.0, letter)
+
+
+def test_the_guard_refuses_a_sheet_as_wide_as_the_ceiling():
+    """The claim "the WS7 word is off the paper too" is CHECKED per
+    document, never assumed: on a hypothetical sheet at least as wide as
+    the ceiling, a word at 999.9pt could still be on the paper, so the
+    guard declines rather than silently scoring a match. Same for a
+    capture that records no page size at all."""
+    assert not pt.both_words_are_off_the_paper(999.9, 1200.0, 1000.0)
+    assert not pt.both_words_are_off_the_paper(999.9, 1200.0, None)
+    assert pt.sheet_right_edge_pt({}) is None
+    assert pt.sheet_right_edge_pt(None) is None
