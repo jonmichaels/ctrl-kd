@@ -439,3 +439,143 @@ def test_a_footer_governs_the_page_it_is_read_on():
     assert not pages[0].headers, pages[0].headers      # `.he` is one line late
     assert not pages[1].footers, pages[1].footers      # the bare `.fo` cleared it
     assert pages[1].headers.get(1) == 'HEAD #', pages[1].headers
+
+
+# ---------------------------------------------------------------------------
+# Planning #270 item 39 / triage Q6 -- two of the five HOLYMAC residuals.
+#
+#   D. `.pm`'s first-line indent reaches the PRINTED page only when print-time
+#      paragraph realignment is on. MicroPro's own file-format reference is the
+#      definition (`WSFORMAT.TXT`, the `.PF` row): "When OFF, paragraphs are not
+#      realigned... Paragraphs are aligned using the left, right, and paragraph
+#      margins currently in effect." With realignment off -- every archive file
+#      but seven -- WordStar prints the stored physical lines verbatim and the
+#      margins are edit-time state that already spent itself at typing time.
+#      MEASURED: `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS` (v4 PRISTINE capture, no
+#      `.pf` anywhere, `.pm4` in force) opens its pages 223, 258 and 293 at the
+#      plain left edge where this engine indented 3 columns, +21.60pt, 16
+#      divergences.
+#
+#   E. A run that is all whitespace draws no text-showing op. Real WS7 never
+#      sends blanks to a printer -- PCL moves the cursor instead -- so a blank
+#      text op is ink no capture can contain. MEASURED: `-HOLYMAC.WS` pages 12
+#      and 13 carry a WordStar screen diagram whose text line ends in a bare CR
+#      (a real `^PM` overprint) and is overprinted by a line of 78 blanks
+#      carrying the box's right-hand rule; the blanks drawn ACROSS the text cut
+#      every word underneath into single letters for any reader that forms
+#      words from characters, 32 divergences reported as "WS7 word missing" for
+#      text that was on the page the whole time.
+
+
+def test_pf_is_read_as_three_values_not_two():
+    """`.pf` is ON / OFF / DIS, and `dis` is not `off` -- `_onoff` would read
+    `dis` as neither and leave the state standing, which is why `.pf` has its
+    own reader. Junk leaves the state alone, same as every other stateful dot
+    command in `_parse_format_dot`."""
+    for arg, want in ((b'on', 'on'), (b'ON', 'on'), (b'off', 'off'),
+                      (b'OFF', 'off'), (b'dis', 'dis'), (b' Dis ', 'dis')):
+        doc = core.parse_ws(ws7_block(0x00) + b'.pf ' + arg + HARD
+                            + b'Some ordinary prose for the detector.' + HARD)
+        assert doc.blocks[0].print_reformat == want, (arg, doc.blocks[0].print_reformat)
+    doc = core.parse_ws(ws7_block(0x00) + b'.pf maybe' + HARD
+                        + b'Some ordinary prose for the detector.' + HARD)
+    assert doc.blocks[0].print_reformat is None
+    doc = core.parse_ws(ws7_block(0x00)
+                        + b'Some ordinary prose for the detector.' + HARD)
+    assert doc.blocks[0].print_reformat is None       # never said is not "off"
+
+
+def test_pf_change_closes_the_block_it_lands_in():
+    """`.pf` is stateful and mid-paragraph it means the lines after it are
+    realigned and the ones before are not -- one Block cannot hold both, the
+    same reason `.lm` is in `_block_stamp`."""
+    doc = core.parse_ws(ws7_block(0x00) + b'.pf off' + HARD + b'Before it.' + HARD
+                        + b'.pf on' + HARD + b'After it.' + HARD)
+    reformats = [b.print_reformat for b in doc.blocks if b.kind == 'para']
+    assert reformats == ['off', 'on'], reformats
+
+
+def test_pm_does_not_indent_a_printed_line_without_pf_on():
+    """The HOLYMAC shape: `.pm` in force, `.pf` never set. The first line of
+    the paragraph starts at the plain left edge, exactly where WS7 prints it,
+    and the `.pm` column contributes nothing."""
+    src = (ws7_block(0x00) + b'.pm 4' + HARD
+           + b'First line of the paragraph.' + HARD
+           + b'Second line of the paragraph.' + HARD)
+    doc = core.parse_ws(src)
+    assert doc.blocks[0].para_margin == 3.0          # parsed, just not printed
+    assert pdf._printed_pm_fi_pt(doc.blocks[0]) is None
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    first = re.search(rb'([\d.]+) [\d.]+ Td \(First line', out)
+    second = re.search(rb'([\d.]+) [\d.]+ Td \(Second line', out)
+    assert first and second
+    assert first.group(1) == second.group(1), (first.group(1), second.group(1))
+
+
+def test_pm_still_indents_a_printed_line_under_pf_on():
+    """The other half of the same gate: the seven `.pf`-bearing archive files
+    keep the behaviour they had. `.pm 4` -> 3 offset columns -> 21.6pt."""
+    src = (ws7_block(0x00) + b'.pf on' + HARD + b'.pm 4' + HARD
+           + b'First line of the paragraph.' + HARD
+           + b'Second line of the paragraph.' + HARD)
+    doc = core.parse_ws(src)
+    assert pdf._printed_pm_fi_pt(doc.blocks[0]) == 21.6
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    first = re.search(rb'([\d.]+) [\d.]+ Td \(First line', out)
+    second = re.search(rb'([\d.]+) [\d.]+ Td \(Second line', out)
+    assert round(float(first.group(1)) - float(second.group(1)), 6) == 21.6
+
+
+def test_pm_indent_under_pf_dis_is_not_applied():
+    """`dis` realigns only when merge data is substituted, which never happens
+    on a document nobody merge-prints -- it is not `on`."""
+    src = (ws7_block(0x00) + b'.pf dis' + HARD + b'.pm 4' + HARD
+           + b'First line of the paragraph.' + HARD)
+    doc = core.parse_ws(src)
+    assert pdf._printed_pm_fi_pt(doc.blocks[0]) is None
+
+
+def test_a_whitespace_only_run_draws_no_text_op():
+    """A bold word, a plain space, an underlined word: the space between them
+    is its own span (the style changed on either side of it) and carries no
+    ink. It gets no `Tj`, and the words on either side keep the positions they
+    always had -- the advance is unchanged, only the blank op is gone."""
+    src = (ws7_block(0x00) + b'\x02bold\x02 \x13under\x13 and more prose here.' + HARD
+           + b'A second line so the detector reads a document.' + HARD)
+    out = pdf.emit_pdf(core.parse_ws(src), mode='printed', page_numbers='off')
+    shown = re.findall(rb'Td \(([^)]*)\) Tj', out)
+    assert not any(s and not s.strip() for s in shown), shown
+    assert b'bold' in shown and b'under' in shown
+
+
+def test_continuous_underline_across_inner_blanks_is_untouched():
+    """What makes the skip safe. `_rules` has ALWAYS returned nothing for a
+    whitespace-only run (`if not text.strip(): return ops`), so the invisible
+    `Tj` was the only thing such a run still put in the stream. Underlining
+    the blanks BETWEEN words -- the whole point of `.ul on` -- is drawn by the
+    run that carries the LETTERS, across its own full width, and is unchanged:
+    one rule, 31 characters wide, over "under lined across the blanks"."""
+    src = (ws7_block(0x00) + b'.ul on' + HARD
+           + b'\x13under lined across the blanks\x13' + HARD
+           + b'A second line so the detector reads a document.' + HARD)
+    out = pdf.emit_pdf(core.parse_ws(src), mode='printed', page_numbers='off')
+    rules = re.findall(rb'0\.6 w ([\d.]+) ([\d.]+) m ([\d.]+) [\d.]+ l S', out)
+    assert len(rules) == 1, rules
+    x0, x1 = float(rules[0][0]), float(rules[0][2])
+    assert round(x1 - x0, 6) == round(29 * 7.2, 6), (x0, x1)
+
+
+def test_a_blank_overprint_line_leaves_the_words_beneath_it_whole():
+    """The measured HOLYMAC shape, reduced: a text line ending in a BARE CR
+    (`^PM`, WordStar's overprint) followed by a line of blanks that carries
+    one trailing mark. Read back as characters and re-segmented, the words on
+    the first line must survive as words -- before this, every blank drawn
+    across them split them letter by letter."""
+    src = (ws7_block(0x00)
+           + b'Display Center ChkRest ChkWord\x0d'
+           + b'                                  .' + HARD
+           + b'A second line so the detector reads a document.' + HARD)
+    out = pdf.emit_pdf(core.parse_ws(src), mode='printed', page_numbers='off')
+    shown = re.findall(rb'Td \(([^)]*)\) Tj', out)
+    assert b'Display Center ChkRest ChkWord' in shown, shown
+    assert not any(s and not s.strip() for s in shown), shown

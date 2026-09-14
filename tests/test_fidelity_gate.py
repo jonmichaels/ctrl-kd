@@ -77,7 +77,8 @@ def test_extract_pages_matches_pm_offset_from_test_printed_fidelity():
     test_printed_fidelity.py's own test_pm_shifts_printed_pdf_first_line_start_x
     asserts via regex: a `.pm 10` first-line indent shifts the leading Td x
     by 64.8pt (9 offset columns * 7.2pt/col) versus a baseline with none."""
-    doc = _plain_doc(b'.pm 10' + HARD + b'Some paragraph text without a typed indent at all.' + HARD)
+    doc = _plain_doc(b'.pf on' + HARD + b'.pm 10' + HARD
+                     + b'Some paragraph text without a typed indent at all.' + HARD)
     baseline = _plain_doc(b'Some paragraph text without a typed indent at all.' + HARD)
     # page_numbers='off': neither fixture touches .pn/.pg/.op, so the stock
     # automatic number (the real `auto` default since 2026-09-07,

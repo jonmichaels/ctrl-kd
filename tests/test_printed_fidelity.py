@@ -568,6 +568,7 @@ def test_page_numbers_headers_flag_off_also_suppresses():
 def test_pm_shifts_printed_pdf_first_line_start_x():
     doc = core.parse_ws(
         ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'.pf on' + HARD          # `.pm` prints only under realignment
         + b'.pm 10' + HARD
         + b'Some paragraph text without a typed indent at all.' + HARD)
     # `.pm 10` is a COLUMN NUMBER (1-based, same frame as `.lm`/`.po`) --

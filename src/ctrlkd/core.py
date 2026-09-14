@@ -257,6 +257,23 @@ class Block:
     left_margin: float = None
     right_margin: float = None
     para_margin: float = None
+    # `.pf` -- PRINT-TIME PARAGRAPH REALIGNMENT, in force when this block
+    # opened: 'on', 'off', 'dis' (discretionary), or None when the file never
+    # said. MicroPro's own file-format reference (WSFORMAT.TXT, the `.PF` row)
+    # is the definition: "Paragraph realignment while printing. May be ON,
+    # OFF, or DIS (for discretionary). When ON, subsequent paragraphs are
+    # realigned as they are printed. When OFF, paragraphs are not realigned.
+    # When DIS, paragraphs are realigned only when merge print data is
+    # substituted in the document. Paragraphs are aligned using the left,
+    # right, and paragraph margins currently in effect."
+    #
+    # That last sentence is why this exists at all: `.lm`/`.rm`/`.pm` reach the
+    # PRINTED page only through realignment. With realignment off -- which is
+    # every document in the corpus but seven -- WordStar prints the physical
+    # lines exactly as the editor stored them, indentation included, and the
+    # margins are EDIT-time state that already spent itself when the author
+    # typed. Seven files in the archive set `.pf` at all.
+    print_reformat: str = None
     # `.co <n>, <gutter>` -- newspaper columns in force when this block opened, and
     # the gutter between them in print columns. None means the file never asked,
     # which is not the same as asking for one column. Register C5.
@@ -2910,6 +2927,18 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         v = _onoff(arg)
         if v is not None:
             state['proportional'] = v
+    elif name == b'PF':                     # print-time paragraph realignment
+        # Three values, not two, so `_onoff` is the wrong reader: WSFORMAT.TXT's
+        # own `.PF` row names ON, OFF and DIS. Anything else leaves the state
+        # standing, the same doctrine every other command in this function
+        # follows for junk arguments. The archive writes `.pf on`, `.pf OFF`.
+        a = arg.strip().lower()
+        if a[:3] == b'dis':
+            state['print_reformat'] = 'dis'
+        elif a[:2] == b'on':
+            state['print_reformat'] = 'on'
+        elif a[:3] == b'off':
+            state['print_reformat'] = 'off'
     elif name == b'KR':                     # kerning
         v = _onoff(arg)
         if v is not None:
@@ -3183,6 +3212,10 @@ def _block_format(state: dict) -> tuple:
             state.get('left_margin'), state.get('right_margin'),
             state.get('para_margin'), state.get('columns'),
             state.get('column_gutter'),
+            # `.pf` mid-paragraph means the lines after it are realigned at
+            # print time and the ones before are not -- the same reason
+            # `.lm` is here.
+            state.get('print_reformat'),
             # `.tb` mid-paragraph means the lines after it were typed
             # against different stops (2026-08-06) -- rendering doesn't
             # change, but per-block fidelity of the carried state does
@@ -5370,6 +5403,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      left_margin=style_fmt.get('left_margin', fmt.get('left_margin')),
                      right_margin=style_fmt.get('right_margin', fmt.get('right_margin')),
                      para_margin=style_fmt.get('para_margin', fmt.get('para_margin')),
+                     print_reformat=fmt.get('print_reformat'),
                      tab_stops=fmt.get('tab_stops'),
                      columns=fmt.get('columns'),
                      column_gutter=fmt.get('column_gutter'),

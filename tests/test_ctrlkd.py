@@ -4881,7 +4881,17 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     its own `.mt` -- see `_printed_top`'s own docstring. Moves the two
     default-`.mt` PRINTED fixtures (`make_prose`, `styled`) up 24pt; the
     print-stream fixture is UNCHANGED (`page is None` -> the fixed
-    `TOP_PRINTED` constant, never `.mt`-derived either way)."""
+    `TOP_PRINTED` constant, never `.mt`-derived either way).
+
+    Re-pinned a SIXTH time 2026-09-14 (the `styled` PRINTED hash ONLY --
+    the other three are untouched): a run that is all whitespace no longer
+    gets a text-showing op of its own (`_line_ops_printed`, planning #270
+    item 39). Blanks put no ink on paper in any face; the advance and the
+    underline/strikeout rules are unchanged, which is why only the ONE
+    fixture that happens to contain a whitespace-only span -- the single
+    space between `\x02bold\x02` and `\x13under\x13` -- moves at all. The
+    underline rule for the run that IS underlined is still emitted
+    (`0.6 w 136.8 742.5 m 172.8 742.5 l S`), verified in the stream."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4897,7 +4907,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'cd3760328da8b4ffadd366e6d253a8e9cf3adbe1981fa68f7f1c5a8bc472c87b'
     assert digest(core.parse_ws(styled), 'printed') == \
-        'a2d067710cee2ebd9f4b86274f2e787d3bf1d304a582dd9d02103956334fe183'
+        '0f0797c238b8e8e347baa2eca89c3cfb363c8b1a38dc73a65acac2cb8df30472'
     assert digest(core.parse_printstream(stream), 'printed') == \
         '9dec7b10d0158a392bf684b63ff1e243f821a86194354b53f1095b23533c59f6'
 
@@ -5417,7 +5427,8 @@ def test_pm_first_line_indent_still_applies_with_no_typed_indent():
     `fi` must still apply there, unchanged."""
     from ctrlkd.pdf import emit_pdf
     data = (ws7_block(0x00)
-            + b'.pm 5' + HARD
+            + b'.pf on' + HARD           # `.pm` reaches the printed page only
+            + b'.pm 5' + HARD            # through print-time realignment
             + _helv_font_block()
             + b'No typed indent on this first line at all.' + HARD
             + b'No typed indent on this continuation either.' + HARD)
@@ -5495,6 +5506,7 @@ def test_pm_first_line_indent_tops_up_a_shorter_typed_indent():
     literal characters inside the Tj string on top of it."""
     from ctrlkd.pdf import emit_pdf
     data = (ws7_block(0x00)
+            + b'.pf on' + HARD                     # see `_printed_pm_fi_pt`'s gate
             + b'.pm 6' + HARD                      # column 6 -> 5 offset cols
             + b'  Two typed leading spaces only, short of the pm column.' + HARD)
     doc = core.parse_ws(data)

@@ -1713,7 +1713,35 @@ def _printed_pm_fi_pt(block):
     cols`, where planning #264 item 2 moved it so Printed RTF asks the same
     question. Its docstring carries the WARPRAYR.WS (planning #202) and
     -HOW-TO.RJS (planning #257) evidence. This function is only that answer
-    in points."""
+    in points.
+
+    `.pf` GATE (planning #270 item 39 / triage Q6, 2026-09-14). A paragraph
+    margin reaches the PRINTED page only through print-time realignment.
+    MicroPro's own file-format reference says so in one sentence -- `.PF`:
+    "When OFF, paragraphs are not realigned... Paragraphs are aligned using
+    the left, right, and paragraph margins currently in effect" -- and the
+    corpus agrees: with realignment off WordStar prints the stored physical
+    lines verbatim, whatever indentation the author typed included, and
+    `.lm`/`.rm`/`.pm` are EDIT-time state that already spent itself at typing
+    time (which is exactly why this module has never applied `.lm` to a
+    printed line either).
+
+    MEASURED, `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS` (v4 PRISTINE capture,
+    no `.pf` anywhere in the file, `.pm4` in force): its pages 223, 258 and
+    293 each open with a line real WS7 prints at the plain left edge (x
+    72.0pt, and 77.5pt for the page-293 footnote's own superscript) while
+    this engine indented all three by `.pm`'s 3 columns, +21.60pt, 17
+    divergences. Every other `.pm`-bearing block in the HOLYMAC set
+    (`7MAC1`/`7MAC2`/`7MAC3`, clean) opens on a BLANK line, so the indent
+    never showed and none of them was evidence either way. No document in
+    the corpus prints a `.pm` first-line indent with `.pf` off.
+
+    The seven `.pf`-bearing archive files (`PRINT.TST` x2, `PSPRINT.TST`,
+    `REF/REFORM.DOT`, `FONTS/PS/ERROR.WS`, and two `.MRG` merge files that
+    say `.pf OFF`) keep exactly the behaviour they had. `dis` is treated as
+    not-on here, which is what it is for a document nobody merge-prints."""
+    if getattr(block, 'print_reformat', None) != 'on':
+        return None
     cols = _pm_first_line_indent_cols(block)
     return None if cols is None else cols * _PDF_PT_PER_COL
 
@@ -8343,17 +8371,43 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         want = TZ_DEFAULT if scale is None else round(scale, 2)
         symbol_bold = family == 'Symbol' and 'b' in styles
         symbol_italic = family == 'Symbol' and 'i' in styles
-        if symbol_bold or symbol_italic:
-            ops.append(_symbol_style_op(font, pt, rise, want, tz_state, x, y,
-                                        _esc(text), symbol_bold,
-                                        symbol_italic))
-        elif want == tz_state[0]:
-            ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                       (font.encode(), pt, rise, x, y, _esc(text)))
-        else:
-            ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
-                       (font.encode(), pt, rise, want, x, y, _esc(text)))
-            tz_state[0] = want
+        # BLANKS PUT NO INK ON THE PAPER (planning #270 item 39 / triage Q6,
+        # 2026-09-14). A run that is all whitespace draws no glyph in any
+        # face, so it gets no text-showing op; it still moves the print
+        # position, which is why `x += w` below stays unconditional. This is
+        # not a new rule -- it is the SAME test the justified branch a few
+        # lines above has always applied (`if piece.strip():`), finally asked
+        # on the ordinary branch too, and `_rules` has ALWAYS returned empty
+        # for a whitespace-only run (its own `if not text.strip(): return
+        # ops`). So the invisible `Tj` was the last and only thing such a run
+        # still put in the stream, and it is what goes. Continuous
+        # underlining across the blanks INSIDE a mixed run is untouched:
+        # that rule is drawn by the run that carries the letters, over its
+        # own full width, spaces included.
+        #
+        # It is a real fidelity defect, not tidiness. Real WS7 never sends
+        # blanks to the printer -- a PCL stream moves the cursor instead --
+        # so a blank text op is ink the capture cannot contain. Measured on
+        # `-HOLYMAC.WS` pages 12-13 (and `1-3MAC` pages 12-13): a WordStar
+        # SCREEN DIAGRAM whose text line ends in a bare CR (a real `^PM`
+        # overprint) and is overprinted by a line of 78 blanks carrying the
+        # box's right-hand rule. The engine's glyphs landed on WS7's own
+        # word positions to the decipoint, but the 78 blanks drawn ACROSS
+        # them cut every word underneath into single letters for any reader
+        # that forms words from characters -- 52 divergences reported as
+        # "WS7 word missing" for text that was on the page all along.
+        if text.strip():
+            if symbol_bold or symbol_italic:
+                ops.append(_symbol_style_op(font, pt, rise, want, tz_state, x, y,
+                                            _esc(text), symbol_bold,
+                                            symbol_italic))
+            elif want == tz_state[0]:
+                ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), pt, rise, x, y, _esc(text)))
+            else:
+                ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), pt, rise, want, x, y, _esc(text)))
+                tz_state[0] = want
         ops += _rules(styles, text, x, y, w, ul_continuous)
         x += w
     return ops

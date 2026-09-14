@@ -6698,10 +6698,9 @@
       "n_engine_pages": 302,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 14,
-        "extra-word-in-engine": 1,
-        "line-start-shift": 3,
-        "word-unmatched": 36
+        "exact-drift": 1,
+        "extra-word-in-engine": 9,
+        "word-unmatched": 12
       },
       "divergences": [
         {
@@ -6726,263 +6725,131 @@
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 223,
-          "line_y_top_pt": 72.0,
+          "page": 12,
+          "line_y_top_pt": 504.0,
           "words": [
-            "ZapPage",
-            "ZapPage"
+            "BegBlk1EndBlk"
           ],
-          "ws7_pos": [
-            100.8,
-            72.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            122.4,
-            72.0
+            489.6,
+            504.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 223,
-          "line_y_top_pt": 72.0,
+          "page": 12,
+          "line_y_top_pt": 516.0,
           "words": [
-            "(7.0):",
-            "(7.0):"
+            "1Help"
           ],
-          "ws7_pos": [
-            158.4,
-            72.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            180.0,
-            72.0
+            28.8,
+            516.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 223,
-          "line_y_top_pt": 72.0,
+          "page": 12,
+          "line_y_top_pt": 516.0,
           "words": [
-            "Sub",
-            "Sub"
+            "3Undrlin4Bold"
           ],
-          "ws7_pos": [
-            216.0,
-            72.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            237.6,
-            72.0
+            144.0,
+            516.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 223,
-          "line_y_top_pt": 72.0,
+          "page": 12,
+          "line_y_top_pt": 516.0,
           "words": [
-            "Main",
-            "Main"
+            "5DelLine6DelWord7Align"
           ],
-          "ws7_pos": [
-            244.8,
-            72.0
-          ],
-          "pdf_pos": [
-            266.4,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 258,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "CopName-1",
-            "CopName-1"
-          ],
-          "ws7_pos": [
-            108.0,
-            72.0
-          ],
-          "pdf_pos": [
-            129.6,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 258,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "(4.0):",
-            "(4.0):"
-          ],
-          "ws7_pos": [
-            180.0,
-            72.0
-          ],
-          "pdf_pos": [
-            201.6,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 258,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "^QS^KB^QG*^E^QD^KK^E^QD^M^Q3^S^KC^Q3^K3",
-            "^QS^KB^QG*^E^QD^KK^E^QD^M^Q3^S^KC^Q3^K3"
-          ],
-          "ws7_pos": [
-            237.6,
-            72.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
             259.2,
-            72.0
+            516.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
+          "page": 13,
+          "line_y_top_pt": 336.0,
           "words": [
-            "labels",
-            "labels"
+            "BegBlk1EndBlk"
           ],
-          "ws7_pos": [
-            120.7,
-            708.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            142.3,
-            708.0
+            489.6,
+            336.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
+          "page": 13,
+          "line_y_top_pt": 348.0,
           "words": [
-            "are",
-            "are"
+            "1Help"
           ],
-          "ws7_pos": [
-            171.1,
-            708.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            192.7,
-            708.0
+            28.8,
+            348.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
+          "page": 13,
+          "line_y_top_pt": 348.0,
           "words": [
-            "boldfaced.",
-            "boldfaced."
+            "3Undrlin4Bold"
           ],
-          "ws7_pos": [
-            199.9,
-            708.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            221.5,
-            708.0
+            144.0,
+            348.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
+          "page": 13,
+          "line_y_top_pt": 348.0,
           "words": [
-            "Parenthetical",
-            "Parenthetical"
+            "5DelLine6DelWord7Align"
           ],
-          "ws7_pos": [
-            286.3,
-            708.0
-          ],
+          "ws7_pos": null,
           "pdf_pos": [
-            307.9,
-            708.0
+            259.2,
+            348.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "references",
-            "references"
-          ],
-          "ws7_pos": [
-            387.1,
-            708.0
-          ],
-          "pdf_pos": [
-            408.7,
-            708.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "are",
-            "are"
-          ],
-          "ws7_pos": [
-            466.3,
-            708.0
-          ],
-          "pdf_pos": [
-            487.9,
-            708.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +21.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
@@ -7002,210 +6869,6 @@
         },
         {
           "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 223,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "91.",
-            "91."
-          ],
-          "ws7_pos": [
-            72.0,
-            72.0
-          ],
-          "pdf_pos": [
-            93.6,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +21.60pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 258,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "232.",
-            "232."
-          ],
-          "ws7_pos": [
-            72.0,
-            72.0
-          ],
-          "pdf_pos": [
-            93.6,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +21.60pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 293,
-          "line_y_top_pt": 708.0,
-          "words": [
-            "Macro",
-            "Macro"
-          ],
-          "ws7_pos": [
-            77.5,
-            708.0
-          ],
-          "pdf_pos": [
-            99.1,
-            708.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +21.60pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Display"
-          ],
-          "ws7_pos": [
-            28.8,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Center"
-          ],
-          "ws7_pos": [
-            86.4,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "ChkRest"
-          ],
-          "ws7_pos": [
-            144.0,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "ChkWord"
-          ],
-          "ws7_pos": [
-            201.6,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Del"
-          ],
-          "ws7_pos": [
-            259.2,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "Blk"
-          ],
-          "ws7_pos": [
-            288.0,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "HideBlk"
-          ],
-          "ws7_pos": [
-            316.8,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "MoveBlk"
-          ],
-          "ws7_pos": [
-            374.4,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 504.0,
-          "words": [
-            "CopyBlk"
-          ],
-          "ws7_pos": [
-            432.0,
-            504.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
           "page": 12,
           "line_y_top_pt": 504.0,
           "words": [
@@ -7241,22 +6904,6 @@
           "page": 12,
           "line_y_top_pt": 516.0,
           "words": [
-            "2Undo"
-          ],
-          "ws7_pos": [
-            86.4,
-            516.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 516.0,
-          "words": [
             "3Undrlin4Bold3"
           ],
           "ws7_pos": [
@@ -7278,182 +6925,6 @@
           "ws7_pos": [
             259.2,
             516.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "8Ruler"
-          ],
-          "ws7_pos": [
-            432.0,
-            516.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 516.0,
-          "words": [
-            "9Save&0Done"
-          ],
-          "ws7_pos": [
-            489.6,
-            516.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "Display"
-          ],
-          "ws7_pos": [
-            28.8,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "Center"
-          ],
-          "ws7_pos": [
-            86.4,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "ChkRest"
-          ],
-          "ws7_pos": [
-            144.0,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "ChkWord"
-          ],
-          "ws7_pos": [
-            201.6,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "Del"
-          ],
-          "ws7_pos": [
-            259.2,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "Blk"
-          ],
-          "ws7_pos": [
-            288.0,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "HideBlk"
-          ],
-          "ws7_pos": [
-            316.8,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "MoveBlk"
-          ],
-          "ws7_pos": [
-            374.4,
-            336.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 336.0,
-          "words": [
-            "CopyBlk"
-          ],
-          "ws7_pos": [
-            432.0,
-            336.0
           ],
           "pdf_pos": null,
           "font_class": "exact",
@@ -7497,22 +6968,6 @@
           "page": 13,
           "line_y_top_pt": 348.0,
           "words": [
-            "2Undo"
-          ],
-          "ws7_pos": [
-            86.4,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 348.0,
-          "words": [
             "3Undrlin4Bold3"
           ],
           "ws7_pos": [
@@ -7533,38 +6988,6 @@
           ],
           "ws7_pos": [
             259.2,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "8Ruler"
-          ],
-          "ws7_pos": [
-            432.0,
-            348.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__-HOLYMAC_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "9Save&0Done"
-          ],
-          "ws7_pos": [
-            489.6,
             348.0
           ],
           "pdf_pos": null,
@@ -7638,7 +7061,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 9887,
+        "n": 9889,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
@@ -24159,8 +23582,7 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "cgtimes-drift-exceeds-tolerance": 78,
-        "exact-drift": 7,
-        "line-start-shift": 1
+        "exact-drift": 7
       },
       "divergences": [
         {
@@ -25102,26 +24524,6 @@
           "font_class": "exact",
           "reason": "exact-drift",
           "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 168.0,
-          "words": [
-            "0Bh",
-            "0Bh"
-          ],
-          "ws7_pos": [
-            129.6,
-            168.0
-          ],
-          "pdf_pos": [
-            136.8,
-            168.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +7.20pt (tolerance 2.5pt)"
         }
       ],
       "document_frame_offset_pt": {
