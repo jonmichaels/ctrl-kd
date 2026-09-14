@@ -21025,311 +21025,11 @@
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 36,
-        "exact-drift": 18,
-        "line-start-shift": 2
+        "exact-drift": 7,
+        "extra-word-in-engine": 1,
+        "line-start-shift": 1
       },
       "divergences": [
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "Dots",
-            "Dots"
-          ],
-          "ws7_pos": [
-            57.6,
-            60.0
-          ],
-          "pdf_pos": [
-            57.6,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "have",
-            "have"
-          ],
-          "ws7_pos": [
-            115.2,
-            60.0
-          ],
-          "pdf_pos": [
-            115.2,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "one",
-            "one"
-          ],
-          "ws7_pos": [
-            151.2,
-            60.0
-          ],
-          "pdf_pos": [
-            151.2,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "thing",
-            "thing"
-          ],
-          "ws7_pos": [
-            180.0,
-            60.0
-          ],
-          "pdf_pos": [
-            180.0,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "display",
-            "display"
-          ],
-          "ws7_pos": [
-            223.2,
-            60.0
-          ],
-          "pdf_pos": [
-            223.2,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "editing,",
-            "editing,"
-          ],
-          "ws7_pos": [
-            302.4,
-            60.0
-          ],
-          "pdf_pos": [
-            302.4,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "but",
-            "but"
-          ],
-          "ws7_pos": [
-            367.2,
-            60.0
-          ],
-          "pdf_pos": [
-            367.2,
-            60.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "during",
-            "during"
-          ],
-          "ws7_pos": [
-            57.6,
-            72.0
-          ],
-          "pdf_pos": [
-            180.0,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "printing",
-            "printing"
-          ],
-          "ws7_pos": [
-            108.0,
-            72.0
-          ],
-          "pdf_pos": [
-            230.4,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 96.0,
-          "words": [
-            ".oj",
-            ".oj"
-          ],
-          "ws7_pos": [
-            64.8,
-            96.0
-          ],
-          "pdf_pos": [
-            64.8,
-            96.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 108.0,
-          "words": [
-            ".if",
-            ".if"
-          ],
-          "ws7_pos": [
-            64.8,
-            108.0
-          ],
-          "pdf_pos": [
-            64.8,
-            108.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 120.0,
-          "words": [
-            ".oj",
-            ".oj"
-          ],
-          "ws7_pos": [
-            64.8,
-            120.0
-          ],
-          "pdf_pos": [
-            64.8,
-            120.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "off",
-            "off"
-          ],
-          "ws7_pos": [
-            93.6,
-            120.0
-          ],
-          "pdf_pos": [
-            93.6,
-            120.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 132.0,
-          "words": [
-            ".ei",
-            ".ei"
-          ],
-          "ws7_pos": [
-            64.8,
-            132.0
-          ],
-          "pdf_pos": [
-            64.8,
-            132.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 156.0,
-          "words": [
-            "Since",
-            "Since"
-          ],
-          "ws7_pos": [
-            57.6,
-            156.0
-          ],
-          "pdf_pos": [
-            57.6,
-            156.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
           "page": 1,
@@ -21343,12 +21043,12 @@
             156.0
           ],
           "pdf_pos": [
-            116.1,
+            117.3,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21363,12 +21063,12 @@
             156.0
           ],
           "pdf_pos": [
-            160.2,
+            146.1,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21383,12 +21083,12 @@
             156.0
           ],
           "pdf_pos": [
-            211.5,
+            182.1,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21403,12 +21103,12 @@
             156.0
           ],
           "pdf_pos": [
-            291.6,
+            246.9,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21423,12 +21123,12 @@
             156.0
           ],
           "pdf_pos": [
-            408.6,
+            333.3,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21443,352 +21143,12 @@
             156.0
           ],
           "pdf_pos": [
-            459.9,
+            369.3,
             156.0
           ],
           "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "right:",
-            "right:"
-          ],
-          "ws7_pos": [
-            424.8,
-            216.0
-          ],
-          "pdf_pos": [
-            57.6,
-            240.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 240.0,
-          "words": [
-            ".pf",
-            ".pf"
-          ],
-          "ws7_pos": [
-            64.8,
-            240.0
-          ],
-          "pdf_pos": [
-            273.6,
-            264.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            ".oj",
-            ".oj"
-          ],
-          "ws7_pos": [
-            64.8,
-            252.0
-          ],
-          "pdf_pos": [
-            273.6,
-            276.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 264.0,
-          "words": [
-            ".if",
-            ".if"
-          ],
-          "ws7_pos": [
-            64.8,
-            264.0
-          ],
-          "pdf_pos": [
-            277.2,
-            288.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            ".oj",
-            ".oj"
-          ],
-          "ws7_pos": [
-            64.8,
-            276.0
-          ],
-          "pdf_pos": [
-            270.0,
-            300.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "off",
-            "off"
-          ],
-          "ws7_pos": [
-            93.6,
-            276.0
-          ],
-          "pdf_pos": [
-            504.0,
-            300.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 288.0,
-          "words": [
-            ".ei",
-            ".ei"
-          ],
-          "ws7_pos": [
-            64.8,
-            288.0
-          ],
-          "pdf_pos": [
-            504.0,
-            312.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "For",
-            "For"
-          ],
-          "ws7_pos": [
-            57.6,
-            312.0
-          ],
-          "pdf_pos": [
-            57.6,
-            336.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "files",
-            "files"
-          ],
-          "ws7_pos": [
-            86.4,
-            312.0
-          ],
-          "pdf_pos": [
-            124.8,
-            336.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "converted",
-            "converted"
-          ],
-          "ws7_pos": [
-            172.8,
-            312.0
-          ],
-          "pdf_pos": [
-            326.4,
-            336.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "PDF:",
-            "PDF:"
-          ],
-          "ws7_pos": [
-            266.4,
-            312.0
-          ],
-          "pdf_pos": [
-            496.8,
-            336.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            72.0,
-            348.0
-          ],
-          "pdf_pos": [
-            72.0,
-            372.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "command",
-            "command"
-          ],
-          "ws7_pos": [
-            100.8,
-            348.0
-          ],
-          "pdf_pos": [
-            100.8,
-            372.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "equivalent",
-            "equivalent"
-          ],
-          "ws7_pos": [
-            216.0,
-            348.0
-          ],
-          "pdf_pos": [
-            216.0,
-            372.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "1=0",
-            "1=0"
-          ],
-          "ws7_pos": [
-            338.4,
-            348.0
-          ],
-          "pdf_pos": [
-            338.4,
-            372.0
-          ],
-          "font_class": "exact",
-          "reason": "baseline-shift",
-          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "another",
-            "another"
-          ],
-          "ws7_pos": [
-            396.0,
-            60.0
-          ],
-          "pdf_pos": [
-            57.6,
-            72.0
-          ],
-          "font_class": "exact",
           "reason": "exact-drift",
-          "detail": "residual -338.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 60.0,
-          "words": [
-            "occur",
-            "occur"
-          ],
-          "ws7_pos": [
-            475.2,
-            60.0
-          ],
-          "pdf_pos": [
-            136.8,
-            72.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -338.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
@@ -21803,358 +21163,54 @@
             156.0
           ],
           "pdf_pos": [
+            419.7,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +16.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__REFORM_EXT_DOT",
+          "page": 1,
+          "line_y_top_pt": 152.0,
+          "words": [
+            "123"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
             57.6,
-            168.0
+            152.0
           ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -345.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
         },
         {
           "doc": "sawyer__REF__REFORM_EXT_DOT",
           "page": 1,
-          "line_y_top_pt": 180.0,
+          "line_y_top_pt": 156.0,
           "words": [
-            "command",
-            "command"
+            "Since",
+            "Since"
           ],
           "ws7_pos": [
-            115.2,
-            180.0
+            57.6,
+            156.0
           ],
           "pdf_pos": [
-            165.6,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "takes",
-            "takes"
-          ],
-          "ws7_pos": [
-            172.8,
-            180.0
-          ],
-          "pdf_pos": [
-            248.4,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +75.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "precedence",
-            "precedence"
-          ],
-          "ws7_pos": [
-            216.0,
-            180.0
-          ],
-          "pdf_pos": [
-            316.8,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "printing",
-            "printing"
-          ],
-          "ws7_pos": [
-            316.8,
-            180.0
-          ],
-          "pdf_pos": [
-            468.0,
-            192.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +151.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "command",
-            "command"
-          ],
-          "ws7_pos": [
-            122.4,
-            192.0
-          ],
-          "pdf_pos": [
-            172.8,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +50.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "takes",
-            "takes"
-          ],
-          "ws7_pos": [
-            180.0,
-            192.0
-          ],
-          "pdf_pos": [
-            255.6,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +75.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "precedence",
-            "precedence"
-          ],
-          "ws7_pos": [
-            223.2,
-            192.0
-          ],
-          "pdf_pos": [
-            324.0,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +100.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "editing",
-            "editing"
-          ],
-          "ws7_pos": [
-            324.0,
-            192.0
-          ],
-          "pdf_pos": [
-            475.2,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +151.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "will",
-            "will"
-          ],
-          "ws7_pos": [
-            93.6,
-            216.0
-          ],
-          "pdf_pos": [
-            104.8,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +11.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "print",
-            "print"
-          ],
-          "ws7_pos": [
-            129.6,
-            216.0
-          ],
-          "pdf_pos": [
-            152.0,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +22.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "fully",
-            "fully"
-          ],
-          "ws7_pos": [
-            172.8,
-            216.0
-          ],
-          "pdf_pos": [
-            206.4,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +33.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "justified",
-            "justified"
-          ],
-          "ws7_pos": [
-            216.0,
-            216.0
-          ],
-          "pdf_pos": [
-            260.8,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +44.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "but",
-            "but"
-          ],
-          "ws7_pos": [
-            288.0,
-            216.0
-          ],
-          "pdf_pos": [
-            344.0,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +56.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "edit",
-            "edit"
-          ],
-          "ws7_pos": [
-            316.8,
-            216.0
-          ],
-          "pdf_pos": [
-            384.0,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +67.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "ragged",
-            "ragged"
-          ],
-          "ws7_pos": [
-            374.4,
-            216.0
-          ],
-          "pdf_pos": [
-            464.0,
-            228.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +89.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "First",
-            "First"
-          ],
-          "ws7_pos": [
-            72.0,
-            180.0
-          ],
-          "pdf_pos": [
-            97.2,
-            192.0
+            74.1,
+            156.0
           ],
           "font_class": "exact",
           "reason": "line-start-shift",
-          "detail": "line-start residual +25.20pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__REFORM_EXT_DOT",
-          "page": 1,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "Second",
-            "Second"
-          ],
-          "ws7_pos": [
-            72.0,
-            192.0
-          ],
-          "pdf_pos": [
-            97.2,
-            204.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +25.20pt (tolerance 2.5pt)"
+          "detail": "line-start residual +16.50pt (tolerance 2.5pt)"
         }
       ],
       "document_frame_offset_pt": {
         "n": 17,
         "median_dx": 0.0,
-        "iqr_dx": 205.2
+        "iqr_dx": 0.0
       }
     },
     "sawyer__REF__ROUNDED_EXT_BRD": {

@@ -461,8 +461,13 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
             out.append('\f' if mode == 'printed' else '\n' + '-' * 20 + '\n')
             continue
         if printed:
-            # PHYSICAL lines: soft returns broke the line on paper
-            lines = _align_lines([render(l) for l in b.lines], b.align, b)
+            # PHYSICAL lines: soft returns broke the line on paper -- and
+            # under `.pf on` the lines WordStar re-wraps at print time
+            # (planning #270 item 37, pdf.pf_rewrapped_lines: every other
+            # block hands back `b.lines` itself, unchanged).
+            from .pdf import pf_rewrapped_lines
+            lines = _align_lines([render(l) for l in pf_rewrapped_lines(doc, b)],
+                                 b.align, b)
             para = '\n'.join(lines)
             if para.strip() or mode == 'printed':
                 out.append(para)
@@ -1862,13 +1867,17 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # WordStar's own modulus-8 stop here, where the face is
             # fixed-pitch (`p.ws-native`) and a column IS a character --
             # see `_expand_bare_tabs_spans`. Modern never calls it.
+            # planning #270 item 37: `.pf on`'s print-time re-wrap -- the
+            # printed HTML facsimile renders the same physical lines the
+            # Printed PDF does. Every other block hands back `b.lines`.
+            from .pdf import pf_rewrapped_lines
             lines = [_html_line(_expand_bare_tabs_spans(line.spans), refs, keep,
                                 keep_ws=True, shown_map=shown_map,
                                 inline_styling=inline_styling,
                                 pix_map=pix_map, pictures=pictures,
                                 image_links=image_links,
                                 sentence_spacing=ss_on)
-                     for line in b.lines]
+                     for line in pf_rewrapped_lines(doc, b)]
             body = '<br>\n'.join(lines)
             if body.strip():
                 native_cls = _add_html_class(cls, 'ws-native')
@@ -3472,8 +3481,11 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # WordStar's own modulus-8 stop first -- Printed RTF is Courier,
             # so a column IS a character and the expansion is exact. See
             # `_expand_bare_tabs_spans`; Modern (below) never calls it.
+            # planning #270 item 37: `.pf on`'s print-time re-wrap -- Printed
+            # RTF renders the same physical lines the Printed PDF does.
+            from .pdf import pf_rewrapped_lines
             lines = [numbered(rtf_seg(_expand_bare_tabs_spans(line.spans), b), bi)
-                    for line in b.lines]
+                    for line in pf_rewrapped_lines(doc, b)]
             if b.heading:
                 lines = ['{' + r'\b\fs28 ' + l + '}' for l in lines]
             # round 6 (2026-08-17): line spacing/.pm/.psa+.psb -- Printed

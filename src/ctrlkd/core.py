@@ -110,6 +110,17 @@ class Line:
                                           # (LJ6DTP's white-on-black knockouts; strikeover
                                           # composites). Printed renderers re-use the y;
                                           # reflow modes treat it as a plain break
+    # This line's last source byte was an ACTIVE soft hyphen (0x1F) -- WordStar
+    # broke a word here and shows the hyphen only BECAUSE the break falls at it.
+    # `_decode_spans` turns 0x1F into a plain '-' (that is what prints), which is
+    # indistinguishable afterwards from a hyphen the author typed; this flag is
+    # the difference. Only ONE consumer needs it, and needs it absolutely:
+    # `.pf on` print-time re-wrap (planning #270 item 37), which re-joins a
+    # paragraph's physical lines -- a DISCRETIONARY hyphen disappears when the
+    # break it was made for goes away ("Paragraph Indenta-"+"tion" prints as
+    # "Paragraph Indentation" on real WS7), while a typed hyphen must survive.
+    # False for every line that did not end in 0x1F, which is almost all of them.
+    soft_hyphen: bool = False
     # The line height IN FORCE ON THIS LINE, in `.lh`'s own 1/48in units --
     # None meaning "the document's own default" (doc.meta['page']['lh_48']),
     # which is the overwhelmingly common case and keeps the field free for
@@ -5920,6 +5931,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # and the only trace was an "unknown code 0x0c" line in --diagnose. The
         # break was simply lost. Found by diffing all 32 low-order codes against
         # the spec, 2026-08-04.
+        wrap_raw = raw
         if 0x0C in raw:
             # split on BARE form feeds only -- a wrapped <1B 0C 1C> is the
             # cp437 glyph at 0x0C (the chart cell in ASCIITAB.WS), never a
@@ -5942,6 +5954,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                         pending_marks = []
                     for sp in spans:
                         cur_line.spans.append(sp)
+            # planning #270 item 37: `raw` is about to be emptied, but the
+            # separator handling below still needs this entry's LAST source
+            # byte to tell an active soft hyphen from a typed one (see
+            # Line.soft_hyphen). The last non-empty part is the piece whose
+            # spans the separator actually closes.
+            wrap_raw = next((p for p in reversed(parts) if p), b'')
             raw = b''
         # Structural marks, carried as OFFSETS rather than injected bytes -- every
         # byte the old sentinels used (0x00 ^@, 0x0B ^K, 0x11 ^Q) is a real
@@ -6101,6 +6119,12 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # lines are stored; merging is the consumer's choice now.
             if cur_line.spans:
                 cur_line.soft = True
+                # planning #270 item 37: an ACTIVE soft hyphen (0x1F) is always
+                # the last byte before the wrap it was activated for -- record
+                # that the trailing '-' _decode_spans just wrote is
+                # discretionary, not typed. See Line.soft_hyphen.
+                if wrap_raw and wrap_raw[-1] == 0x1F:
+                    cur_line.soft_hyphen = True
                 close_line()
             elif cur.lines:
                 cur.lines[-1].soft = True          # invisible (toggles-only) line:

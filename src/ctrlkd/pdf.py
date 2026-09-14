@@ -33,6 +33,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     expand_bare_tabs_texts as _expand_bare_tabs_texts, \
     pm_first_line_indent_cols as _pm_first_line_indent_cols, \
     graphic_row_clips as _graphic_row_clips, \
+    Line as _Line, coalesce_spans as _coalesce_spans, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs
@@ -3299,12 +3300,17 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
         # Indexed (not a plain `for`) so an embedded pix substitution below
         # can look ahead and CONSUME the blank placeholder lines WordStar
         # reserved for it -- see `_pix_reserved_advance`.
+        # Planning #270 item 37: the same `.pf on` print-time re-wrap
+        # `_doc_to_pagelines` applies -- this function is its sibling for a
+        # document with placeable notes, and the two must not disagree about
+        # what the physical lines of a realigning paragraph are.
+        blk_lines = pf_rewrapped_lines(doc, b)
         _li = 0
-        while _li < len(b.lines):
+        while _li < len(blk_lines):
             _idx = _li                          # planning #238 scope gap: same
                                                  # pre-increment index _doc_to_pagelines
                                                  # uses to spot a block's own last line
-            line = b.lines[_li]
+            line = blk_lines[_li]
             _li += 1
             spans = []
             refs = []
@@ -3391,7 +3397,7 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                 sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
                 if sub is not None:
                     reserved, n_blank = _pix_reserved_advance(
-                        b.lines, _li,
+                        blk_lines, _li,
                         own_lead if own_lead is not None else default_lead_pt)
                     _li += n_blank
                     stream.append((PageLine([], soft=line.soft, lead=reserved,
@@ -3435,7 +3441,13 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # local names (`b.lines`/`size` here, `blk_lines`/`size_for_left`
             # there) for otherwise-identical quantities.
             justify_right_x = None
-            if b.align == 'justify' and _idx < len(b.lines) - 1:
+            # planning #270 item 37: under `.pf on` the paragraph, not the
+            # block, is the unit -- `line.soft` after the re-wrap. Same rule
+            # as `_doc_to_pagelines`; see its comment.
+            _last_in_unit = (not line.soft
+                             if getattr(b, 'print_reformat', None) == 'on'
+                             else _idx >= len(blk_lines) - 1)
+            if b.align == 'justify' and not _last_in_unit:
                 po_origin_pt = (own_left if own_left is not None
                                 else _printed_left(doc, size))
                 rm_cols = (b.right_margin if b.right_margin is not None
@@ -4697,6 +4709,248 @@ def _recentred_centre_tab_spans(spans, blk, doc):
     return [(head_text, styles)] + list(spans[1:])
 
 
+# ------------------------------------------------- `.pf on`: print-time re-wrap
+#
+# Planning #270 item 37 (Jon's ruling 2026-09-13, triage Q5: "Yes, support
+# it."), MicroPro's own definition (WSFORMAT.TXT, the `.PF` row): "Paragraph
+# realignment while printing... When ON, subsequent paragraphs are realigned
+# as they are printed... using the left, right, and paragraph margins
+# currently in effect."
+#
+# WHY A DOCUMENT NEEDS THIS AT ALL. WordStar's EDITOR is a character screen:
+# it wraps at a COLUMN COUNT whatever face the text is set in, and stores the
+# break it chose. The PRINTER is not: it wraps at the real measure, in the
+# real fonts, at print time. With `.pf on` the two can therefore disagree,
+# and the paper is the one that wins. Two measured cases, both from the v4
+# PRISTINE captures:
+#
+#   `sawyer/REF/REFORM.DOT` -- Courier, `.rm 6.5"` at print time but `.rm 5.0"`
+#   in the editor (its own `.if 1=0` block, true while editing and false while
+#   printing). The file stores "...in editing, but" + soft return +
+#   "another to occur during printing"; real WS7 prints ONE 63-character line
+#   ending "...another to occur", pulling the next stored line's words up. 65
+#   columns is the measure; a 64th word ("during", +7 columns) does not fit.
+#
+#   `sawyer/PRINT.TST` -- a 20.3-column `.co 3` column, heading set in Helv
+#   11pt. The file stores "Paragraph Indenta" + an ACTIVE soft hyphen + soft
+#   return + "tion"; real WS7 prints "Paragraph Indentation" on ONE line, no
+#   hyphen (measured, page 2 y=288.0pt: x=218.1pt "Paragraph", x=272.6pt
+#   "Indentation"). The stored break exists only because 21 SCREEN COLUMNS
+#   overflow a 20.3-column measure; 21 characters of an 11pt proportional
+#   face do not.
+#
+# So the two documents need ONE measure, not two: the sum of each span's own
+# printed advance. `_span_pitch` is that advance -- WordStar's own HMI for a
+# WS5+ font block, the `.cw`-derived cell otherwise -- so a Courier paragraph
+# measures in 7.2pt columns and an 11pt Helv paragraph in 5.52pt cells, from
+# one formula. (The alternative, measuring proportional text with afm.py's
+# real per-glyph widths, is what the PRINTER did -- "Paragraph " comes out
+# 54.4pt there against this model's 55.2pt -- and decides both captured cases
+# identically. `_span_pitch` is chosen because it is what THIS engine then
+# DRAWS with, so a re-wrapped line can never overflow the right edge the same
+# module's own justification pins to.)
+#
+# SCOPE, deliberately narrow, and every bound is measurable:
+#   - only `.pf on` (`'off'`/`'dis'`/absent = the stored physical lines,
+#     unchanged -- and ZERO archive documents say `dis`, measured);
+#   - only a PARAGRAPH THAT WORDSTAR ITSELF BROKE, i.e. two or more physical
+#     lines joined by soft returns. A single stored line is left alone even
+#     when it overruns the print measure: nothing in the corpus is shaped that
+#     way, and re-breaking a line WordStar never broke would be a guess;
+#   - only `left`/`justify` blocks with word wrap on (`.aw on`). A centred or
+#     right-aligned line is re-aligned at render time by `_recentred_centre_
+#     tab_spans`, and `.aw off` means the author is placing lines by hand
+#     (register C23);
+#   - a paragraph carrying a tab, a print control, a picture placeholder or a
+#     note reference is left exactly as stored -- those spans encode a
+#     POSITION, and moving one across a line break moves the thing it places.
+#
+# WHAT A PARAGRAPH UNIT IS, per WordStar: it ends at a HARD return. Soft
+# returns inside it are re-flowable, and an ACTIVE SOFT HYPHEN at one of them
+# is discretionary -- it disappears with the break it was made for
+# (`Line.soft_hyphen`; "Paragraph Indenta-"+"tion" -> "Paragraph
+# Indentation"). A typed hyphen at a break is text and survives.
+#
+# The re-wrapped lines carry their paragraph's own leading indent: the FIRST
+# line keeps the one the file gave it (a `.pm` indent, a typed one), the
+# continuations keep the one WordStar itself re-stamped on the second stored
+# line (its `.lm`). Both are read off the file rather than recomputed, so a
+# paragraph whose stored lines already sit at the measure re-wraps to exactly
+# the lines it stores and the document's bytes do not move.
+
+_PF_POSITIONAL_TAGS = ('tabhmi', 'pctl', 'pix', 'pcl', 'ixentry')
+
+
+def _pf_positional(span):
+    """True when this span PLACES something (a tab stop, a print control, a
+    picture, an index entry) rather than merely carrying text -- the one
+    reason `.pf on` leaves a paragraph exactly as WordStar stored it.
+
+    A NOTE REFERENCE (`fnref`) is deliberately NOT in that list: it is
+    anchored to the word it follows, so it travels with that word across a
+    re-wrap, which is what WordStar does with it too."""
+    return any(t.startswith(_PF_POSITIONAL_TAGS) for t in span.styles) \
+        or '\t' in span.text
+
+
+def _pf_char_pitch(styles, fonts, size, cache):
+    """One character's printed advance, in points, for a span with these
+    styles -- `_span_pitch` against the font the span's own `fontN` tag
+    selects. Cached per style set: a paragraph is measured character by
+    character and the lookup is otherwise the whole cost."""
+    w = cache.get(styles)
+    if w is None:
+        w = _span_pitch(_span_font(styles, fonts), size)
+        cache[styles] = w
+    return w
+
+
+def _pf_leading_indent(line):
+    """(indent spans, remaining spans) for one stored physical line -- the
+    leading run of pure whitespace, split out of the first span if it only
+    starts with one. WordStar re-stamps `.lm`/`.pm` as real spaces on every
+    line it writes, so this IS the paragraph's indent, read off the file
+    rather than recomputed from the dot commands."""
+    head, rest = [], list(line.spans)
+    while rest and not rest[0].text.strip():
+        head.append(rest.pop(0))
+    if rest:
+        t = rest[0].text
+        lead = t[:len(t) - len(t.lstrip(' '))]
+        if lead:
+            head.append(_Span(lead, rest[0].styles))
+            rest[0] = _Span(t[len(lead):], rest[0].styles)
+    return head, rest
+
+
+def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
+    """One paragraph's physical lines, re-wrapped to `measure` points. Returns
+    None when the paragraph is one this mechanism leaves alone (see the
+    module comment's SCOPE) -- the caller then keeps the stored lines."""
+    if len(para) < 2 or any(_pf_positional(s) for ln in para for s in ln.spans):
+        return None
+    first_indent, _ = _pf_leading_indent(para[0])
+    cont_indent, _ = _pf_leading_indent(para[1])
+
+    def width(cells):
+        return sum(_pf_char_pitch(st, fonts, size, cache) for _, st in cells)
+
+    first_w = width([(c, s.styles) for s in first_indent for c in s.text])
+    cont_w = width([(c, s.styles) for s in cont_indent for c in s.text])
+    if measure - max(first_w, cont_w) <= 0:
+        return None
+    # The paragraph's text as one (character, styles) run, joined the way
+    # `core.merged_lines` joins a soft-wrapped run -- a space where WordStar's
+    # own break implies one, nothing after an existing space or a hyphen.
+    # `dis` collects the DISCRETIONARY hyphen positions: a break may be taken
+    # there and prints a '-', and no break there prints nothing (WordStar's
+    # own soft hyphen, `Line.soft_hyphen`), which is why the character itself
+    # is not in the run.
+    chars, dis = [], set()
+    for k, ln in enumerate(para):
+        run = [(c, s.styles)
+               for s in _pf_leading_indent(ln)[1] for c in s.text]
+        if k < len(para) - 1:
+            if ln.soft_hyphen and run and run[-1][0] == '-':
+                run.pop()
+                dis.add(len(chars) + len(run))
+            elif run and run[-1][0] not in (' ', '-'):
+                run.append((' ', run[-1][1]))
+        chars.extend(run)
+    if not chars:
+        return None
+    # TOKENS: (leading spaces, body, what ends it). A break may be taken
+    # between any two tokens; the spaces that separate them stay on the line
+    # that is finished, exactly where WordStar itself stores them.
+    tokens, i, n = [], 0, len(chars)
+    while i < n:
+        gap = []
+        while i < n and chars[i][0] == ' ':
+            gap.append(chars[i])
+            i += 1
+        body, hyph = [], None
+        while i < n:
+            if i in dis and body:
+                hyph = 'dis'
+                break
+            if chars[i][0] == ' ':
+                break
+            body.append(chars[i])
+            i += 1
+            if body[-1][0] == '-':          # a TYPED hyphen is a break too
+                hyph = 'typed'
+                break
+        tokens.append((gap, body, hyph))
+    hyph_w = _pf_char_pitch(chars[-1][1], fonts, size, cache)
+    rows, cur, cur_w, prev_hyph = [], [], first_w, None
+    for gap, body, hyph in tokens:
+        gw, bw = width(gap), width(body)
+        # a token that a break may follow with a printed hyphen has to leave
+        # room for it before it is placed
+        need = gw + bw + (hyph_w if hyph == 'dis' else 0.0)
+        if cur and cur_w + need > measure + 1e-6:
+            if prev_hyph == 'dis':
+                cur.append(('-', cur[-1][1]))
+            cur.extend(gap)
+            rows.append(cur)
+            cur, cur_w = list(body), cont_w + bw
+        else:
+            cur.extend(gap)
+            cur.extend(body)
+            cur_w += gw + bw
+        prev_hyph = hyph
+    if cur:
+        rows.append(cur)
+    out = []
+    for k, row in enumerate(rows):
+        spans = []
+        for c, st in row:
+            if spans and spans[-1].styles == st:
+                spans[-1] = _Span(spans[-1].text + c, st)
+            else:
+                spans.append(_Span(c, st))
+        src = para[0] if k == 0 else para[1]
+        out.append(_Line(
+            _coalesce_spans((first_indent if k == 0 else cont_indent) + spans),
+            soft=(k < len(rows) - 1) or para[-1].soft,
+            lead_48=src.lead_48, kerning=src.kerning, po_cols=src.po_cols,
+            poe_cols=src.poe_cols, poo_cols=src.poo_cols,
+            roll_48=src.roll_48))
+    return out
+
+
+def pf_rewrapped_lines(doc, block):
+    """`block.lines` as WordStar PRINTS them: unchanged unless the block is
+    under `.pf on`, in which case every paragraph WordStar itself broke is
+    re-joined and re-wrapped to the margins and fonts in force. See the
+    module comment above for the rule, the two measured documents and the
+    scope. PUBLIC: the Printed PDF, the printed `layout` JSON, and emit.py's
+    printed text/HTML/RTF facsimiles all render the same physical lines, so
+    they all ask the same question here."""
+    if (getattr(block, 'print_reformat', None) != 'on'
+            or block.kind != 'para' or not getattr(block, 'wrap', True)
+            or block.align not in ('left', 'justify')):
+        return block.lines
+    rm = block.right_margin if block.right_margin is not None else 65.0
+    measure = rm * _PDF_PT_PER_COL
+    size, fonts, cache = _printed_size(doc), getattr(doc, 'fonts', ()) or (), {}
+    out, i, lines, moved = [], 0, block.lines, False
+    while i < len(lines):
+        j = i
+        while j < len(lines) - 1 and lines[j].soft and lines[j].spans:
+            j += 1
+        para = lines[i:j + 1]
+        i = j + 1
+        rewrapped = (_pf_rewrap_paragraph(para, measure, fonts, size, cache)
+                     if all(ln.spans for ln in para) else None)
+        moved = moved or rewrapped is not None
+        out.extend(rewrapped if rewrapped is not None else para)
+    # the same object back when this pass re-decided nothing, so a caller can
+    # assert "nothing moved" identically for a `.pf on` block WordStar left
+    # alone and for every block in every other document
+    return out if moved else block.lines
+
+
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                       sentence_spacing=False):
     """IR -> list of pages, each a list of segment-lines.
@@ -5008,7 +5262,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # so an embedded pix substitution below can look ahead and CONSUME
         # the blank placeholder lines WordStar reserved for it -- see
         # `_pix_reserved_advance`.
-        blk_lines = b.lines if printed else _merged_lines(b)
+        # Planning #270 item 37: `.pf on` re-wraps a paragraph at PRINT time
+        # (pf_rewrapped_lines; every other block hands back `b.lines` itself,
+        # same object, so nothing else in the corpus can move).
+        blk_lines = (pf_rewrapped_lines(doc, b) if printed
+                     else _merged_lines(b))
         # Finding 1: see `ws4_spacing`'s own comment above -- `spacing_map`
         # is the literal empty dict for every non-WS4 document, so `.get`
         # here always returns the empty set and nothing below can touch one.
@@ -5200,8 +5458,17 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     # (see _recentred_centre_tab_spans).
                     spans = _recentred_centre_tab_spans(spans, b, doc)
                 justify_right_x = None
-                if (printed and b.align == 'justify'
-                        and _idx < len(blk_lines) - 1):
+                # Planning #270 item 37: under `.pf on` the PARAGRAPH is the
+                # unit, and WordStar never justifies a paragraph's LAST line
+                # -- which is exactly what `line.soft` says after the re-wrap
+                # (every produced line but the paragraph's last carries it).
+                # Without `.pf` the block remains the unit, unchanged: a
+                # document that never realigns has no paragraph structure on
+                # the printed page for this engine to read.
+                last_in_unit = (not line.soft
+                                if getattr(b, 'print_reformat', None) == 'on'
+                                else _idx >= len(blk_lines) - 1)
+                if printed and b.align == 'justify' and not last_in_unit:
                     po_origin_pt = (own_left if own_left is not None
                                     else _printed_left(doc, size_for_left))
                     rm_cols = (b.right_margin if b.right_margin is not None
