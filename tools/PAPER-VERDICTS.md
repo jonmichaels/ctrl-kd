@@ -1,5 +1,22 @@
 # Paper-scan verdicts — schema and workflow
 
+> **PARKED BY RULING, 2026-09-14.** Jon: *"I am getting to the point of
+> wanting to simply disable this test for now and come back to it at some
+> point in the future. The reality of what we have now vs what we had when
+> the printouts were made: We have an actual proper PCL vs PDF check
+> pipeline that didn't exist. It was very haphazard."*
+>
+> The `paper` **pytest tier** no longer gates anything: every page skips
+> carrying `paper_verdicts.PARKED_BY_RULING`, and a run reports it as
+> *parked by ruling* — an intentional exclusion with a register citation,
+> in the same class as the LJ6DTP documents parked on planning #210. Never
+> a red, never a bare skip.
+>
+> Nothing else changed. The scans stay in the vault as the look layer, the
+> catalog stays here, and `--init/--status/--set/--collage` all still work,
+> so a human can review a page any day. Un-parking is deleting
+> `PARKED_BY_RULING` in `tools/paper_verdicts.py`.
+
 Planning #200 (Engine-Test-Finalization-Plan Task 5). The 69 catalogued
 M479fdw paper-scan pages (13 documents; see `ws7-prints/paper-scans/README.md`
 in the private corpus) are the LOOK layer of the fidelity gate — a human

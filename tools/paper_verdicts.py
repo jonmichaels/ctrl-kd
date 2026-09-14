@@ -56,6 +56,31 @@ VERDICTS_PATH_ENV = 'CTRLKD_PAPER_VERDICTS'
 SCHEMA_VERSION = 1
 VERDICTS = ('pass', 'fail', 'font-substitution', 'unreviewed')
 
+# ------------------------------------------------- PARKED BY RULING (#200)
+#
+# Jon's ruling 2026-09-14, verbatim: "I am getting to the point of wanting
+# to simply disable this test for now and come back to it at some point in
+# the future. The reality of what we have now vs what we had when the
+# printouts were made: We have an actual proper PCL vs PDF check pipeline
+# that didn't exist. It was very haphazard."
+#
+# WHAT THAT MEANS HERE. The `paper` tier is an INTENTIONAL EXCLUSION, the
+# same class of thing as `pcl_tolerance.EXCLUDED_V4`'s own 'parked-lj6dtp'
+# rows (planning #210): named in every run, reported under "parked by
+# ruling", never a red and never a bare skip. The tool, the catalog and the
+# scans all stay exactly where they are -- nothing is deleted, and the
+# review CLI (--init/--status/--set/--collage) is untouched, so a human can
+# still look at a page any day. What is parked is the GATE: the 50 pages
+# whose verdict is still `unreviewed` no longer fail the suite for being
+# unreviewed, because the review they are waiting on was conducted against
+# an engine and a comparison method that the PCL-vs-PDF pipeline
+# (tools/pcl_tolerance.py, the `pcl` tier) has since superseded.
+#
+# Un-parking is a Jon decision, not a code cleanup: delete this constant
+# and the tier arms itself again.
+PARKED_BY_RULING = ('parked by ruling: RULINGS-LEDGER 2026-09-14 '
+                    'paper-scan verdict test parked')
+
 # --------------------------------------------------------------- catalog
 # (document, scan-pdf key, first page of this document within that PDF,
 # page count) -- verbatim from ws7-prints/paper-scans/README.md's own

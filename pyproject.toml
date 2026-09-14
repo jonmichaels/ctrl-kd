@@ -61,6 +61,6 @@ testpaths = ["tests"]
 markers = [
     "sawyer: opt-in tier 2 -- an explicit, committed list of documents from Robert J. Sawyer's public WordStar 7 archive (arm with CTRLKD_SAWYER_ARCHIVE)",
     "pcl: opt-in -- coordinate-level fidelity gate against real WordStar 7 LaserJet PCL captures (arm with CTRLKD_PRIVATE_CORPUS); see tools/pcl_tolerance.py and tests/test_pcl_fidelity.py",
-    "paper: opt-in -- machine-readable verdicts for the 69 M479fdw paper-scan pages (arm with CTRLKD_PRIVATE_CORPUS); see tools/PAPER-VERDICTS.md and tests/test_paper_verdicts.py",
+    "paper: PARKED BY RULING 2026-09-14 (paper_verdicts.PARKED_BY_RULING) -- machine-readable verdicts for the 69 M479fdw paper-scan pages; every page skips with that citation and is reported as parked by ruling, never as a red. Arm with CTRLKD_PRIVATE_CORPUS to see the citation per page; see tools/PAPER-VERDICTS.md and tests/test_paper_verdicts.py",
 ]
 addopts = "-m \"not sawyer and not pcl and not paper\""

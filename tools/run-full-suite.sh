@@ -41,12 +41,15 @@
 #                          (see tests/pcl_fidelity_manifest.json and
 #                          `python3 tools/pcl_tolerance.py --record`).
 #
-#                          Also arms `paper` (2026-09-06, planning #200): the
-#                          69 M479fdw paper-scan verdicts
-#                          (tests/test_paper_verdicts.py, tools/paper_verdicts.py)
-#                          -- DESELECTED when unarmed, same convention, and
-#                          FAILS BY NAME on any unreviewed/failing/unreasoned/
-#                          stale page (see tools/PAPER-VERDICTS.md).
+#                          Also selects `paper` (2026-09-06, planning #200):
+#                          the 69 M479fdw paper-scan verdicts
+#                          (tests/test_paper_verdicts.py, tools/paper_verdicts.py).
+#                          PARKED BY RULING 2026-09-14: every page now skips
+#                          with the register citation instead of failing on an
+#                          unreviewed/failing/unreasoned/stale verdict. It is
+#                          reported as "parked by ruling", never as a red and
+#                          never as a bare skip (see tools/PAPER-VERDICTS.md
+#                          and paper_verdicts.PARKED_BY_RULING).
 #
 # USAGE.
 #
@@ -81,8 +84,14 @@ private_status="not armed"
 pcl_status="not armed"
 [ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && pcl_status="armed"
 
-paper_status="not armed"
-[ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && paper_status="armed"
+# PARKED BY RULING 2026-09-14 (tools/paper_verdicts.py's PARKED_BY_RULING).
+# The tier is still collected when armed -- every page skips with the
+# register citation, which is what "parked by ruling" has to look like in a
+# run: named, cited, and impossible to mistake for a tier nobody ran. The
+# status word therefore says PARKED whether or not the corpus is present,
+# because arming it no longer gates anything.
+paper_status="parked by ruling (RULINGS-LEDGER 2026-09-14), corpus not armed"
+[ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && paper_status="parked by ruling (RULINGS-LEDGER 2026-09-14)"
 
 # Clear addopts' default tier filter (-m "not sawyer and not pcl and not
 # paper") so tier 2, the pcl tier, and the paper tier all run alongside
@@ -112,10 +121,9 @@ if [ "$pcl_status" = "armed" ]; then
     echo "   \`python3 tools/pcl_tolerance.py --record\` -- a FAILED pcl case names a real, unfixed"
     echo "   coordinate divergence, not a broken test)"
 fi
-if [ "$paper_status" = "armed" ]; then
-    echo "  (paper per-page verdicts are in the -rs output above; review with"
-    echo "   \`python3 tools/paper_verdicts.py --status/--set/--collage\` -- a FAILED paper case"
-    echo "   names an unreviewed, failing, unreasoned, or stale page, not a broken test)"
-fi
+echo "  (paper: PARKED BY RULING -- the per-page skips in the -rs output above each carry"
+echo "   the register citation; they are an intentional exclusion, not unrun checks. The"
+echo "   scans, the catalog and \`python3 tools/paper_verdicts.py --status/--set/--collage\`"
+echo "   are all untouched -- un-parking is deleting PARKED_BY_RULING in that file.)"
 
 exit "$status"

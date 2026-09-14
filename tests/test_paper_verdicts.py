@@ -1,4 +1,10 @@
-"""The `paper` pytest tier: one parametrized test per catalogued paper-scan
+"""PARKED BY RULING 2026-09-14 (see `paper_verdicts.PARKED_BY_RULING`):
+each page below SKIPS with that citation and is reported as "parked by
+ruling", never as a red and never as a bare skip. The tool, the catalog and
+the scans stay; only the gate is off, and the tier-1 test at the foot of
+this file holds the citation itself to the register.
+
+The `paper` pytest tier: one parametrized test per catalogued paper-scan
 page, over the verdicts file tools/paper_verdicts.py reads/writes (planning
 #200, Engine-Test-Finalization-Plan Task 5). See tools/PAPER-VERDICTS.md for
 the schema and CLI.
@@ -32,7 +38,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
                                  'tools'))
 import paper_verdicts as pv  # noqa: E402
 
-pytestmark = pytest.mark.paper
+# The `paper` mark is on the per-page test ITSELF, not the module: the
+# park-citation check at the foot of this file is tier 1 and must be
+# collected by a bare `pytest`, or the one thing holding the exclusion to
+# the register would itself be deselected with the tier it describes.
 
 CATALOG_PAGES = pv.catalog_pages()
 PARAMS = [(p['document'], p['page']) for p in CATALOG_PAGES]
@@ -43,8 +52,17 @@ def _armed():
     return bool(os.environ.get(pv.CORPUS_ENV))
 
 
+@pytest.mark.paper
 @pytest.mark.parametrize('document,page', PARAMS, ids=IDS)
 def test_paper_verdict(document, page):
+    # PARKED BY RULING (2026-09-14) -- see paper_verdicts.PARKED_BY_RULING
+    # for Jon's words and the reasoning. This is an intentional exclusion
+    # carrying its own register citation, not a bare skip: `pytest -rs`
+    # prints the citation on every page, so a run reports 69 pages "parked
+    # by ruling" the way the pcl tier reports its own parked documents by
+    # name. Everything below this line is the live gate, kept intact and
+    # unreachable, so un-parking is deleting one constant.
+    pytest.skip(f'{document} p{page}: {pv.PARKED_BY_RULING}')
     if not _armed():
         pytest.skip(f'{document} p{page}: {pv.CORPUS_ENV} not set -- the paper tier needs the '
                      f'private paper-scan verdicts file (see tools/PAPER-VERDICTS.md)')
@@ -88,3 +106,14 @@ def test_paper_verdict(document, page):
     problem = pv.staleness_problem(entry)
     if problem:
         pytest.fail(f'{document} p{page}: {problem}', pytrace=False)
+
+
+# ---------------------------------------------------------- the park itself
+# Tier 1 (always collected, NOT `paper`-marked): the parking is a claim about
+# a ruling, so it is checked like every other ruling-shaped claim in this
+# suite. Without this, "parked by ruling" would be a comment -- and a comment
+# cannot tell a deliberate exclusion from a tier someone quietly switched off.
+def test_the_paper_tier_is_parked_by_ruling():
+    assert pv.PARKED_BY_RULING.startswith('parked by ruling: ')
+    assert 'RULINGS-LEDGER 2026-09-14' in pv.PARKED_BY_RULING
+    assert 'paper-scan verdict test parked' in pv.PARKED_BY_RULING
