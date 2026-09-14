@@ -333,6 +333,10 @@ def classify_rows(entries):
             if not (stack and stack[-1] == r['col']):
                 stack.append(r['col'])
         r['level'] = len(stack)
+        # The column of the container this row sits INSIDE, if any -- needed by
+        # the centring test below, which cannot otherwise tell a list item's own
+        # wrapped continuation from a deliberately centred short line.
+        r['container_col'] = stack[-1] if stack else None
 
     for r in rows:
         if r is None:
@@ -377,6 +381,24 @@ def classify_rows(entries):
             # not typed padding; a title/byline whose OWN leading tab-run
             # is its only tab-stop span (ARTICLES/FORMFEED.WS's own "-30-")
             # is unaffected -- see that function's own docstring.
+            # A LIST ITEM'S OWN CONTINUATION IS NOT A CENTRED LINE (planning
+            # #264 item 4(b), the browser check's section 3, 2026-09-14). A row
+            # that opens no container of its own but starts at exactly the
+            # column of the one still open above it is the wrapped remainder of
+            # that item: its indent is the list's own body column, which is
+            # HABIT in precisely the sense `body_indent` above already excludes
+            # -- an indent every sibling shares is not evidence of intent.
+            #
+            # STRENGTH.WS's last bullet is the case. Its continuation ("and open
+            # source DOS emulator DOSBox-X: https://dosbox-x.com", 58 columns of
+            # a 65-column measure, 2 columns of lead against an ideal 3.5)
+            # cleared the symmetry test by its last half-column, was classified
+            # centred, and so closed the `<ul>` and rendered centred BELOW the
+            # list -- while the identically-shaped continuation two bullets
+            # earlier, which happens not to be last, stayed joined. Both are
+            # continuations; neither is centred.
+            if r['kind'] is None and r['container_col'] == r['col']:
+                continue
             width = FULL_COLS - r['indent_cols'] - r['cut_cols']
             slack = width - len(content)
             # A near-full measure leaves almost no room to be off-centre in

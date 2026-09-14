@@ -4410,6 +4410,51 @@ def _parse_note(cmd: int, content: bytes, offset: int, encoding: str) -> Note:
 TAB_HMI_PER_COL = 180
 TAB_RIGHT_TYPES = {0x5B, 0x5D}      # '[' documented, ']' undocumented -- same rendering
 
+_COLUMN_GAP_RE = re.compile(r'\S {3,}\S')
+
+
+def fixed_pitch_column_body_col(text):
+    r"""Whether this row's MEANING IS ITS COLUMNS -- a fixed-pitch table row,
+    which must not be folded in the middle any more than a box border may be.
+
+    Planning #264, the browser check (research/2026-09-14_html-browser-check.md,
+    section 2). `graphic_row_clips` above already protects a row whose columns
+    are drawn with box characters; WSFORMAT.WS's own control-code table draws
+    its columns with nothing but SPACES, carried no such character, and folded
+    at a 400px viewport in both views -- 15 source lines rendering as 45, every
+    continuation falling back to the body margin. The browser's verdict on it
+    was the same one the RTF conversion reached from the other side: "a block
+    whose meaning is its columns needs the no-wrap treatment BOXES.WS already
+    gets, not an indent property."
+
+    THE SIGNAL is an interior run of THREE OR MORE spaces between two visible
+    characters: a second column, positioned by padding. Three, not two,
+    because two is WordStar-era sentence spacing -- an author who types "code.
+    All codes" after a full stop is writing prose, not a table, and a document
+    full of that would otherwise stop wrapping entirely. Leading and trailing
+    padding do not count: a first-line indent and a centred line's own padding
+    are both one column, not two.
+
+    Measured over the Sawyer archive: 7260 of 61640 lines (11.8%) -- and the
+    documents at the top of that list are FILELIST.TXT, CP00437.TXT, the
+    `.PS` font cribs and WSFORMAT.WS, which is exactly the population the rule
+    is for.
+
+    The caller decides what to DO about it in its own medium, the same division
+    of labour `graphic_row_clips` documents. Modern HTML gives such a row a real
+    HANGING indent, so a narrow window wraps the description column under
+    itself instead of back to the body margin; Printed HTML needs nothing extra,
+    its whole block being `white-space:pre`.
+
+    Returns the column the SECOND column starts at (measured from the start of
+    `text`, so a caller adds whatever indent it stripped off the front), or None
+    when this row is not one."""
+    m = _COLUMN_GAP_RE.search(text)
+    if m is None:
+        return None
+    return m.end() - 1
+
+
 def graphic_row_clips(text, chars=None):
     """WHICH ROWS REFUSE TO WRAP (job 456, and the app's own b28 follow-up
     on it -- ported from Soft Return, the app is the reference; moved here

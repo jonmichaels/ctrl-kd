@@ -7361,7 +7361,13 @@ def test_ordinary_tab_run_row_keeps_its_own_nbsp_span():
     doc = core.parse(data)
     from ctrlkd.emit import emit_html
     html = emit_html(doc, mode='modern')
-    assert '<p>00h ^@&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fix the print' in html
+    # The `&nbsp;` run is what this guards, and it is intact. The <p> now
+    # carries a HANGING indent (planning #264 item 4(a), 2026-09-14): this
+    # row's meaning is its two columns, and a first-line indent left every
+    # wrapped continuation back at the body margin in a narrow window.
+    assert ('00h ^@&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fix the print'
+            in html)
+    assert 'padding-left:15ch;text-indent:-15ch' in html
 
 
 def test_near_centered_but_not_stays_plain():

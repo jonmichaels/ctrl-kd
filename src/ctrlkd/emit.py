@@ -19,6 +19,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    sentence_spacing_texts, sentence_spacing_spans,
                    resolve_sentence_spacing, expand_bare_tabs_texts,
                    pm_first_line_indent_cols, graphic_row_clips,
+                   fixed_pitch_column_body_col,
                    line_numbering_checkpoints, line_numbering_at)
 from .fontmap import font_stack, rtf_fonts
 
@@ -937,7 +938,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
 # off the viewport edge.
 _CSS = """body{margin:0;padding:2rem 1rem;
 font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
-.ws-native{white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+.ws-native{white-space:pre;overflow-x:auto;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
 span.ws-graphic{font-family:ui-monospace,Menlo,Consolas,monospace}
 hr.pb{border:none;border-top:1px dashed #bbb;margin:2rem 0}
 blockquote{margin:1em 2em;padding-left:1em;border-left:2px solid #ccc}
@@ -947,7 +948,7 @@ section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
 hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
 
-def _print_css(doc, has_break, has_keep):
+def _print_css(doc, has_break, has_keep, printed=True):
     r"""The PRINT stylesheet (planning #264 R5, Jon's ruling 2026-09-14
     "Fine. Add it."; packet row C6) -- everything inside one
     `@media print` block, and nothing outside it.
@@ -979,10 +980,15 @@ def _print_css(doc, has_break, has_keep):
                and `.ws-keepn` additionally gets `break-after:avoid`,
                which is CSS's own name for `\keepn`.
 
-    PRINTED ONLY. Modern has no pages in any surface (the same reason
-    Modern RTF gets no columns), so a Modern HTML export carries no
-    `@page` and no break rules -- its `<hr class="pb">` markers stay the
-    decoration they have always been.
+    MODERN GETS `@page` AND NOTHING ELSE (planning #264 item 4(c), the
+    browser check's section 3, 2026-09-14). Modern has no pages, and this
+    does not give it any: no `hr.pb`, no `break-after`, no keeps, nothing
+    that decides where a sheet ends. What it does say is what SHEET --
+    until now a reader who hit Print on a Modern page got the browser's
+    default paper at the browser's default margins, which for a document
+    that declares its own is simply wrong information. The stylesheet says
+    so in its own comment, so the absence of breaks reads as a decision
+    rather than an omission.
 
     Appended only when it has something to say, the same
     only-when-used discipline `.ws-nonprop` and the list rules follow."""
@@ -994,6 +1000,13 @@ def _print_css(doc, has_break, has_keep):
     side_in = float(page.get('po_cols', 8.0)) / 10.0         # 10 CPI
     rules = ['@page{size:%gin %gin;margin:%gin %gin %gin %gin}'
              % (w_in, h_in, top_in, side_in, bot_in, side_in)]
+    if not printed:
+        # Modern: the paper, and deliberately nothing else. See this
+        # function's own "MODERN GETS `@page` AND NOTHING ELSE".
+        return ('\n@media print{'
+                '\n/* Modern has no pages: this says what SHEET the document'
+                ' asks for, never where one ends. No page breaks, by design. */'
+                '\n' + rules[0] + '}')
     if has_break:
         rules.append('hr.pb{break-after:page;border:none;margin:0;height:0}')
     if has_keep:
@@ -1333,7 +1346,7 @@ def _html_notes_sections(pairs, keep, linked_kinds=_REF_KINDS, sentence_spacing=
 _HTML_ALIGN_CSS = {'center': 'text-align:center', 'right': 'text-align:right',
                    'justify': 'text-align:justify'}
 
-def _html_para_style(align, indent_cols=0, tight=False):
+def _html_para_style(align, indent_cols=0, tight=False, hang_cols=None):
     """One combined `style="..."` attribute for a Modern <p> -- alignment,
     first-line indent, and (round 20, slate item 4) verse/centered tight
     line-height all live there, so a centred, indented, tight paragraph
@@ -1345,7 +1358,20 @@ def _html_para_style(align, indent_cols=0, tight=False):
     css = _HTML_ALIGN_CSS.get(align)
     if css:
         props.append(css)
-    if indent_cols:
+    if hang_cols:
+        # planning #264 item 4(a), the browser check's section 2 (2026-09-14):
+        # a row whose meaning is its COLUMNS gets a real hanging indent, not a
+        # first-line one. `text-indent` moves the first line and nothing else,
+        # so WSFORMAT.WS's control-code table read correctly at 1200px and fell
+        # apart at 400: the first line still started at its column and every
+        # wrapped continuation went back to the body margin. `padding-left` is
+        # the column the row's SECOND column stands in; the negative
+        # `text-indent` pulls the first line back out to where the label
+        # starts. A narrow window then folds the description under itself,
+        # which is what the table means.
+        props.append(f'padding-left:{hang_cols}ch')
+        props.append(f'text-indent:{indent_cols - hang_cols}ch')
+    elif indent_cols:
         props.append(f'text-indent:{indent_cols}ch')
     if tight:
         props.append(f'line-height:{VERSE_LINE_HEIGHT}')
@@ -1616,6 +1642,30 @@ class _HtmlListBuilder:
         if html.strip():
             self._stack = self._stack[:1]
             self._root.append(('text', html))
+
+    def add_item_continuation(self, html):
+        """A plain row that belongs to the list item currently open --
+        planning #264 item 4(b), the browser check's section 3 (2026-09-14).
+
+        `add_text` closes every open list back to the document flow, which is
+        right for a row that resumes the document and wrong for the wrapped
+        remainder of a bullet. STRENGTH.WS's last bullet ended "…via the free"
+        and its continuation, "and open source DOS emulator DOSBox-X:
+        https://dosbox-x.com", rendered as a paragraph BELOW the `</ul>` --
+        while the identically-shaped continuation two bullets earlier, which
+        happens not to be last in the list, stayed joined. The caller decides
+        which rows qualify (`layout.classify_rows`' own `container_col`); this
+        just puts them where they belong, nested inside the open `<li>`/`<dd>`
+        the same way a deeper list already nests there.
+
+        Nothing open means nothing to continue, so it degrades to `add_text`
+        rather than inventing a list."""
+        if not html.strip():
+            return
+        if len(self._stack) <= 1:
+            self.add_text(html)
+            return
+        self._stack[-1][3].append(('text', html))
 
     def add_bullet(self, level, cls, html):
         self._open(level, 'bullet', cls, html)
@@ -2018,6 +2068,13 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                 _flush_quote()
             dominant = block_dominant_styles(merged_lines(b))
             plain_run_lines = []
+            # planning #264 item 4(b): does this plain run continue the list
+            # item that is still open, rather than resume the document? True
+            # only while EVERY row buffered so far is a continuation (a row
+            # that opens no container of its own and starts at exactly the
+            # open container's column -- `classify_rows`' `container_col`).
+            # Reset with the run, like `plain_run_lines` itself.
+            plain_run_continues_item = [True]
             # The convention-outlier/positional epigraph route inside
             # assemble_paragraphs only makes sense when the plain run IS
             # the block's own opening lines -- a run that starts only
@@ -2109,8 +2166,35 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # left. `left` is WordStar's default and gets no attribute, so
                     # every document that never touches `.oc`/`.oj` emits byte-identical
                     # HTML to before.
-                    style = _html_para_style(b.align, indent_cols,
-                                             tight=is_verse or b.align == 'center')
+                    # A continuation of the list item still open supplies no
+                    # indent of its own: the column it starts at IS the item's
+                    # body column, which the `<li>`/`<dd>` already provides, so
+                    # a `text-indent` on top would push it in twice (planning
+                    # #264 item 4(b)).
+                    # A fixed-pitch COLUMN row hangs (item 4(a)): one source
+                    # line whose own text puts a second column past a run of
+                    # three or more spaces. One line only -- a flowed
+                    # multi-line unit is prose, and its `para` no longer has a
+                    # row's shape to read.
+                    hang = None
+                    if len(unit) == 1:
+                        body_col = fixed_pitch_column_body_col(
+                            ''.join(sp.text for sp in first))
+                        if body_col is not None:
+                            hang = indent_cols + body_col
+                            # AND THE SECOND COLUMN HAS TO BE A COLUMN. A gap
+                            # three quarters of the way across a line is an
+                            # accident of prose, not a table: hanging on it
+                            # would leave the description nowhere to go and
+                            # push the row off the page (WSFORMAT.WS has one
+                            # such line, which asked for `padding-left:445ch`).
+                            # Half the document's own measure is the bound.
+                            if hang * 2 > margin:
+                                hang = None
+                    style = _html_para_style(
+                        b.align, 0 if plain_run_continues_item[0] else indent_cols,
+                        tight=is_verse or b.align == 'center',
+                        hang_cols=None if plain_run_continues_item[0] else hang)
                     # C5: newspaper columns. CSS does this properly, so HTML is the one
                     # format that can honour `.co` rather than merely record it. A gutter
                     # is print columns at 10 CPI -> tenths of an inch. Columns are
@@ -2135,9 +2219,12 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                         # separately-bordered, gapped boxes) -- buffered here,
                         # closed by `_flush_quote` the moment the run ends.
                         quote_buffer.append(p_html)
+                    elif plain_run_continues_item[0]:
+                        builder.add_item_continuation(p_html)
                     else:
                         builder.add_text(p_html)
                 plain_run_lines.clear()
+                plain_run_continues_item[0] = True
 
             # Columns (or defensively, any other block excluded from
             # structure classification) never reach `block_rows` -- the
@@ -2169,6 +2256,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                                 f'<p{cls} style="text-align:center;'
                                 f'line-height:{VERSE_LINE_HEIGHT}">{html}</p>')
                     else:
+                        if not (s is not None and s['kind'] is None
+                                and s['container_col'] == s['col']):
+                            plain_run_continues_item[0] = False
                         plain_run_lines.append(line)
                     continue
                 _flush_plain_run()
@@ -2242,10 +2332,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # above it is the SCREEN stylesheet and stays byte-for-byte what it
     # was -- see `_print_css` for the three rules and why none of them
     # gives HTML pages.
-    if printed:
-        css += _print_css(doc,
-                          has_break=any('hr class="pb"' in p for p in parts),
-                          has_keep=any('ws-keep' in p for p in parts))
+    css += _print_css(doc,
+                      has_break=printed and any('hr class="pb"' in p for p in parts),
+                      has_keep=printed and any('ws-keep' in p for p in parts),
+                      printed=printed)
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
     # end, gated by `--toc` (default off). HTML is non-paged: no page
     # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's

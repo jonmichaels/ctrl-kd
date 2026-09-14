@@ -77,10 +77,27 @@ def test_the_documents_own_margins_reach_the_rule():
     assert re.search(r'@page\{size:8\.5in 11in;margin:1in 1\.2in 2in 1\.2in\}', block)
 
 
-def test_modern_has_no_page_rule_at_all():
+def test_modern_states_the_paper_and_decides_nothing_else():
+    """Planning #264 item 4(c), Jon's own framing of it (the browser check's
+    section 3, 2026-09-14): Modern has no pages and this gives it none. What
+    it gives is the SHEET -- until now a reader hitting Print on a Modern
+    page got the browser's default paper at the browser's default margins,
+    which for a document that declares its own is simply wrong information.
+
+    So: `@page`, and nothing that decides where a sheet ENDS. No `hr.pb`
+    break, no `.ws-keep`, no `break-after` of any kind. The stylesheet says
+    so in its own comment, so a reader of the CSS meets the decision rather
+    than an omission."""
     html = emit.emit_html(_ws7(BODY), mode='modern')
-    assert _print_block(html) == ''
-    assert '@page' not in html
+    block = _print_block(html)
+    assert '@page{size:8.5in 11in;margin:0.5in 0.8in 1.33333in 0.8in}' in block
+    assert 'No page breaks, by design' in block
+    assert 'break-after' not in block
+    assert 'break-inside' not in block
+    assert 'hr.pb' not in block
+    assert 'ws-keep' not in block
+    # and nothing about paper leaks into the SCREEN stylesheet
+    assert '@page' not in html[:html.index('@media print')]
 
 
 # --------------------------------------------------------- page breaks

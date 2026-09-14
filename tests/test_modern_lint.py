@@ -1559,8 +1559,16 @@ def test_round3_geometry_normalization_and_quote_distinction():
     md = emit.emit_markdown(doc, mode='modern')
 
     # HTML: quote wrapped in a real <blockquote>; no inch geometry anywhere
+    # ON SCREEN. The `@media print` block at the foot of the stylesheet is
+    # excluded deliberately (planning #264 item 4(c), 2026-09-14): it states
+    # the document's own PAPER in inches, which is the one place inches are
+    # the right unit, and it decides nothing about the reading column this
+    # rule is about. Round 3's rule is "a reading column is the reader's", and
+    # a sheet of paper is not a reading column.
     assert '<blockquote>' in h and '</blockquote>' in h
-    assert '5.8' not in h and 'in;' not in h and 'in"' not in h
+    screen = h[:h.index('@media print')] if '@media print' in h else h
+    screen += h[h.index('</style>'):] if '</style>' in h else ''
+    assert '5.8' not in screen and 'in;' not in screen and 'in"' not in screen
     assert not _html_bad_geometry(h)
 
     # RTF: quote style gets the flat 720-twip inset; body style gets none
