@@ -2996,7 +2996,9 @@ def test_mid_document_pn_reanchors_numbering_from_the_page_it_lands_on():
     doc = core.parse_ws(data)
     assert doc.meta['page']['pn_start'] == 10           # global: first occurrence
     checkpoints = _pn_checkpoints(doc)
-    assert checkpoints[-1][1] == 500
+    # `(block, line within block, value)` since triage Q12 -- the line index
+    # is what lets a `.pn` sitting on a page boundary be read on the NEW page.
+    assert checkpoints[-1][2] == 500
     pdf_bytes = emit_pdf(doc, mode='printed')
     nums = [int(m) for m in
            re.findall(rb'[\d.]+ [\d.]+ Td \(PAGENO (\d+)\) Tj ET', pdf_bytes)]

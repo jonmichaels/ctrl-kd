@@ -607,7 +607,8 @@ def _left_for_parity(po, poe, poo, is_even):
 
 
 def _pn_checkpoints(doc):
-    """[(block_index, pn_value), ...] in ascending block order -- a `.pn`
+    """[(block_index, line_index_within_that_block, pn_value), ...] in
+    ascending order -- a `.pn`
     RE-ANCHORS the automatic page-number sequence starting on the page it
     appears on (WSFORMAT: ".PN ... Sets the starting page number"), it
     does not merely set the document's own opening number once. Measured
@@ -626,10 +627,19 @@ def _pn_checkpoints(doc):
 
     Seeded at 1 (WordStar's own hardcoded starting number), same reason
     `_pl_checkpoints`/`_hm_fm_checkpoints` seed at the hardcoded default
-    rather than `doc.meta['page']['pn_start']` -- see their docstrings."""
-    from .core import _resolve_lines_arg
-    checkpoints = [(0, 1)]
-    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+    rather than `doc.meta['page']['pn_start']` -- see their docstrings.
+
+    THE LINE INDEX (triage Q12, probes 2026-09-14) is `dot_positions`' own
+    second field: how many of that block's lines came BEFORE the command.
+    A block index alone is too coarse for the same reason it was too coarse
+    for a running head (triage Q9, `Document.hf_events_within`) -- WordStar
+    stores a `.pn` typed mid-paragraph between two of that paragraph's own
+    physical lines, and `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS` does exactly
+    that: its second `.pn0` sits immediately after "Charles Maher", the
+    last line page 1 has room for. Read at block granularity it re-anchored
+    the numbering ON page 1, which printed a `0` real WS7 does not print."""
+    checkpoints = [(0, 0, 1)]
+    for bi, li, cmd in doc.meta.get('dot_positions', ()):
         m = _PN_CMD_RE.match(cmd)
         if not m:
             continue
@@ -653,10 +663,17 @@ def _pn_checkpoints(doc):
         # Two `.pn` commands inside the SAME block keep the last one (the
         # later command wins, as for any other stateful dot command); a
         # `.pn` in block 0 replaces the seed rather than doubling it.
-        if checkpoints[-1][0] == bi:
-            checkpoints[-1] = (bi, value)
+        # Two `.pn` commands at the SAME position keep the last one (the
+        # later command wins, as for any other stateful dot command); a `.pn`
+        # at the seed's own position replaces the seed rather than doubling
+        # it. POSITION, not block (triage Q12): a block can hold two `.pn`
+        # commands sixty lines apart -- `-HOLYMAC.WS`'s front matter is one
+        # such block -- and merging them by block index alone threw away the
+        # first and moved the second's page.
+        if checkpoints[-1][0] == bi and checkpoints[-1][1] == li:
+            checkpoints[-1] = (bi, li, value)
         else:
-            checkpoints.append((bi, value))
+            checkpoints.append((bi, li, value))
     return checkpoints
 
 
@@ -674,30 +691,78 @@ def _resolve_page_numbers(pn_checkpoints, pages):
     just continues the count.
 
     A checkpoint is consumed (matched to a page) at most once, by the
-    FIRST page whose own block range reaches it -- `applied_bi` tracks
-    the highest checkpoint block index already used, so a checkpoint
-    sitting mid-page is applied to THAT page (not the next one) and never
-    re-applied to a later page that also happens to satisfy `cp_bi <=
-    page_max_bi`."""
+    FIRST page that actually READS it.
+
+    WHICH PAGE READS IT (triage Q12, probes 2026-09-14). A checkpoint
+    carries the line index within its block that `dot_positions` recorded,
+    so "the page that reads it" is the first page after which that block
+    has printed MORE lines than came before the command. One arithmetic,
+    two rules at once:
+
+      a `.pn` typed mid-paragraph is read there, not at the paragraph's
+      end -- the block-granular version deferred it past the rest of its
+      own paragraph (the same fault triage Q9 found for running heads);
+
+      and a `.pn` sitting exactly on a page boundary is read on the NEW
+      page, because a page ENDS THE MOMENT IT IS FULL. Probed directly:
+      with ten text lines to a page and `.op` in force, a `.pn0` after
+      nine blank lines numbers page 1, after ten it numbers page 2, and
+      with an inked tenth line before it, page 1 prints nothing and page 2
+      prints `0` (Q12L/M/N). `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS` is that
+      last shape exactly -- its `.pn0` follows "Charles Maher", page 1's
+      last line -- and read on page 1 it printed a `0` real WS7 does not.
+
+    A checkpoint whose block prints NO lines at all (a dot-only block) has
+    no such position to reach, so it falls back to the block-range rule:
+    the first page whose own blocks reach it."""
     numbers = []
     current = None
-    applied_bi = -1
-    for pg in pages:
-        bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pg) if bi is not None]
-        page_max_bi = max(bis) if bis else None
-        candidate = None
-        if page_max_bi is not None:
-            for cp_bi, cp_val in pn_checkpoints:
-                if applied_bi < cp_bi <= page_max_bi:
-                    candidate = (cp_bi, cp_val)     # last match in range wins
-        if candidate is not None:
-            applied_bi, current = candidate
-        elif current is None:
-            current = pn_checkpoints[0][1]
+    previous = -1
+    for idx in _checkpoints_by_page(pn_checkpoints, pages):
+        if current is None or idx > previous:
+            current = pn_checkpoints[idx][2]        # re-anchored on this page
         else:
             current += 1
+        previous = idx
         numbers.append(current)
     return numbers
+
+
+def _checkpoints_by_page(checkpoints, pages):
+    """For each page, the index of the LAST checkpoint READ on or before it
+    -- the one shared walk `_resolve_page_numbers` and the automatic-number
+    toggle (`_pgnum_checkpoints`) both need, so the two cannot disagree
+    about where a `.pn` was read.
+
+    A checkpoint is `(block index, line index within that block, value)`.
+    It has been read by the end of a page when that block has printed MORE
+    lines than came before the command -- see `_resolve_page_numbers`'
+    "WHICH PAGE READS IT" for the probes behind that. A checkpoint whose
+    block prints no lines at all (a dot-only block) has no position to
+    reach and falls back to the block-range rule.
+
+    Checkpoints are ascending, so the first one this page has not reached
+    stops the walk: nothing after it can have been reached either.
+
+    THE POSITION IS THE PAGE'S OWN `read_pos` -- `(block, how many lines of
+    that block this page had read)` when it closed -- and NOT a count taken
+    off the finished pages, because `_finalize_pages` strips a page's
+    trailing blanks: a page of nothing but blank lines ends up empty, with
+    no `bi` on it at all, which is precisely the shape a leading blank run
+    makes. A page that never got one (a synthetic or degenerate page)
+    inherits the last real position rather than resetting the walk."""
+    out, last, pos = [], 0, None
+    for pg in pages:
+        pos = getattr(pg, 'read_pos', None) or pos
+        if pos is not None:
+            pos_bi, pos_count = pos
+            for idx in range(last + 1, len(checkpoints)):
+                cp_bi, cp_li = checkpoints[idx][0], checkpoints[idx][1]
+                if not (cp_bi < pos_bi or (cp_bi == pos_bi and cp_li < pos_count)):
+                    break
+                last = idx
+        out.append(last)
+    return out
 
 
 # no `\b` after the 2-letter code (matches `_PN_CMD_RE`'s own shape,
@@ -760,28 +825,49 @@ def _pgnum_checkpoints(doc):
     touch any of these four commands (they now get the stock automatic
     number instead of none). `--page-numbers on`/`off` bypass this
     entirely (see `_emit_pdf_inner`'s own call site)."""
-    checkpoints = [(0, True)]
-    for bi, _li, cmd in doc.meta.get('dot_positions', ()):
+    checkpoints = [(0, 0, True)]
+    for bi, li, cmd in doc.meta.get('dot_positions', ()):
         if _PGNUM_ON_RE.match(cmd):
             value = True
         elif _PGNUM_OFF_RE.match(cmd):
             value = False
         else:
             continue
-        if value != checkpoints[-1][1]:
-            checkpoints.append((bi, value))
+        if value != checkpoints[-1][2]:
+            checkpoints.append((bi, li, value))
+        elif checkpoints[-1][0] == bi and checkpoints[-1][1] == li:
+            checkpoints[-1] = (bi, li, value)
     return checkpoints
+
+
+def _pgnum_by_page(checkpoints, pages):
+    """Whether the automatic page number is ON, per page -- the positional
+    twin of `_pgnum_at` (triage Q12, probes 2026-09-14). `.pn`/`.pg` turn
+    it on and `.op` turns it off, and WHERE each one is read is the same
+    question `_resolve_page_numbers` asks, so it is the same walk:
+    `_checkpoints_by_page`. Read at block granularity,
+    `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS`'s second `.pn0` -- which sits
+    immediately after "Charles Maher", the last line page 1 has room for --
+    turned numbering back on ON page 1 and printed a `0` real WS7 does not
+    print."""
+    return [checkpoints[idx][2]
+            for idx in _checkpoints_by_page(checkpoints, pages)]
 
 
 def _pgnum_at(checkpoints, bi):
     """Whether the automatic page number is ON at block index `bi`, per
     `checkpoints` (ascending, from `_pgnum_checkpoints`) -- the LAST
-    checkpoint at or before `bi`, mirroring `_pl_at`/`_hm_fm_at`."""
-    on = checkpoints[0][1]
-    for cp_bi, cp_on in checkpoints:
-        if cp_bi > bi:
+    checkpoint at or before `bi`, mirroring `_pl_at`/`_hm_fm_at`.
+
+    BLOCK-granular, and kept only for the page that carries no `bi` at all
+    (a page opened by an explicit break with nothing on it): a real page
+    asks `_pgnum_by_page`, which knows WHERE inside a block each command
+    sat."""
+    on = checkpoints[0][2]
+    for cp in checkpoints:
+        if cp[0] > bi:
             break
-        on = cp_on
+        on = cp[2]
     return on
 
 
@@ -4118,10 +4204,18 @@ class Page(list):
                 'columns', 'column_gutter_pt', 'column_width_pt',
                 'column_top_offset_pt', 'header_pcl', 'footer_pcl',
                 'header_lines', 'footer_lines', 'auto_pageno',
-                'head_hf_override', 'foot_hf_override', 'footer_in_use')
+                'head_hf_override', 'foot_hf_override', 'footer_in_use',
+                'read_pos')
 
     def __init__(self, seq=()):
         super().__init__(seq)
+        # triage Q12: `(block index, how many lines of that block this page
+        # had read)` at the moment the page closed -- the position the
+        # paginator had reached, recorded BEFORE `_finalize_pages` strips a
+        # page's trailing blanks. A page of nothing but blank lines ends up
+        # EMPTY otherwise, with no `bi` left to read, and a leading blank run
+        # is exactly where a `.pn` needs placing. See `_checkpoints_by_page`.
+        self.read_pos = None
         self.headers = {}
         self.footers = {}
         # Whether this page has a running FOOTER at all, INCLUDING a `.fo`
@@ -5795,8 +5889,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if page and getattr(page[-1], 'overprint', False):
             return 0.0                             # this line shares a baseline
         return lead
+    read_tally = {}
+    read_pos = [None]
+
     def _close_page(explicit=False, break_bi=None):
         pg = Page(page)
+        # triage Q12 -- see `read_pos`'s own comment at the append site.
+        pg.read_pos = read_pos[0]
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
         # cause 10: kept UNFILTERED, unlike the text dicts just above -- a
@@ -6192,6 +6291,17 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # spent is the prefix every column of it shares.
                 col_group_cols, col_group_index, col_offset_pt = lc, 0, spent
             spent += _cost(l)
+        # triage Q12: how far into the document this page has READ, kept as
+        # a running per-block line tally. `_checkpoints_by_page` needs it
+        # because `_finalize_pages` strips a page's trailing blanks -- a page
+        # of nothing but blank lines ends up EMPTY, with no `bi` left on it at
+        # all, and the leading blank run a `.pn` sits inside is exactly that
+        # shape (`-HOLYMAC.WS`'s own front matter, and every Q12 probe).
+        # Counted here, before anything is stripped.
+        bi_here = getattr(l, 'bi', None)
+        if bi_here is not None:
+            read_tally[bi_here] = read_tally.get(bi_here, 0) + 1
+            read_pos[0] = (bi_here, read_tally[bi_here])
         page.append(l)
     if page:
         _close_page()
@@ -6640,6 +6750,7 @@ def _attach_head_foot_lines_printed(doc, pages, size):
     left = _printed_left(doc, size)
     page_h = _resolved_page_height(doc, True)
     pgnum_checkpoints = _pgnum_checkpoints(doc)
+    pgnum_on_page = _pgnum_by_page(pgnum_checkpoints, pages)
     page_numbers = _resolve_page_numbers(_pn_checkpoints(doc), pages)
     for page_index, pg in enumerate(pages):
         page_mt = getattr(pg, 'mt_lines', None)
@@ -6673,7 +6784,7 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             saved_pg, doc.meta['page'] = doc.meta['page'], eff
         bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pg) if bi is not None]
         if bis:
-            auto_page_number = _pgnum_at(pgnum_checkpoints, max(bis))
+            auto_page_number = pgnum_on_page[page_index]
         else:
             fallback_bi = getattr(pg, 'explicit_break_bi', None)
             auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
@@ -10584,6 +10695,8 @@ def _emit_pdf_inner(doc, printed, options):
         page_numbers_mode = options.get('page_numbers', 'auto')
         pgnum_checkpoints = (_pgnum_checkpoints(doc)
                              if page_numbers_mode == 'auto' else None)
+        pgnum_on_page = (_pgnum_by_page(pgnum_checkpoints, pages)
+                         if pgnum_checkpoints is not None else None)
         res = FontRes()
         streams = []
         for page_index, pl in enumerate(pages):
@@ -10711,7 +10824,7 @@ def _emit_pdf_inner(doc, printed, options):
                 bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pl)
                       if bi is not None]
                 if bis:
-                    auto_page_number = _pgnum_at(pgnum_checkpoints, max(bis))
+                    auto_page_number = pgnum_on_page[page_index]
                 else:
                     # #228: a page with no lines at all has no `.bi` to
                     # read -- true of both an ordinary degenerate page

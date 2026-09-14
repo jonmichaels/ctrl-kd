@@ -333,7 +333,8 @@ def test_pn_reanchors_the_count_even_when_its_number_repeats():
     doc = core.parse_ws(src)
     cps = pdf._pn_checkpoints(doc)
     assert len(cps) == 2, cps
-    assert cps[0] == (0, 1) and cps[1][1] == 1, cps
+    # `(block, line within block, value)` since triage Q12.
+    assert cps[0] == (0, 0, 1) and cps[1][2] == 1, cps
     assert cps[1][0] > 0, cps
     pages = pdf._doc_to_pagelines(doc, True)
     numbers = pdf._resolve_page_numbers(cps, pages)
