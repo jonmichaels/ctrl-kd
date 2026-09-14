@@ -1167,7 +1167,16 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     # the way version 9 published the printed page-lines' own: the label and
     # where it sat, in the invisibles layer, never on a rendering surface.
     modern_print_controls = []
+    # `_modern_verse_flags` (perf, planning #271 M7): harvested here purely so
+    # this one semantic flow can ALSO serve `attach_graphic_cells_modern`'s
+    # own throwaway Modern-PDF pass below, which used to re-derive the whole
+    # thing (`_modern_flow`'s own `sem_cached` note). `verse_flags` is an
+    # append-only out-list, exactly like `print_controls` beside it: asking
+    # for it changes nothing about the flow this function returns.
+    _want_cells = _pdf.has_modern_graphic_content(doc)
+    _modern_verse_flags = [] if _want_cells else None
     modern_out = modern_flow(doc, notes=notes, note_refs=note_refs,
+                             verse_flags=_modern_verse_flags,
                              print_controls=modern_print_controls)
     # version 7 (planning #251 follow-up, 2026-09-10, found by the app coder
     # job 348): a `modern['items']` entry of kind 'para' or 'note' MAY now
@@ -1193,7 +1202,9 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     # exported through this JSON" choice version 5's own docstring already
     # made. `_pdf` is the same lazy import this function's own docstring-
     # adjacent `printed_pages` loop above already uses.
-    modern_graphic_cells = _pdf.attach_graphic_cells_modern(doc, notes, note_refs)
+    modern_graphic_cells = _pdf.attach_graphic_cells_modern(
+        doc, notes, note_refs,
+        sem_cached=((modern_out, _modern_verse_flags) if _want_cells else None))
     for i, cells in modern_graphic_cells.items():
         if cells:
             modern_out['items'][i]['graphic_cells'] = [

@@ -218,3 +218,63 @@ def test_modern_graphic_cells_never_change_pdf_bytes():
     pdf.attach_graphic_cells_modern(doc, DEFAULT_NOTE_KINDS, 'word')
     pdf2 = pdf.emit_pdf(doc, mode='modern')
     assert pdf1 == pdf2
+
+
+# ------------------------------------- (perf, planning #271 M7) the shared flow
+
+def test_a_shared_semantic_flow_attaches_exactly_the_same_cells():
+    """`emit_layout` runs `_layout.modern_flow` once for the JSON's own
+    `modern['items']` and used to make `attach_graphic_cells_modern` derive
+    the whole thing a second time. Passing the first answer in must attach
+    the identical cells -- the flow is read there, never mutated."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + (b'\xcd' * 10) + HARD
+        + b'Prose after the rule, so the flow has more than one item.' + HARD)
+    fresh = pdf.attach_graphic_cells_modern(doc, DEFAULT_NOTE_KINDS, 'word')
+    verse_flags = []
+    sem = _layout.modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
+                              verse_flags=verse_flags)
+    shared = pdf.attach_graphic_cells_modern(doc, DEFAULT_NOTE_KINDS, 'word',
+                                             sem_cached=(sem, verse_flags))
+    assert shared == fresh
+    assert shared           # and it is not the empty answer both ways
+
+
+def test_the_shared_flow_leaves_the_layout_json_byte_identical():
+    """The whole point: the JSON `emit_layout` writes is unchanged by where
+    its Modern flow came from."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + (b'\xcd' * 10) + HARD
+        + b'Prose after the rule.' + HARD)
+    assert _layout.emit_layout(doc, mode='modern') == _layout.emit_layout(doc, mode='modern')
+    assert 'graphic_cells' in _layout.emit_layout(doc, mode='modern')
+
+
+def test_has_modern_graphic_content_is_the_short_circuit_it_claims_to_be():
+    graphic = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15)) + (b'\xcd' * 4) + HARD)
+    prose = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15))
+        + b'Nothing graphic here at all.' + HARD)
+    assert pdf.has_modern_graphic_content(graphic) is True
+    assert pdf.has_modern_graphic_content(prose) is False
+    # the predicate and the function it guards agree, both ways
+    assert pdf.attach_graphic_cells_modern(graphic, DEFAULT_NOTE_KINDS, 'word') != {}
+    assert pdf.attach_graphic_cells_modern(prose, DEFAULT_NOTE_KINDS, 'word') == {}
+
+
+def test_an_empty_note_set_never_takes_the_shared_flow():
+    """`_modern_streams`' documented quirk resolves an EMPTY `notes` back to
+    the default three, so a caller's empty-notes flow is NOT the flow that
+    pass would build -- sharing one there would silently change the cells.
+    `attach_graphic_cells_modern` drops `sem_cached` on the floor instead."""
+    doc = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(15)) + (b'\xcd' * 10) + HARD)
+    verse_flags = []
+    wrong = _layout.modern_flow(doc, notes=frozenset(), note_refs='word',
+                                verse_flags=verse_flags)
+    assert (pdf.attach_graphic_cells_modern(doc, frozenset(), 'word',
+                                            sem_cached=(wrong, verse_flags))
+            == pdf.attach_graphic_cells_modern(doc, frozenset(), 'word'))

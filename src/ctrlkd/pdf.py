@@ -6427,7 +6427,24 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 line.graphic_cells = record
 
 
-def attach_graphic_cells_modern(doc, notes, note_refs):
+def has_modern_graphic_content(doc):
+    """True when ANY span anywhere in the document carries a cp437 graphic
+    character -- the necessary condition for `attach_graphic_cells_modern`
+    to attach anything at all, and therefore for its throwaway Modern-PDF
+    pass to be worth running.
+
+    Public (perf, planning #271 M7) so `emit_layout` can ask the same
+    question BEFORE it decides whether to harvest the `verse_flags` that
+    pass needs: harvesting them costs a `paragraph_layout_context` +
+    `detect_screenplay_blocks` + per-block `assemble_paragraphs` walk, and
+    the overwhelming majority of documents carry no graphic character at
+    all and would pay it for nothing."""
+    return any(set(span.text) & GRAPHIC_CHARS
+               for block in doc.blocks for line in block.lines
+               for span in line.spans)
+
+
+def attach_graphic_cells_modern(doc, notes, note_refs, sem_cached=None):
     """planning #251 follow-up (2026-09-10, app coder job 348): every
     `sem['items']` index (`_layout.modern_flow(doc, notes=notes,
     note_refs=note_refs)`'s own item list -- the SAME call `emit_layout`'s
@@ -6460,14 +6477,19 @@ def attach_graphic_cells_modern(doc, notes, note_refs):
     carries a graphic character in the first place (its runs are "exactly
     one resolved, decoded pix placeholder"), so `pictures='off'` here
     changes nothing this function could ever attach to."""
-    has_graphic_content = any(
-        set(span.text) & GRAPHIC_CHARS
-        for block in doc.blocks for line in block.lines for span in line.spans)
-    if not has_graphic_content:
+    if not has_modern_graphic_content(doc):
         return {}
     cells = {}
+    # `sem_cached` (perf, planning #271 M7): `emit_layout`'s own already-run
+    # `_layout.modern_flow` answer and its `verse_flags`, shared rather than
+    # re-derived -- see `_modern_flow`'s own note. Dropped on the floor when
+    # `notes` is EMPTY, because `_modern_streams`' own documented quirk then
+    # resolves `keep` to the default three instead: the caller's flow and
+    # this pass's flow would be two different flows, and a shared one would
+    # silently change what this function attaches.
     _modern_streams(doc, {'notes': notes, 'note_refs': note_refs},
-                    FontRes(), attach_graphic_cells=cells)
+                    FontRes(), attach_graphic_cells=cells,
+                    sem_cached=sem_cached if notes else None)
     return cells
 
 
@@ -9381,7 +9403,7 @@ def _modern_structure_indent_hang(structure, col_pt, toks, printed_pt):
 
 def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                  pictures='off', text_width_pt=0.0, sentence_spacing=False,
-                 record_sem_index=None):
+                 record_sem_index=None, sem_cached=None):
     """The MEASURED Modern flow: layout.modern_flow's semantic items (the
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
@@ -9434,9 +9456,22 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     # character's cell advance ONLY (`_modern_w`'s own `printed_pt` doc) --
     # never the Modern reading size.
     printed_pt = _printed_size(doc)
-    verse_flags = []
-    sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs,
-                              verse_flags=verse_flags)
+    # `sem_cached` (perf, planning #271 M7): the caller already ran
+    # `_layout.modern_flow` with the SAME `keep`/`note_refs` and kept both
+    # its answer and its `verse_flags` out-list -- `emit_layout` does, for
+    # the JSON's own `modern['items']`, one call before it asks
+    # `attach_graphic_cells_modern` for the cells. Re-deriving the whole
+    # semantic flow there is the single largest avoidable cost in the
+    # `layout` format on a novel-length document (-HOLYMAC.WS, 302 pages:
+    # 0.45s of 2.09s). The flow is READ here, never mutated, so sharing one
+    # is exact, not approximate; a caller that cannot promise the same
+    # arguments simply passes nothing and gets the old fresh call.
+    if sem_cached is not None:
+        sem, verse_flags = sem_cached
+    else:
+        verse_flags = []
+        sem = _layout.modern_flow(doc, notes=keep, note_refs=note_refs,
+                                  verse_flags=verse_flags)
     note_rows = sem['notes']
     col_pt = float((doc.meta.get('page') or {}).get('cw_120', 12.0)) * 0.6
     blank_h = MODERN_LINE * MODERN_BODY_PT
@@ -9876,7 +9911,8 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state, printed_pt,
     return ops
 
 
-def _modern_streams(doc, options, res, attach_graphic_cells=None):
+def _modern_streams(doc, options, res, attach_graphic_cells=None,
+                    sem_cached=None):
     """All page content streams for Modern mode.
 
     `attach_graphic_cells` (planning #251 follow-up, 2026-09-10): same
@@ -9923,7 +9959,8 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None):
                         pix_results=options.get('pix_results'),
                         pictures=options.get('pictures', 'off'),
                         text_width_pt=width, sentence_spacing=ss_on,
-                        record_sem_index=sem_index_of_item)
+                        record_sem_index=sem_index_of_item,
+                        sem_cached=sem_cached)
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 
