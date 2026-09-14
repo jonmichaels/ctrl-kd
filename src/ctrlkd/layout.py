@@ -508,7 +508,7 @@ def _shown_labels(pairs, note_refs):
 
 
 def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
-                verse_flags=None):
+                verse_flags=None, print_controls=None):
     """The document as the semantic Modern flow — see the module docstring
     for the item contract. This is the single implementation of the
     M-rules; measuring consumers (pdf.py, the app) convert columns to
@@ -522,7 +522,20 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
     measuring consumer can tighten a verse unit's internal line spacing
     without re-deriving paragraph units for itself.
 
-    It is an OUT-PARAMETER, deliberately, rather than a key on the item
+    `print_controls` (planning #264 running list, the batch-23 finding): a
+    list, or None. When given, one entry is appended for every 0x0F print
+    control this flow drops -- `{'item', 'run', 'label', 'hmi', 'columns'}`,
+    in flow order. The Modern flow has ALWAYS dropped the span (a print
+    control's editor label is not ink -- M4, and Jon's ruling 2026-09-13,
+    planning #270 item 36), which left Modern's own SHOW INVISIBLES with
+    nothing at all to draw: the position went with the label. This is the
+    Modern twin of what format version 9 did for the printed page-lines --
+    the label and its position published to the invisibles layer, never to
+    a rendering surface. `item` indexes the returned `items` list; `run` is
+    the index in that item's own `runs` where the control sat -- the run
+    that FOLLOWS it, so `len(runs)` means "after the last run on the line".
+
+    Both are OUT-PARAMETERS, deliberately, rather than keys on the item
     dicts: the item dicts ARE the `layout` JSON contract (`emit_layout`
     dumps them verbatim), that JSON is byte-parity with the Swift engine's
     own flow, and the Swift side states outright that its own `isVerse`
@@ -650,11 +663,28 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                         break
                     spans.pop(0)
             runs, footnotes = [], []
+            line_pctls = []
             for sp in spans:
-                if any(t.startswith('pctl') for t in sp.styles):
+                pctl = next((t for t in sp.styles
+                             if t.startswith('pctl')), None)
+                if pctl is not None:
                     # a 0x0F print control's display string is SCREEN-ONLY;
                     # the paper got the raw payload. Modern shows nothing —
-                    # command codes are invisible (M4, extended M10)
+                    # command codes are invisible (M4, extended M10).
+                    # The LABEL and where it sat still go to the invisibles
+                    # layer, which is the one feature allowed to draw it
+                    # (see `print_controls`): dropping the span used to drop
+                    # the position with it, so Modern's own Show Invisibles
+                    # had nothing to show. Recorded against the run index
+                    # the control precedes; the centre/right trim below can
+                    # still pop runs off the head, so the index is fixed up
+                    # after that, once `runs` is final.
+                    if print_controls is not None:
+                        line_pctls.append(
+                            {'run': len(runs), 'label': sp.text,
+                             'hmi': int(pctl[4:]),
+                             'columns': round(int(pctl[4:])
+                                              / _HMI_PER_PRINT_COLUMN)})
                     continue
                 styles = effective_span_styles(sp, b, heading_bold=True)
                 if 'fnref' in sp.styles:
@@ -707,6 +737,7 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                     text = text.translate(euro)
                 if text:
                     runs.append({'text': text, 'styles': sorted(styles)})
+            head_popped = 0
             if b.align in ('center', 'right'):
                 # WordStar 5+ aligned at EDITOR time — the centering is
                 # already in the file as spaces (the WS4 `.oj` DOSBox probe
@@ -721,6 +752,7 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                             runs[0] = dict(runs[0], text=t)
                         break
                     runs.pop(0)
+                    head_popped += 1
                 while runs and 'ref' not in runs[-1]:
                     t = runs[-1]['text'].rstrip(' ')
                     if t:
@@ -730,6 +762,14 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                     runs.pop()
             if line_is_verse is not None:
                 verse_by_index[len(items)] = line_is_verse[li]
+            for entry in line_pctls:
+                # same key order as the printed list's own
+                # (position first, then the label and its width)
+                print_controls.append({
+                    'item': len(items),
+                    'run': min(max(entry['run'] - head_popped, 0), len(runs)),
+                    'label': entry['label'], 'hmi': entry['hmi'],
+                    'columns': entry['columns']})
             items.append({'kind': 'para', 'align': b.align,
                           'indent_cols': lm, 'cut_cols': cut,
                           'runs': runs, 'footnotes': footnotes, 'bi': bi})
@@ -958,6 +998,19 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     document with no Modern graphic content anywhere emits byte-
     identical JSON to version 6.
 
+    version 10 (planning #264 running list, the batch-23 finding): a new
+    `invisibles['modern_print_controls']` -- `[{'item', 'run', 'label',
+    'hmi', 'columns'}, ...]`, flow order -- carrying every 0x0F print
+    control the MODERN flow drops, the same way version 9 carried the ones
+    the printed page-lines drop. Modern's Show Invisibles showed no print
+    control at all because `modern_flow` drops the span and the position
+    went with the label; the emitters (RTF, HTML, text, Markdown, Modern
+    PDF) still emit nothing for one, which is the point. `item` indexes
+    `modern['items']`; `run` is the index in that item's own `runs` that
+    the control PRECEDES (`len(runs)` = after the last run on the line). A
+    document with no 0x0F print control anywhere emits an empty list and is
+    otherwise byte-identical to version 9.
+
     version 9 (planning #270 item 36, Jon's ruling 2026-09-13: "Print
     controls aren't supposed to be visible except in Show Invisibles"): a
     printed page-line SEGMENT tagged `pctl<hmi>` now publishes its
@@ -1108,7 +1161,14 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 float(getattr(page, 'column_top_offset_pt', None) or 0.0), 1)
         printed_pages.append(pg)
 
-    modern_out = modern_flow(doc, notes=notes, note_refs=note_refs)
+    # planning #264 running list (the batch-23 finding): Modern's own Show
+    # Invisibles had no print controls to show, because the semantic flow
+    # drops the span -- label, position and all. Version 10 publishes them
+    # the way version 9 published the printed page-lines' own: the label and
+    # where it sat, in the invisibles layer, never on a rendering surface.
+    modern_print_controls = []
+    modern_out = modern_flow(doc, notes=notes, note_refs=note_refs,
+                             print_controls=modern_print_controls)
     # version 7 (planning #251 follow-up, 2026-09-10, found by the app coder
     # job 348): a `modern['items']` entry of kind 'para' or 'note' MAY now
     # carry 'graphic_cells' -- `[{'char', 'x', 'width', 'page'}, ...]`, one
@@ -1142,7 +1202,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 9,
+        'version': 10,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
@@ -1158,6 +1218,17 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             # `styles` still carry its `pctl<hmi>` tag -- and `columns` is the
             # printed width that segment was padded to.
             'print_controls': print_controls,
+            # planning #264 running list (version 10): the SAME labels seen
+            # from the Modern side. Two lists, not one, because the two
+            # flows genuinely differ in both count and order -- a running
+            # head's print control repeats on every printed page and reaches
+            # no Modern item at all -- and because their coordinates are not
+            # the same kind of thing: `page`/`line`/`segment` locate a
+            # printed page-line segment, `item`/`run` locate a position in
+            # `modern['items']`. `run` is the index of the run the control
+            # PRECEDES, so `len(runs)` means "after the last run on that
+            # line". Empty for every document with no 0x0F print control.
+            'modern_print_controls': modern_print_controls,
             'dot_commands': doc.meta.get('dot_commands', []),
             'dot_positions': doc.meta.get('dot_positions', []),
             'hf_events': [list(e) for e in getattr(doc, 'hf_events', ())],

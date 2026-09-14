@@ -155,7 +155,7 @@ def test_graphic_cells_x_matches_what_the_pdf_actually_draws():
 def test_graphic_cells_in_layout_json():
     doc = _box_doc()
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 9
+    assert out['version'] == 10
     top = out['printed']['pages'][0]['lines'][0]
     assert 'graphic_cells' in top
     assert [c['char'] for c in top['graphic_cells']] == ['┌', '─', '─', '┐']
@@ -190,7 +190,7 @@ def test_modern_graphic_cells_land_on_the_layout_json():
     assert xs == sorted(xs)
 
     out = json.loads(_layout.emit_layout(doc, mode='modern'))
-    assert out['version'] == 9
+    assert out['version'] == 10
     with_cells = [it for it in out['modern']['items'] if 'graphic_cells' in it]
     assert len(with_cells) == 1
     gc = with_cells[0]['graphic_cells']

@@ -139,3 +139,73 @@ def test_a_document_with_no_print_control_publishes_an_empty_list():
                         + b'Ordinary prose with no print control at all.' + HARD)
     out = json.loads(layout.emit_layout(doc, mode='modern'))
     assert out['invisibles']['print_controls'] == []
+    assert out['invisibles']['modern_print_controls'] == []
+
+
+# --------------------------------------- MODERN's own Show Invisibles
+#
+# Planning #264 running list, the batch-23 finding: Modern's Show Invisibles
+# showed NO print-control label at all. Item 36 gave the printed page-lines
+# a channel for it (version 9) and left Modern with none -- `modern_flow`
+# drops the span, and the POSITION went with the label. Version 10 is the
+# Modern twin of that: label plus position in the invisibles layer, never on
+# a rendering surface.
+
+
+def test_modern_publishes_the_label_and_where_it_sat():
+    """`item` indexes `modern['items']`; `run` is the index of the run the
+    control PRECEDES, so the app can draw the marker between two runs
+    without re-deriving anything. The fixture's control sits between
+    'Before the control ' and ' after the control' -- run 1 of item 0."""
+    out = json.loads(layout.emit_layout(_doc(), mode='modern'))
+    assert out['version'] >= 10
+    controls = out['invisibles']['modern_print_controls']
+    assert len(controls) == 1, controls
+    c = controls[0]
+    assert c['label'] == LABEL
+    assert c['hmi'] == DECLARED_HMI
+    assert c['columns'] == 5
+    item = out['modern']['items'][c['item']]
+    assert item['kind'] == 'para'
+    assert c['run'] == 1
+    assert [r['text'] for r in item['runs']] == ['Before the control ',
+                                                 ' after the control']
+
+
+def test_modern_runs_still_carry_no_trace_of_the_control():
+    """The flow still DROPS the span: the label is not ink, in Modern or
+    anywhere else. The invisibles layer is the only place it exists."""
+    out = json.loads(layout.emit_layout(_doc(), mode='modern'))
+    for item in out['modern']['items']:
+        for run in item.get('runs', ()):
+            assert LABEL not in run['text']
+
+
+def test_a_control_at_the_end_of_a_line_records_the_run_count():
+    """"After the last run on the line" has to be expressible, and
+    `len(runs)` is how: there is no following run to point at."""
+    shown = LABEL.encode('cp437')
+    ctl = ws7_block(0x0F, DECLARED_HMI.to_bytes(2, 'little') + bytes([len(shown)])
+                    + shown + b'\x1b*c2370a0003b0P')
+    doc = core.parse_ws(ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+                        + b'Text then the control' + ctl + HARD
+                        + b'Plain paragraph of ordinary prose padding.' + HARD)
+    out = json.loads(layout.emit_layout(doc, mode='modern'))
+    c = out['invisibles']['modern_print_controls'][0]
+    assert c['run'] == len(out['modern']['items'][c['item']]['runs'])
+
+
+def test_the_two_lists_are_independent():
+    """They are not the same list seen twice: their coordinates locate
+    different things (a printed page-line segment vs a position in
+    `modern['items']`) and their counts genuinely differ -- a running head's
+    own control repeats on every printed page and reaches no Modern item at
+    all. Both are present, both name this document's one body control."""
+    out = json.loads(layout.emit_layout(_doc(), mode='modern'))
+    printed = out['invisibles']['print_controls']
+    modern = out['invisibles']['modern_print_controls']
+    assert [c['label'] for c in printed] == [LABEL]
+    assert [c['label'] for c in modern] == [LABEL]
+    assert set(printed[0]) == {'page', 'line', 'segment', 'label', 'hmi',
+                               'columns'}
+    assert set(modern[0]) == {'item', 'run', 'label', 'hmi', 'columns'}
