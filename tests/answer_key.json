@@ -35,8 +35,8 @@
  },
  "engine_version": "4.6.0",
  "generator": {
-  "date": "2026-09-14T02:10:58-04:00",
-  "git_sha": "41106719728ca41594b164cd5b9642f9e4becc09",
+  "date": "2026-09-14T02:27:10-04:00",
+  "git_sha": "751f8fa058d98ad170b4be8eecaeff128d735ed7",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -9316,8 +9316,8 @@
        "sha256": "4eeba021dee2be321cee64755c5422ecc0f02d74f1cd6893d15064da26c3a974"
       },
       "html.printed": {
-       "bytes": 64323,
-       "sha256": "77a94d29f06820161c462346a0a6f0316b51fd9851e225f166ba6511b3be6463"
+       "bytes": 64243,
+       "sha256": "79b54f824d2c298256d98d42e573a7ede77975e64ca226d0979b8c2805a8765d"
       },
       "layout.modern": {
        "bytes": 331033,
@@ -9350,8 +9350,8 @@
        "sha256": "92a6abed5106142c0d451d60ed360a564b7f350cb062122ec5beeb3891b34bd8"
       },
       "rtf.printed": {
-       "bytes": 41428,
-       "sha256": "932afd7489c06867b1e351434557921e6ebb735d7f9996357610ee5002644f4e"
+       "bytes": 41400,
+       "sha256": "5f66459aaa25fccd6a9af269e89548be090c9fa548ff75e5c2a73bc177055ed4"
       },
       "text.modern": {
        "bytes": 25608,
@@ -12076,8 +12076,8 @@
        "sha256": "1a9ca6ae4f4b4d891b65b1bc4b854a3494ec2cde098db5f557bd01b084ea47ed"
       },
       "rtf.printed": {
-       "bytes": 905,
-       "sha256": "a0ee0c487a4037cbadddc5e7e3e9d75095280b57bc7109fe4979d1aa5f0cea58"
+       "bytes": 903,
+       "sha256": "35890ec5108b2bcc9ba1c25dd22f8b4f7147d3a870baaa2a3848d371fba3a698"
       },
       "text.modern": {
        "bytes": 592,
@@ -13729,8 +13729,8 @@
        "sha256": "2585a852df4e655b6bc8bce59b2476db71b04550cb19a8b5648730c45d1ac010"
       },
       "rtf.printed": {
-       "bytes": 1279,
-       "sha256": "ac8ae033cff8ce262bc2bec6b6fe807e9ee12aadeb8c09192524d35cda3792b1"
+       "bytes": 1275,
+       "sha256": "1b65d039b3ea77a40d8a8110da3885883ef9ea1b6ca781e4c1a8a8e0563493d5"
       },
       "text.modern": {
        "bytes": 709,
@@ -16659,24 +16659,24 @@
        "sha256": "20562ac8809ac79b63cbab2ed6f54c37c8a3cae5a2ff2a08431de3839abfd484"
       },
       "html.printed": {
-       "bytes": 1626,
-       "sha256": "6634381f77489929876be70484076b22e05c1dd082596946ee3866df46af0178"
+       "bytes": 1612,
+       "sha256": "bf67e6e510c47ac5cbd5f02ff6e3d6b030d1e29eac7565c7ba6dbdca0908291a"
       },
       "layout.modern": {
-       "bytes": 15124,
-       "sha256": "960983a7528f2752df8fe96833179ab8797516bfa4e703b128eb0f06ed7c2be6"
+       "bytes": 15019,
+       "sha256": "7c31b3e9dc794b500e3e8f4611b42b5961bf20a50f64a1c2f5dba5e12c9b5d5c"
       },
       "layout.printed": {
-       "bytes": 15124,
-       "sha256": "960983a7528f2752df8fe96833179ab8797516bfa4e703b128eb0f06ed7c2be6"
+       "bytes": 15019,
+       "sha256": "7c31b3e9dc794b500e3e8f4611b42b5961bf20a50f64a1c2f5dba5e12c9b5d5c"
       },
       "markdown.modern": {
        "bytes": 454,
        "sha256": "a6b841f2ec0b2d75371ab85e86e3305eb280846e8843b0d6ceb7205ca4aa5e7b"
       },
       "markdown.printed": {
-       "bytes": 448,
-       "sha256": "d6f9a5a03dde54614ec20e2ebc84c3e2d037d7fc5416f115641c8048be1df1dc"
+       "bytes": 445,
+       "sha256": "e9f135c9946ec0870066cf8792e84d07b3ce7519982bd8805016aa8079933d69"
       },
       "pdf.modern": {
        "bytes": 4861,
@@ -16684,25 +16684,25 @@
        "sha256": "79ab9a2584a3f4bda167a225ee0b47f3d04a9a2e21c917b808b8a86127308419"
       },
       "pdf.printed": {
-       "bytes": 2310,
+       "bytes": 2247,
        "pages": 1,
-       "sha256": "3af4e1d2b09eb9d4ce2da950f45d4c5f7cc0584e11b93e83b73fda18b40773f9"
+       "sha256": "e0248b7b8224fff1bd9e7774455eca7b677ddbeec8e6c804eeaad36523150fb8"
       },
       "rtf.modern": {
        "bytes": 936,
        "sha256": "7b6d0bb3636c6f724fb5d018a62796ad782b629bd148d5f4fab40d8d64eecf70"
       },
       "rtf.printed": {
-       "bytes": 875,
-       "sha256": "d311b4a7935e4205fe3e481f88e11912ed0977d4d074d96a67a0340f2e663c4f"
+       "bytes": 858,
+       "sha256": "9011baae730e4aaaeda549013e03796ef9688e6a46f00fa24b5a6649593f0bde"
       },
       "text.modern": {
        "bytes": 434,
        "sha256": "edc8f995da6d65af220d2ef493311940d2c84a625a806b6baa64593a38fe001e"
       },
       "text.printed": {
-       "bytes": 441,
-       "sha256": "a19d93f21d4dad4e6d9c33c6fcbea216812224c2eef4a461db03a921e276a63a"
+       "bytes": 438,
+       "sha256": "d58a22819239755c662f343ce2a0e100befea17e57ecd7bbc359ebc1dea9753b"
       }
      },
      "path": "REF/REFORM.DOT",

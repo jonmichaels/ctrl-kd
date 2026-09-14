@@ -21,6 +21,7 @@ superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 import math as _math
 import re as _re
 import zlib as _zlib
+from dataclasses import replace as _dc_replace
 from . import pix as _pixdecode
 from .core import merged_lines as _merged_lines, Span as _Span, \
     trailing_blank_lines as _trailing_blank_lines, \
@@ -4781,6 +4782,67 @@ def _recentred_centre_tab_spans(spans, blk, doc):
 _PF_POSITIONAL_TAGS = ('tabhmi', 'pctl', 'pix', 'pcl', 'ixentry')
 
 
+def _comment_mark_indices(doc):
+    """The reference indices (an `fnref` span's own text, 1-based) that point
+    at a COMMENT note.
+
+    core.py numbers every note kind through ONE counter in document order
+    (`fn_counter`), and `_ref_pairs` keeps that same order, so the index a
+    mark carries IS the position of its note in `doc.notes`."""
+    return {i + 1 for i, n in enumerate(doc.notes) if n.kind == 'comment'}
+
+
+def _drop_comment_marks(doc, lines):
+    """`lines` with every COMMENT reference mark removed.
+
+    A WordStar comment PRINTS NOTHING -- not the comment, not a number
+    standing in for it. `..` (and its `.IG` spelling) is a non-printing
+    comment LINE: MicroPro's own reference gives it no paper presence at
+    all, and real WS7 confirms it -- `sawyer/REF/REFORM.DOT` carries three
+    `..` lines and the v4 PRISTINE capture has no mark, no digit and no
+    shift where they sit. The ^ON comment BLOCK is a different construct
+    and is equally silent on paper (ruling 2026-08-06: "printed ALWAYS
+    silent"), so both origins are dropped here by the same rule.
+
+    The mark is still IR: Modern anchors RTF's `\\*\\annotation` and HTML's
+    backlink at exactly this position, and Show Invisibles needs somewhere
+    to draw the comment icon. Only the PRINTED surfaces lose it -- and they
+    lose it HERE, before anything measures or re-wraps, rather than at the
+    drawing step: a mark that survives into the measure is three columns of
+    width WordStar never spent, and under `.pf on` its characters fuse with
+    the neighbouring text into a word ("123") that then gets printed.
+
+    The identical list back when the document has no comment at all, which
+    is nearly every document, so nothing else can move."""
+    if not doc.comments:
+        return lines
+    marks = _comment_mark_indices(doc)
+    if not marks:
+        return lines
+
+    def keep(s):
+        return not ('fnref' in s.styles and s.text.isdigit()
+                    and int(s.text) in marks)
+
+    if all(keep(s) for ln in lines for s in ln.spans):
+        return lines
+    out = []
+    for ln in lines:
+        kept = [s for s in ln.spans if keep(s)]
+        if len(kept) == len(ln.spans):
+            out.append(ln)
+        else:
+            out.append(_replace_line(ln, kept))
+    return out
+
+
+def _replace_line(line, spans):
+    """`line` with `spans` in place of its own, every other field carried
+    over -- `dataclasses.replace` over the IR Line, named here so the one
+    call site reads as what it is."""
+    return _dc_replace(line, spans=spans)
+
+
 def _pf_positional(span):
     """True when this span PLACES something (a tab stop, a print control, a
     picture, an index entry) rather than merely carrying text -- the one
@@ -4823,6 +4885,18 @@ def _pf_leading_indent(line):
     return head, rest
 
 
+def _pf_cells(spans):
+    """`spans` as a flat list of (character, styles, source) cells.
+
+    `source` is `id(span)` for a REFERENCE MARK and None for ordinary text:
+    the re-wrap works a character at a time, and two marks that end up
+    side by side must not fuse back into one span the way two runs of plain
+    text legitimately do (the text of a mark is a pointer -- see the rebuild
+    loop in `_pf_rewrap_paragraph`)."""
+    return [(c, s.styles, id(s) if 'fnref' in s.styles else None)
+            for s in spans for c in s.text]
+
+
 def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
     """One paragraph's physical lines, re-wrapped to `measure` points. Returns
     None when the paragraph is one this mechanism leaves alone (see the
@@ -4833,29 +4907,28 @@ def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
     cont_indent, _ = _pf_leading_indent(para[1])
 
     def width(cells):
-        return sum(_pf_char_pitch(st, fonts, size, cache) for _, st in cells)
+        return sum(_pf_char_pitch(c[1], fonts, size, cache) for c in cells)
 
-    first_w = width([(c, s.styles) for s in first_indent for c in s.text])
-    cont_w = width([(c, s.styles) for s in cont_indent for c in s.text])
+    first_w = width(_pf_cells(first_indent))
+    cont_w = width(_pf_cells(cont_indent))
     if measure - max(first_w, cont_w) <= 0:
         return None
-    # The paragraph's text as one (character, styles) run, joined the way
-    # `core.merged_lines` joins a soft-wrapped run -- a space where WordStar's
-    # own break implies one, nothing after an existing space or a hyphen.
-    # `dis` collects the DISCRETIONARY hyphen positions: a break may be taken
-    # there and prints a '-', and no break there prints nothing (WordStar's
-    # own soft hyphen, `Line.soft_hyphen`), which is why the character itself
-    # is not in the run.
+    # The paragraph's text as one (character, styles, source) run, joined the
+    # way `core.merged_lines` joins a soft-wrapped run -- a space where
+    # WordStar's own break implies one, nothing after an existing space or a
+    # hyphen. `dis` collects the DISCRETIONARY hyphen positions: a break may be
+    # taken there and prints a '-', and no break there prints nothing
+    # (WordStar's own soft hyphen, `Line.soft_hyphen`), which is why the
+    # character itself is not in the run.
     chars, dis = [], set()
     for k, ln in enumerate(para):
-        run = [(c, s.styles)
-               for s in _pf_leading_indent(ln)[1] for c in s.text]
+        run = _pf_cells(_pf_leading_indent(ln)[1])
         if k < len(para) - 1:
             if ln.soft_hyphen and run and run[-1][0] == '-':
                 run.pop()
                 dis.add(len(chars) + len(run))
             elif run and run[-1][0] not in (' ', '-'):
-                run.append((' ', run[-1][1]))
+                run.append((' ', run[-1][1], None))
         chars.extend(run)
     if not chars:
         return None
@@ -4890,7 +4963,7 @@ def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
         need = gw + bw + (hyph_w if hyph == 'dis' else 0.0)
         if cur and cur_w + need > measure + 1e-6:
             if prev_hyph == 'dis':
-                cur.append(('-', cur[-1][1]))
+                cur.append(('-', cur[-1][1], None))
             cur.extend(gap)
             rows.append(cur)
             cur, cur_w = list(body), cont_w + bw
@@ -4903,12 +4976,18 @@ def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
         rows.append(cur)
     out = []
     for k, row in enumerate(rows):
-        spans = []
-        for c, st in row:
-            if spans and spans[-1].styles == st:
+        spans, prev = [], None
+        for c, st, src_id in row:
+            # characters re-fuse into a span when they share a style set --
+            # EXCEPT across two different reference marks, whose text is a
+            # POINTER, not letters (`core.coalesce_spans` states the same
+            # rule; here the marks have already been reduced to characters,
+            # so the source span is what tells two of them apart).
+            if spans and spans[-1].styles == st and src_id == prev:
                 spans[-1] = _Span(spans[-1].text + c, st)
             else:
                 spans.append(_Span(c, st))
+            prev = src_id
         src = para[0] if k == 0 else para[1]
         out.append(_Line(
             _coalesce_spans((first_indent if k == 0 else cont_indent) + spans),
@@ -4926,15 +5005,19 @@ def pf_rewrapped_lines(doc, block):
     module comment above for the rule, the two measured documents and the
     scope. PUBLIC: the Printed PDF, the printed `layout` JSON, and emit.py's
     printed text/HTML/RTF facsimiles all render the same physical lines, so
-    they all ask the same question here."""
+    they all ask the same question here -- which is also why a COMMENT's
+    reference mark is taken off the line HERE (`_drop_comment_marks`): a
+    comment puts no ink on paper in any WordStar, so no printed surface may
+    measure, wrap around, or draw one."""
+    base = _drop_comment_marks(doc, block.lines)
     if (getattr(block, 'print_reformat', None) != 'on'
             or block.kind != 'para' or not getattr(block, 'wrap', True)
             or block.align not in ('left', 'justify')):
-        return block.lines
+        return base
     rm = block.right_margin if block.right_margin is not None else 65.0
     measure = rm * _PDF_PT_PER_COL
     size, fonts, cache = _printed_size(doc), getattr(doc, 'fonts', ()) or (), {}
-    out, i, lines, moved = [], 0, block.lines, False
+    out, i, lines, moved = [], 0, base, False
     while i < len(lines):
         j = i
         while j < len(lines) - 1 and lines[j].soft and lines[j].spans:
@@ -4948,7 +5031,7 @@ def pf_rewrapped_lines(doc, block):
     # the same object back when this pass re-decided nothing, so a caller can
     # assert "nothing moved" identically for a `.pf on` block WordStar left
     # alone and for every block in every other document
-    return out if moved else block.lines
+    return out if moved else base
 
 
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
