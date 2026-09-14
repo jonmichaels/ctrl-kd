@@ -71,11 +71,55 @@ def test_the_flag_reaches_the_emitter_at_all():
     assert FOOTER_NUM in emit.emit_rtf(_doc(['.op']), page_numbers='on')
 
 
-def test_headers_off_suppresses_the_number_too():
-    """`--headers`' own documented scope is "headers, footers, and page
-    numbers in the paged surfaces"."""
-    assert FOOTER_NUM not in emit.emit_rtf(_doc(), headers=False,
-                                           page_numbers='on')
+# ------------------------------------------- the two flags (#264 R7, 2026-09-14)
+#
+# Jon, ruling on the review round: "Page numbers and headers can be
+# different. A header or footer that contains a page number is controlled
+# by header flag but a page number on its own is controlled by the page
+# number flag. RTF should work the same way."
+#
+# So `--headers` reaches the running heads and feet -- a `#` the author
+# typed inside one goes with its head, because it IS that head's text --
+# and `--page-numbers` reaches WordStar's own automatic number and nothing
+# else. The first RTF batch had `--headers off` swallow the automatic
+# number too; that is what these four rows revert.
+
+@pytest.mark.parametrize('mode', ['printed', 'modern'])
+@pytest.mark.parametrize('headers,page_numbers,expected', [
+    (True,  'on',  True),
+    (True,  'off', False),
+    (False, 'on',  True),
+    (False, 'off', False),
+])
+def test_the_four_flag_combinations(mode, headers, page_numbers, expected):
+    """The automatic number answers to `--page-numbers` ALONE, in both
+    RTF modes, whichever way `--headers` is set."""
+    out = emit.emit_rtf(_doc(['.op']), mode=mode, headers=headers,
+                        page_numbers=page_numbers)
+    assert (FOOTER_NUM in out) is expected
+
+
+@pytest.mark.parametrize('mode', ['printed', 'modern'])
+def test_auto_is_the_documents_own_state_under_either_headers_flag(mode):
+    """`auto` reads `.pn`/`.pg`/`.op`, and `--headers` does not enter into
+    it -- the same answer with heads drawn and with heads suppressed."""
+    for headers in (True, False):
+        assert FOOTER_NUM in emit.emit_rtf(_doc(), mode=mode, headers=headers)
+        assert FOOTER_NUM not in emit.emit_rtf(_doc(['.op']), mode=mode,
+                                               headers=headers)
+
+
+@pytest.mark.parametrize('mode', ['printed', 'modern'])
+def test_a_hash_inside_a_head_goes_with_its_head(mode):
+    """The other half of the ruling: a `#` the author typed into a real
+    `.fo` is that footer's own text, so `--headers off` takes it away --
+    and it was never the automatic number, so `--page-numbers` does not
+    reach it."""
+    doc = _doc(footers={1: 'Page #'})
+    on = emit.emit_rtf(doc, mode=mode, headers=True, page_numbers='off')
+    assert r'{\chpgn }' in on and 'Page' in on
+    off = emit.emit_rtf(doc, mode=mode, headers=False, page_numbers='on')
+    assert r'\chpgn' not in off and 'Page' not in off
 
 
 def test_a_declared_footer_pre_empts_the_automatic_number():

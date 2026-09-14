@@ -550,15 +550,33 @@ def test_page_numbers_op_then_pg_toggles_mid_document():
     assert [n for _, _, n in ops] == [b'2', b'3']
 
 
-def test_page_numbers_headers_flag_off_also_suppresses():
-    """`--headers off`'s own documented scope already covers "headers,
-    footers, and page numbers" -- the automatic number must go silent
-    along with everything else it controls, even under `auto` with a
-    live `.pn`."""
+def test_page_numbers_flag_alone_governs_the_automatic_number():
+    """Planning #264 R7 (ruled 2026-09-14): `--headers` and
+    `--page-numbers` are SEPARATE. The automatic number -- the one `.pc`
+    positions -- is the page-number flag's business alone, so it survives
+    `--headers off` and goes silent only when `--page-numbers off` says
+    so. (The RTF now matches, `test_rtf_page_numbers.py`.)"""
     doc = core.parse_ws(('.pn 5\r\n' +
                          ''.join(f'L{i:03d}\r\n' for i in range(1, 21))).encode())
-    out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto', headers=False)
-    assert _pgnum_ops(out) == []
+    for headers in (True, False):
+        out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto',
+                           headers=headers)
+        assert [n for _, _, n in _pgnum_ops(out)] == [b'5']
+        off = pdf.emit_pdf(doc, mode='printed', page_numbers='off',
+                           headers=headers)
+        assert _pgnum_ops(off) == []
+
+
+def test_a_declared_footer_still_pre_empts_it_with_headers_off():
+    """"In use" is a property of the DOCUMENT, not of the flag: a file
+    that declares a `.fo` has no automatic number, and suppressing the
+    drawing of that footer must not conjure one."""
+    doc = core.parse_ws(('.fo Chapter One\r\n' +
+                         ''.join(f'L{i:03d}\r\n' for i in range(1, 21))).encode())
+    for headers in (True, False):
+        out = pdf.emit_pdf(doc, mode='printed', page_numbers='auto',
+                           headers=headers)
+        assert _pgnum_ops(out) == []
 
 
 # --------------------------------------------------------------- ledger row 5

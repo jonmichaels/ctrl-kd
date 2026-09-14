@@ -2808,11 +2808,13 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     the automatic number appears only when no `.fo` is IN USE
     (WSFORMAT.WS, "active only when the footers are not in use") -- a
     declared footer pre-empts it, and a `#` inside that footer is already
-    rendered as `\\chpgn` below. `headers` gates this whole function, the
-    automatic number included -- that flag's own documented scope is
-    "headers, footers, and page numbers in the paged surfaces", and the
-    2026-08-17 ruling that put page numbers in every paged surface
-    required the toggle. `--page-numbers` is the finer control inside it.
+    rendered as `\\chpgn` below. `headers` gates the running heads and
+    feet this function writes, and NOT the automatic number: planning #264
+    R7 (ruled 2026-09-14) separates the two flags -- "a header or footer
+    that contains a page number is controlled by header flag but a page
+    number on its own is controlled by the page number flag" -- so a `#`
+    the author typed into a real `.he`/`.fo` goes with its head, and
+    WordStar's own automatic number answers to `--page-numbers` alone.
 
     Planning #264 item 4 (packet rows A3-A5):
 
@@ -2857,7 +2859,13 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     # and WordStar's automatic number stays off -- which is exactly what
     # `pdf._close_page` records (`footer_in_use = bool(page_ftrs)`, before
     # the empty slots are dropped).
-    show_auto_num = headers and auto_page_number and not ftr_slots
+    # planning #264 R7 (ruled 2026-09-14): the two flags are SEPARATE and
+    # RTF follows the PDF. `headers` governs running heads and feet -- and
+    # so a `#` the author typed INSIDE one, which is that head's own text
+    # -- while `--page-numbers` governs WordStar's AUTOMATIC number alone.
+    # The first RTF batch made `--headers off` swallow the automatic number
+    # too; that is reverted here, on both surfaces.
+    show_auto_num = auto_page_number and not ftr_slots
     if not headers:
         hdr_slots, ftr_slots = {}, {}
     headery, footery = _rtf_head_foot_distance(doc.meta.get('page') or {},

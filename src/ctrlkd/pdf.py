@@ -10488,11 +10488,15 @@ def _emit_pdf_inner(doc, printed, options):
             else:
                 page_top = top
             # E3 item 2: resolve THIS page's own automatic-number state.
-            # `--headers off` already suppresses page numbers per its own
-            # documented scope ("headers, footers, and page numbers");
+            # The two flags are SEPARATE (planning #264 R7, ruled
+            # 2026-09-14): `--headers` governs running heads and feet --
+            # and therefore a `#` the author typed INSIDE one, which is
+            # part of that head's text -- while `--page-numbers` governs
+            # WordStar's own automatic number, the one `.pc` positions,
+            # alone. `--headers off` no longer suppresses it.
             # `on`/`off` need no page-level lookup at all, `auto` resolves
             # from the SAME block-index range `_resolve_page_numbers` uses.
-            if not show_headers or page_numbers_mode == 'off':
+            if page_numbers_mode == 'off':
                 auto_page_number = False
             elif page_numbers_mode == 'on':
                 auto_page_number = True
@@ -10512,12 +10516,21 @@ def _emit_pdf_inner(doc, printed, options):
                     fallback_bi = getattr(pl, 'explicit_break_bi', None)
                     auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
                                         if fallback_bi is not None else False)
+            # "Is a footer in use" is a property of the DOCUMENT, never of
+            # the `--headers` flag (planning #264 R7): WordStar's automatic
+            # number is off whenever the file declares a `.fo`, whether or
+            # not we are drawing that footer. So it is resolved from the
+            # real page and handed over unconditionally -- byte-identical
+            # under `--headers on`, where `None` already meant exactly
+            # `bool(footers)` to `_running_ops`.
+            pl_footer_in_use = getattr(pl, 'footer_in_use', None)
+            if pl_footer_in_use is None:
+                pl_footer_in_use = bool(getattr(pl, 'footers', None))
             running = _running_ops(doc, page_numbers[page_index], page_h, lead,
                                    size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}),
-                                   footer_in_use=(getattr(pl, 'footer_in_use', None)
-                                                  if show_headers else None),
+                                   footer_in_use=pl_footer_in_use,
                                    res=res, auto_page_number=auto_page_number,
                                    head_hf_override=(getattr(pl, 'head_hf_override', None)
                                                      if show_headers else None),
