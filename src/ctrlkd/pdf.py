@@ -6294,6 +6294,56 @@ def _substitute_merge_page_numbers_printed(doc, pages):
                     pl[i] = (new,) + tuple(seg[1:])
 
 
+def _merge_pageno_modern(doc, options):
+    """`doc` with its MailMerge page-number variables replaced by the
+    Modern PDF page numbers they land on -- the SAME Document for the
+    documents that carry none.
+
+    THE APPROACH, and why it is not the printed one. Printed physical
+    lines are never re-wrapped, so `_substitute_merge_page_numbers_printed`
+    can edit a composed page's own line segments and be exact by
+    construction. Modern REFLOWS, and a Modern token carries its advance
+    (`tok[5]`) baked at flow-build time, so the same post-pagination edit
+    would leave every token after it on the line drawing at the
+    VARIABLE's width -- `&#&` is about three characters wider than the
+    number that replaces it. The numbers therefore have to be in the text
+    before it is wrapped.
+
+    So: MEASURE, then RENDER. One throwaway Modern composition with the
+    variables still as typed says which page each one falls on
+    (`_modern_streams`' `record_merge_pages`); those numbers go into the
+    document's own text (`layout.merge_pageno_numbered`); the real render
+    then wraps, paginates and draws text that is already final. Nothing
+    downstream knows this happened.
+
+    THE RESIDUAL, stated rather than hidden: substituting SHORTENS the
+    text, so the measuring pass and the rendering pass are not guaranteed
+    to paginate identically -- an occurrence sitting within a few
+    characters of a page's last line could in principle move up one page
+    and then name the page it left. It is not iterated to a fixed point
+    because a fixed point need not exist (a shorter line can pull the
+    variable back, which lengthens it again). What is done instead is a
+    real check: `test_merge_page_number_variable.py` renders the Modern
+    PDF of every corpus document that prints one and reads the digits
+    back off the page they were drawn on, so a drift would fail by name
+    rather than ship.
+
+    The measuring pass is paid ONLY by a document that actually carries
+    the variable -- four in the whole archive, and `-HOLYMAC.WS`, the
+    speed benchmark, is not one of them."""
+    if not any(sp.text and '&#' in sp.text
+               for b in doc.blocks for ln in b.lines for sp in ln.spans):
+        if not any('&#' in (n.text or '') for n in doc.notes):
+            return doc
+    from .layout import merge_pageno_numbered, MERGE_PAGENO_RE as _RE
+    record = {'body': [], 'notes': []}
+    _modern_streams(doc, options, FontRes(), record_merge_pages=record)
+    start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
+    return merge_pageno_numbered(doc,
+                                 [start_no + i for i in record['body']],
+                                 [start_no + i for i in record['notes']])
+
+
 def _attach_line_numbers_printed(doc, pages, size):
     """planning #251(d): sets `PageLine.line_no = (label, x_pt)` on every
     line an active `.l#` interval numbers -- moved from `_page_stream`'s
@@ -9925,8 +9975,17 @@ def _modern_line_ops(toks, left, y, width, align, res, tz_state, printed_pt,
 
 
 def _modern_streams(doc, options, res, attach_graphic_cells=None,
-                    sem_cached=None):
+                    sem_cached=None, record_merge_pages=None):
     """All page content streams for Modern mode.
+
+    `record_merge_pages` (planning #270 item 42): None for every ordinary
+    render; a `{'body': [], 'notes': []}` dict for `_merge_pageno_modern`'s
+    own MEASURING pass, which this function fills with the page number
+    each surviving MailMerge page-number variable lands on -- body
+    occurrences in document order in `'body'`, note-text occurrences in
+    document order in `'notes'`. Recorded from the COMPOSED pages, so it
+    is the page the variable really falls on, not an estimate.
+
 
     `attach_graphic_cells` (planning #251 follow-up, 2026-09-10): same
     contract as `_attach_graphic_cells_printed`'s own `_line_ops_printed`
@@ -10159,11 +10218,14 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                           and _modern_para_is_graphic(item)):
             spacer = _modern_leading_spacer(toks, *_modern_line_face(toks))
         new_note_lines = []
+        new_note_merges = 0
         for note, label in notes:
             if id(note) in seen_notes:
                 continue
             note_text = (_sentence_spacing_texts([note['text']])[0]
                         if ss_on else note['text'])
+            if record_merge_pages is not None:
+                new_note_merges += len(_MERGE_PAGENO_RE.findall(note_text))
             new_note_lines += _modern_note_lines(label, note_text, width,
                                                   note['kind'])
         for vi, vline in enumerate(vis):
@@ -10201,10 +10263,31 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             # note at the head of this function.
             body.append((y + _modern_descent(face, face_pt), vline, align,
                          indent + (hang if vi else 0.0), cut, sem_i))
+            if record_merge_pages is not None:
+                # planning #270 item 42: this visual line is now ON the
+                # page being composed (`len(pages)` is its index -- the
+                # page is appended by `close()`), so every variable in it
+                # is answered by that page's own number. Token order
+                # inside the line is document order, and the lines are
+                # appended in document order, so the list needs no other
+                # key than its position.
+                for tok in vline:
+                    if isinstance(tok, tuple) and tok and tok[0] == 'image':
+                        continue
+                    for _ in _MERGE_PAGENO_RE.finditer(tok[0]):
+                        record_merge_pages['body'].append(len(pages))
             if vi == 0 and new_note_lines:
                 notes_lines.extend(new_note_lines)
                 for note, label in notes:
                     seen_notes.add(id(note))
+                if record_merge_pages is not None and new_note_merges:
+                    # Recorded HERE, not where the note's lines were
+                    # built: a note block is committed to the page its
+                    # reference's own first visual line actually landed
+                    # on, which is one `close()` later whenever that line
+                    # did not fit.
+                    record_merge_pages['notes'] += [len(pages)] * new_note_merges
+                    new_note_merges = 0
                 new_note_lines = []
     close()
     while len(pages) > 1 and not pages[-1][0] and not pages[-1][1]:
@@ -10309,6 +10392,24 @@ def _emit_pdf_inner(doc, printed, options):
     # `footers=None` as "nothing to render" (its own default), so turning
     # the flag off just means never passing the real values through.
     show_headers = options.get('headers', True)
+    # planning #270 item 42 (ruled 2026-09-14): "The page number merge
+    # variable should be substituted for page numbers in Modern PDF and
+    # RTF. And it should be controlled by the page number flag."
+    #
+    # `off` REMOVES it, on both paged paths: with no number to show there
+    # is nothing left for the variable to say, so it goes exactly the way
+    # it goes on a page-less surface (`layout.merge_pageno_dropped`, the
+    # same function HTML/Markdown/text call). `auto`/`on` substitute --
+    # Printed after pagination, where it is exact by construction, and
+    # Modern before the flow is built, which is what `_merge_pageno_modern`
+    # is for. `.op` does NOT enter into it: a variable the author TYPED is
+    # an explicit request, the same exemption WSFORMAT.TXT records for a
+    # `#` in a running head.
+    if options.get('page_numbers', 'auto') == 'off':
+        from .layout import merge_pageno_dropped
+        doc = merge_pageno_dropped(doc)
+    elif not printed:
+        doc = _merge_pageno_modern(doc, options)
     # Round 19 (PIX images RULED IN, ledger PIX row) wired the Printed
     # path; round 22 closed the two documented scope cuts (Modern PDF via
     # `_modern_streams`, the notes-pagination path via

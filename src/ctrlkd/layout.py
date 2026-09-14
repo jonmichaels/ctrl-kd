@@ -1335,6 +1335,121 @@ MERGE_PAGENO_RE = re.compile(r'&#(?:/[A-Za-z]+)?&')
 # variable without importing the PDF writer.
 
 
+# The marker a paged RTF export puts in the variable's place, resolved to
+# `{\chpgn }` -- the reader's OWN current-page field -- when the run is
+# escaped (`emit._rtf_escape`). A private-use character, so no real
+# document can carry one: cp437 and cp1252 both decode entirely inside the
+# BMP's assigned blocks, nowhere near U+E000.
+MERGE_PAGENO_MARK = '\ue000'
+
+
+def _merge_pageno_rewritten(doc, rewrite):
+    """`doc` with `rewrite` applied to every body span and note text that
+    carries a MailMerge page-number variable -- the SAME Document object
+    for the documents (nearly all of them) that carry none. The shared
+    body of `merge_pageno_dropped` and `merge_pageno_marked`."""
+    if not any(sp.text and '&#' in sp.text
+               for b in doc.blocks for ln in b.lines for sp in ln.spans):
+        if not any('&#' in (n.text or '') for n in doc.notes):
+            return doc
+    def sub(text):
+        return rewrite(text) if text and '&#' in text else text
+    blocks = []
+    for b in doc.blocks:
+        lines = []
+        for ln in b.lines:
+            spans = [sp if sp.text == sub(sp.text) else Span(sub(sp.text), sp.styles)
+                     for sp in ln.spans]
+            lines.append(_replace(ln, spans=spans) if spans else ln)
+        blocks.append(_replace(b, lines=lines) if lines else b)
+    notes = [_replace(n, text=sub(n.text),
+                      text_lines=tuple(sub(t) for t in n.text_lines))
+             for n in doc.notes]
+    return _replace(doc, blocks=blocks, notes=notes)
+
+
+def merge_pageno_marked(doc):
+    r"""`doc` with every MailMerge page-number variable replaced by
+    `MERGE_PAGENO_MARK`, which the RTF escaper turns into `{\chpgn }`.
+
+    Jon's ruling 2026-09-14 (planning #270 item 42): "The page number
+    merge variable should be substituted for page numbers in Modern PDF
+    and RTF. And it should be controlled by the page number flag."
+
+    RTF's answer to "the number of the page this lands on" is not a
+    number at all -- it is `\chpgn`, the reader's own current-page field,
+    the identical mechanism a `#` inside a running head has always used
+    here. Both RTF modes paginate in the READER (packet section 3: the
+    section spine imposes no page positions, and Printed RTF's own pages
+    have always been the reader's), so a field is not a fallback for a
+    number we could not compute -- it is the only answer that stays TRUE
+    of the file after the reader lays it out at its own margins and
+    fonts. It also costs no pagination pass at all, which is why the RTF
+    half of this item needed none of the two-pass machinery the Modern
+    PDF half does.
+
+    Called by `emit_rtf` at entry, next to `driver_substituted`, so every
+    later pass reads the text that actually ships."""
+    return _merge_pageno_rewritten(
+        doc, lambda t: MERGE_PAGENO_RE.sub(MERGE_PAGENO_MARK, t))
+
+
+def merge_pageno_numbered(doc, body_numbers, note_numbers):
+    """`doc` with its MailMerge page-number variables replaced by REAL
+    page numbers -- `body_numbers[k]` for the k-th occurrence in the
+    blocks, `note_numbers[k]` for the k-th in the notes, both in document
+    order. A list shorter than the occurrences it is asked to cover
+    leaves the rest as typed (never raises: a caller that measured a
+    subset must not lose the document).
+
+    Modern PDF's half of item 42. Printed pages are never re-wrapped, so
+    the printed path substitutes AFTER pagination
+    (`pdf._substitute_merge_page_numbers_printed`) and the arithmetic is
+    exact by construction. Modern REFLOWS: a token's advance is baked
+    when the flow is built, so a post-pagination edit would leave every
+    token after it on the line drawing at the variable's own width. The
+    numbers therefore have to be in the text BEFORE it is wrapped, which
+    is what this function is for -- see `pdf._merge_pageno_modern` for
+    the measure-then-render pass that supplies them."""
+    if not body_numbers and not note_numbers:
+        return doc
+    counters = {'body': 0, 'note': 0}
+
+    def numbered(text, which):
+        numbers = body_numbers if which == 'body' else note_numbers
+        def one(_m):
+            k = counters[which]
+            counters[which] = k + 1
+            return str(numbers[k]) if k < len(numbers) else _m.group(0)
+        return MERGE_PAGENO_RE.sub(one, text)
+
+    def sub(text, which):
+        return numbered(text, which) if text and '&#' in text else text
+    blocks = []
+    for b in doc.blocks:
+        lines = []
+        for ln in b.lines:
+            spans = [Span(sub(sp.text, 'body'), sp.styles) if sp.text and '&#' in sp.text
+                     else sp for sp in ln.spans]
+            lines.append(_replace(ln, spans=spans) if spans else ln)
+        blocks.append(_replace(b, lines=lines) if lines else b)
+    # `text` and `text_lines` are the SAME note text, whole and split, so
+    # they must consume the same stretch of `note_numbers` -- the counter
+    # rewinds to this note's own base before the split form is walked, or
+    # the two would disagree and the next note would read the wrong end
+    # of the list.
+    notes = []
+    for n in doc.notes:
+        base = counters['note']
+        text = sub(n.text, 'note')
+        after = counters['note']
+        counters['note'] = base
+        text_lines = tuple(sub(t, 'note') for t in n.text_lines)
+        counters['note'] = max(after, counters['note'])
+        notes.append(_replace(n, text=text, text_lines=text_lines))
+    return _replace(doc, blocks=blocks, notes=notes)
+
+
 def merge_pageno_dropped(doc):
     """`doc` with every MailMerge page-number variable REMOVED from every
     body span and note text -- the SAME Document object for the documents
@@ -1352,26 +1467,13 @@ def merge_pageno_dropped(doc):
     Called by `emit_text`/`emit_markdown`/`emit_html` at entry, next to
     `driver_substituted`, so every later pass (paragraph assembly,
     structure classification, sentence spacing, width measurement) reads
-    the text that actually ships. NOT called by `emit_rtf` or the PDF
-    writer: those are paged surfaces and substitute a real number."""
-    if not any(sp.text and '&#' in sp.text
-               for b in doc.blocks for ln in b.lines for sp in ln.spans):
-        if not any('&#' in (n.text or '') for n in doc.notes):
-            return doc
-    def drop(text):
-        return MERGE_PAGENO_RE.sub('', text) if text and '&#' in text else text
-    blocks = []
-    for b in doc.blocks:
-        lines = []
-        for ln in b.lines:
-            spans = [sp if sp.text == drop(sp.text) else Span(drop(sp.text), sp.styles)
-                     for sp in ln.spans]
-            lines.append(_replace(ln, spans=spans) if spans else ln)
-        blocks.append(_replace(b, lines=lines) if lines else b)
-    notes = [_replace(n, text=drop(n.text),
-                      text_lines=tuple(drop(t) for t in n.text_lines))
-             for n in doc.notes]
-    return _replace(doc, blocks=blocks, notes=notes)
+    the text that actually ships. ALSO called by `emit_rtf` and the PDF
+    writer under `--page-numbers off`: the flag governs the variable
+    exactly as it governs the automatic number (item 42, "it should be
+    controlled by the page number flag"), and with no number to show
+    there is nothing for the variable to say, so it goes the same way it
+    goes on a page-less surface."""
+    return _merge_pageno_rewritten(doc, lambda t: MERGE_PAGENO_RE.sub('', t))
 
 
 def driver_substituted(doc):

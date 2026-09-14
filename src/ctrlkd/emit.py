@@ -103,6 +103,14 @@ def _driver_substituted(doc):
     return driver_substituted(doc)
 
 
+def _merge_pageno_marked(doc):
+    """`doc` with every MailMerge page-number variable replaced by the
+    marker `_rtf_escape` turns into `{\\chpgn }`. See
+    `layout.merge_pageno_marked`."""
+    from .layout import merge_pageno_marked
+    return merge_pageno_marked(doc)
+
+
 def _merge_pageno_dropped(doc):
     """Planning #270 item 42 (Jon's ruling 2026-09-14): HTML, Markdown and
     text have no pages, so they carry no automatic page numbers and no
@@ -2221,11 +2229,30 @@ def _plain_toc_index_lines(doc):
 
 _RTF_COMMENT_AUTHOR = 'ctrl-kd'   # public repo: a tool name, not a person
 
+# planning #270 item 42: the same character `layout.MERGE_PAGENO_MARK`
+# names. Spelled out rather than imported because layout.py imports FROM
+# this module at its own module scope, so a module-scope import back would
+# cycle -- and `_rtf_escape` is per-character hot enough that a lazy
+# import inside it would be the wrong place to pay for the indirection.
+# `test_merge_page_number_variable.py` pins the two to the same value.
+_MERGE_PAGENO_MARK = '\ue000'
+
+
 def _rtf_escape(text):
     out = []
     for ch in text:
         if ch in '\\{}':
             out.append('\\' + ch)
+        elif ch == _MERGE_PAGENO_MARK:
+            # planning #270 item 42: WordStar's MailMerge page-number
+            # variable, put here by `layout.merge_pageno_marked` and
+            # resolved to the reader's OWN current-page field -- the
+            # identical mechanism a `#` inside a running head uses two
+            # hundred lines below. Never present unless `emit_rtf` put it
+            # there, and unreachable in a real document (U+E000 is a
+            # private-use code point; cp437 and cp1252 decode nowhere
+            # near it).
+            out.append(r'{\chpgn }')
         elif ord(ch) < 128:
             out.append(ch)
         else:
@@ -3287,6 +3314,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # doc). {index: PixResult} for O(1) lookup from a span's 'pix<N>' tag.
     # planning #264 item 1: see emit_text's identical call.
     doc = _driver_substituted(doc)
+    # planning #270 item 42 (ruled 2026-09-14): both RTF modes are PAGED
+    # surfaces, so WordStar's MailMerge page-number variable is
+    # substituted rather than shown as typed -- with `{\chpgn }`, the
+    # reader's own current-page field, because an RTF's pages are the
+    # reader's (see `layout.merge_pageno_marked`). `--page-numbers off`
+    # removes it instead, the same flag governing it that governs the
+    # automatic number.
+    doc = (_merge_pageno_dropped(doc) if page_numbers == 'off'
+           else _merge_pageno_marked(doc))
     pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     pairs = _annotated_notes(doc)
