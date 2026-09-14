@@ -1059,9 +1059,53 @@ def _rtf_body_only(r):
       regex's own FIRST chunk (everything before the first real `\\par`)
       still included the whole preamble, so a font name's own braces got
       swept in as if they belonged to the first paragraph's \\sN run and
-      flagged missing attributes that were never real runs at all."""
+      flagged missing attributes that were never real runs at all.
+    - the `\\header`/`\\footer` GROUPS (planning #264 item 3, landed
+      2026-09-12): a running head or foot is its own destination, not
+      body text, and the automatic page number's group -- a bare
+      `{\\chpgn }` run inside `{\\footer \\pard\\plain \\qc...}` --
+      read as a letterless "run" of whatever styled paragraph the scan
+      happened to be inside, and was flagged for missing that style's
+      character attributes (found for real on MARKUP.WS). These groups
+      nest, so they are removed by brace matching rather than by a
+      non-greedy regex, which would stop at the first inner `}`."""
     body = re.sub(r'\{\\fonttbl.*?\}(?=\{\\stylesheet|\\paperw)', '', r, flags=re.S)
-    return re.sub(r'\{\\stylesheet.*?\}(?=\\paperw)', '', body, flags=re.S)
+    body = re.sub(r'\{\\stylesheet.*?\}(?=\\paperw)', '', body, flags=re.S)
+    return _drop_hf_groups(body)
+
+
+_HF_OPENERS = tuple('{\\' + n for n in
+                    ('headerl', 'headerr', 'headerf', 'header',
+                     'footerl', 'footerr', 'footerf', 'footer'))
+
+
+def _drop_hf_groups(body):
+    """`body` with every balanced `{\\header*}`/`{\\footer*}` group
+    removed -- see `_rtf_body_only`. Hand-matched braces: RTF has no
+    escape for a brace that is not `\\{`/`\\}`, so a backslash-escaped
+    one is skipped and every other `{`/`}` counts."""
+    out, i = [], 0
+    while i < len(body):
+        if body[i] == '{' and body.startswith(_HF_OPENERS, i):
+            depth, j = 0, i
+            while j < len(body):
+                c = body[j]
+                if c == '\\':
+                    j += 2
+                    continue
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        j += 1
+                        break
+                j += 1
+            i = j
+            continue
+        out.append(body[i])
+        i += 1
+    return ''.join(out)
 
 
 def _rtf_state_issues(r, doc, printed=False):
@@ -1102,7 +1146,20 @@ def _rtf_state_issues(r, doc, printed=False):
             slot = int(s_t) - 1
             if slot in margins:
                 exp = margins[slot]
-                if (li, ri) != exp:
+                # A HANGING ROW is the one paragraph shape whose direct
+                # `\li` is SUPPOSED to differ from its nominal style's
+                # margins: packet row C3 (planning #264, landed
+                # 2026-09-12) gives a definition or bullet row
+                # `\li<hang>\fi-<hang>` so the wrapped part hangs under
+                # its own text, while the style it references -- an
+                # ordinary body style -- declares no margins at all and
+                # must not, since every other paragraph using that style
+                # is flush. The idiom is exact and self-identifying
+                # (`fi == -li`, `li > 0`), so it is recognised rather
+                # than excused: anything else that walks away from its
+                # style's margins is still flagged.
+                hanging_row = li > 0 and fi == -li
+                if (li, ri) != exp and not hanging_row:
                     bad.append(f'\\s{s_t}: direct(li={li},ri={ri}) != style{exp}')
                 if slot in quote_slots and abs(fi) > 1440:
                     bad.append(f'\\s{s_t}: fi={fi} exceeds 1440-twip bound')
