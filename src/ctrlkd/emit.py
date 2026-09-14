@@ -103,6 +103,18 @@ def _driver_substituted(doc):
     return driver_substituted(doc)
 
 
+def _merge_pageno_dropped(doc):
+    """Planning #270 item 42 (Jon's ruling 2026-09-14): HTML, Markdown and
+    text have no pages, so they carry no automatic page numbers and no
+    MailMerge page-number variable -- `&#&`/`&#/r&` are REMOVED, never
+    shown as typed. See `layout.merge_pageno_dropped`. Returns the SAME
+    object for every document that carries none (nearly all of them).
+
+    Lazy import, same cycle reason `_driver_substituted` documents."""
+    from .layout import merge_pageno_dropped
+    return merge_pageno_dropped(doc)
+
+
 def _printed(doc):
     return doc.meta.get('variant') == 'printstream' or doc.meta.get('columnar')
 
@@ -393,6 +405,9 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # the driver-keyed euro are CONTENT (rulings 2026-08-06 M7 /
     # 2026-09-11) -- applied once, here, before anything reads the blocks.
     doc = _driver_substituted(doc)
+    # planning #270 item 42: a non-paged format carries no page apparatus --
+    # the MailMerge page-number variable is removed here, never shown as typed.
+    doc = _merge_pageno_dropped(doc)
     # RULED EXCLUSION (round 5, 2026-08-17, attribute-surface audit): plain
     # text has no character-attribute vocabulary at all -- no bold, no
     # italic, no underline/strikeout, no sub/superscript, style-declared
@@ -719,6 +734,9 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # this is what keeps MODERN Markdown from being the one export where
     # the same document's characters differ.
     doc = _driver_substituted(doc)
+    # planning #270 item 42: a non-paged format carries no page apparatus --
+    # the MailMerge page-number variable is removed here, never shown as typed.
+    doc = _merge_pageno_dropped(doc)
     # Round 19: see emit_rtf's identical comment. Printed mode's own body
     # is emit_text's output inside a code fence (see below) -- a fenced
     # verbatim block is the emitter saying "this is exact text", so
@@ -1713,6 +1731,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
               sentence_spacing='auto', **_options):
     # planning #264 item 1: see emit_text's identical call.
     doc = _driver_substituted(doc)
+    # planning #270 item 42: a non-paged format carries no page apparatus --
+    # the MailMerge page-number variable is removed here, never shown as typed.
+    doc = _merge_pageno_dropped(doc)
     # Round 19 (PIX images RULED IN): see emit_rtf's identical comment.
     # `image_links` ({index: relative-path-string}) is only consulted in
     # export mode -- built by the caller via

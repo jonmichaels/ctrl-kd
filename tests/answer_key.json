@@ -35,8 +35,8 @@
  },
  "engine_version": "4.6.0",
  "generator": {
-  "date": "2026-09-14T03:44:51-04:00",
-  "git_sha": "6617443bb8bcbe3a8412ada6c3b92b0036dee20a",
+  "date": "2026-09-14T06:35:22-04:00",
+  "git_sha": "761137f5e11e5bcab85f84c4e8684baa7d68693c",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -995,12 +995,12 @@
     "ARTICLES/POWERUSE.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 34564,
-       "sha256": "cbb19288bb782557fe50d33ebca757a3cec83d36fe90c1d89e04ba8561eeaa64"
+       "bytes": 34541,
+       "sha256": "5c7dde0b6e6a922fc2098e8f7fbb8253f7ade048f36482968f04ac235a01a8d3"
       },
       "html.printed": {
-       "bytes": 36022,
-       "sha256": "87e99549b6f335426c77f1500d9215044ccef448b5bb159822977c375722b06a"
+       "bytes": 36000,
+       "sha256": "a59814c5638e47bd396b9c7158851dbcaef822c21439fc6a4e1fd3702ae01e55"
       },
       "layout.modern": {
        "bytes": 303258,
@@ -1011,12 +1011,12 @@
        "sha256": "7b4f76d7a10445e7affeb59f3a7643fb6c64216e15e4f5acaf8073f39f1a57a4"
       },
       "markdown.modern": {
-       "bytes": 25624,
-       "sha256": "25c647b0e5437e2b2918957dfb0c61aba4b41de8deb12f25ccfff06448bd84d4"
+       "bytes": 25615,
+       "sha256": "cd73df44e660495a195d0dbb5d2dcbc3416ae880153ce71da0e5d21ff5712e18"
       },
       "markdown.printed": {
-       "bytes": 26288,
-       "sha256": "efbde674ef5eb88c0d8422b3451de7f6161747b7b0d899412c96d116031434a9"
+       "bytes": 26282,
+       "sha256": "f6831dd2ac370293297de391760575a5899a597786c5cf16ae878a10217af265"
       },
       "pdf.modern": {
        "bytes": 209201,
@@ -1037,12 +1037,12 @@
        "sha256": "f8badbca7b248b878b29e57902c020267aa02640c5dda1251541e0352ebacd98"
       },
       "text.modern": {
-       "bytes": 25736,
-       "sha256": "d3651300eb601aa730c42aa527da85b729cb8bd2847d21b2863f966dfbfd8d94"
+       "bytes": 25730,
+       "sha256": "554a67f919685949dc765b5b290cae9d0b6932f3b5f34415c6c4b66b5cce4f2e"
       },
       "text.printed": {
-       "bytes": 26281,
-       "sha256": "89960c5c11e54c3b2cc6550df580c32e67fb2028fc6d2458033b4116270b893a"
+       "bytes": 26275,
+       "sha256": "d89c5869b9cfe2eab1ad151f1cb39ae49f7dd1213b512103e72da2270beb11f2"
       }
      },
      "path": "ARTICLES/POWERUSE.WS",
@@ -11981,12 +11981,12 @@
     "REF/CODES.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 2130,
-       "sha256": "b3a2ec469d4034ca353dd2deb6e2b62ccfaa1222a198e8095389ccf272d66f0e"
+       "bytes": 2117,
+       "sha256": "5ca27a3ba6e36380f799716588f7931fff4334d09ec2bb396fc1fc0e733f8e75"
       },
       "html.printed": {
-       "bytes": 1750,
-       "sha256": "5d666ab30baeacc6f4d859b7ba9a6047d2c4287b999407c086c8563d76d385d0"
+       "bytes": 1737,
+       "sha256": "3d93ff7c60c865ad3039baddb61a4449685f8baf5f9a517cfa79d95bfa2ae499"
       },
       "layout.modern": {
        "bytes": 10863,
@@ -11997,12 +11997,12 @@
        "sha256": "44b99e9cdafdcc1181c319b34be6b3c2b28c753470362755541982824bd1fe8e"
       },
       "markdown.modern": {
-       "bytes": 193,
-       "sha256": "3401b55a5686dab45088435da81b53458da2d06dff961d7cd491cf2464a450dd"
+       "bytes": 186,
+       "sha256": "f34a3c1e6361524a82955594939e602aaae38a6d71133249d0e84b8983feddf3"
       },
       "markdown.printed": {
-       "bytes": 208,
-       "sha256": "d2954b6c0224d28a516db98f6b0f4400e454f5a359bf73ccef757dac4a32913c"
+       "bytes": 203,
+       "sha256": "b6ddf190bac18bb77cca54f23eab31eefd9a253fdfa51ecc9116be1ebc1d4a8f"
       },
       "pdf.modern": {
        "bytes": 2964,
@@ -12023,12 +12023,12 @@
        "sha256": "bc13f790d572d16887f4ee572c029ee5d57243f19c0e1ef3ed79ad881d43e9a1"
       },
       "text.modern": {
-       "bytes": 265,
-       "sha256": "247a6076e9273adc4106963f3d57660948fbfe9405a1b19b0b59b91a83296305"
+       "bytes": 260,
+       "sha256": "75bde8570fb95ff9eb377b44641379a32b4f25a06ebfc29ed3fb7bca98f6b1f5"
       },
       "text.printed": {
-       "bytes": 202,
-       "sha256": "c3aeea233e3d9b8e84932baa5a55481a21f9c8fa3914ed2d453ee33dae182eb1"
+       "bytes": 197,
+       "sha256": "8924d9a7befbb5bb184dd17a4e8e96bf979caa4a80ad78638fa6b7d6f539375d"
       }
      },
      "path": "REF/CODES.WS",
@@ -17339,12 +17339,12 @@
     "REF/TOCTRICK.WS": {
      "cells": {
       "html.modern": {
-       "bytes": 6440,
-       "sha256": "8c6e4102d1a8b47dac6d452e55701211262f1b0bedd39c864aedd0d7f6bb5a0d"
+       "bytes": 6414,
+       "sha256": "1b04c8409f17d505a415a902bd333419c85ddf593755573c8b4df17e4eff9d06"
       },
       "html.printed": {
-       "bytes": 5971,
-       "sha256": "39c5d558deebd8f51e6da6dbd9f3eae2d004ca2d945981bc71df61bd109a2655"
+       "bytes": 5945,
+       "sha256": "7bcbb43d0c33378e0b6dd1d95a9a4b8ce272c9fc4108d9ec44eadf9be98970a6"
       },
       "layout.modern": {
        "bytes": 60332,
@@ -17355,12 +17355,12 @@
        "sha256": "700be1a545b36070cc65001d1c5ccb82dee462724867a1aadb0ccad51c0b10f5"
       },
       "markdown.modern": {
-       "bytes": 3997,
-       "sha256": "77f4b2fc01f467b540d88610a9b1e3e49d999632fe84082be6da237b33de74ea"
+       "bytes": 3984,
+       "sha256": "53992a86797618a7d0ba700edda8f00b6b6205af1cfc6bdb4e4d7f9d6ead7b55"
       },
       "markdown.printed": {
-       "bytes": 4147,
-       "sha256": "3da7fb034089fcbadc297bb66d020e2057251c622a8426a25bb0d315e6127202"
+       "bytes": 4137,
+       "sha256": "3dfec74f1b9659ed98d54f8b423cad84ee375c9123f1dbc6e8ac4b0954ac2e5e"
       },
       "pdf.modern": {
        "bytes": 32960,
@@ -17381,12 +17381,12 @@
        "sha256": "d550752fad543904c38f6ef3701efecc9941d684c4b8d181c6e6d6a0337ff350"
       },
       "text.modern": {
-       "bytes": 4111,
-       "sha256": "f1b1fcc91dcbf65ede9ec8f1cd75affbc87edee20e0d6904c6d252d4385fdb62"
+       "bytes": 4101,
+       "sha256": "3457d98981c4b25ded3fda425ec4369cdea60439a961ea2e6baa7132cc90fc3e"
       },
       "text.printed": {
-       "bytes": 4139,
-       "sha256": "8f42431f1fc5840973c22f43403333d7895c2d61b66dc05072aec0ec9444aa1e"
+       "bytes": 4129,
+       "sha256": "0226384425e409a21a7f4079350d5554899d54b914ffe5118fd31f084b669aa1"
       }
      },
      "path": "REF/TOCTRICK.WS",

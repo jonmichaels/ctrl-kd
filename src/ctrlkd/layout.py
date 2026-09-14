@@ -1323,6 +1323,57 @@ def driver_substituter(doc):
     return apply
 
 
+MERGE_PAGENO_RE = re.compile(r'&#(?:/[A-Za-z]+)?&')
+# WordStar's MailMerge PAGE-NUMBER variable, `&#&` (and its `/x` modifier
+# forms, `&#/r&`). Keyed to the literal `#` name, so every OTHER merge
+# variable -- `&NAME&`, `&ADDRESS/O&`, and the near-misses `&REF#&`,
+# `&#COUNT&`, `&N#M&` -- is untouched anywhere, which is the Mail Merge
+# scope ruling's own law: a merge letter opens and exports as the letter
+# itself, variables visible exactly as typed. Same pattern pdf.py's own
+# `_MERGE_PAGENO_RE` uses for the printed substitution (planning #270
+# item 40); it lives here too because a NON-paged emitter must strip the
+# variable without importing the PDF writer.
+
+
+def merge_pageno_dropped(doc):
+    """`doc` with every MailMerge page-number variable REMOVED from every
+    body span and note text -- the SAME Document object for the documents
+    (nearly all of them) that carry none.
+
+    Jon's ruling 2026-09-14 (planning #270 item 42): "Actual page numbers
+    and the page number merge should NOT be sent to non-paged exports:
+    HTML, Markdown, and Text." Those three formats have no pages, so there
+    is no number to substitute and nothing the variable could mean; the
+    ruling is that it is REMOVED, not shown as typed -- the one exception
+    to the Mail Merge scope rule's "variables stay visible exactly as
+    typed", and for the same reason headers and footers are already
+    dropped there (ruled correct in the same breath).
+
+    Called by `emit_text`/`emit_markdown`/`emit_html` at entry, next to
+    `driver_substituted`, so every later pass (paragraph assembly,
+    structure classification, sentence spacing, width measurement) reads
+    the text that actually ships. NOT called by `emit_rtf` or the PDF
+    writer: those are paged surfaces and substitute a real number."""
+    if not any(sp.text and '&#' in sp.text
+               for b in doc.blocks for ln in b.lines for sp in ln.spans):
+        if not any('&#' in (n.text or '') for n in doc.notes):
+            return doc
+    def drop(text):
+        return MERGE_PAGENO_RE.sub('', text) if text and '&#' in text else text
+    blocks = []
+    for b in doc.blocks:
+        lines = []
+        for ln in b.lines:
+            spans = [sp if sp.text == drop(sp.text) else Span(drop(sp.text), sp.styles)
+                     for sp in ln.spans]
+            lines.append(_replace(ln, spans=spans) if spans else ln)
+        blocks.append(_replace(b, lines=lines) if lines else b)
+    notes = [_replace(n, text=drop(n.text),
+                      text_lines=tuple(drop(t) for t in n.text_lines))
+             for n in doc.notes]
+    return _replace(doc, blocks=blocks, notes=notes)
+
+
 def driver_substituted(doc):
     """`doc` with `driver_substituter`'s substitutions applied to every
     body span and note text -- the SAME Document object when the document

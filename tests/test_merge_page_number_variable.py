@@ -126,3 +126,88 @@ def test_a_document_with_no_merge_variable_is_untouched():
     pages = _pagelines_text(_doc(b'Ordinary prose, an ampersand & a hash #.' + HARD))
     assert any('Ordinary prose, an ampersand & a hash #.' in line
                for line in pages[0])
+
+
+# ------------------------------- non-paged exports carry no page apparatus
+#
+# Planning #270 item 42, Jon's ruling 2026-09-14, verbatim: "Actual page
+# numbers and the page number merge should NOT be sent to non-paged
+# exports: HTML, Markdown, and Text. The current handling of Headers and
+# Footers for non-paged exports is correct. That data should not be sent."
+#
+# Those three formats have no pages, so there is no number to substitute
+# and nothing the variable could mean. It is REMOVED -- never shown as
+# typed -- which is the ONE exception to the Mail Merge scope rule's
+# "variables stay visible exactly as typed", for the same reason headers
+# and footers are already dropped there.
+from ctrlkd import emit                                       # noqa: E402
+
+_NONPAGED = ('text', 'markdown', 'html')
+
+
+_EMITTERS = {'text': emit.emit_text, 'markdown': emit.emit_markdown,
+             'html': emit.emit_html}
+
+
+def _export(doc, fmt, mode):
+    return _EMITTERS[fmt](doc, mode=mode)
+
+
+def test_no_non_paged_export_ever_shows_the_page_number_variable():
+    doc = _doc(b'Set in type on page &#/r& of &#& of this.' + HARD)
+    for fmt in _NONPAGED:
+        for mode in ('printed', 'modern'):
+            out = _export(doc, fmt, mode)
+            assert '&#/r&' not in out and '&#&' not in out, (fmt, mode)
+            assert 'Set in type on page  of  of this.' in out or \
+                   'Set in type on page of of this.' in out.replace('  ', ' '), (fmt, mode)
+
+
+def test_a_non_paged_export_removes_the_variable_rather_than_numbering_it():
+    """Removed, not substituted: a page-less format has no page 1 to name."""
+    doc = _doc(b'Page &#&.' + HARD)
+    for fmt in _NONPAGED:
+        out = _export(doc, fmt, 'modern')
+        assert 'Page 1.' not in out, fmt
+
+
+def test_every_other_merge_variable_survives_a_non_paged_export():
+    doc = _doc(b'Dear &NAME& of &COMPANY&, see &REF#& and &#COUNT&.' + HARD)
+    for fmt in _NONPAGED:
+        for mode in ('printed', 'modern'):
+            out = _export(doc, fmt, mode)
+            # HTML escapes the ampersand and Markdown backslash-escapes
+            # the hash -- neither is this rule's business, so compare
+            # against each format's own rendering of the same characters.
+            plain = out.replace('&amp;', '&').replace('\\#', '#')
+            for var in ('&NAME&', '&COMPANY&', '&REF#&', '&#COUNT&'):
+                assert var in plain, (fmt, mode, var)
+
+
+def test_the_variable_is_dropped_from_a_notes_text_too():
+    """A note's own text is body content on these surfaces and takes the
+    same rule -- `layout.merge_pageno_dropped` rewrites `doc.notes`
+    beside the blocks."""
+    from dataclasses import replace as _replace
+    from ctrlkd.layout import merge_pageno_dropped
+    doc = _doc(b'Body.' + HARD)
+    if not doc.notes:
+        return
+    dropped = merge_pageno_dropped(_replace(doc, notes=[
+        _replace(n, text=(n.text or '') + ' page &#&') for n in doc.notes]))
+    assert all('&#' not in (n.text or '') for n in dropped.notes)
+
+
+def test_a_document_with_no_variable_is_the_same_object_on_the_way_through():
+    """The pass is free for the documents that carry none -- the guard
+    returns the SAME Document, nothing is copied."""
+    from ctrlkd.layout import merge_pageno_dropped
+    doc = _doc(b'Ordinary prose with an ampersand & and a hash #.' + HARD)
+    assert merge_pageno_dropped(doc) is doc
+
+
+def test_the_paged_surfaces_still_substitute_a_real_number():
+    """The other half of the same ruling: Printed is unchanged, and a
+    paged surface prints the number, not a hole."""
+    pages = _pagelines_text(_doc(b'Set on page &#&.' + HARD))
+    assert any('Set on page 1.' in line for line in pages[0])
