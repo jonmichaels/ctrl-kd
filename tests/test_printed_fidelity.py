@@ -57,7 +57,25 @@ def _rtf_body_only(r):
 # so a WS4 document (no style table at all) or a bare `.lm`/`.rm` with no
 # style got li=ri=0 regardless of the running margin state.
 
-def test_lm_rm_dot_state_reaches_printed_rtf_margins():
+def test_lm_rm_never_become_printed_rtf_paragraph_margins():
+    """SUPERSEDES ledger row 8's own reading, on measurement (planning #264,
+    the LibreOffice check's section 3, 2026-09-14).
+
+    Round 17 read `.lm`/`.rm` off the running dot-state and emitted them as
+    `\\li`/`\\ri`. That was right about what the document says and wrong
+    about Printed needing to say it twice. Printed RTF renders PHYSICAL
+    lines joined by `\\line`, and a `\\line` starts no new paragraph -- so
+    `\\li` lands on every line after the first, on top of the leading spaces
+    those lines already carry, which is what Printed MEANS. WSFORMAT.WS
+    asked for a 2.5in hanging indent while typing 28 leading spaces on the
+    same rows; its line-for-line tables wrapped and LibreOffice paginated
+    26 engine pages into 50.
+
+    THE PRINTED PDF IS THE ARBITER, and it puts a physical line at `.po`
+    plus that line's own typed columns and nothing else -- measured here,
+    and on WSFORMAT.WS (a 28-space row under `.po 8` draws at x = 259.2pt =
+    (8 + 28) x 7.2). So this test now asserts the agreement itself: same
+    x, both surfaces, no paragraph margins in between."""
     doc = core.parse_ws(
         ws7_block(0x00, bytes([0x70]) + bytes(15))
         + b'.lm 11' + HARD + b'.rm 61' + HARD
@@ -65,33 +83,33 @@ def test_lm_rm_dot_state_reaches_printed_rtf_margins():
     assert doc.blocks[0].left_margin == 10.0     # `.lm 11` -> column 11 -> 10 cols offset
     assert doc.blocks[0].right_margin == 61.0    # `.rm 61` unit-less -- already an offset
 
-    r_printed = emit.emit_rtf(doc, mode='printed')
-    body = _rtf_body_only(r_printed)
-    assert r'\li1440' in body     # 10 cols * 144 twips/col
-    # b32 fix: `.rm` is the column POSITION where the right margin falls
-    # (the same absolute frame `.lm`/`.po` share), not an indent width --
-    # this test used to assert `\ri8784` (61 cols * 144 twips/col treated
-    # as a width), the disproven "rm-as-width" behaviour that smashed any
-    # WS5+ document with a real `.rm` into a near-zero-width column
-    # (b32 field notes: LYING/WARPRAYR's `\ri9360` on a 6.9in text frame).
-    # The real indent is what's left of the FULL_COLS(65)-wide measure:
-    # (65 - 61) * 144 = 576.
-    assert r'\ri576' in body
-    assert r'\ri8784' not in body
+    body = _rtf_body_only(emit.emit_rtf(doc, mode='printed'))
+    # `\li`/`\ri` followed by a DIGIT -- `\line`, which a multi-line
+    # printed block is full of, shares `\li`'s first three characters.
+    assert not re.search(r'\\li\d', body)
+    assert not re.search(r'\\ri\d', body)
 
-    # Modern stays untouched -- the reader owns presentation, same doctrine
-    # as the no-page-width ruling.
+    # And the PDF this is now answerable to draws the line at the page
+    # offset alone: `.po 8` = 57.6pt, no `.lm` column added anywhere.
+    out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
+    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    assert float(m.group(1)) == 57.6, m.group(1)
+
+    # Modern is untouched by any of this -- the reader owns presentation,
+    # same doctrine as the no-page-width ruling.
     r_modern = emit.emit_rtf(doc, mode='modern')
     assert r'\li1440' not in r_modern
     assert r'\ri576' not in r_modern
-    assert r'\ri8784' not in r_modern
 
 
-def test_style_margin_still_wins_over_dot_state_in_printed_rtf():
-    """A style's OWN left_margin_hmi/right_margin_hmi takes precedence over
-    whatever `.lm`/`.rm` is running -- core.py's own `_new_block` already
-    encodes this precedence (`style_fmt.get(..., fmt.get(...))`); the
-    Printed RTF fix must read the SAME resolved value, not bypass it."""
+def test_a_style_margin_is_resolved_but_still_never_a_printed_rtf_margin():
+    """The PRECEDENCE this test was written for is unchanged and still
+    checked on the model: a style's own left_margin_hmi wins over a running
+    `.lm` (core.py's `_new_block`). What changed on 2026-09-14 is what
+    Printed RTF does with the resolved answer, which is nothing -- see
+    `test_lm_rm_never_become_printed_rtf_paragraph_margins` for the
+    measurement. Modern, which reflows and therefore genuinely needs
+    paragraph properties, still carries it."""
     rec = _style_record_with_margins(left_hmi=3600, right_hmi=3600)
     lib = _style_library([('WordStar Defaults', None),
                           ('WordStar Defaults', None),
@@ -100,9 +118,11 @@ def test_style_margin_still_wins_over_dot_state_in_printed_rtf():
             + _style_ref(2) + b'A paragraph under its own wide style margins.' + HARD)
     doc = core.parse_ws(_doc_with_style_library(body, lib))
     assert doc.blocks[0].left_margin == 20.0     # the STYLE's own HMI, not `.lm 5`
-    r_printed = emit.emit_rtf(doc, mode='printed')
-    body_only = _rtf_body_only(r_printed)
-    assert r'\li2880' in body_only               # 3600 hmi / 1800 * 1440
+    assert not re.search(r'\\li\d', _rtf_body_only(emit.emit_rtf(doc, mode='printed')))
+    # Modern carries it, normalised to its own reading column (round 3's
+    # geometry fix), which is the point: a reflowing surface needs the
+    # paragraph property, a line-for-line one does not.
+    assert r'\li720' in emit.emit_rtf(doc, mode='modern')
 
 
 # --------------------------------------------------------------- ledger row 3
@@ -640,15 +660,18 @@ def test_rtf_pm_first_line_indent_does_not_double_count_a_typed_indent():
     `li + fi` must come out at the document's own left edge: the ink lands
     on the typed column 10, exactly as the PDF's does."""
     src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
-           + b'.pm 6' + HARD + b'.lm 6' + HARD
+           + b'.pm 6' + HARD + b'.lm 6' + HARD + b'.pf on' + HARD
            + b' ' * 10 + b'"God the all-terrible! Thou who ordainest,' + HARD)
     doc = core.parse_ws(src)
     assert doc.blocks[0].para_margin == 5.0
     assert core.pm_first_line_indent_cols(doc.blocks[0]) == 0.0
     out = emit.emit_rtf(doc, mode='printed')
-    li = int(re.search(r'\\li(\d+)', out).group(1))
-    fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
-    assert li + fi == 0, (li, fi)
+    # `\li` is gone from Printed altogether (2026-09-14, see
+    # `test_lm_rm_never_become_printed_rtf_paragraph_margins`), so `\fi`
+    # stands alone and the whole indent must be 0.
+    assert not re.search(r'\\li\d', _rtf_body_only(out))
+    fi = int(re.search(r'\\fi(-?\d+)', out).group(1)) if re.search(r'\\fi(-?\d+)', out) else 0
+    assert fi == 0, fi
 
 
 def test_rtf_pm_first_line_indent_still_applies_with_no_typed_indent():
@@ -656,14 +679,22 @@ def test_rtf_pm_first_line_indent_still_applies_with_no_typed_indent():
     indent of its own still gets `.pm`'s whole column, so `li + fi` lands
     on it."""
     src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
-           + b'.pm 6' + HARD + b'.lm 1' + HARD
+           + b'.pm 6' + HARD + b'.lm 1' + HARD + b'.pf on' + HARD
            + b'A paragraph with no typed indent at all.' + HARD)
     doc = core.parse_ws(src)
     assert core.pm_first_line_indent_cols(doc.blocks[0]) == 5.0
     out = emit.emit_rtf(doc, mode='printed')
-    li = int(re.search(r'\\li(\d+)', out).group(1)) if re.search(r'\\li(\d+)', out) else 0
+    assert not re.search(r'\\li\d', _rtf_body_only(out))
     fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
-    assert li + fi == 5 * 144, (li, fi)          # 5 columns, 144 twips/column
+    assert fi == 5 * 144, fi                     # 5 columns, 144 twips/column
+
+    # AND ONLY UNDER `.pf on` (2026-09-14). WordStar auto-indents a first
+    # line when it REFLOWS the paragraph at print time, so the Printed PDF
+    # gates the indent on `.pf` (measured on -HOLYMAC.WS against real WS7)
+    # and Printed RTF now asks the PDF's own gate rather than `.pm` raw.
+    no_pf = core.parse_ws(src.replace(b'.pf on' + HARD, b''))
+    assert core.pm_first_line_indent_cols(no_pf.blocks[0]) == 5.0
+    assert r'\fi' not in _rtf_body_only(emit.emit_rtf(no_pf, mode='printed'))
 
 
 def test_rtf_pm_first_line_indent_tops_up_a_shorter_typed_indent():
@@ -671,14 +702,14 @@ def test_rtf_pm_first_line_indent_tops_up_a_shorter_typed_indent():
     discarded -- the middle of the three cases, and the same arithmetic the
     Printed PDF's own test pins."""
     src = (ws7_block(0x00, bytes([0x70]) + bytes(15))
-           + b'.pm 9' + HARD + b'.lm 1' + HARD
+           + b'.pm 9' + HARD + b'.lm 1' + HARD + b'.pf on' + HARD
            + b'   A paragraph typing three columns under a .pm of eight.' + HARD)
     doc = core.parse_ws(src)
     assert core.pm_first_line_indent_cols(doc.blocks[0]) == 5.0    # 8 - 3
     out = emit.emit_rtf(doc, mode='printed')
-    li = int(re.search(r'\\li(\d+)', out).group(1)) if re.search(r'\\li(\d+)', out) else 0
+    assert not re.search(r'\\li\d', _rtf_body_only(out))
     fi = int(re.search(r'\\fi(-?\d+)', out).group(1))
-    assert li + fi == 5 * 144, (li, fi)
+    assert fi == 5 * 144, fi
 
 
 def test_rtf_pm_zero_never_pulls_a_typed_line_left_of_its_own_column():

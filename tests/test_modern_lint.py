@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from ctrlkd import core, emit
+from ctrlkd import core, emit, pdf
 from private_corpus import private_fixtures_root
 
 HARD = b'\x0d\x0a'
@@ -1285,22 +1285,21 @@ def _rtf_printed_vertical_space_expected(doc):
     `_rtf_doc_spacing_twips`), never by re-parsing rendered RTF text --
     the round-6 (2026-08-17) fail-first half of the vertical-space gate."""
     sl_values, fi_values = set(), set()
-    margins = {e['slot']: emit._rtf_style_margins(e, True)
-              for e in doc.styles if 'attrs_on' in e}
     for b in doc.blocks:
         if b.kind != 'para' or not b.lines:
             continue
         sl_values.add(emit._rtf_sl_twips(emit._rtf_block_lead_48(doc, b)))
-        if b.para_margin is not None:
-            # round 17 (ledger row 8): the style-slot lookup alone went
-            # stale the moment emit_rtf's own printed branch gained the
-            # b.left_margin/right_margin fallback for a WS4/dot-state-only
-            # margin -- mirrored here so this gate checks what the emitter
-            # ACTUALLY does, not what it did before that round.
-            li = margins.get(b.style_id, (0, 0))[0]
-            if not li and b.left_margin:
-                li = round(b.left_margin * emit._RTF_TWIPS_PER_COL)
-            fi_values.add(emit._rtf_pm_fi_twips(b, li))
+        # `.pm`'s `\fi`, through the PRINTED PDF's OWN gate (planning #264,
+        # the LibreOffice check's section 3, 2026-09-14): the PDF applies a
+        # `.pm` first-line indent only under `.pf on`, so Printed RTF asks
+        # `pdf._printed_pm_fi_pt` the same question rather than reading
+        # `.pm` unconditionally. `\li` is no longer part of the arithmetic
+        # -- Printed RTF emits none, its physical lines carrying their own
+        # indent as typed characters -- so round 17's style-slot/dot-state
+        # `li` reconstruction is gone from here with it.
+        pm_pt = pdf._printed_pm_fi_pt(b)
+        if pm_pt is not None:
+            fi_values.add(round(pm_pt * 20))              # 20 twips/pt
     sb, sa = emit._rtf_doc_spacing_twips(doc)
     return sl_values, fi_values, (sb, sa)
 
@@ -1702,7 +1701,14 @@ def test_round6_double_spaced_source_opens_double_spaced_in_printed_rtf():
 
     r_printed = emit.emit_rtf(doc, mode='printed')
     assert r'\sl-480\slmult0' in r_printed      # 16 * 30 twips/48in-unit, doubled
-    assert r'\fi1296' in r_printed              # 9 cols * 144 twips/col, li=0
+    assert r'\fi' not in r_printed              # no `.pf on`: the PDF indents nothing
+
+    reflowed = core.parse_ws(
+        ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4))
+        + b'.lh 16' + HARD + b'.pm 10' + HARD + b'.pf on' + HARD
+        + b'Some paragraph text set at double leading.' + HARD)
+    r_reflowed = emit.emit_rtf(reflowed, mode='printed')
+    assert r'\fi1296' in r_reflowed             # 9 cols * 144 twips/col, li=0
 
     r_modern = emit.emit_rtf(doc, mode='modern')
     assert not _rtf_modern_vertical_space_leak(doc)

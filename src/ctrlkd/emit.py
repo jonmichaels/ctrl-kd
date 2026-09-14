@@ -3929,25 +3929,47 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         keep_para, keepn_para = keep_plan.get(bi, (False, False))
         li, ri = direct_margins.get(b.style_id, (0, 0))
         if printed:
-            # round 17 (RULINGS-LEDGER row 8, register C9b/2026-08-17 point 8):
-            # `direct_margins` is keyed by STYLE SLOT only (`_rtf_direct_margins`
-            # reads `left_margin_hmi`/`right_margin_hmi` off `doc.styles`
-            # entries) -- a WS4 document (no style table at all) or a WS5+
-            # document setting bare `.lm`/`.rm` with no style selected got
-            # li=ri=0 here regardless of the running dot-state. `b.left_margin`/
-            # `right_margin` are the block's own RESOLVED column value
-            # (`core.py`'s `_new_block`: `style_fmt.get(..., fmt.get(...))` --
-            # style already wins over dot-state there), so falling back to them
-            # ONLY when the style lookup produced nothing keeps that precedence
-            # while finally consuming the running state Printed RTF ignored.
-            if not li and b.left_margin:
-                li = round(b.left_margin * _RTF_TWIPS_PER_COL)
-            if not ri and b.right_margin:
-                # b32: `.rm` is the column POSITION where the right margin
-                # falls, not an indent width -- see `layout.rm_indent_cols`
-                # (same fix as `_rtf_style_margins`/`_style_css`'s HTML twin).
-                from .layout import rm_indent_cols
-                ri = rm_indent_cols(b.right_margin) * _RTF_TWIPS_PER_COL
+            # PRINTED CARRIES ITS INDENT ONCE (planning #264, the LibreOffice
+            # check's section 3, 2026-09-14). Printed RTF emits a block as ONE
+            # paragraph whose stored lines are joined by `\line`. A `\line` does
+            # not start a new paragraph, so `\li` lands on every line after the
+            # first -- on top of the leading spaces those physical lines already
+            # carry, because carrying them is what Printed MEANS. WSFORMAT.WS
+            # asked for a 2.5in hanging indent AND typed 28 leading spaces on the
+            # same rows, and `\ri` took 4 more columns off the measure on top of
+            # that: the file-format reference's own line-for-line tables wrapped,
+            # and LibreOffice paginated 26 engine pages into 50.
+            #
+            # THE PRINTED PDF SETTLES WHICH COPY IS THE REAL ONE. Its physical
+            # lines start at `.po` plus the line's OWN typed columns and nothing
+            # else -- measured on WSFORMAT.WS: a row with 28 leading spaces under
+            # `.po 8` draws at x = 259.2pt = (8 + 28) x 7.2, with no `.lm` added
+            # anywhere. So the spaces are the geometry, and `\li`/`\ri`
+            # here are a second copy of a fact already in the characters.
+            #
+            # Nothing replaces them: this branch now passes 0 for `\li` and
+            # `\ri`, and `direct_margins` stays exactly as it is for Modern,
+            # which reflows and therefore genuinely needs paragraph properties.
+            # Round 17's reading of `.lm`/`.rm` off the running dot-state was
+            # right about WHAT the document says; it was wrong about Printed
+            # needing to say it twice.
+            #
+            # `.pm`'s `\fi` STAYS, and the same measurement is why: the Printed
+            # PDF DOES move a first line for `.pm` (`core.pm_first_line_indent_
+            # cols`, already net of whatever that line typed for itself -- 0 when
+            # the typed indent already reaches the column, 5 when it is 3 columns
+            # short of 8). So `\fi` is a fact the characters do NOT carry, and it
+            # is a FIRST-LINE property, which is exactly the one thing a `\line`
+            # continuation never inherits. It was never part of this defect.
+            #
+            # MEASURED AFTER (LibreOffice 24.2.7.2, `--convert-to pdf`):
+            # WSFORMAT.WS reproduces all 1279 of the engine's own printed lines
+            # exactly -- zero wrapped lines, against 121 before -- and 50 pages
+            # become 32. The remaining 6 against the engine's 26 are not wrapping:
+            # WordStar absorbs blank lines that fall at a page boundary and no RTF
+            # reader does, which is the same ordinary repagination drift LYING.WS
+            # shows (3 engine pages, 6 in LibreOffice) with no indents at all.
+            li = ri = 0
             # physical lines: \line at every printed break, soft or hard.
             # planning #264 item 1 (packet row B3): a bare 0x09 expands to
             # WordStar's own modulus-8 stop first -- Printed RTF is Courier,
@@ -3964,8 +3986,24 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # and Native RTF's own domain (this IS that one shared code
             # path -- see the module-level ruling above _rtf_block_lead_48).
             sl = _rtf_sl_twips(_rtf_block_lead_48(doc, b, resolved_leads_48))
-            pm_fi = _rtf_pm_fi_twips(b, li)
-            _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=li, ri=ri,
+            # `\li` is 0 now, so `.pm`'s `\fi` -- which RTF reads RELATIVE to
+            # `\li` -- is simply its own resolved column. And it is asked through
+            # the PDF's OWN gate (`pdf._printed_pm_fi_pt`), not through
+            # `_rtf_pm_fi_twips` directly: WordStar auto-indents a first line to
+            # `.pm` when it REFLOWS the paragraph at print time, so the Printed
+            # PDF applies the indent only under `.pf on` (measured on -HOLYMAC.WS
+            # against real WS7 -- pages 223/258/293 open at the plain left edge,
+            # `.pm4` and no `.pf` anywhere in the file). Printed RTF asked
+            # unconditionally, so on a `.pf`-less document it moved a first line
+            # the PDF leaves alone: WSFORMAT.WS's `0Bh ^K` row draws at x 129.6pt
+            # in the engine PDF (`.po 8` + its own 10 typed columns) and landed at
+            # 201.7pt through LibreOffice, ten columns further right, because
+            # `.pm11` was added on top of the ten the line already types. One
+            # gate, both surfaces.
+            from .pdf import _printed_pm_fi_pt
+            pm_pt = _printed_pm_fi_pt(b)
+            pm_fi = 0 if pm_pt is None else round(pm_pt * 20)   # 20 twips/pt
+            _rtf_emit_para(parts, rtf_state, b, lines, force=True, li=0, ri=0,
                            sl=sl, sb=(doc_sb or 0), sa=(doc_sa or 0),
                            fi_twips=pm_fi, keep=keep_para, keepn=keepn_para)
             continue
