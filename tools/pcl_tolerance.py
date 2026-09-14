@@ -265,6 +265,51 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 #   move them to the LJ6DTP category. Exclude them from tests for now. At
 #   some point later we can see if we can tackle them properly... I'd
 #   rather support user's actual WordStar files, not font charts."
+#
+# And one more, Jon's ruling 2026-09-13 (planning #270 item 38), parked
+# onto the same standing issue:
+#
+#   'parked-lj6dtp' (1 document).  LSRBOX/LSRBOX.WS, Sawyer's LaserJet
+#   box-and-shading demo.  Jon, after opening it in Soft Return: "it's not
+#   correct even in Printed. It looks like the boxes printed ON TOP of the
+#   text instead of the text showing up ON TOP of the boxes. The document
+#   also talks about how this is part of Mail Merge. Defer. Remove it from
+#   testing (unless it's an example of something we don't have any other
+#   test for). Add it to the LJ6DTP category."  Known defects, recorded on
+#   planning #210: Printed draws the fills OVER the text (z-order); Native
+#   draws no printer rectangles at all; and the document is a Mail Merge
+#   template, whose scope the Feature Decision Register's "Mail Merge --
+#   scope" entry now bounds.
+#
+#   CHECKED BEFORE EXCLUDING, per the ruling's own "unless" clause.  Every
+#   mechanism LSRBOX.WS is the corpus's SOLE carrier of already has its own
+#   SYNTHETIC tier-1 fixture, so nothing loses its only cover:
+#     * a print control used AS a running head (`.h1`), and that control's
+#       display string never reaching the head --
+#       test_a_print_controls_display_string_never_reaches_a_running_head,
+#       test_a_running_heads_print_control_draws_its_own_rectangles
+#     * a PCL fill with an omitted (zero) value --
+#       test_a_fill_with_an_omitted_value_is_solid_black
+#     * a column break's own `<0D 8C>` terminator, and the lead its last
+#       line pays -- test_f_a_column_break_terminator_is_not_an_overprint,
+#       test_f_a_column_breaks_last_line_pays_its_lead
+#     * a justified paragraph's final line left ragged --
+#       test_last_line_of_justified_paragraph_is_not_stretched
+#   None of those is corpus-gated; all run on any clone.
+#
+#   Reference rendering, recorded here because the corpus offers no other:
+#   `sawyer/LSRBOX/LSRBOX.PDF` (present in the WS7 install tree, absent
+#   from the checked-in corpus) is a REAL PDF showing the intended look --
+#   NOT a WordStar Printer Definition File, which is what a 1990s `.PDF`
+#   otherwise always is in this corpus (see the vault's
+#   Corpus-And-Filetype-Index.md, which carries the same exception).
+#   Corroborated structurally rather than by extension, per that index's
+#   own false-positive rule: `%PDF-1.7` magic, `/Producer(GPL Ghostscript
+#   9.50)`, `/CreationDate(D:20231229112751-05'00')`, and its own
+#   `%%Invocation: path/pcl6.exe ... -sDEVICE=pdfwrite` comment -- i.e. a
+#   GhostPCL render of this document's real PCL print stream, the same
+#   kind of reference `ws7-prints/gpcl6-renders/` holds for everything
+#   else.  Use it when LSRBOX is tackled (planning #210).
 # Full detail (sha256, which half was kept, cross-references) lives
 # in the PRIVATE corpus repo's own ws7-prints/v4/exclusions.json -- this
 # dict only carries what this PUBLIC repo needs: the doc_name these tests
@@ -323,6 +368,10 @@ EXCLUDED_V4 = {
     'sawyer__REF__WINGDING_EXT_CHT': "font-chart: a printed chart of the printer-resident WingDings font (sawyer/REF/WINGDING.CHT) -- a chart OF a font we do not have cannot be reproduced faithfully; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
     'sawyer__PRINTERS__fontcrib_EXT_ws': "font-chart: the LaserJet character-substitution crib sheet (sawyer/PRINTERS/fontcrib.ws) -- a chart OF the printer's own resident fonts; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
     'sawyer__PRINTER_EXT_PS': "font-chart: the PostScript Symbol/Zapf-Dingbats character-substitution crib sheet (sawyer/PRINTER.PS) -- a chart OF fonts we do not have; parked with LJ6DTP (planning #210), Jon's ruling 2026-09-13 (planning #270 item 28)",
+    # planning #270 item 38, Jon's ruling 2026-09-13. See the
+    # 'parked-lj6dtp' paragraph in this dict's own header for the known
+    # defects, the sole-carrier check, and the LSRBOX.PDF reference.
+    'sawyer__LSRBOX__LSRBOX_EXT_WS': "parked-lj6dtp: the LaserJet box/shading demo (sawyer/LSRBOX/LSRBOX.WS) -- Printed draws its fills over the text, Native draws no printer rectangles, and it is a Mail Merge template; deferred to the LJ6DTP class (planning #210), Jon's ruling 2026-09-13 (planning #270 item 38). Every mechanism it solely carries keeps its own synthetic fixture (see EXCLUDED_V4's header). Reference rendering: sawyer/LSRBOX/LSRBOX.PDF, a real PDF (GhostPCL/pcl6 -> pdfwrite), not a WordStar Printer Definition File",
 }
 
 MANIFEST_PATH = os.path.join(

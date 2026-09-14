@@ -49,8 +49,8 @@ committed manifest (a real report for one of them can embed literal
 document text in `divergences`, exactly the risk Tier 3 exists to avoid).
 
 EXCLUSIONS (planning #224/#226, ruled 2026-09-08; re-scoped to public
-documents only by #243; extended 2026-09-13 by planning #270 item 28):
-25 of the 182 are committed as 'excluded'
+documents only by #243; extended 2026-09-13 by planning #270 items 28
+and 38): 26 of the 182 are committed as 'excluded'
 placeholders (pt.EXCLUDED_V4) -- 3 PostScript-targeted documents whose
 typeface IDs the tier's font table has never classified (planning #224),
 13 duplicate documents + 1 freeze document excluded so the same
@@ -63,14 +63,18 @@ document (.pl0, planning #261), 1 further
 'parked' document (planning #228), and 4 printer-font CHARTS -- charts
 of printer-resident fonts we do not have, so not reproducible by
 construction (Jon's ruling 2026-09-13, parked with LJ6DTP on planning
-#210; see pt.EXCLUDED_V4's own 'font-chart' paragraph). Also SKIP here, same
+#210; see pt.EXCLUDED_V4's own 'font-chart' paragraph), and 1 further
+document deferred to that same LJ6DTP class -- `sawyer/LSRBOX/LSRBOX.WS`
+(parked-lj6dtp, Jon's ruling 2026-09-13; every mechanism it solely
+carries keeps its own synthetic fixture, checked by
+tests/test_pcl_tolerance.py). Also SKIP here, same
 as source-missing, but with verdict 'excluded' and a distinct reason (see
 the `recorded['verdict'] == 'excluded'` branch below) so the two skip
 causes never get confused in the output. The ACTIVE tier size -- what
 actually gets a doc_report() and either fails-by-name or runs in
-inventory mode -- is 194 - 25 = 169. `pt.CAPTURED_DOCS`/
+inventory mode -- is 194 - 26 = 168. `pt.CAPTURED_DOCS`/
 `pt.CAPTURED_DOCS_V4` themselves are UNCHANGED (still 194/182) -- this
-test still collects and skips-by-name the 25 excluded cases every run,
+test still collects and skips-by-name the 26 excluded cases every run,
 rather than shrinking the parametrize list, so a live `pytest -m pcl -rA`
 always names every excluded document and its reason. Full detail (sha256,
 which half of a duplicate pair was kept) lives in the private corpus

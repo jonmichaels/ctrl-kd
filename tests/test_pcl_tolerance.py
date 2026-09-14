@@ -898,3 +898,49 @@ def test_the_four_printer_font_charts_are_excluded_as_font_chart():
     # not a drive-by edit
     font_charts = {d for d, r in pt.EXCLUDED_V4.items() if r.startswith('font-chart: ')}
     assert font_charts == charts
+
+
+def test_lsrbox_is_parked_with_lj6dtp_and_loses_no_sole_coverage():
+    """planning #270 item 38, Jon's ruling 2026-09-13 ("Defer. Remove it
+    from testing (unless it's an example of something we don't have any
+    other test for). Add it to the LJ6DTP category.").
+
+    `sawyer/LSRBOX/LSRBOX.WS` leaves the pcl tier as 'parked-lj6dtp'. The
+    ruling's own "unless" clause is what this test really guards: every
+    mechanism LSRBOX.WS is the corpus's SOLE carrier of has its own
+    SYNTHETIC tier-1 fixture, named here so that deleting one of them
+    while LSRBOX is parked fails loudly instead of silently ending the
+    mechanism's only remaining cover."""
+    doc = 'sawyer__LSRBOX__LSRBOX_EXT_WS'
+    assert doc in pt.CAPTURED_DOCS, 'must still be collected and skipped BY NAME'
+    assert doc in pt.EXCLUDED_V4
+    reason = pt.EXCLUDED_V4[doc]
+    assert reason.startswith('parked-lj6dtp: ')
+    assert 'planning #210' in reason
+    # the reference rendering is recorded, and recorded as what it IS --
+    # a real PDF, not the WordStar Printer Definition File a 1990s `.PDF`
+    # otherwise always is in this corpus
+    assert 'LSRBOX.PDF' in reason
+    assert 'not a WordStar Printer Definition File' in reason
+    # the sole-carrier fixtures, by name and by file
+    import importlib.util
+    import pathlib
+    here = pathlib.Path(__file__).parent
+    covers = {
+        'test_pcl_v4_column_geometry.py': [
+            'test_a_print_controls_display_string_never_reaches_a_running_head',
+            'test_a_running_heads_print_control_draws_its_own_rectangles',
+            'test_a_fill_with_an_omitted_value_is_solid_black',
+            'test_f_a_column_break_terminator_is_not_an_overprint',
+            'test_f_a_column_breaks_last_line_pays_its_lead',
+        ],
+        'test_justification.py': [
+            'test_last_line_of_justified_paragraph_is_not_stretched',
+        ],
+    }
+    for filename, names in covers.items():
+        src = (here / filename).read_text()
+        for name in names:
+            assert f'def {name}(' in src, (
+                f'{name} is LSRBOX.WS mechanism coverage and LSRBOX.WS is '
+                f'parked out of the pcl tier -- {filename} must keep it')
