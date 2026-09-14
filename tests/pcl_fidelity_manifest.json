@@ -31,9 +31,9 @@
       "counts_by_reason": {
         "cgtimes-drift-exceeds-tolerance": 10,
         "exact-drift": 49,
-        "extra-word-in-engine": 273,
+        "extra-word-in-engine": 270,
         "line-start-shift": 7,
-        "word-unmatched": 111
+        "word-unmatched": 105
       },
       "divergences": [
         {
@@ -1055,38 +1055,6 @@
         {
           "doc": "LJ6DTP",
           "page": 1,
-          "line_y_top_pt": 568.6,
-          "words": [
-            "LJ6DTP.DOC"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            50.4,
-            568.6
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
-          "line_y_top_pt": 582.6,
-          "words": [
-            "LJ6DTP.PDF"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            50.4,
-            582.6
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
           "line_y_top_pt": 694.6,
           "words": [
             "you\u2019ll"
@@ -1678,6 +1646,38 @@
         },
         {
           "doc": "LJ6DTP",
+          "page": 6,
+          "line_y_top_pt": 268.0,
+          "words": [
+            "WordStar\u2019s"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            302.2,
+            268.0
+          ],
+          "font_class": "serif",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 6,
+          "line_y_top_pt": 282.0,
+          "words": [
+            "you\u2019ve"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            98.9,
+            282.0
+          ],
+          "font_class": "serif",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "LJ6DTP",
           "page": 2,
           "line_y_top_pt": 48.0,
           "words": [
@@ -1845,70 +1845,6 @@
           ],
           "pdf_pos": null,
           "font_class": "no_substitute",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
-          "line_y_top_pt": 568.8,
-          "words": [
-            "LJ6DTP"
-          ],
-          "ws7_pos": [
-            50.4,
-            568.8
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
-          "line_y_top_pt": 568.8,
-          "words": [
-            ".DOC"
-          ],
-          "ws7_pos": [
-            91.4,
-            568.8
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
-          "line_y_top_pt": 582.8,
-          "words": [
-            "LJ6DTP"
-          ],
-          "ws7_pos": [
-            50.4,
-            582.8
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 1,
-          "line_y_top_pt": 582.8,
-          "words": [
-            ".PDF"
-          ],
-          "ws7_pos": [
-            91.4,
-            582.8
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
@@ -2453,6 +2389,70 @@
           ],
           "pdf_pos": null,
           "font_class": "cgtimes",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 6,
+          "line_y_top_pt": 590.0,
+          "words": [
+            "PRETTYNEA"
+          ],
+          "ws7_pos": [
+            205.9,
+            590.0
+          ],
+          "pdf_pos": null,
+          "font_class": "no_substitute",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 278.0,
+          "words": [
+            "8294\u25022765"
+          ],
+          "ws7_pos": [
+            296.4,
+            278.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 278.0,
+          "words": [
+            "8294\u25022765\u25024716\u25024716\u25025529"
+          ],
+          "ws7_pos": [
+            362.4,
+            278.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "8294\u25022765\u2502"
+          ],
+          "ws7_pos": [
+            296.4,
+            288.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
           "reason": "word-unmatched",
           "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
@@ -3466,8 +3466,8 @@
       "counts_by_reason": {
         "baseline-shift": 141,
         "exact-drift": 1,
-        "extra-word-in-engine": 26,
-        "word-unmatched": 28
+        "extra-word-in-engine": 25,
+        "word-unmatched": 26
       },
       "divergences": [
         {
@@ -4293,22 +4293,6 @@
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
           "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            "PRINT.TST"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.5,
-            114.0
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 1,
           "line_y_top_pt": 371.0,
           "words": [
             "o^)"
@@ -4705,38 +4689,6 @@
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            "PRINT"
-          ],
-          "ws7_pos": [
-            94.8,
-            114.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            ".TST"
-          ],
-          "ws7_pos": [
-            143.7,
-            114.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
         {
           "doc": "sawyer__DEFAULT__PRINT_EXT_TST",
@@ -5229,29 +5181,11 @@
       "n_engine_pages": 1,
       "no_substitute_word_count": 1,
       "counts_by_reason": {
-        "extra-word-in-engine": 1,
         "line-start-shift": 2,
         "pristine-frame-offset-exceeds-tolerance": 1,
-        "univers-drift-exceeds-tolerance": 1,
-        "word-unmatched": 2
+        "univers-drift-exceeds-tolerance": 1
       },
       "divergences": [
-        {
-          "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "WORDSTAR.PS"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            224.6,
-            276.0
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
         {
           "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
           "page": 1,
@@ -5322,38 +5256,6 @@
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
           "detail": "residual +14.40pt at 225.3pt into the line (tolerance 8.01pt)"
-        },
-        {
-          "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "WORDST"
-          ],
-          "ws7_pos": [
-            224.8,
-            276.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "AR.PS"
-          ],
-          "ws7_pos": [
-            312.2,
-            276.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         }
       ],
       "document_frame_offset_pt": {
@@ -10428,8 +10330,8 @@
       "counts_by_reason": {
         "baseline-shift": 141,
         "exact-drift": 1,
-        "extra-word-in-engine": 26,
-        "word-unmatched": 28
+        "extra-word-in-engine": 25,
+        "word-unmatched": 26
       },
       "divergences": [
         {
@@ -11255,22 +11157,6 @@
         {
           "doc": "sawyer__PRINT_EXT_TST",
           "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            "PRINT.TST"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            93.5,
-            114.0
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 1,
           "line_y_top_pt": 371.0,
           "words": [
             "o^)"
@@ -11667,38 +11553,6 @@
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            "PRINT"
-          ],
-          "ws7_pos": [
-            94.8,
-            114.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "sawyer__PRINT_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 114.0,
-          "words": [
-            ".TST"
-          ],
-          "ws7_pos": [
-            143.7,
-            114.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
         {
           "doc": "sawyer__PRINT_EXT_TST",

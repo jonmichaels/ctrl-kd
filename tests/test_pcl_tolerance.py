@@ -876,6 +876,88 @@ def test_reconcile_glued_ws7_chunks_only_consumes_each_token_once():
     assert new_eng == []
 
 
+# --------------------------- mechanism P-SPLIT: split-word reconcile (#270/41)
+def _ws7_frag(text, x, tier='univers', page=1, y_top=114.0, line_start_x=57.6):
+    return {'text': text, 'page': page, 'y_top': y_top, 'x': x, 'tier': tier,
+            'dist_into_line_pt': round(x - line_start_x, 3)}
+
+
+def _eng_whole(text, x, basefont='Helvetica-Bold', size=18, page=1, y_top=114.0):
+    return {'text': text, 'page': page, 'y_top': y_top, 'x': x,
+            'basefont': basefont, 'size': size, 'font_class': 'sans'}
+
+
+def test_a_word_ws7_split_in_two_reconciles_against_the_engines_own_word():
+    # PRINT.TST's own title, real numbers from the v4 capture: WS7 sends
+    # 'PRINT' at 94.8pt and '.TST' at 143.7pt under ONE font-selection
+    # command; the engine draws 'PRINT.TST' at 93.5pt.
+    unmatched_ws7 = [_ws7_frag('PRINT', 94.8), _ws7_frag('.TST', 143.7)]
+    unmatched_engine = [_eng_whole('PRINT.TST', 93.5)]
+    new_ws7, new_eng = pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine)
+    assert new_ws7 == []
+    assert new_eng == []
+
+
+def test_a_split_point_the_engine_puts_a_whole_column_away_is_not_reconciled():
+    # REF/FONT-TAG.CMP's own shape, inverted onto this side so the bar is
+    # visible: fixed-pitch Courier, where EXACT_EPS_PT (0.2pt) governs.
+    # One 7.2pt Courier cell of disagreement about where the second
+    # fragment starts is a real placement divergence, never a segmentation
+    # artefact, and must stay reported.
+    unmatched_ws7 = [_ws7_frag('#:', 259.2, tier='exact', line_start_x=230.4),
+                    _ws7_frag('Usage:', 280.8, tier='exact', line_start_x=230.4)]
+    unmatched_engine = [_eng_whole('#:Usage:', 259.2, basefont='Courier', size=12)]
+    new_ws7, new_eng = pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_two_genuinely_separate_ws7_words_are_never_fused_into_one():
+    # 'Zapf' + 'Chancery' (PSSAMPLE.WS) and 'Helv' + 'Narrow' (PS-FONTS.REF)
+    # ALSO measure as backward steps under a substituted face -- which is
+    # why geometry alone cannot decide this. The engine has no single word
+    # 'ZapfChancery', so nothing reconciles.
+    unmatched_ws7 = [_ws7_frag('Zapf', 100.0), _ws7_frag('Chancery', 138.0)]
+    unmatched_engine = [_eng_whole('Zapf', 100.0), _eng_whole('Chancery', 142.0)]
+    new_ws7, new_eng = pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine)
+    assert new_ws7 == unmatched_ws7
+    assert new_eng == unmatched_engine
+
+
+def test_a_split_run_never_crosses_a_baseline_or_a_page():
+    # A coincidental text match on another line or another page is not a
+    # split word -- same law mechanism P's own page check states.
+    unmatched_ws7 = [_ws7_frag('PRINT', 94.8), _ws7_frag('.TST', 143.7, y_top=126.0)]
+    unmatched_engine = [_eng_whole('PRINT.TST', 93.5)]
+    assert pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine) == (
+        unmatched_ws7, unmatched_engine)
+    other_page = [_ws7_frag('PRINT', 94.8, page=2), _ws7_frag('.TST', 143.7, page=2)]
+    assert pt._reconcile_split_ws7_chunks(other_page, unmatched_engine) == (
+        other_page, unmatched_engine)
+
+
+def test_a_split_run_only_consumes_each_fragment_once():
+    unmatched_ws7 = [_ws7_frag('LJ6DTP', 50.4, line_start_x=50.4),
+                    _ws7_frag('.DOC', 91.4, line_start_x=50.4),
+                    _ws7_frag('LJ6DTP', 50.4, y_top=128.0, line_start_x=50.4),
+                    _ws7_frag('.PDF', 91.4, y_top=128.0, line_start_x=50.4)]
+    unmatched_engine = [_eng_whole('LJ6DTP.DOC', 50.4, size=12),
+                       _eng_whole('LJ6DTP.PDF', 50.4, y_top=128.0, size=12)]
+    new_ws7, new_eng = pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine)
+    assert new_ws7 == []
+    assert new_eng == []
+
+
+def test_a_single_ws7_fragment_is_never_a_split():
+    # One WS7 token whose text simply IS the engine word is a 1:1 match
+    # fg.match_doc should have made (or a real position divergence) --
+    # never this mechanism's business.
+    unmatched_ws7 = [_ws7_frag('PRINT.TST', 94.8)]
+    unmatched_engine = [_eng_whole('PRINT.TST', 93.5)]
+    assert pt._reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine) == (
+        unmatched_ws7, unmatched_engine)
+
+
 # --------------------------------------------- per-page calibration (#235)
 def _cal_item(is_line_start, tier, dx=0.0, dy=0.0):
     """One (ws7_token, engine_token, delta) triple, minimal enough for

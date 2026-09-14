@@ -1377,6 +1377,130 @@ def _reconcile_glued_ws7_chunks(eng_tokens, unmatched_ws7, unmatched_engine):
     return new_unmatched_ws7, new_unmatched_engine
 
 
+def _split_point_tolerance_pt(tier, dist_into_line_pt):
+    """The bar a SPLIT POINT inside one word has to meet, by the font tier
+    the WS7 side already assigns that word -- the same three tolerances
+    `doc_report` applies to any other x residual, reused rather than given
+    a constant of their own: `EXACT_EPS_PT` for a fixed-pitch face we draw
+    with real metrics, and the CG-Times/Univers substitution-drift curve
+    (mechanism I) where the width is only ever an estimate. A tier with no
+    modelled width at all (`TIER_NO_SUBSTITUTE`) gets None -- no split is
+    reconcilable there, because there is no metric to check it against."""
+    if tier == TIER_EXACT:
+        return EXACT_EPS_PT
+    if tier == TIER_CGTIMES:
+        return cgtimes_tolerance_pt(dist_into_line_pt)
+    if tier == TIER_UNIVERS:
+        return univers_tolerance_pt(dist_into_line_pt)
+    return None
+
+
+def _reconcile_split_ws7_chunks(unmatched_ws7, unmatched_engine):
+    """Mechanism P-SPLIT (planning #270 item 41, Jon's ruling 2026-09-14:
+    "Both side alike"): the exact MIRROR of mechanism P above. Where P
+    reconciles a WS7 chunk that GLUES two engine words, this reconciles a
+    run of two or more adjacent WS7 chunks that SPLIT one engine word --
+    `PRINT.TST`'s own title, where WS7 sends `PRINT` at 94.8pt and `.TST`
+    at 143.7pt under ONE font-selection command (verbatim from the v4
+    capture: `ESC(s1p18vs3b4148T ESC&a948HPRINT ESC&a1437H.TST`), while
+    the engine draws the filename as the single word it is.
+
+    WHY THE CHUNK-STREAM MERGE CANNOT CATCH IT. Mechanism Z's own
+    character model refuses a chunk that starts BEFORE the running end of
+    everything placed so far -- a same-position overlay (`-SCREEN`'s
+    strike-out dash run) is not a continuation, and that guard is right.
+    But the running end is OUR measurement: 18pt Helvetica-Bold, the
+    substitute for the printer's Univers Bold, measures `PRINT` 5.1pt
+    WIDER than the printer does, so the real continuation `.TST` lands
+    5.1pt "behind" a boundary that was never really there. Widening the
+    guard is not available -- measured across the whole armed corpus, a
+    backward step of that size is far more often a genuinely separate word
+    (`Zapf`+`Chancery` 3.92pt, `Helv`+`Narrow` 4.22pt, both real
+    two-word gaps in a substituted face) than a split word, so geometry
+    ALONE cannot decide this at all.
+
+    The engine's own word IS the authority on where a word begins and
+    ends: it reads the document's characters, not a printer's positioning
+    commands. So this reconciles post-match, against `fg.match_doc`'s
+    leftover lists, exactly where mechanism P already does -- and only
+    when the WS7 fragments' concatenated TEXT is character-for-character
+    the engine word, AND every split point inside it agrees with the
+    engine's own metric for that word within the tier's own x tolerance
+    (`_split_point_tolerance_pt`). The second condition is what keeps this
+    from papering over a real placement bug: on a FIXED-PITCH face the bar
+    is `EXACT_EPS_PT` (0.2pt), so a document where the engine really does
+    put the second fragment a column off -- `REF/FONT-TAG.CMP`'s own
+    `#:`+`Usage:`, where the engine spends one Courier cell on a tab
+    WordStar collapses to nothing -- is NOT reconciled and stays a named
+    divergence.
+
+    `unmatched_ws7`/`unmatched_engine` are mechanism P's own already-
+    filtered leftovers (run P first: a token resolved there is gone from
+    both lists before this ever sees it). Adjacency is read off the WS7
+    tokens themselves -- same page, same baseline (`y_top`), consecutive
+    in x with no other still-unmatched WS7 token between them -- rather
+    than from a separate unfiltered stream, because every fragment of a
+    split word is by construction still unmatched (the whole word it
+    belongs to exists only on the engine side). Returns
+    `(new_unmatched_ws7, new_unmatched_engine)`; a token is consumed by at
+    most one reconciliation, and resolved runs are NOT added to `pairs`
+    (there is no single x for a word the two sides disagree about the
+    segmentation of -- mechanism P's own convention)."""
+    by_line = defaultdict(list)
+    for w in unmatched_ws7:
+        by_line[(w['page'], round(w['y_top'], 1))].append(w)
+    resolved_ws7_ids, resolved_eng_ids = set(), set()
+    for e in unmatched_engine:
+        if id(e) in resolved_eng_ids:
+            continue
+        found = None
+        for key, line in by_line.items():
+            if key[0] != e['page']:
+                continue
+            frags = sorted(line, key=lambda t: t['x'])
+            for i in range(len(frags)):
+                if id(frags[i]) in resolved_ws7_ids:
+                    continue
+                text = ''
+                run = []
+                for j in range(i, len(frags)):
+                    if id(frags[j]) in resolved_ws7_ids:
+                        break
+                    candidate = text + frags[j]['text']
+                    if not e['text'].startswith(candidate):
+                        break
+                    text, run = candidate, run + [frags[j]]
+                    if text == e['text'] and len(run) >= 2:
+                        found = run
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if not found:
+            continue
+        # Every split point must sit where the ENGINE's own metric for this
+        # word says that character offset is, within the WS7 tier's own x
+        # tolerance -- otherwise the two sides disagree about the INK, not
+        # just about the segmentation, and that is a real divergence.
+        ok, prefix = True, ''
+        for frag in found:
+            implied = e['x'] + fg.afm.string_width_pt(prefix, e.get('basefont'), e['size'])
+            tol = _split_point_tolerance_pt(frag['tier'], frag['dist_into_line_pt'])
+            if tol is None or abs(frag['x'] - implied) > tol:
+                ok = False
+                break
+            prefix += frag['text']
+        if not ok:
+            continue
+        resolved_eng_ids.add(id(e))
+        for frag in found:
+            resolved_ws7_ids.add(id(frag))
+    new_unmatched_ws7 = [w for w in unmatched_ws7 if id(w) not in resolved_ws7_ids]
+    new_unmatched_engine = [e for e in unmatched_engine if id(e) not in resolved_eng_ids]
+    return new_unmatched_ws7, new_unmatched_engine
+
+
 TRAILING_OCCUPANT_WINDOW_DP = 300  # 30pt -- how far past a printed line's own
                                    # last chunk to look for a footnote/
                                    # end-note reference marker that has no
@@ -2096,6 +2220,14 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
     # has a meaningful single x to compare).
     unmatched_ws7, unmatched_engine = _reconcile_glued_ws7_chunks(
         eng_tokens_all, m['unmatched_ws7'], m['unmatched_engine'])
+
+    # Mechanism P-SPLIT (planning #270 item 41): the mirror -- a run of
+    # adjacent WS7 chunks that SPLIT one engine word (PRINT.TST's own
+    # 'PRINT'+'.TST'), reconciled only when the split points agree with
+    # the engine's own metric inside the tier's x tolerance. Runs AFTER
+    # mechanism P, on its own leftovers.
+    unmatched_ws7, unmatched_engine = _reconcile_split_ws7_chunks(
+        unmatched_ws7, unmatched_engine)
 
     for t in unmatched_ws7:
         add(REASON_WORD_UNMATCHED, t['page'], round(t['y_top'], 1), [t['text']],
