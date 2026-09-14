@@ -937,6 +937,61 @@ section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
 hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
 
+def _print_css(doc, has_break, has_keep):
+    r"""The PRINT stylesheet (planning #264 R5, Jon's ruling 2026-09-14
+    "Fine. Add it."; packet row C6) -- everything inside one
+    `@media print` block, and nothing outside it.
+
+    THIS DOES NOT GIVE HTML PAGES. The 2026-08-17 doctrine stands:
+    HTML has none, on screen or anywhere else, and nothing here changes
+    what a browser shows. What it changes is what comes OUT OF A PRINTER
+    when someone hits Print on the page -- until now the sheet was the
+    browser's default paper at the browser's default margins, and the
+    breaks fell wherever the browser felt like putting them.
+
+    Three rules, and each one is a fact the document already carries:
+
+      `@page`  the document's OWN paper size and margins. Size from
+               `.pl`'s resolved height and the page-model width; margins
+               from `.mt`/`.mb` at 6 LPI and `.po` at 10 CPI -- the
+               identical numbers the RTF page setup writes as twips.
+               Right margin mirrors left, exactly as `emit_rtf`'s own
+               page setup does (`margr = margl`) and for the same reason:
+               `.po` is the only horizontal offset WordStar states.
+      `hr.pb`  the document's own page breaks become real ones. The
+               marker is a DECORATIVE dashed rule on screen and stays
+               exactly that; in print it becomes the break it stands for
+               and draws nothing, because a dashed line across the foot
+               of every printed sheet is not what it was ever for.
+      keeps    `.ws-keep` -- the paragraphs `.cp`/`.cc` asked to hold
+               together (R2's own `_rtf_keep_plan`, read here too so the
+               two exports cannot disagree) -- get `break-inside:avoid`,
+               and `.ws-keepn` additionally gets `break-after:avoid`,
+               which is CSS's own name for `\keepn`.
+
+    PRINTED ONLY. Modern has no pages in any surface (the same reason
+    Modern RTF gets no columns), so a Modern HTML export carries no
+    `@page` and no break rules -- its `<hr class="pb">` markers stay the
+    decoration they have always been.
+
+    Appended only when it has something to say, the same
+    only-when-used discipline `.ws-nonprop` and the list rules follow."""
+    page = doc.meta.get('page') or {}
+    w_in = float(page.get('pw_in', 8.5))
+    h_in = float(page.get('height_in', 11.0))
+    top_in = float(page.get('mt_lines', 3.0)) / 6.0          # 6 LPI
+    bot_in = float(page.get('mb_lines', 8.0)) / 6.0
+    side_in = float(page.get('po_cols', 8.0)) / 10.0         # 10 CPI
+    rules = ['@page{size:%gin %gin;margin:%gin %gin %gin %gin}'
+             % (w_in, h_in, top_in, side_in, bot_in, side_in)]
+    if has_break:
+        rules.append('hr.pb{break-after:page;border:none;margin:0;height:0}')
+    if has_keep:
+        rules.append('.ws-keep{break-inside:avoid}')
+        rules.append('.ws-keepn{break-after:avoid}')
+    return '\n@media print{' + ''.join('\n' + r for r in rules) + '}'
+
+
 def _list_css():
     """Planning #264 item 5, the HTML half of packet row C3: explicit list
     geometry, so a definition or bullet list lands on WordStar's own ladder
@@ -1849,6 +1904,12 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # `_trailing_pa_skip_index`. The list/quote buffers are still closed --
     # only the RULE is dropped, since everything before it stands.
     skip_pa = _trailing_pa_skip_index(doc)
+    # planning #264 R5 (packet row C6): the paragraphs `.cp`/`.cc` asked to
+    # hold together, read from R2's OWN plan so the RTF and the printed
+    # HTML cannot disagree about which they are. The classes are inert on
+    # screen -- nothing outside the `@media print` block mentions them --
+    # and Modern, which has no pages, never carries them.
+    keep_plan = _rtf_keep_plan(doc) if printed else {}
     for bi, b in enumerate(doc.blocks):
         if b.kind == 'pagebreak':
             if not printed:
@@ -1859,6 +1920,11 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
+        keep_para, keepn_para = keep_plan.get(bi, (False, False))
+        if keep_para:
+            cls = _add_html_class(cls, 'ws-keep')
+        if keepn_para:
+            cls = _add_html_class(cls, 'ws-keepn')
         if b.heading:
             if not printed:
                 builder.flush(parts)
@@ -2148,6 +2214,15 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     if any('ws-nowrap' in p for p in parts):
         css += ('\nspan.ws-nowrap{white-space:nowrap}'
                 '\np.ws-native span.ws-nowrap{white-space:pre}')
+    # planning #264 R5 (packet row C6, ruled 2026-09-14 "Fine. Add it."):
+    # the print stylesheet. Printed only, appended last so everything
+    # above it is the SCREEN stylesheet and stays byte-for-byte what it
+    # was -- see `_print_css` for the three rules and why none of them
+    # gives HTML pages.
+    if printed:
+        css += _print_css(doc,
+                          has_break=any('hr class="pb"' in p for p in parts),
+                          has_keep=any('ws-keep' in p for p in parts))
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own
     # end, gated by `--toc` (default off). HTML is non-paged: no page
     # references, ever -- `<nav>`/`<section>` with a `<ol>` per WSFORMAT's
