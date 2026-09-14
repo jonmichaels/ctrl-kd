@@ -795,6 +795,42 @@ def _json_meta(doc):
     }
 
 
+# --------------------------------------------- print-control labels
+# Planning #270 item 36, Jon's ruling 2026-09-13: "Print controls aren't
+# supposed to be visible except in Show Invisibles." A 0x0F user print
+# control carries a SCREEN display string -- WordStar shows it in the
+# editor where the control sits (LSRBOX.WS labels its rules
+# `«Shaded ┌00.500"hx00.500"v ...»`, LJ6DTP has 41 of them) -- and the
+# printer gets the raw payload instead, the block advancing by its own
+# declared HMI word.
+#
+# Every OTHER surface already obeyed this: the Modern flow drops the span
+# (`modern_flow`, above), text/Markdown/HTML/RTF drop it or pad it
+# (`emit.py`'s own `pctl` branches), and the PDF writer advances x without
+# drawing (`pdf.py`'s `pctl` branch). The printed LAYOUT JSON did not: it
+# published `segments` verbatim, label text and all, and that JSON is what
+# the Native view draws from -- so Native was the one reading surface
+# still showing the editor's label. It now publishes the SAME
+# declared-width padding the printed text/HTML paths publish, so no
+# surface but Show Invisibles (the separate `invisibles` layer, untouched)
+# can render a label.
+#
+# 180 HMI units (1/1800 inch each) is one 10-CPI print column, which is
+# the unit `emit.py` and this JSON's consumers both measure printed
+# padding in.
+_HMI_PER_PRINT_COLUMN = 180
+
+
+def _printed_segment_text(text, styles):
+    """One printed page-line segment's published text: a `pctl<hmi>` span's
+    SCREEN label swapped for its declared printed width in 10-CPI columns,
+    every other span's text unchanged. Planning #270 item 36."""
+    pctl = next((t for t in styles if t.startswith('pctl')), None)
+    if pctl is None:
+        return text
+    return ' ' * round(int(pctl[4:]) / _HMI_PER_PRINT_COLUMN)
+
+
 @emitter('layout', ext='.json')
 def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 note_refs='word', **_options):
@@ -922,17 +958,51 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     document with no Modern graphic content anywhere emits byte-
     identical JSON to version 6.
 
+    version 9 (planning #270 item 36, Jon's ruling 2026-09-13: "Print
+    controls aren't supposed to be visible except in Show Invisibles"): a
+    printed page-line SEGMENT tagged `pctl<hmi>` now publishes its
+    declared printed WIDTH as spaces, never the 0x0F print control's own
+    editor SCREEN label — the same swap `emit.py`'s printed text/HTML
+    paths and `pdf.py`'s writer have always made, which this JSON (the
+    one the Native view draws from) was the last surface not to make.
+    The label itself moves to the invisibles layer as
+    `invisibles['print_controls']` — `[{'page', 'line', 'segment',
+    'label', 'hmi', 'columns'}, ...]`, printed order — so Show
+    Invisibles, the ONE feature allowed to draw it, still has it, and
+    nothing else does. The segment's own `styles` still carry its
+    `pctl<hmi>` tag, unchanged, so a consumer can still tell a print
+    control's padding from typed spaces. A document with no 0x0F print
+    control anywhere emits an empty `print_controls` list and otherwise
+    byte-identical JSON to version 8.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
     from . import pdf as _pdf       # lazy: pdf imports this module's flow
 
     printed_pages = []
+    print_controls = []
     for page in _pdf._doc_to_pagelines(doc, True):
         lines = []
         for pl in page:
+            # Planning #270 item 36: harvest each print control's SCREEN
+            # label for the invisibles layer BEFORE the segment publishes
+            # its padded, label-free text -- one pass, so the two can
+            # never disagree about which segment a label belongs to.
+            for si, (t, st) in enumerate(pl):
+                pctl = next((x for x in st if x.startswith('pctl')), None)
+                if pctl is not None:
+                    print_controls.append({
+                        'page': len(printed_pages) + 1,
+                        'line': len(lines),
+                        'segment': si,
+                        'label': t,
+                        'hmi': int(pctl[4:]),
+                        'columns': round(int(pctl[4:]) / _HMI_PER_PRINT_COLUMN),
+                    })
             line = {
-                'segments': [{'text': t, 'styles': sorted(st)}
+                'segments': [{'text': _printed_segment_text(t, st),
+                              'styles': sorted(st)}
                              for t, st in pl],
                 'soft': bool(getattr(pl, 'soft', False)),
                 'overprint': bool(getattr(pl, 'overprint', False)),
@@ -1072,13 +1142,22 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 8,
+        'version': 9,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
         'modern': modern_out,
         'printed': {'pages': printed_pages},
         'invisibles': {
+            # Planning #270 item 36 (version 9): a 0x0F print control's own
+            # SCREEN label, the ONE place the contract still publishes it.
+            # Every rendering surface drops it (see `_printed_segment_text`);
+            # Show Invisibles is the only feature allowed to draw it, and it
+            # reads it from here. `page`/`line`/`segment` locate the printed
+            # page-line segment the control sits in -- the same segment whose
+            # `styles` still carry its `pctl<hmi>` tag -- and `columns` is the
+            # printed width that segment was padded to.
+            'print_controls': print_controls,
             'dot_commands': doc.meta.get('dot_commands', []),
             'dot_positions': doc.meta.get('dot_positions', []),
             'hf_events': [list(e) for e in getattr(doc, 'hf_events', ())],
