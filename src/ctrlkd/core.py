@@ -1751,6 +1751,18 @@ def _split_bare_ff(raw: bytes) -> list:
     return parts
 
 
+def _marks_within(marks, lo: int, hi: int) -> list:
+    """The (offset, ...) marks that fall in [lo, hi], re-based to `lo`.
+
+    One physical line split at a form feed (`_split_bare_ff`) decodes each
+    piece separately, and each piece's marks have to be addressed from its
+    own first byte. The bounds are INCLUSIVE at both ends and the next
+    piece's `lo` is one past this `hi` (the 0x0C byte itself), so the pieces
+    partition the line's mark space exactly -- no mark reaches two of them,
+    and none is lost between them."""
+    return [(m[0] - lo,) + tuple(m[1:]) for m in marks if lo <= m[0] <= hi]
+
+
 def _bare_eof(data: bytes, pad_min: int = 8) -> int:
     """Offset of the file's real EOF -- the start of the trailing run of
     ^Z padding WordStar writes to fill out a CP/M sector, not the first
@@ -4586,7 +4598,24 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
                 #
                 # Register C3. Deliberate for PDF, which is Courier by design;
                 # RTF/HTML can express a size change and now have the figures.
+                #
+                # TYPE 15h IS NOT TYPE 2. WSFORMAT.TXT, verbatim: "15h
+                # Alternate/Normal font change. Byte: Normal = 0, Alternate =
+                # 1. The rest of the sequence is like a font symmetrical
+                # sequence, with the new font characteristics (Width, height,
+                # and typestyle), followed by the previous font
+                # characteristics." The flag is PAIRED the same way the font
+                # triples are -- new state then previous state -- so the two
+                # triples start at byte 2, not byte 0. All four 15h blocks in
+                # the archive (`sawyer/REF/CODES.WS`, `sawyer/REF/-TOC-TAG.WS`)
+                # carry 14 payload bytes and read `01 00` / `00 01` / `00 00`
+                # there, and only the 2-byte skip yields real fonts: 108 HMI x
+                # 170 VMI (8.5pt LinePrinter, WordStar's own default) and 180 x
+                # 240 (Courier 12). Read from byte 0 they came out 1 HMI wide
+                # -- one character every 1/1800 inch, "SB (Cordata)".
                 content = block[3:-3] if len(block) >= 6 else block[3:]
+                if cmd == 0x15:
+                    content = content[2:]
                 if len(content) >= 6:
                     w = int.from_bytes(content[0:2], 'little')     # HMI, 1/1800in
                     h = int.from_bytes(content[2:4], 'little')     # VMI, 1/1440in
@@ -5931,36 +5960,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         # and the only trace was an "unknown code 0x0c" line in --diagnose. The
         # break was simply lost. Found by diffing all 32 low-order codes against
         # the spec, 2026-08-04.
-        wrap_raw = raw
-        if 0x0C in raw:
-            # split on BARE form feeds only -- a wrapped <1B 0C 1C> is the
-            # cp437 glyph at 0x0C (the chart cell in ASCIITAB.WS), never a
-            # page eject
-            parts = _split_bare_ff(raw)
-            for n, part in enumerate(parts):
-                if n:
-                    close_block()
-                    # origin='ff': this break IS a byte (0x0C), unlike a
-                    # `.pa` pagebreak whose bytes are its dot line. It also
-                    # counts as an EVENT so dot lines on either side of it
-                    # keep their order (tasks #20/#21).
-                    doc.blocks.append(Block('pagebreak', origin='ff'))
-                    _rt_tally[0] += 1
-                if part:
-                    spans = _decode_spans(part, strip_hibit, encoding, active,
-                                          unknown, fn_counter)
-                    if pending_marks and spans:
-                        cur_line.spans.extend(pending_marks)
-                        pending_marks = []
-                    for sp in spans:
-                        cur_line.spans.append(sp)
-            # planning #270 item 37: `raw` is about to be emptied, but the
-            # separator handling below still needs this entry's LAST source
-            # byte to tell an active soft hyphen from a typed one (see
-            # Line.soft_hyphen). The last non-empty part is the piece whose
-            # spans the separator actually closes.
-            wrap_raw = next((p for p in reversed(parts) if p), b'')
-            raw = b''
+        #
         # Structural marks, carried as OFFSETS rather than injected bytes -- every
         # byte the old sentinels used (0x00 ^@, 0x0B ^K, 0x11 ^Q) is a real
         # WordStar control code that occurs in real documents, so a literal one
@@ -5976,6 +5976,108 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
         if carried_marks:                 # see the dot-command branch above
             line_marks = [(0, m) for m in carried_marks] + list(line_marks)
             carried_marks = []
+        # The SPAN-LEVEL marks -- everything that locates something inside
+        # this line's own bytes -- are collected HERE, before the form-feed
+        # branch below, because that branch decodes its pieces on the spot
+        # and needs them. It used to decode them with NO marks at all
+        # (`_decode_spans(part, ...)`, six arguments), so a font block, a
+        # colour change, a note reference, a tab target, a print control or
+        # an index entry sitting on a physical line that also carried a form
+        # feed was silently thrown away.
+        #
+        # MEASURED, `sawyer/PRINT.TST` (and `DEFAULT/PRINT.TST`,
+        # `PSPRINT.TST`): the "Paragraph Indentation" heading is `.cb` + form
+        # feed + ^B + the heading's own font block (Helv 11pt, HMI 138 -- the
+        # block's FIRST three words, WSFORMAT's "current"; the second three
+        # are the PREVIOUS font it restores to, here Courier 12pt, which is
+        # why the closing block carries the same pair reversed). Real WS7
+        # prints that heading in Helv -- 54.4pt for "Paragraph " on the v4
+        # PRISTINE capture, page 2 y=288.0pt -- and this engine printed it in
+        # Courier because the font mark never reached the text.
+        #
+        # A style SELECTION's own font (the `font_at` append in the loop
+        # further down) is deliberately NOT hoisted with these: resolving it
+        # closes a block, and on a form-feed line that close has always
+        # happened AFTER the pieces were decoded. Order stays as it is.
+        for rel, m in line_marks:
+            if m[0] == 'fnref':
+                fnref_at.append(rel)
+            elif m[0] == 'font':
+                font_at.append((rel, m[1]))
+            elif m[0] == 'pctl':
+                pctl_at.append((rel, m[1], m[2], m[3]))
+            elif m[0] == 'colour':
+                colour_at.append((rel, m[1]))
+            elif m[0] == 'pix':
+                pix_at.append((rel, m[1], m[2]))
+            elif m[0] == 'ixentry':
+                ix_at.append((rel, m[1]))
+            elif m[0] == 'tab':
+                tab_target_at.append((rel, m[1], m[2], m[3]))
+        wrap_raw = raw
+        if 0x0C in raw:
+            # split on BARE form feeds only -- a wrapped <1B 0C 1C> is the
+            # cp437 glyph at 0x0C (the chart cell in ASCIITAB.WS), never a
+            # page eject
+            parts = _split_bare_ff(raw)
+            # A style SELECTION carries a font too, and the loop that
+            # resolves one runs AFTER this branch (it closes a block, and on
+            # a form-feed line that close has always happened after the
+            # pieces were decoded -- an order this must not disturb). So the
+            # font, and only the font, is resolved here as well: `_style_font`
+            # is cached and deduplicates against `doc.fonts`, so asking twice
+            # costs a lookup and creates nothing. Without it every
+            # style-governed span on such a line kept whatever font the
+            # PREVIOUS line ended in -- `sawyer/PRINTER.PS`'s and
+            # `sawyer/REF/SYMBOL.CHT`'s chart rows printed their decimal code
+            # column in the symbol face the row's GLYPH column asks for.
+            _ff_font_at = list(font_at)
+            for rel, m in line_marks:
+                if m[0] == 'style' and (m[1] >> 8) == 0x02:
+                    entry = style_slots.get(m[1] & 0xFF)
+                    if entry and entry.get('font') and any(entry['font']):
+                        _ff_font_at.append((rel, _style_font(entry['font'])))
+            _ff_font_at.sort(key=lambda t: t[0])
+            _ff_base = 0
+            for n, part in enumerate(parts):
+                if n:
+                    close_block()
+                    # origin='ff': this break IS a byte (0x0C), unlike a
+                    # `.pa` pagebreak whose bytes are its dot line. It also
+                    # counts as an EVENT so dot lines on either side of it
+                    # keep their order (tasks #20/#21).
+                    doc.blocks.append(Block('pagebreak', origin='ff'))
+                    _rt_tally[0] += 1
+                    _ff_base += 1                  # the 0x0C byte itself
+                # `lo <= offset <= hi`, with the next piece's `lo` one past
+                # this `hi`, partitions the line exactly: every mark reaches
+                # one piece and only one. A line with a single piece (the
+                # wrapped-0x0C case) gets all of them, unshifted.
+                lo, hi = _ff_base, _ff_base + len(part)
+                _ff_base = hi
+                if part:
+                    spans = _decode_spans(
+                        part, strip_hibit, encoding, active, unknown,
+                        fn_counter,
+                        [r - lo for r in fnref_at if lo <= r <= hi],
+                        _marks_within(_ff_font_at, lo, hi), doc.fonts,
+                        _marks_within(pctl_at, lo, hi),
+                        _marks_within(colour_at, lo, hi),
+                        _marks_within(pix_at, lo, hi),
+                        _marks_within(tab_target_at, lo, hi),
+                        _marks_within(ix_at, lo, hi))
+                    if pending_marks and spans:
+                        cur_line.spans.extend(pending_marks)
+                        pending_marks = []
+                    for sp in spans:
+                        cur_line.spans.append(sp)
+            # planning #270 item 37: `raw` is about to be emptied, but the
+            # separator handling below still needs this entry's LAST source
+            # byte to tell an active soft hyphen from a typed one (see
+            # Line.soft_hyphen). The last non-empty part is the piece whose
+            # spans the separator actually closes.
+            wrap_raw = next((p for p in reversed(parts) if p), b'')
+            raw = b''
         # #236: did a style-select mark on THIS physical entry just force a
         # close_block() below, before this entry's own separator (blank/line/
         # para) is handled? Reset per entry. See the blank-line branch's own
@@ -6087,20 +6189,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     # selection is still a block boundary in the file
                     close_block()
                     style_closed_here = True
-            elif m[0] == 'fnref':
-                fnref_at.append(rel)
-            elif m[0] == 'font':
-                font_at.append((rel, m[1]))
-            elif m[0] == 'pctl':
-                pctl_at.append((rel, m[1], m[2], m[3]))
-            elif m[0] == 'colour':
-                colour_at.append((rel, m[1]))
-            elif m[0] == 'pix':
-                pix_at.append((rel, m[1], m[2]))
-            elif m[0] == 'ixentry':
-                ix_at.append((rel, m[1]))
-            elif m[0] == 'tab':
-                tab_target_at.append((rel, m[1], m[2], m[3]))
+            # every other mark kind is SPAN-LEVEL and was collected in the
+            # pass above this one, before the form-feed branch that needs it
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
                               pctl_at, colour_at, pix_at, tab_target_at,
