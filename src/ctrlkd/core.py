@@ -257,6 +257,8 @@ class Block:
     left_margin: float = None
     right_margin: float = None
     para_margin: float = None
+    # `.lh a` / `.lh auto` -- AUTO-LEADING, in force when this block opened.
+    lh_auto: bool = False
     # `.pf` -- PRINT-TIME PARAGRAPH REALIGNMENT, in force when this block
     # opened: 'on', 'off', 'dis' (discretionary), or None when the file never
     # said. MicroPro's own file-format reference (WSFORMAT.TXT, the `.PF` row)
@@ -2894,6 +2896,14 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # `.p#` -- '#' is not a letter, so the shared name regex splits it
         # into name 'P', arg '#...'; rejoin before dispatch
         name, arg = b'P#', arg[1:]
+    elif name == b'LHA' and not arg:
+        # `.lha` -- auto-leading, written with no space. The shared name
+        # regex takes up to THREE letters, so it swallows the argument into
+        # the name; split it back, the same repair `.p#` needs one line
+        # above. `sawyer/DEFAULT/PRINT.TST` and `sawyer/PSPRINT.TST` write it
+        # this way; `sawyer/PREVIEW.WS` and two `-README.WS` write `.lh auto`,
+        # which the regex handles unaided.
+        name, arg = b'LH', b'a'
 
     if name == b'OC':                       # centering on/off
         v = _onoff(arg)
@@ -3012,6 +3022,10 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # per LINE (Line.lead_48) because that is the granularity it acts at --
         # a lead is the distance to the next baseline, not a property of a
         # paragraph. Register C24.
+        a = arg.strip().lower()
+        if a[:1] == b'a':                    # `.lh a` / `.lh auto`
+            state['lh_auto'] = True
+            return
         m = _dot_num_match(arg)
         if m:
             try:
@@ -3022,6 +3036,7 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 resolved = _resolve_lh_arg(value, m.group(2))
                 if resolved is not None:     # junk/non-positive: state stands
                     state['lead_48'] = resolved
+                    state['lh_auto'] = False
     elif name in (b'LM', b'RM', b'PM'):     # left / right / paragraph margin
         # Print columns at 10 CPI, matching `.po`; a unit suffix converts. The
         # archive writes both (`.rm 65` and `.rm 6.5"`).
@@ -3216,6 +3231,15 @@ def _block_format(state: dict) -> tuple:
             # print time and the ones before are not -- the same reason
             # `.lm` is here.
             state.get('print_reformat'),
+            # `.lh a` (auto-leading) mid-paragraph means the lines after it
+            # take their advance from the fonts on them and the ones before
+            # do not. Unlike a NUMERIC `.lh` -- which is per LINE
+            # (`Line.lead_48`) and deliberately absent from this tuple --
+            # auto-leading is a MODE, and only the two commands that switch
+            # the mode (`.lh a` on, any numeric `.lh` off) move this value at
+            # all, so an ordinary `.lh 10pt`-between-headings document never
+            # splits a block it did not split before.
+            bool(state.get('lh_auto')),
             # `.tb` mid-paragraph means the lines after it were typed
             # against different stops (2026-08-06) -- rendering doesn't
             # change, but per-block fidelity of the carried state does
@@ -5404,6 +5428,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                      right_margin=style_fmt.get('right_margin', fmt.get('right_margin')),
                      para_margin=style_fmt.get('para_margin', fmt.get('para_margin')),
                      print_reformat=fmt.get('print_reformat'),
+                     lh_auto=bool(fmt.get('lh_auto')),
                      tab_stops=fmt.get('tab_stops'),
                      columns=fmt.get('columns'),
                      column_gutter=fmt.get('column_gutter'),

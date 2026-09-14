@@ -579,3 +579,154 @@ def test_a_blank_overprint_line_leaves_the_words_beneath_it_whole():
     shown = re.findall(rb'Td \(([^)]*)\) Tj', out)
     assert b'Display Center ChkRest ChkWord' in shown, shown
     assert not any(s and not s.strip() for s in shown), shown
+
+
+# ---------------------------------------------------------------------------
+# Planning #270 item 34 / triage Q4 -- WordStar's auto-leading, MEASURED on the
+# real WS7 harness (five probe documents printed through DOSBox-X against the
+# PRISTINE.EXE install and decoded with tools/pcl_text.py, 2026-09-14; Jon's
+# ruling 2026-09-13: "Probe is fine. It would be best to figure out the
+# WordStar rule and match it"). Full derivation in `pdf._font_lead_pt`'s own
+# docstring and in the triage doc.
+#
+#   advance(line N) = max( the size CARRIED OUT OF line N-1,
+#                          every font size declared anywhere ON line N )
+#
+# and a line carries OUT its LAST span's font size when that font is
+# PROPORTIONAL, the document default otherwise. The whole formula is gated on
+# `.lh a` / `.lh auto` -- auto-leading is a MODE a document turns on, not a
+# state inferred from the presence of proportional fonts.
+
+def _helv():
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    return next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
+
+
+def _courier():
+    from ctrlkd.typestyles import TYPESTYLE_NAMES
+    return next(k for k, v in TYPESTYLE_NAMES.items()
+                if v.lower().startswith('courier'))
+
+
+def _fblock(number, points, style_bits=0, width=180):
+    ts = (number & 0x01FF) | style_bits
+    return ws7_block(0x02, round(width).to_bytes(2, 'little')
+                     + round(points * 20).to_bytes(2, 'little')
+                     + ts.to_bytes(2, 'little') + bytes(6))
+
+
+def _baselines(data, words):
+    out = pdf.emit_pdf(core.parse_ws(data), mode='printed', page_numbers='off')
+    ys = {}
+    for w in words:
+        m = re.search(rb'[\d.]+ ([\d.]+) Td \(' + re.escape(w), out)
+        assert m, (w, 'not drawn')
+        ys[w] = float(m.group(1))
+    return ys
+
+
+def test_lh_auto_is_a_mode_and_a_numeric_lh_switches_it_off():
+    """`.lh a`, `.lh auto` and `.lha` (no space) all turn auto-leading ON;
+    any numeric `.lh` turns it off from where it sits. `.lha` needs its own
+    repair: the shared dot-name regex takes up to THREE letters and was
+    swallowing the argument into the name, so `sawyer/DEFAULT/PRINT.TST` and
+    `sawyer/PSPRINT.TST` -- which both write it that way -- were not being
+    read as asking for auto-leading at all."""
+    for spelling in (b'.lh a', b'.lh auto', b'.lha', b'.LH AUTO'):
+        doc = core.parse_ws(ws7_block(0x00) + spelling + HARD
+                            + b'Some ordinary prose for the detector.' + HARD)
+        assert doc.blocks[-1].lh_auto is True, spelling
+    doc = core.parse_ws(ws7_block(0x00) + b'.lh a' + HARD + b'Before.' + HARD
+                        + b'.lh 8' + HARD + b'After.' + HARD)
+    assert [b.lh_auto for b in doc.blocks if b.kind == 'para'] == [True, False]
+    doc = core.parse_ws(ws7_block(0x00)
+                        + b'Some ordinary prose for the detector.' + HARD)
+    assert doc.blocks[0].lh_auto is False
+
+
+def test_no_auto_leading_without_lh_auto_however_big_the_font():
+    """The ERROR.WS shape, and the reason `FONT_LEAD_CAP_PT` is retired.
+    `sawyer/FONTS/PS/ERROR.WS` carries 72pt and 42pt proportional font blocks
+    and no `.lh` of any kind, and real WS7 prints it at a flat 12.0pt
+    throughout. No ceiling is needed to explain that -- the document never
+    asked for auto-leading."""
+    helv = _helv()
+    data = (ws7_block(0x00)
+            + b'Prose padding so the detector reads this as a document.' + HARD
+            + _fblock(helv, 72.0, style_bits=0x8000) + b'Huge' + HARD
+            + _fblock(helv, 12.0, style_bits=0x8000) + b'Small' + HARD
+            + b'A closing line of ordinary prose keeps the ratio honest.' + HARD)
+    ys = _baselines(data, [b'Huge', b'Small'])
+    assert round(ys[b'Huge'] - ys[b'Small'], 1) == 12.0
+
+
+def test_a_lines_own_font_raises_its_own_advance():
+    """Not the line after it. The probe ran the identical case twice, once
+    with the carried state virgin and once established, and got identical
+    numbers -- so the VIRGIN/ESTABLISHED distinction the old model kept is
+    gone with it."""
+    helv = _helv()
+    data = (ws7_block(0x00) + b'.lh a' + HARD
+            + b'Prose padding so the detector reads this as a document.' + HARD
+            + b'Base' + HARD
+            + _fblock(helv, 24.0, style_bits=0x8000) + b'Big' + HARD)
+    ys = _baselines(data, [b'Base', b'Big'])
+    assert round(ys[b'Base'] - ys[b'Big'], 1) == 24.0
+
+
+def test_a_proportional_size_carries_through_a_blank_line():
+    """A blank line has no spans, so it carries its predecessor's answer
+    through unchanged and advances by it: 24 for the blank, 24 again for the
+    12pt line after it (whose own max is still the carried 24)."""
+    helv = _helv()
+    data = (ws7_block(0x00) + b'.lh a' + HARD
+            + b'Prose padding so the detector reads this as a document.' + HARD
+            + _fblock(helv, 24.0, style_bits=0x8000) + b'Big' + HARD + HARD
+            + _fblock(helv, 12.0, style_bits=0x8000) + b'Small' + HARD)
+    ys = _baselines(data, [b'Big', b'Small'])
+    assert round(ys[b'Big'] - ys[b'Small'], 1) == 48.0        # blank 24 + line 24
+
+
+def test_a_fixed_pitch_font_raises_its_own_line_but_carries_nothing():
+    """The half of the old rule that was right and the half that was wrong,
+    in one fixture. `PREVIEW.WS` is the oracle: its trailing Courier-20pt
+    line is entered at the carried 24 (its own 20 loses the max), and the six
+    blank lines after it advance at 12, not 20 -- 84.0pt to the next real
+    line, seven line-feeds at the document default."""
+    helv, cour = _helv(), _courier()
+    data = (ws7_block(0x00) + b'.lh a' + HARD
+            + b'Prose padding so the detector reads this as a document.' + HARD
+            + b'Base' + HARD
+            + _fblock(cour, 20.0, width=90) + b'Fixed' + HARD + HARD
+            + _fblock(helv, 12.0, style_bits=0x8000) + b'After' + HARD)
+    ys = _baselines(data, [b'Base', b'Fixed', b'After'])
+    # its OWN line rises to 20 (entered from the plain 12pt default)
+    assert round(ys[b'Base'] - ys[b'Fixed'], 1) == 20.0
+    # and it carries NOTHING: blank 12 + line 12
+    assert round(ys[b'Fixed'] - ys[b'After'], 1) == 24.0
+
+
+def test_the_largest_font_on_a_line_governs_it_whichever_end_it_sits_at():
+    """A line's own advance is the max of every font on it; what carries out
+    is the font in force at its END. The probe's mid-line cases pin both
+    halves: big-then-small advances 24 and carries 12, small-then-big
+    advances 24 and carries 24."""
+    helv = _helv()
+    big_first = (ws7_block(0x00) + b'.lh a' + HARD
+                 + b'Prose padding so the detector reads this as a document.' + HARD
+                 + b'Base' + HARD
+                 + _fblock(helv, 24.0, style_bits=0x8000) + b'Alpha '
+                 + _fblock(helv, 12.0, style_bits=0x8000) + b'omega' + HARD
+                 + b'Next' + HARD)
+    ys = _baselines(big_first, [b'Base', b'Alpha', b'Next'])
+    assert round(ys[b'Base'] - ys[b'Alpha'], 1) == 24.0      # the line's own max
+    assert round(ys[b'Alpha'] - ys[b'Next'], 1) == 12.0      # carried: the END font
+    small_first = (ws7_block(0x00) + b'.lh a' + HARD
+                   + b'Prose padding so the detector reads this as a document.' + HARD
+                   + b'Base' + HARD
+                   + _fblock(helv, 12.0, style_bits=0x8000) + b'Alpha '
+                   + _fblock(helv, 24.0, style_bits=0x8000) + b'omega' + HARD
+                   + b'Next' + HARD)
+    ys = _baselines(small_first, [b'Base', b'Alpha', b'Next'])
+    assert round(ys[b'Base'] - ys[b'Alpha'], 1) == 24.0
+    assert round(ys[b'Alpha'] - ys[b'Next'], 1) == 24.0

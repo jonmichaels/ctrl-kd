@@ -5985,6 +5985,8 @@ def test_a_tab_never_moves_a_line_vertically():
 
     def _ys(lead_in):
         data = (ws7_block(0x00) +
+                b'.lh a' + HARD +          # auto-leading: `_font_lead_pt`'s own
+                                           # gate since 2026-09-14, probe-derived
                 b'Prose padding so the detector reads this as a document, plainly.'
                 + HARD +
                 _font_block(helv, 18.0, width=250, style_bits=0x8000) +

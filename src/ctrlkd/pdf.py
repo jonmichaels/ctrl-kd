@@ -1077,38 +1077,16 @@ def _lead_pt(lh_48):
 # constant either way); nothing in the corpus does.
 AUTO_LEAD_FACTOR = 1.0
 
-# `_font_lead_pt`'s governing-size ceiling (planning #233, ERROR.WS, 2026-09-09):
-# a WS5+ FONT-BLOCK document's oversized DECORATIVE title-card sizes (72pt/
-# 42pt) do NOT carry the auto-lead scaling the way PREVIEW.WS's 24pt font
-# blocks do (the mechanism-T oracle above, still the largest size with real
-# WS7 evidence of scaling). Measured directly against `sawyer/FONTS/PS/
-# ERROR.WS`'s real WS7 capture (`tools/pcl_text.py` on `ws7-prints/v4/
-# sawyer__FONTS__PS__ERROR_EXT_WS.pcl`, ground truth -- a real LaserJet PCL5
-# capture, gpcl6-rendered PNG confirms the visual): "ERROR!" (72pt) to "Must
-# Sterilize!" (42pt) is a clean 5-line-feed run (`\r\n` x5 in the source
-# bytes) covering exactly 60.0pt -- 12.0pt/line-feed, the document's own flat
-# `.lh` default (`lh_48=8.0`), NOT 72.0pt/line as the ungated governing-size
-# formula computes. "Must Sterilize!" (42pt) to "No new WORDSTAR.PS produced"
-# (20pt) is a 10-line-feed run covering exactly 120.0pt -- again 12.0pt/line,
-# not 42.0pt. Both gaps decompose to ONE clean constant with zero residual;
-# there is no partial/mixed scaling anywhere in either run. PREVIEW.WS's own
-# three 24pt transitions (Times->Univers, Univers->Aachen, Aachen->Courier),
-# by contrast, are clean 2-line-feed runs at exactly 24.0pt/line-feed each
-# (`ws7-prints/v3/PREVIEW.pcl`) -- governing-size scaling IS real, just not
-# above whatever ceiling separates 24pt (scales) from 42pt (doesn't). No
-# corpus document exercises this un-`.lh`'d auto-lead path at an intermediate
-# size (every other big-font document found -- LJ6DTP.WS, PRINTER.PS,
-# fontcrib.ws, WINGDING.CHT, SYMBOL.CHT -- sets its own explicit `.lh` around
-# its decorative text, which routes around this formula entirely per its own
-# guard below). Rather than guess a number between the two measured points,
-# the ceiling is set at the largest size real WS7 evidence actually confirms
-# scales, 24.0pt: at or under it, a proportional font's own declared size
-# governs (unchanged behaviour); over it, it degrades to the SAME "reset the
-# carried state, fall back to the document default" treatment a fixed-pitch
-# font already gets (see `_font_lead_pt`'s own docstring) -- an oversized
-# decorative font's own line, and every blank line after it, prints at the
-# plain document-default lead, not its own huge size.
-FONT_LEAD_CAP_PT = 24.0
+# RETIRED 2026-09-14 (planning #270 item 34 / triage Q4): `FONT_LEAD_CAP_PT`,
+# `_font_lead_pt`'s governing-size ceiling (planning #233, ERROR.WS,
+# 2026-09-09). It existed to explain why `sawyer/FONTS/PS/ERROR.WS`'s 72pt and
+# 42pt font blocks print at a flat 12.0pt while `PREVIEW.WS`'s 24pt blocks
+# really do scale, and it guessed the boundary at the largest size the corpus
+# confirmed scaled. The real answer, measured on the WS7 harness, is that the
+# two documents are in different MODES: PREVIEW.WS says `.lh auto` and
+# ERROR.WS carries no `.lh` at all. With auto-leading gated on the command
+# that asks for it, ERROR.WS never enters this formula and there is nothing
+# left for a ceiling to do. See `_font_lead_pt`'s own docstring for the probe.
 
 
 def _style_lead_pt(block, doc, raw=False):
@@ -1369,152 +1347,104 @@ def _entering_lead_pt(block, doc, prev_block):
 
 
 def _font_lead_pt(line, fonts, base_size, state):
-    """This physical line's own baseline-to-baseline lead in points, for a
-    WS5+ FONT-BLOCK document with no paragraph style governing the line
-    (`_style_lead_pt` returns None for every line here -- PREVIEW.WS, the
-    oracle behind this rule, carries no styles at all).
+    """This physical line's own baseline-to-baseline lead in points under
+    WordStar's AUTO-LEADING, for a WS5+ FONT-BLOCK document with no paragraph
+    style governing the line (`_style_lead_pt` returns None for every line
+    here).
 
-    CALLER'S GATE, not this function's: only consulted (own_lead is still
-    None otherwise) when `doc.fonts` contains at least one PROPORTIONAL
-    entry -- a document-WIDE mode switch, not a per-line one. -README.WS
-    is the negative oracle for this: it carries exactly one font-block
-    record, a 12pt FIXED-PITCH Courier entry (likely the installation's
-    own default-face declaration, not an author's deliberate `.fp`
-    insertion), and its WS7 capture prints flat 12pt leading throughout
-    (baseline_gaps_pt: 12.0 between consecutive body lines) -- NOT the
-    14.4 (1.2x12) this function would compute if consulted for every one
-    of its Courier-tagged lines. PREVIEW.WS's own 12pt sections (its
-    3-line Courier intro, BEFORE any font tag has even appeared in the
-    stream) measure 14.4 despite being just as fontless-looking at that
-    exact point -- the only document-level difference is that PREVIEW
-    contains real proportional font blocks (Times/Univers/Aachen)
-    elsewhere and -README never does. So a document with no proportional
-    font block anywhere -- SAWYER, VERSIONS, TWAINLET, OCAPTAIN, every
-    fontless doc in the corpus, AND -README's single-fixed-font case --
-    must stay on the byte-identical 12pt grid throughout, full stop.
+    MEASURED ON REAL WS7, 2026-09-14 (planning #270 item 34 / triage Q4, Jon's
+    ruling 2026-09-13: "Probe is fine. It would be best to figure out the
+    WordStar rule and match it"). Five documents were authored, printed
+    through the project's own DOSBox-X harness against a pristine install
+    (`tools/wordstar_harness.sh ws7`) and decoded with `tools/pcl_text.py`:
+    inline font blocks at 18/20/24pt, paragraph styles at the same sizes,
+    fixed-pitch tags after each, blank lines between, and mid-line font
+    changes in both directions. Every entering advance came back an EXACT
+    multiple of 10 decipoints, landing exactly on a declared font height --
+    zero residual anywhere.
 
-    `state` is a 1-element list, `[current_governing_pt_or_None]`, owned
-    and threaded by the CALLER across every physical line of the document
-    in source order (mirrors `pending_sa`'s cross-block carry): a blank
-    line (no font tag of its own) inherits whatever `state[0]` already
-    holds, exactly as a real printer's VMI-select state would survive an
-    empty line with no command bytes to change it.
+    THE RULE.
 
-    RULE (measured 2026-08-20 against PREVIEW.WS/PREVIEW.pcl,
-    fidelity_gate.py Finding B -- every gap on the page decomposes to
-    0.3pt residual under it, THEN re-measured 2026-09-07 against the same
-    document's `ws7-prints/v3` PRISTINE.EXE recapture, which shows the
-    identical shape at exactly 1/1.2 of every v1 number -- see
-    `AUTO_LEAD_FACTOR`'s own docstring, the SAME WSCHANGE "Automatic
-    leading, 120% of text size" setting Sawyer's install had ON):
-    AUTO_LEAD_FACTOR x the largest PROPORTIONAL font size
-    (doc.fonts[n]['proportional'] True) active anywhere on the line,
-    carried forward through blank lines. A FIXED-PITCH font block
-    (Courier, any declared point size) NEVER raises the governing size
-    above the document default and, as the LAST font tag active on a
-    line, RESETS the carried state -- WS5+ Courier font blocks change
-    PITCH (historically elite/pica variants of the one typewriter face),
-    not real vertical measure, so a 20pt Courier block's own line and
-    every blank line after it print at the plain AUTO_LEAD_FACTOR x 12 =
-    12.0pt (stock) default, not AUTO_LEAD_FACTOR x 20. Confirmed on
-    PREVIEW's OWN 12pt intro (no font tag at all yet -- 12.0pt gaps,
-    14.4pt under Sawyer's install) and its trailing Courier-20pt block (6
-    blank continuation lines, all 12.0pt, not 20.0pt) alike -- both land
-    on the SAME formula via `state`, not a special case. A line whose OWN
-    leading spaces still carry the OUTGOING tag before a mid-line font
-    change (WordStar's own encoding: the change lands after the
-    characters it precedes, not at line start) takes the LARGER of every
-    proportional size found on the line, matching a real printer sizing
-    the line to its tallest glyph.
+        advance(line N) = max( the size CARRIED OUT OF line N-1,
+                               every font size declared anywhere ON line N )
 
-    NOT APPLIED when the document ever used a real `.lh` (guarded by the
-    same `lh_source == 'file'` check `_style_lead_pt` uses) -- no corpus
-    evidence exists for how real WS7 arbitrates a font block's own size
-    against an ACTIVE `.lh`, so that combination is left to the
-    pre-existing `.lh`-based mechanism, unconditionally, same doctrine as
-    `_style_lead_pt`'s own guard.
+    and what a line carries OUT is the size of the font in force at its END --
+    its LAST span's -- when that font is PROPORTIONAL, and the document
+    default when it is fixed-pitch or there is no font tag there at all. A
+    blank line has no spans, so it carries its predecessor's answer through
+    unchanged and advances by it. No 1.2 factor (`AUTO_LEAD_FACTOR` is 1.0 on
+    a stock install; Robert J. Sawyer's own WSCHANGE-customized install had
+    the 120% setting on, which is what every v1 capture shows), no rounding.
 
-    CEILING (planning #233, `FONT_LEAD_CAP_PT` -- see its own docstring for
-    the full ERROR.WS/PREVIEW.WS evidence): a proportional font block whose
-    OWN declared size exceeds `FONT_LEAD_CAP_PT` never governs -- it is
-    treated exactly like a FIXED-PITCH block for this function's purposes
-    (does not raise `prop_sizes_here`, RESETS the carried `state` the same
-    way a Courier tag does). A 72pt or 42pt decorative title-card font's own
-    line, and every blank line after it, therefore prints at the plain
-    document-default lead, matching real WS7 -- only sizes at or under the
-    cap (the largest real WS7 evidence confirms scales, 24pt) get the
-    governing-size treatment described above.
+    THE GATE, and it is the whole reason this model is simpler than the one it
+    replaces: auto-leading is a MODE the document turns on with `.lh a` /
+    `.lh auto`, not a state inferred from the presence of proportional fonts.
+    Seven archive files ask for it (`DEFAULT/PRINT.TST`, `PRINT.TST`,
+    `PSPRINT.TST`, `PREVIEW.WS`, `APP/-README.WS`, `APP/vDosPlus/-README.WS`,
+    `LSRBOX/LSRBOX.WS`) and no other document in the corpus leads by its fonts
+    at all. `Block.lh_auto` carries it; the caller checks it.
 
-    ORDERING, and the VIRGIN/ESTABLISHED distinction in `state`, both
-    planning #233 (second half of the same evidence -- ERROR.WS's residual
-    8.0pt after the ceiling alone): a line's OWN font tag governs the
-    ENTERING advance of the line AFTER it, generally never its own --
-    WordStar's byte encoding puts a font-change record right before the
-    text it applies to, AFTER that text's own leading `\\r\\n`, so the
-    vertical move that PLACES a line usually happens before that line's own
-    tag has even been read. ERROR.WS's "No new WORDSTAR.PS produced" proves
-    this directly: it carries its own 20pt Triumvirate tag (within the
-    ceiling), but its real entering advance is the SAME flat 12.0pt as the
-    nine purely-blank lines before it, not 20.0pt -- because `state` was
-    already ESTABLISHED at the document default by "Must Sterilize!"'s
-    42pt tag exceeding the ceiling immediately before this run, and an
-    established `state` always wins over a line's own tag.
+    WHAT THIS REPLACED, and why each piece went:
 
-    But `state` starting VIRGIN (nothing has ever governed -- the very
-    first proportional tag in the whole document) is different, and
-    PREVIEW.WS's own Times-Roman heading (its FIRST proportional tag) is
-    the oracle that tells the two apart: `core.parse_ws` gives this
-    engine only 4 blank `Line` records between the document's plain-12pt
-    intro and the Times heading, one fewer than the capture's real 6-line-
-    feed gap (720 decipoints/72.0pt) -- ctrl-kd's own parse folds a `.oc
-    off` dot-command's line into the record that follows it, a parse-level
-    detail invisible to WS7's own byte-for-byte vertical motion. Crediting
-    the Times heading's OWN 24pt tag to ITS OWN entering advance (4 blank x
-    12 + 1 x 24 = 72) reproduces the real 72.0pt exactly; forcing it through
-    `state` (still None, "fall back to base" once VIRGIN state is read
-    literally as "no size") would under-shoot by exactly one line (60, not
-    72) -- the residual this distinction fixes. Once ANY tag has been
-    seen, real or reset, `state` becomes ESTABLISHED (see below) and every
-    later line, including one with its own in-range tag (Univers/Aachen in
-    PREVIEW, "No new..." in ERROR.WS), is governed by `state` alone.
+      * "any proportional font in `doc.fonts` switches the mode on" -- wrong
+        gate. `sawyer/FONTS/PS/ERROR.WS` has 72pt and 42pt proportional font
+        blocks and NO `.lh` of any kind, and real WS7 prints it at a flat
+        12.0pt throughout. Under the old gate that needed an invented
+        ceiling to explain (`FONT_LEAD_CAP_PT = 24.0`, planning #233); under
+        this one it needs nothing, because ERROR.WS never asked for
+        auto-leading. The ceiling is gone.
 
-    So: `state[0]` is `None` ONLY before the first font tag of the whole
-    document; every reset (`FONT_LEAD_CAP_PT` exceeded, or a fixed-pitch
-    tag) sets it to `base_size` itself -- an ESTABLISHED real number, not
-    `None` -- specifically so a LATER in-range tag can never again fall
-    back to governing its own line the way a virgin `None` would. The scan
-    below still folds every proportional size found ON a line into what
-    `state` becomes for the NEXT line (still `max()` of them, for a mid-
-    line font change's padding -- see the paragraph above); only which
-    value THIS line's own return uses -- `state` if already established,
-    else this line's own scan -- is new."""
-    if not fonts:
-        return None
-    prop_sizes_here = []
-    last_tag_proportional = None
-    for s in line.spans:
-        tag = next((t for t in s.styles
+      * "a fixed-pitch block NEVER raises the governing size" -- half wrong.
+        It never CARRIES (measured on PREVIEW.WS, below), but it does raise
+        its OWN line: the probe's inline Courier 20pt line, entered from a
+        12pt state, advances exactly 20.0pt.
+
+      * "a line's own tag governs the line AFTER it, never its own" plus a
+        VIRGIN/ESTABLISHED distinction in `state` -- not real. The probe ran
+        the identical case twice, once with `state` virgin and once
+        established, and got identical numbers. A line's own tags count
+        toward its OWN advance, always; the `max` against the carried size
+        is what used to look like "the next line".
+
+    IT STILL REPRODUCES EVERY EXISTING CAPTURE. `PREVIEW.WS` (v3 PRISTINE):
+    4 blank lines at 12 + its first Times 24pt heading = 72.0pt exactly; its
+    three 24pt-to-24pt transitions, 2 line-feeds each, 48.0pt each; and the
+    84.0pt gap after its trailing Courier-20pt line -- 7 line-feeds at 12,
+    because a FIXED-PITCH font carries nothing out of the line it sits on.
+    `APP/-README.WS` and `APP/vDosPlus/-README.WS`, whose only font block is
+    a 12pt fixed Courier, stay flat at 12 and stay clean.
+
+    NOT APPLIED when the document ever used a real numeric `.lh` (the
+    `lh_source == 'file'` check the caller shares with `_style_lead_pt`) --
+    same doctrine as before, and a numeric `.lh` also switches the mode off
+    from where it sits (`core._parse_format_dot`).
+
+    `state` is a 1-element list, `[carried_pt_or_None]`, owned and threaded by
+    the CALLER across every physical line of the document in source order
+    (mirrors `pending_sa`'s cross-block carry). `None` means "nothing has
+    carried yet", which reads as the document default."""
+    def _entry(span):
+        tag = next((t for t in span.styles
                     if t.startswith('font') and t[4:].isdigit()), None)
         if tag is None:
-            continue
+            return None
         fidx = int(tag[4:])
-        if 0 <= fidx < len(fonts):
-            entry = fonts[fidx]
-            pts = entry.get('points') or 0.0
-            if entry.get('proportional') and pts <= FONT_LEAD_CAP_PT:
-                prop_sizes_here.append(pts)
-                last_tag_proportional = True
-            else:
-                last_tag_proportional = False
-    if state[0] is not None:
-        governing = state[0]
-    else:
-        governing = max(prop_sizes_here) if prop_sizes_here else None
-    if last_tag_proportional is False:
-        state[0] = base_size
-    elif prop_sizes_here:
-        state[0] = max(prop_sizes_here)
-    return (governing if governing else base_size) * AUTO_LEAD_FACTOR
+        if not 0 <= fidx < len(fonts):
+            return None
+        return fonts[fidx] if (fonts[fidx].get('points') or 0.0) > 0 else None
+
+    def _pts(span):
+        e = _entry(span)
+        return e.get('points') if e else None
+
+    sizes_here = [p for p in (_pts(sp) for sp in line.spans) if p]
+    carried = state[0] if state[0] else base_size
+    governing = max([carried] + sizes_here)
+    if line.spans:
+        last = _entry(line.spans[-1])
+        state[0] = (last.get('points') if last and last.get('proportional')
+                    else base_size)
+    return governing * AUTO_LEAD_FACTOR
 
 
 def _printed_lead(doc):
@@ -1578,7 +1508,7 @@ def resolved_printed_leads_48(doc):
     on those same two documents, a straight improvement, not a side
     effect this function relies on."""
     font_lead_state = [None]
-    font_lead_ok = (any(f.get('proportional') for f in doc.fonts)
+    font_lead_ok = (any(getattr(b, 'lh_auto', False) for b in doc.blocks)
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     default_lead_pt = _printed_lead(doc)
@@ -1609,7 +1539,7 @@ def resolved_printed_leads_48(doc):
             # block actually carries).
             if style_lead is not None:
                 own_lead = style_lead
-            if own_lead is None and font_lead_ok:
+            if own_lead is None and font_lead_ok and b.lh_auto:
                 own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                          font_lead_state)
             if resolved_pt is None and not is_blank:
@@ -1632,7 +1562,7 @@ def resolved_printed_leads_48(doc):
                 # block actually carries).
                 if style_lead is not None:
                     own_lead = style_lead
-                if own_lead is None and font_lead_ok:
+                if own_lead is None and font_lead_ok and b.lh_auto:
                     own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                              font_lead_state)
                 resolved_pt = own_lead if own_lead is not None else default_lead_pt
@@ -3306,7 +3236,7 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
     # round 26 wave 3 (fidelity_gate.py Finding B): same carried-governing-
     # size mechanism as `_doc_to_pagelines` -- see `_font_lead_pt`.
     font_lead_state = [None]
-    font_lead_ok = (any(f.get('proportional') for f in doc.fonts)
+    font_lead_ok = (any(getattr(b, 'lh_auto', False) for b in doc.blocks)
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     # planning #266: this document's own driver-keyed cp437-158 rule
@@ -3446,7 +3376,7 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
             # block actually carries).
             if style_lead is not None:
                 own_lead = style_lead
-            if own_lead is None and font_lead_ok:
+            if own_lead is None and font_lead_ok and b.lh_auto:
                 own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                          font_lead_state)
             # Round 22: exactly one resolved pix tag, no other real text on
@@ -4938,7 +4868,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # `pending_sa`. `lh_source == 'file'` guard mirrors `_style_lead_pt`'s
     # own -- see `_font_lead_pt`'s docstring.
     font_lead_state = [None]
-    font_lead_ok = (printed and any(f.get('proportional') for f in doc.fonts)
+    font_lead_ok = (printed and any(getattr(b, 'lh_auto', False) for b in doc.blocks)
                     and doc.meta.get('page', {}).get('lh_source') != 'file')
     font_lead_base = _printed_size(doc) if font_lead_ok else None
     embed_images = printed and pictures in ('embed', 'export') and pix_results
@@ -5199,7 +5129,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # took the style branch above and never reaches this) gets
                 # its lead from the font block actually in force. See
                 # `_font_lead_pt`.
-                if own_lead is None and font_lead_ok:
+                if own_lead is None and font_lead_ok and b.lh_auto:
                     own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                              font_lead_state)
                 # Finding 1: this blank IS the block's own double-spacing
