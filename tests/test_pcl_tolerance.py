@@ -432,6 +432,95 @@ def test_correct_toggle_boundary_chunks_leaves_a_same_underline_coincidence_alon
     assert [c[0]['x_decipoints'] for c in corrected] == [2000, 2000]
 
 
+# ----------------- mechanism J's re-strike pre-scan (planning #270 item 39)
+
+def test_a_three_chunk_sandwich_leaves_the_second_strike_where_it_is():
+    # -README.WS's own 'LASERJET.PDF', double-struck bold, with the rest of
+    # its sentence emitted BETWEEN the two strikes -- the m=1 case. The
+    # re-strike must NOT be "corrected" past the punctuation: it has to stay
+    # on its own first strike so mechanism D can dedupe it.
+    items = [(_pc('LASERJET.PDF', 1000, font='Courier-Bold'), _tc(4099)),
+             (_pc(', and WS4.PDF).', 1000, font='Courier'), _tc(4099)),
+             (_pc('LASERJET.PDF', 1000, font='Courier-Bold'), _tc(4099))]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    assert xs[0] == 1000 and xs[2] == 1000
+    assert len(pt._dedupe_double_strike_chunks(corrected)) == 2
+
+
+def test_a_repeated_pair_at_one_stale_x_is_a_re_strike_of_that_pair():
+    # -HOLYMAC.WS page 198 / 7MAC1 page 8, the item 39 residual: `^K` and
+    # `O` at the same raw x (the `O` never got its own H command because
+    # UNDERLINE toggled between them), then the identical PAIR again. A run
+    # of four shaped A,B,A,B -- invisible to any length-3 rule.
+    # 12pt Courier: 72dp per character.
+    def pair():
+        return [(_pc('^K', 936, size=12, font='Courier-Bold', underline=False), _tc(4099)),
+                (_pc('O', 936, size=12, font='Courier-Bold', underline=True), _tc(4099))]
+    items = pair() + pair()
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    # the first pair resolves: `^K` where it is, `O` one 2-character
+    # advance along; the second pair takes those SAME two positions.
+    assert xs == [936, 936 + 144, 936, 936 + 144]
+    deduped = pt._dedupe_double_strike_chunks(corrected)
+    assert len(deduped) == 2
+    assert [c[0]['text'] for c in deduped] == ['^K', 'O']
+
+
+def test_a_re_strike_at_the_end_of_a_long_stale_x_run_is_still_a_re_strike():
+    # -HOLYMAC.WS pages 12/13, the WordStar screen diagram: a bold digit,
+    # its label, another bold digit, its label -- all at one stale raw x --
+    # and then the FIRST digit struck again at the end of the line's
+    # chunks. Five chunks, so the old exactly-three rule never saw it and
+    # the re-strike was corrected off the end of 'Bold', where it printed
+    # as a spurious trailing '3'.
+    raw = [('3', 'Courier-Bold'), ('Undrlin', 'Courier'),
+           ('4', 'Courier-Bold'), ('Bold', 'Courier'), ('3', 'Courier-Bold')]
+    items = [(_pc(t, 1440, size=12, font=f), _tc(4099)) for t, f in raw]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    assert xs == [1440, 1440 + 72, 1440 + 72 + 7 * 72, 1440 + 72 + 8 * 72, 1440]
+    deduped = pt._dedupe_double_strike_chunks(corrected)
+    assert [c[0]['text'] for c in deduped] == ['3', 'Undrlin', '4', 'Bold']
+
+
+def test_the_re_strike_pre_scan_never_fires_on_a_stale_x_chain_that_does_not_repeat():
+    # SAWYER.WS's own 'D,B,A,C),' menu-tag chain, eight chunks at ONE raw
+    # x: the last chunk's key matches nothing at the head of the run, so no
+    # prefix repeats and nothing is marked. (The full pipeline assertion
+    # lives in `test_toggle_boundary_before_double_strike_dedupe_...`; this
+    # is the pre-scan's own half of it.)
+    raw = [('D', 'Courier-Bold'), (',', 'Courier'), ('B', 'Courier-Bold'),
+           (',', 'Courier'), ('A', 'Courier-Bold'), (',', 'Courier'),
+           ('C', 'Courier-Bold'), ('),', 'Courier')]
+    items = [(_pc(text, 1000, font=font), _tc()) for text, font in raw]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    assert len(set(xs)) == 8, 'every chunk must resolve to its own distinct x'
+    assert xs == sorted(xs)
+
+
+def test_a_repeat_needs_the_same_font_and_typeface_id_not_just_the_same_text():
+    # The same letter in a DIFFERENT face is not a re-strike of anything:
+    # the pre-scan keys on (text, font, size, typeface id), never text
+    # alone, so this stays an ordinary toggle boundary and gets corrected
+    # forward like any other.
+    items = [(_pc('A', 1000, size=12, font='Courier-Bold'), _tc(4099)),
+             (_pc('bc', 1000, size=12, font='Courier'), _tc(4099)),
+             (_pc('A', 1000, size=12, font='Courier-Oblique'), _tc(4099))]
+    corrected = pt._correct_toggle_boundary_chunks(items)
+    xs = [c[0]['x_decipoints'] for c in corrected]
+    assert xs == [1000, 1000 + 72, 1000 + 72 + 2 * 72]
+    # ... and with the SAME face on both, it is a re-strike and lands back
+    # on the first one.
+    same = [(_pc('A', 1000, size=12, font='Courier-Bold'), _tc(4099)),
+            (_pc('bc', 1000, size=12, font='Courier'), _tc(4099)),
+            (_pc('A', 1000, size=12, font='Courier-Bold'), _tc(4099))]
+    assert [c[0]['x_decipoints']
+            for c in pt._correct_toggle_boundary_chunks(same)] == [1000, 1072, 1000]
+
+
 # --------------------------------------- mechanism Z: same-side segmentation
 # 2026-09-07, Jon's ruling from the real-LaserJet paper scan of -SCREEN
 # (the private corpus's own verdicts.json doc87 p6): the WS7-side half of

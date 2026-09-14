@@ -1177,20 +1177,49 @@ def _correct_toggle_boundary_chunks(items):
     # own single-BOLD-LETTER double-strikes, 'D,,D' and 'B,,B', each
     # their OWN separate 3-run at a different x), which no text-length
     # heuristic could ever safely distinguish from SAWYER's own chain.
-    repeat_ids = set()
+    # THE RULE, GENERALIZED (planning #270 item 39, 2026-09-14): the
+    # double-strike pass re-emits a PREFIX of the run, in order, at the
+    # run's own raw x. So within one same-raw-x run, find the LONGEST
+    # m <= len(run)//2 whose last m chunk keys equal the first m, and mark
+    # those trailing m chunks as re-strikes of their own counterparts.
+    # The `A, B, A` shape above is the m=1 case of exactly this rule, and
+    # keeps its own outcome unchanged (a run's FIRST chunk is never
+    # "toggled" -- its raw x differs from its predecessor's by
+    # construction -- so its counterpart's resolved x IS the raw x the
+    # old code left the re-strike at).
+    #
+    # m > 1 is what -HOLYMAC.WS page 198 and 7MAC1 page 8 need, and no
+    # length-3 rule could ever see it: the capture's chunk list there is
+    # `^K`@936 and `O`@936 (the `O` never got its own `H` command because
+    # UNDERLINE toggled between them), then the identical PAIR again at
+    # the end of the line's chunks -- a run of four shaped `A, B, A, B`.
+    # J resolved the first pair (`^K` 936, `O` 1080) and then "corrected"
+    # the second pair onward from it (1152, 1296), so mechanism D saw two
+    # copies 14.4pt apart and declined to dedupe what is one piece of ink
+    # struck twice. Identical ink must score identical.
+    #
+    # A re-strike takes its counterpart's RESOLVED x, not the run's raw x:
+    # for m>1 the counterpart may itself have been corrected (the `O`
+    # above), and a re-strike left at the raw x would then sit a whole
+    # character off its own first strike -- which is the bug, one step
+    # later. SAWYER.WS's own 'D,B,A,C),' menu-tag chain (eight chunks at
+    # ONE raw x) is untouched: no m matches there at all.
+    restrike_of = {}      # id(pc) -> index, within its run, of what it re-strikes
+    index_in_run = {}     # id(pc) -> (run start index, index within run)
     run_start = 0
     n = len(items)
     for i in range(1, n + 1):
         if i == n or items[i][0]['x_decipoints'] != items[run_start][0]['x_decipoints']:
-            if i - run_start == 3:
-                first_pc, _first_tc = items[run_start]
-                third_pc, third_tc = items[run_start + 2]
-                first_key = (first_pc['text'], first_pc.get('font'), first_pc['size_pt'],
-                            items[run_start][1].get('_T'))
-                third_key = (third_pc['text'], third_pc.get('font'), third_pc['size_pt'],
-                            third_tc.get('_T'))
-                if first_key == third_key:
-                    repeat_ids.add(id(third_pc))
+            run = items[run_start:i]
+            keys = [(pc['text'], pc.get('font'), pc['size_pt'], tc.get('_T'))
+                    for pc, tc in run]
+            for k, (pc, _tc) in enumerate(run):
+                index_in_run[id(pc)] = (run_start, k)
+            for m in range(len(run) // 2, 0, -1):
+                if keys[-m:] == keys[:m]:
+                    for k in range(len(run) - m, len(run)):
+                        restrike_of[id(run[k][0])] = k - (len(run) - m)
+                    break
             run_start = i
 
     out = []
@@ -1200,10 +1229,15 @@ def _correct_toggle_boundary_chunks(items):
     prev_real_font = None
     prev_real_size = None
     prev_underline = None
+    cur_run_start = None
+    run_resolved = []     # this run's own resolved x, by index within the run
     for pc, tc in items:
         cur = dict(pc)
         raw_x = pc['x_decipoints']
-        is_repeat = id(pc) in repeat_ids
+        start, _k = index_in_run[id(pc)]
+        if start != cur_run_start:
+            cur_run_start, run_resolved = start, []
+        is_repeat = id(pc) in restrike_of
         toggled = (prev_raw_x is not None and raw_x == prev_raw_x
                    and (pc.get('font') != prev_real_font
                         or bool(pc.get('underline')) != bool(prev_underline))
@@ -1213,6 +1247,9 @@ def _correct_toggle_boundary_chunks(items):
                 fg.afm.string_width_pt(prev_real_text, prev_real_font, prev_real_size)
                 * fg.DECIPT_PER_PT)
             cur['x_decipoints'] = round(prev_end_dp)
+        elif is_repeat:
+            cur['x_decipoints'] = run_resolved[restrike_of[id(pc)]]
+        run_resolved.append(cur['x_decipoints'])
         out.append((cur, tc))
         prev_raw_x = raw_x
         prev_real_x = cur['x_decipoints']
