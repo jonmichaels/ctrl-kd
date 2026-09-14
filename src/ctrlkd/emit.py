@@ -1882,6 +1882,19 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     def _flush_quote():
         nonlocal quote_open, quote_indent_cols
         if quote_buffer:
+            # THE BUILDER FIRST. An ordinary Modern paragraph goes into the
+            # list builder's own buffer (`builder.add_text`) while a
+            # quote-classified one goes into `quote_buffer`, and this
+            # function writes straight to `parts` -- so a plain paragraph
+            # sitting in the builder when a quote group closed came out
+            # AFTER the `<blockquote>` it was typed before. Found 2026-09-14
+            # by the #264 check plan's own round trip, on OLDTIMES.WS: its
+            # right-aligned byline is typed between the title and the
+            # copyright quote and was rendered after the quote in Modern
+            # HTML, and in Modern HTML alone -- Modern text, Markdown and
+            # RTF all had it in the author's order. Flushing the builder
+            # here puts the two buffers back in document order.
+            builder.flush(parts)
             parts.append('<blockquote>' + ''.join(quote_buffer) + '</blockquote>')
             quote_buffer.clear()
         quote_open = False
