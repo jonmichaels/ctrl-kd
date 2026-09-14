@@ -2744,6 +2744,139 @@ def _hf_slots(doc, which):
     return slots, first_anchor
 
 
+def _rtf_hf_slots_at(doc, which, anchor):
+    """`{slot: {parity: text}}` for `which` ('H'|'F') AS IT STOOD at block
+    `anchor` -- the LAST definition of each (slot, parity) declared at or
+    before that block, which is WordStar's own reading: a `.he`/`.fo`
+    replaces the one before it from where it is typed onward.
+
+    The document-wide `_hf_slots` keeps the FIRST definition instead,
+    because RTF carried one header per file and had to pick one. This is
+    the per-SECTION answer the spine needs (planning #264 R1, packet row
+    A13) and it deliberately does not replace the other: section 1 is
+    still written from `_hf_slots`, so every document that defines each
+    slot exactly once -- almost all of them -- emits the bytes it always
+    did."""
+    events = list(getattr(doc, 'hf_events', ()))
+    parities = list(getattr(doc, 'hf_events_parity', ()))
+    parities += [None] * (len(events) - len(parities))
+    slots = {}
+    for (kind, lno, txt, a), parity in zip(events, parities):
+        if kind != which or not txt or a > anchor:
+            continue
+        slots.setdefault(lno, {})[parity] = txt
+    return slots
+
+
+def _rtf_hf_redefinitions(doc):
+    r"""Block anchors at which a running head or foot is REDEFINED -- a
+    second or later definition of the same (kind, slot, parity) whose text
+    differs from the one already in force (packet row A13).
+
+    A slot defined once, however late, is not a redefinition: that is the
+    ordinary "this document has a running head" case, which section 1
+    already carries (with `\titlepg` when it starts after page 1)."""
+    events = list(getattr(doc, 'hf_events', ()))
+    parities = list(getattr(doc, 'hf_events_parity', ()))
+    parities += [None] * (len(events) - len(parities))
+    in_force, anchors = {}, set()
+    for (kind, lno, txt, anchor), parity in zip(events, parities):
+        if not txt:
+            continue
+        key = (kind, lno, parity)
+        if key in in_force and in_force[key] != txt and anchor > 0:
+            anchors.add(anchor)
+        in_force[key] = txt
+    return anchors
+
+
+def _rtf_columns_state(doc):
+    """`[(columns, gutter), ...]`, one pair per block -- the newspaper-column
+    regime in force at each one.
+
+    A document begins outside any columnar region, so the state before the
+    first `.co` is one column. A block with no columns opinion (`None`:
+    the sentinel `pagebreak`/`colbreak`/`condpage`/`condcolumn` blocks, and
+    everything before the first `.co`) INHERITS the state around it rather
+    than reading as one column -- the same "real blocks only" rule
+    `pdf._doc_to_pagelines`' own `prev_cols` tracker follows. `.co1`
+    (columns OFF) normalises to `(1, None)` whatever gutter it carries, so
+    turning columns off and on again with a different gutter opens one
+    section, not two."""
+    out, cur = [], (1, None)
+    for b in doc.blocks:
+        if b.columns is not None:
+            cur = ((b.columns, b.column_gutter) if b.columns > 1 else (1, None))
+        out.append(cur)
+    return out
+
+
+_RTF_TWIPS_PER_COL_GUTTER = 144          # 10 CPI print column -> twips
+
+
+def _rtf_cols_control(cols, gutter):
+    r"""`\cols`/`\colsx` for one section, or '' for a single column.
+
+    `.co n, gutter` (packet row A7): the gutter is print columns at 10 CPI,
+    the same unit `.po` uses, so it converts at 144 twips a column.
+    WordStar's own default gap when the author names none is one print
+    column -- `pdf._apply_columns`' own reading of the same fact."""
+    if not cols or cols <= 1:
+        return ''
+    gap = int(round(float(gutter if gutter else 1) * _RTF_TWIPS_PER_COL_GUTTER))
+    return r'\cols%d\colsx%d' % (cols, gap)
+
+
+def _rtf_section_breaks(doc, printed):
+    r"""`{block_index: (cols, gutter, hdr_slots, ftr_slots)}` -- THE SECTION
+    SPINE (planning #264 R1, ruled 2026-09-14; packet section 3's
+    recommendation and rows A7/A9/A13).
+
+    One entry per section AFTER the first; the first is the one the
+    document's own page setup and `_rtf_running_heads` already write. A
+    section opens where the document's own geometry changes, and nowhere
+    else -- no imposed page positions (R6 declined those outright), so an
+    RTF reader still paginates inside every section exactly as it does
+    today.
+
+    TWO things open one:
+
+      A7  a change of newspaper-column regime (`.co n, gutter`). PRINTED
+          ONLY. Modern PDF has no column model at all, and the 2026-08-05
+          ruling is that "Modern PDF needs to be the printed version of
+          the Modern RTF" -- so a columnar Modern RTF would be a Modern
+          RTF its own PDF could not render. Modern stays one column by
+          design. (Modern HTML's `column-count` is a separate, older
+          surface and is untouched.)
+      A13 a running head or foot REDEFINED mid-document -- a second
+          definition of the same slot with different text. The new section
+          carries its own `\header`/`\footer` groups.
+
+    `.cb` (row A9) is NOT a section break: it is `\column`, a break to the
+    next column INSIDE a section, written by the body loop.
+
+    Deliberately not here, and not ruled here: a mid-document `.pn`
+    re-anchor (`\pgnrestart\pgnstarts`), and a mid-document `.po`/margin
+    change. R1 names A7, A9 and A13; those are the three built."""
+    anchors = set(_rtf_hf_redefinitions(doc))
+    state = _rtf_columns_state(doc) if printed else None
+    if printed:
+        for bi, b in enumerate(doc.blocks):
+            # Only a REAL block opens a column regime: a sentinel inherits
+            # the state around it and must not read as a change.
+            if b.columns is None or bi == 0:
+                continue
+            if state[bi] != state[bi - 1]:
+                anchors.add(bi)
+    out = {}
+    for bi in sorted(a for a in anchors if 0 < a < len(doc.blocks)):
+        cols, gutter = state[bi] if printed else (1, None)
+        out[bi] = (cols, gutter,
+                   _rtf_hf_slots_at(doc, 'H', bi),
+                   _rtf_hf_slots_at(doc, 'F', bi))
+    return out
+
+
 def _hf_variant(slots, parity):
     """`{slot: text}` for one side of the sheet. A slot defined only for
     the OTHER parity prints nothing on this side -- which is the whole
@@ -2822,7 +2955,7 @@ def _rtf_po_parity(doc):
 
 
 def _rtf_running_heads(doc, headers=True, auto_page_number=False,
-                       printed=True):
+                       printed=True, slots=None, title_page=True):
     """RTF `\\header`/`\\footer` groups from the document's own running
     heads (ruling 2026-08-06: Modern keeps headers), plus the
     `(needs_facing_pages, headery, footery)` the page setup has to carry
@@ -2876,10 +3009,18 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     opening block gets \\titlepg with an empty first-page header: the
     manuscript convention (no running head on page 1), and exactly what
     WordStar itself printed when `.h1` follows page 1's title."""
-    hdr_slots, head_anchor = _hf_slots(doc, 'H')
-    ftr_slots, foot_anchor = _hf_slots(doc, 'F')
-    first_anchor = min([a for a in (head_anchor, foot_anchor) if a is not None],
-                       default=None)
+    if slots is None:
+        hdr_slots, head_anchor = _hf_slots(doc, 'H')
+        ftr_slots, foot_anchor = _hf_slots(doc, 'F')
+        first_anchor = min([a for a in (head_anchor, foot_anchor)
+                            if a is not None], default=None)
+    else:
+        # planning #264 R1 (packet row A13): a LATER section's own head/foot
+        # state, resolved by `_rtf_hf_slots_at`. The `\titlepg` rule below is
+        # the document's first page and belongs to section 1 alone, so a
+        # section handed its slots never asks for one.
+        hdr_slots, ftr_slots = slots
+        first_anchor = None
     # "In use" is a property of the DOCUMENT, not of what we end up
     # drawing, and not of the `headers` flag: LJ6DTP.WS's own `.f1` is two
     # 0x0F bytes and renders nothing visible, yet the footer is declared
@@ -3512,11 +3653,67 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # `_trailing_pa_skip_index` when item 4 gave the other emitters the same
     # rule -- same fact, same answer, one place.
     skip_pa = _trailing_pa_skip_index(doc)
+    # planning #264 R1 (ruled 2026-09-14): THE SECTION SPINE. See
+    # `_rtf_section_breaks` for what opens a section and what deliberately
+    # does not. A document whose geometry never changes gets an empty dict
+    # here and emits exactly the bytes it always did.
+    section_breaks = _rtf_section_breaks(doc, printed)
+    columns_state = _rtf_columns_state(doc) if printed else None
     for bi, b in enumerate(doc.blocks):
+        if bi in section_breaks:
+            cols, gutter, hdr_slots, ftr_slots = section_breaks[bi]
+            sect_running, _sect_facing, sect_headery, sect_footery = (
+                _rtf_running_heads(
+                    doc, headers=headers,
+                    auto_page_number=_rtf_auto_page_number(doc, page_numbers),
+                    printed=printed, slots=(hdr_slots, ftr_slots)))
+            # `\sectd` resets EVERY section property to the document's own
+            # defaults, so this section restates the ones it needs:
+            # `\headery`/`\footery` (section properties in the RTF spec,
+            # written into the page setup above for section 1) and its own
+            # column regime. `\facingp`, `\margmirror` and the paper size
+            # are DOCUMENT properties and survive untouched.
+            sect = r'\sect\sectd'
+            if sect_headery is not None:
+                sect += r'\headery%d\footery%d' % (sect_headery, sect_footery)
+            sect += _rtf_cols_control(cols, gutter)
+            parts.append(sect + ' ' + sect_running + '\n')
+            # section properties reset the paragraph state the running text
+            # was carrying, so the next paragraph restates its own
+            rtf_state.update({'align': 'left', 'fi': 0, 'li': 0, 'ri': 0,
+                              'sl': 0, 'sb': 0, 'sa': 0})
+            quote_open = False
+            quote_fi_cols = None
+        if b.kind == 'colbreak':
+            # planning #264 R1 (packet row A9): `.cb` breaks to the next
+            # column -- the reader's own `\column`. PRINTED ONLY, and
+            # inside a columnar region only: Modern has no columns
+            # (`_rtf_section_breaks`) and Modern's own flow drops `.cb`
+            # entirely (`layout.semantic_flow` makes a break item for
+            # `pagebreak` alone), so a `\column` there would be a page
+            # break Modern PDF does not take. Outside a region the control
+            # would mean the same thing to a reader, which is not what
+            # WordStar did with it either -- nothing is written.
+            quote_open = False
+            quote_fi_cols = None
+            if columns_state is not None and columns_state[bi][0] > 1:
+                parts.append(r'\column ')
+            continue
         if b.kind == 'pagebreak':
             quote_open = False
             quote_fi_cols = None
             if bi == skip_pa:
+                continue
+            # planning #264 R1: a bare `.pa` INSIDE an active `.co n>1`
+            # region is absorbed, not honoured -- the identical reading the
+            # Printed PDF has carried since planning #227, measured against
+            # WINGDING.CHT's own WS7 capture (its author's `.pa` markers are
+            # a manual column-simulation convention that predates the real
+            # `.co5` governing the same content; honouring them fragments
+            # one real column into two short pages). RTF had no columns to
+            # fragment before this commit, which is why it could keep the
+            # break; now it has, so it reads the same fact the same way.
+            if columns_state is not None and columns_state[bi][0] > 1:
                 continue
             parts.append(r'\page ')
             continue
@@ -3825,6 +4022,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         pagesetup += r'\pgnstart%d' % pn_start
     if landscape:
         pagesetup += r'\landscape'
+    # planning #264 R1 (packet row A7): the FIRST section's own column
+    # regime. `\cols` is a section property and the page setup is section
+    # 1's; a document that opens outside a columnar region (all but a
+    # handful) resolves to one column and writes nothing, so its bytes do
+    # not move. Printed only -- see `_rtf_section_breaks` for why Modern
+    # stays single-column.
+    if printed:
+        pagesetup += _rtf_cols_control(*(_rtf_columns_state(doc)[0]
+                                         if doc.blocks else (1, None)))
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
     # gated by `--toc` (default off, the ruled default).
     toc_index = _rtf_toc_index(doc, printed) if toc else ''
