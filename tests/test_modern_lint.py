@@ -1347,16 +1347,22 @@ def _rtf_modern_vertical_space_leak(doc):
     bad = []
     # Round 20 (slate item 4) carved ONE scoped exception out of round 6's
     # rule, "exactly as disclosed there": a verse-classified or centred
-    # unit gets the single named tighter line height
-    # (`_rtf_verse_tight_sl_twips`), and every other Modern paragraph
-    # still resets to `\sl0`. Planning #264 item 5 made that exception
-    # common -- a row the author centred by TYPING spaces now takes the
-    # same tight line a row carrying a real `.oc` tag always did -- so the
-    # gate tells the two ruled values apart from a real leak instead of
-    # failing on any `\sl` at all. sr's twin gate carries the same rule.
-    allowed = {'0', str(emit._rtf_verse_tight_sl_twips())}
-    if any(v not in allowed
-           for v in re.findall(r'\\sl(-?\d+)\\slmult0', r)):
+    # unit gets a tighter line height (`_rtf_verse_tight_sl_twips`), and
+    # every other Modern paragraph still resets to `\sl0`. Planning #264
+    # item 5 made that exception common -- a row the author centred by
+    # TYPING spaces now takes the same tight line a row carrying a real
+    # `.oc` tag always did -- so the gate tells the ruled values apart from
+    # a real leak instead of failing on any `\sl` at all. sr's twin gate
+    # carries the same rule.
+    #
+    # R3 (2026-09-14) changed WHICH values are ruled: the tightening is no
+    # longer one document-independent constant but this block's own
+    # tightened leading, emitted EXACT, so the gate can no longer name a
+    # single number. The shape is what it checks now -- `\sl0` (the reader
+    # owns it) or a NEGATIVE value (an exact, block-derived tightening).
+    # A positive `\sl` in Modern is the leak: it is Printed's own
+    # at-least-this-much idiom, and round 6 gave that to Printed alone.
+    if any(int(v) > 0 for v in re.findall(r'\\sl(-?\d+)\\slmult0', r)):
         bad.append('sl')
     if re.search(r'\\sb-?\d+[ }]', r):
         bad.append('sb')

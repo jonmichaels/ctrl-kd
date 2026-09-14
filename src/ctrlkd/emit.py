@@ -3381,17 +3381,48 @@ def _rtf_sl_twips(lead_48):
     return -round(lead_48 * _RTF_LEAD_TWIPS_PER_48)
 
 
-def _rtf_verse_tight_sl_twips():
-    """`\\sl` for a Modern verse/centered unit (round 20, slate item 4) --
-    POSITIVE (a MINIMUM, not the negative/EXACT convention `_rtf_sl_twips`
-    uses for Printed's own physical `.lh`): Modern is reflowed prose, not
-    a fixed print position, so a taller inline font mid-stanza should
-    still get room to breathe rather than clip. Derived from the SAME
-    VERSE_LINE_HEIGHT constant HTML's own line-height reads, against
-    Modern's own fixed body size (MODERN_BODY_SIZE, fontmap.py) -- one
-    named multiplier, both formats."""
-    from .fontmap import MODERN_BODY_SIZE
-    return round(VERSE_LINE_HEIGHT * MODERN_BODY_SIZE * 20)   # 20 twips/pt
+def _rtf_verse_tight_sl_twips(spans, doc, nonprop_fallback=False):
+    """`\\sl` for a Modern verse/centered unit -- NEGATIVE, so EXACT, and
+    carrying this block's OWN tightened leading (planning #264 R3, Jon's
+    ruling 2026-09-14; Athena's call on the form, taken under it).
+
+    WHAT IT USED TO BE and why that was wrong. Round 20 emitted one fixed
+    POSITIVE `\\sl322` for every tightened unit in every document: 1.15
+    (HTML's own verse line-height) times Modern's 14pt body. Two faults, one
+    measured and one arithmetic.
+
+      A positive `\\sl` is a MINIMUM, and 16.10pt is what LibreOffice already
+      gives a 14pt Times line by itself, so the control asked for nothing
+      it was not already going to get. Measured 2026-09-14 (research/
+      2026-09-14_rtf-html-libreoffice-check.md section 2): `\\sl280` and no
+      `\\sl` at all both lay 16.10pt; only `\\sl-280` laid 14.00pt. The same
+      probe settles the caveat that made round 20 choose the minimum form --
+      an exact height at the face's own size loses no ink in LibreOffice
+      (14118 ink pixels either way, every accent and ascender drawn; the
+      lines merely overlap). Pages and Word are still unmeasured.
+
+      And 1.15 x body was never the number Modern uses. Modern's tightening
+      is `pdf.MODERN_VERSE_TIGHT` (0.71875) against the FACE's own natural
+      line height, plus job 434's leading spacer -- see
+      `pdf.modern_tight_line_advance_pt`, which is the one place that
+      arithmetic lives now, so RTF cannot drift from the page it describes.
+      A document whose title block is set at 72pt (LJ6DTP.WS) got the same
+      322 twips as one set at 14pt.
+
+    So: per block, exact, and the same figure the Modern PDF advances by --
+    15.1pt on STRENGTH.WS's title block, which is `\\sl-302\\slmult0`.
+
+    THE C2 BOUNDARY is not in this number. The author's blank line after a
+    tightened block is a paragraph break and belongs to the body's ordinary
+    leading, exactly as `_modern_streams` spends its untightened `last_h`
+    there -- so Modern RTF resets `\\sl` to 0 before a run of blank `\\par`s
+    rather than letting the compression leak past the block that earned it.
+    With the old positive form that reset was invisible (the reader ignored
+    the control either way); with an exact one it is the difference between
+    a title block closing at the body's 16.80pt and closing at 15.10pt."""
+    from .pdf import modern_tight_line_advance_pt
+    return -round(modern_tight_line_advance_pt(
+        spans, doc.fonts, nonprop_fallback) * 20)             # 20 twips/pt
 
 
 def _rtf_pm_fi_twips(b, li_twips):
@@ -4032,7 +4063,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 # "wrapped centered units") get tighter internal spacing --
                 # a deliberate, scoped exception to round 6's "Modern RTF
                 # doesn't do line spacing" rule, exactly as disclosed there.
-                tight_sl = (_rtf_verse_tight_sl_twips()
+                # R3 (2026-09-14): the figure is now this UNIT's own, off
+                # its first line -- the same line the Modern PDF measures
+                # the block's first advance from, and the same "collapsed
+                # to the block's own first real line" ceiling
+                # `_rtf_block_lead_48` already accepts as what a
+                # paragraph-only `\sl` can express.
+                tight_sl = (_rtf_verse_tight_sl_twips(first, doc,
+                                                      nonprop_fallback)
                             if (is_verse or b.align == 'center') else 0)
                 _rtf_emit_para(parts, rtf_state, b, lines, indent_cols,
                                li=li, ri=ri, sl=tight_sl,
@@ -4060,7 +4098,10 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                                         style_id=b.style_id, wrap=b.wrap)
                         _rtf_emit_para(parts, rtf_state, centred, [seg],
                                        li=li, ri=ri,
-                                       sl=_rtf_verse_tight_sl_twips(),
+                                       sl=_rtf_verse_tight_sl_twips(
+                                           _slice_spans(line.spans, lead,
+                                                        len(raw) - trail),
+                                           doc, nonprop_fallback),
                                        keep=keep_para, keepn=keepn_para)
                 else:
                     plain_run_lines.append(line)
@@ -4074,7 +4115,19 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # Only the author's own blank lines make space (ruling
         # 2026-08-06): a block boundary is often just a dot command,
         # and command codes are invisible.
-        parts.extend([r'\par '] * trailing_blank_lines(b))
+        #
+        # C2 (R3, 2026-09-14): and they make the BODY's space. A tightened
+        # block's compression is about how its own lines read against each
+        # other; the author's blank line after it is the paragraph break,
+        # and that gap belongs to the document's ordinary leading -- which
+        # is exactly what `_modern_streams` does with its untightened
+        # `last_h`. Left in force, an EXACT `\sl` would close a title block
+        # tighter than the identical block closes with no tightening at all.
+        blanks = trailing_blank_lines(b)
+        if blanks and rtf_state['sl']:
+            parts.append(r'\sl0\slmult0 ')
+            rtf_state['sl'] = 0
+        parts.extend([r'\par '] * blanks)
     body = '\n'.join(parts)
     # The sophisticated body (Jon's specimen ruling, 2026-08-05): text with
     # no font information reads in Georgia 14 under Modern -- "like reading

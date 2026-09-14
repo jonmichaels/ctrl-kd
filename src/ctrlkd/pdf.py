@@ -9420,6 +9420,49 @@ def _modern_leading_spacer(toks, family, pt):
     return deficit + MODERN_SPACER_PAD if deficit > 0 else 0.0
 
 
+def modern_tight_line_advance_pt(spans, fonts, nonprop_fallback=False):
+    r"""The vertical advance Modern actually spends on ONE tightened
+    (verse/centred) line built from `spans` -- its compressed box plus the
+    headroom reserved above it -- in points.
+
+    PUBLIC because Modern RTF needs the same number (planning #264 R3, Jon's
+    ruling 2026-09-14). `_rtf_verse_tight_sl_twips` used to state the
+    tightening as one fixed multiple of the body size, which reproduced
+    neither this engine's own Modern PDF nor the app the PDF was backported
+    from; measured through LibreOffice it also did nothing at all, because a
+    POSITIVE `\sl` is only a minimum and 1.15 x 14pt sits under the reader's
+    own single spacing for the face. An EXACT `\sl` has to carry a real
+    number, and the only real number is the one the page uses.
+
+    TWO PARTS, both of them `_modern_streams`' own (see the `h` it stacks):
+
+      `_modern_tight_h`        the compressed line box itself -- the face's
+                               natural line height times MODERN_VERSE_TIGHT.
+      `_modern_leading_spacer` job 434's headroom, spent as part of the
+                               line's own advance, which is why it belongs
+                               in the pitch a reader reproduces rather than
+                               beside it.
+
+    On STRENGTH.WS's title block (Times 14) that is 11.50 + 3.59 = 15.09pt,
+    and 15.1pt is exactly what the Modern PDF measures between the byline
+    and the email line. A reader honouring `\sl-302\slmult0` lands on the
+    same pitch.
+
+    The spacer is ink-dependent, so two lines of the same face can differ by
+    a fraction of a point -- that is the PDF's own behaviour, reproduced,
+    not noise introduced here. The C2 boundary is NOT part of this number: a
+    blank line after a tightened block advances by the body's ordinary
+    leading (`_modern_streams`' `last_h = lead`), and Modern RTF resets
+    `\sl` to 0 for exactly that reason."""
+    toks = []
+    for sp in spans:
+        written, family, pt, entry = _modern_tok_font(
+            sp.text, sp.styles, fonts, nonprop_fallback)
+        toks.append((written, sp.styles, family, pt, entry, 0.0))
+    family, pt = _modern_line_face(toks)
+    return _modern_tight_h(family, pt) + _modern_leading_spacer(toks, family, pt)
+
+
 def _modern_para_is_graphic(item):
     """Is this flow entry a paragraph that draws at least one cp437
     box/block/shade character? (`_modern_streams`' own suppression test --

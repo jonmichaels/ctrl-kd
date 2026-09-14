@@ -30,6 +30,7 @@ author put them.
 import pytest
 
 from ctrlkd import core, emit
+from ctrlkd.pdf import modern_tight_line_advance_pt
 
 
 def _doc(texts, align='left'):
@@ -109,11 +110,27 @@ def test_a_spaces_centred_row_is_centred_and_stripped():
 
 def test_a_spaces_centred_row_gets_the_tight_line():
     """Same "wrapped centered unit" spacing the tag-centred rows already
-    take (round 20, slate item 4) -- one named constant, both paths."""
+    take (round 20, slate item 4) -- one rule, both paths. R3
+    (2026-09-14): the value is the EXACT form carrying the row's own
+    tightened leading, so this asserts the shape and the arithmetic
+    rather than a shared constant that no longer exists."""
+    import re
     rows = ['x' * 60, 'y' * 60, 'z' * 60,
             '                         A Centred Title', 'w' * 60]
-    out = emit.emit_rtf(_doc(rows), mode='modern')
-    assert (r'\sl%d\slmult0 ' % emit._rtf_verse_tight_sl_twips()) in out
+    doc = _doc(rows)
+    out = emit.emit_rtf(doc, mode='modern')
+    vals = [int(m) for m in re.findall(r'\\sl(-?\d+)\\slmult0 ', out)]
+    assert any(v < 0 for v in vals), out
+    # the centred row, with its own padding stripped -- what `\qc` centres
+    line = [l for b in doc.blocks for l in (b.lines or [])
+            if 'A Centred Title' in ''.join(sp.text for sp in l.spans)][0]
+    raw = ''.join(sp.text for sp in line.spans)
+    lead = len(raw) - len(raw.lstrip(' '))
+    trail = len(raw) - len(raw.rstrip(' '))
+    want = -round(modern_tight_line_advance_pt(
+        core._slice_spans(line.spans, lead, len(raw) - trail)
+        if hasattr(core, '_slice_spans') else line.spans, doc.fonts) * 20)
+    assert want in vals, (want, vals)
 
 
 def test_an_ordinary_indented_paragraph_is_not_centred():
