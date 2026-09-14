@@ -4572,8 +4572,15 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
                         # the printed page" -- 0 for LJ6DTP's rule-drawing
                         # controls). The mark carries (hmi, char count) so
                         # printed renderers can swap the string for its
-                        # declared width; reading modes keep the string, the
-                        # only human-visible trace of what the control does.
+                        # declared width. NO reading surface renders the
+                        # label: planning #270 item 36 (Jon's ruling
+                        # 2026-09-13, "Print controls aren't supposed to be
+                        # visible except in Show Invisibles") retired the old
+                        # "reading modes keep the string" habit -- the printed
+                        # layout JSON was the last surface still publishing
+                        # it, and now publishes the declared width as spaces
+                        # with the label moved to
+                        # `invisibles['print_controls']`.
                         shown_b = shown.encode(encoding, 'replace')
                         # The raw printer bytes, if any survive the file
                         # reference strip above -- recorded by INDEX (not

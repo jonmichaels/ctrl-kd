@@ -4814,6 +4814,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                and not getattr(pages[-1], 'explicit_break', False)):
             pages.pop()
         pages = _apply_columns(doc, pages, _printed_size(doc))
+        _substitute_merge_page_numbers_printed(doc, pages)
         _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
         _attach_line_numbers_printed(doc, pages, _printed_size(doc))
         _attach_graphic_cells_printed(doc, pages, _printed_size(doc))
@@ -5904,11 +5905,72 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pages.pop()
     if printed:
         pages = _apply_columns(doc, pages, size_for_left)
+        _substitute_merge_page_numbers_printed(doc, pages)
         _attach_justify_word_x_printed(doc, pages, size_for_left)
         _attach_line_numbers_printed(doc, pages, size_for_left)
         _attach_graphic_cells_printed(doc, pages, size_for_left)
         _attach_head_foot_lines_printed(doc, pages, size_for_left)
     return pages or [[]]
+
+
+# ------------------------------------ MailMerge page-number variables (#270/40)
+#
+# Jon's ruling 2026-09-13 (planning #270 item 40, triage Q7): "I guess we can
+# adopt... page numbers seems reasonable." WordStar's MailMerge substitutes the
+# page-number variable `&#&` at PRINT time with the number of the page the
+# variable lands on, and real WS7 does exactly that in both corpus documents that
+# print one:
+#
+#   sawyer/REF/TOCTRICK.WS    prints `2` on page 2, twice, where the author typed
+#                             `&#/r&` -- which is what WordStar did to him, and
+#                             what his own printout shows
+#   sawyer/ARTICLES/POWERUSE.WS  prints `CNT=8` and `8 is a new...` on page 8,
+#                             where the author typed `CNT=&#&` and `&#&`
+#
+# MICKEE.WS (20 occurrences) and RTF-RJS/NOVEL.WS (6) carry the same reference
+# many times over, but every one of theirs sits on a `.tc` table-of-contents
+# line, which never puts ink on the page -- so neither prints one today and
+# neither prints one after this change.
+#
+# SCOPE, from the same ruling's MAIL MERGE paragraph: this is the ONE merge
+# variable that is ever substituted. "A merge letter opens and exports as the
+# letter itself, variables shown as-is (not substituted, not stripped), except
+# the page-number variables per item 40." Every other `&NAME&` stays visible
+# exactly as typed, in every view and every export -- which is what
+# `_MERGE_PAGENO_RE` being keyed to the literal `#` name guarantees.
+#
+# WordStar's own trailing `/x` modifiers (`&#/r&`) are accepted and ignored:
+# real WS7 prints the plain arabic number for `&#/r&` on TOCTRICK's page 2 (the
+# capture's own chunk, `x_decipoints` 720 / 2304, text `2`), not a roman numeral.
+_MERGE_PAGENO_RE = _re.compile(r'&#(?:/[A-Za-z]+)?&')
+
+
+def _substitute_merge_page_numbers_printed(doc, pages):
+    """Replace every MailMerge page-number variable in a printed page's own
+    body lines with that page's resolved page number, in place.
+
+    Runs as a `_doc_to_pagelines` post-pagination pass, BEFORE
+    `_attach_justify_word_x_printed`/`_attach_graphic_cells_printed`, so every
+    per-word x those passes compute is measured on the text that actually
+    prints. Printed physical lines are never re-wrapped, so a substitution that
+    shortens a line cannot move anything onto another page -- which is why this
+    can safely run after pagination rather than before it.
+
+    The page number is `_resolve_page_numbers`' own answer -- the same
+    `.pn`/`.pg` checkpoint walk the running head's `#` and the automatic page
+    number already use -- never the page's index, so a document that restarts
+    its numbering substitutes the number WordStar would have printed."""
+    page_numbers = _resolve_page_numbers(_pn_checkpoints(doc), pages)
+    for page_index, page in enumerate(pages):
+        shown = str(page_numbers[page_index])
+        for pl in page:
+            for i, seg in enumerate(pl):
+                text, styles = seg[0], seg[1]
+                if '&#' not in text:
+                    continue
+                new = _MERGE_PAGENO_RE.sub(shown, text)
+                if new != text:
+                    pl[i] = (new,) + tuple(seg[1:])
 
 
 def _attach_line_numbers_printed(doc, pages, size):

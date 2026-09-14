@@ -2748,92 +2748,11 @@
       "n_engine_pages": 17,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 14,
-        "extra-word-in-engine": 2,
-        "line-start-shift": 1,
-        "word-unmatched": 4
+        "exact-drift": 10,
+        "extra-word-in-engine": 1,
+        "word-unmatched": 3
       },
       "divergences": [
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "standard",
-            "standard"
-          ],
-          "ws7_pos": [
-            172.8,
-            492.0
-          ],
-          "pdf_pos": [
-            187.2,
-            492.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +14.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "MailMerge",
-            "MailMerge"
-          ],
-          "ws7_pos": [
-            237.6,
-            492.0
-          ],
-          "pdf_pos": [
-            252.0,
-            492.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +14.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "variable",
-            "variable"
-          ],
-          "ws7_pos": [
-            309.6,
-            492.0
-          ],
-          "pdf_pos": [
-            324.0,
-            492.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +14.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "equal",
-            "equal"
-          ],
-          "ws7_pos": [
-            374.4,
-            492.0
-          ],
-          "pdf_pos": [
-            388.8,
-            492.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +14.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
         {
           "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
           "page": 8,
@@ -3037,22 +2956,6 @@
         {
           "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
           "page": 8,
-          "line_y_top_pt": 468.0,
-          "words": [
-            "CNT=&#&"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            136.8,
-            468.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
           "line_y_top_pt": 516.0,
           "words": [
             "Variable\""
@@ -3065,42 +2968,6 @@
           "font_class": "fixed",
           "reason": "extra-word-in-engine",
           "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "new",
-            "new"
-          ],
-          "ws7_pos": [
-            144.0,
-            492.0
-          ],
-          "pdf_pos": [
-            158.4,
-            492.0
-          ],
-          "font_class": "exact",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +14.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 468.0,
-          "words": [
-            "CNT=8"
-          ],
-          "ws7_pos": [
-            136.8,
-            468.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
         },
         {
           "doc": "sawyer__ARTICLES__POWERUSE_EXT_WS",
@@ -23558,50 +23425,15 @@
     },
     "sawyer__REF__TOCTRICK_EXT_WS": {
       "doc": "sawyer__REF__TOCTRICK_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/TOCTRICK.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 2,
       "n_engine_pages": 2,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "extra-word-in-engine": 2
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__TOCTRICK_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "&#/r&"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            72.0,
-            192.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__TOCTRICK_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "&#/r&"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            230.4,
-            444.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 79,
         "median_dx": 0.0,
