@@ -2548,12 +2548,25 @@ def _split_graphics(segs):
 FALLBACK_FAMILY = {'math': 'Symbol', 'symbols': 'ZapfDingbats'}
 
 
+# Perf (planning #271 M7): this is a per-CHARACTER question asked 463,626
+# times on -HOLYMAC.WS, and it answered it by raising and catching a
+# UnicodeEncodeError for every character outside cp1252. cp1252 has 251
+# code points; the memo saturates almost immediately and never grows past
+# the distinct characters a document actually contains.
+_CP1252_OK_MEMO = {}
+
+
 def _cp1252_ok(ch):
+    hit = _CP1252_OK_MEMO.get(ch)
+    if hit is not None:
+        return hit
     try:
         ch.encode('cp1252')
-        return True
+        ok = True
     except UnicodeEncodeError:
-        return False
+        ok = False
+    _CP1252_OK_MEMO[ch] = ok
+    return ok
 
 
 def _symbol_fallback_split(text, family):

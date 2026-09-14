@@ -336,6 +336,17 @@ WIDTHS = {
 }
 
 
+# Perf (planning #271 M7): both of these are asked the SAME (text, basefont)
+# question tens of thousands of times over a novel-length document -- one
+# call per Modern token per pass, and a 302-page document's vocabulary is a
+# few thousand distinct words. The answer is a pure function of its two
+# arguments (`WIDTHS` is module-level and never rebuilt), so a bounded memo
+# is exact, not approximate. Measured on -HOLYMAC.WS: 140,242 calls,
+# ~4,800 distinct keys.
+_WIDTH_MEMO = {}
+_WIDTH_MEMO_CAP = 1 << 16
+
+
 def string_width_1000(text, basefont):
     """Natural width of `text` set in `basefont`, in 1/1000 em.
 
@@ -347,8 +358,16 @@ def string_width_1000(text, basefont):
     An unknown basefont falls back to Courier's fixed 600: a face this table
     does not carry cannot be measured, and 600 is this emitter's own default
     pitch, not a guess at the missing face."""
+    key = (text, basefont)
+    hit = _WIDTH_MEMO.get(key)
+    if hit is not None:
+        return hit
     table = WIDTHS.get(basefont, _COURIER)
-    return sum(table[b] for b in text.encode('cp1252', 'replace'))
+    total = sum(table[b] for b in text.encode('cp1252', 'replace'))
+    if len(_WIDTH_MEMO) >= _WIDTH_MEMO_CAP:
+        _WIDTH_MEMO.clear()
+    _WIDTH_MEMO[key] = total
+    return total
 
 
 def string_width_pt(text, basefont, size):
