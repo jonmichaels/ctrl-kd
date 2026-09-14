@@ -1487,6 +1487,24 @@ class Document:
     # `sawyer/LSRBOX/LSRBOX.WS` restates `.h1` three times with a different
     # control each time).
     hf_events_pcl: list = field(default_factory=list)
+    # 2026-09-14 (triage Q9): `hf_events`'s own WITHIN-BLOCK position,
+    # INDEX-ALIGNED with it exactly as `hf_events_parity`/`hf_events_pcl`
+    # are, and a SEPARATE list for the same reason -- the 4-tuple shape and
+    # every existing consumer of it stay as they were.
+    #
+    # `anchor` alone is BLOCK-granular: it names the block the command
+    # points at, which for a command read while a block is still open is
+    # the NEXT one. That is right for a command between paragraphs and
+    # WRONG for one INSIDE a paragraph, and WordStar writes those -- a
+    # running head redefined mid-paragraph is stored exactly where the
+    # author typed it, between two of the paragraph's own physical lines.
+    # `sawyer/MACROS/HOLYMAC/-HOLYMAC.WS` does it three times (pages 17,
+    # 177 and 184 of its real WS7 print), and block granularity deferred
+    # each one past the rest of its paragraph and onto the following page.
+    # Each entry is `(block index, how many of that block's lines came
+    # first)` for a mid-block event, or None -- the common case, where
+    # `anchor` already says everything.
+    hf_events_within: list = field(default_factory=list)
     footnotes: list = field(default_factory=list)     # list[list[Span]] (WS5+): footnotes,
                                                        # endnotes, and annotations, in document
                                                        # order -- all three are rendered the
@@ -3606,9 +3624,20 @@ def line_numbering_at(checkpoints, bi):
     return interval
 
 
+def _hf_within(doc, cur, cur_line):
+    """Triage Q9: where a `.he`/`.fo` sits inside the block being built, as
+    `(block index, lines before it)`, or None when it really is between
+    blocks. See `Document.hf_events_within`."""
+    if cur.lines or cur_line.spans:
+        return (len(doc.blocks), len(cur.lines))
+    if doc.blocks and doc.blocks[-1].kind == 'para':
+        return (len(doc.blocks) - 1, len(doc.blocks[-1].lines))
+    return None
+
+
 def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
                      tab_mark=None, align=None, style_attrs=None,
-                     pctl_marks=None):
+                     pctl_marks=None, within=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -3756,6 +3785,7 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
         doc.hf_events.append((kind, line, text, anchor))
         doc.hf_events_parity.append(parity)
         doc.hf_events_pcl.append(pctl_here)
+        doc.hf_events_within.append(within)   # triage Q9; see the field
 
 
 def _cp_lines(cmd: bytes) -> int:
@@ -6082,6 +6112,20 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                              encoding,
                              anchor=len(doc.blocks) + (1 if cur.lines or
                                                        cur_line.spans else 0),
+                             # triage Q9: WHERE inside the open block, so a
+                             # running head redefined mid-paragraph takes
+                             # effect on the line the author typed it on
+                             # rather than after the whole paragraph. The
+                             # `cur` is empty case is NOT "between blocks":
+                             # a blank line arriving while `cur` is empty is
+                             # appended to the PREVIOUS para block (see the
+                             # blank-line branch below), so a command read
+                             # inside a run of trailing blanks belongs after
+                             # however many of them have arrived so far --
+                             # `-HOLYMAC.WS` page 17, whose `.he` sits
+                             # between two blank lines of one such run and
+                             # was otherwise deferred past both.
+                             within=_hf_within(doc, cur, cur_line),
                              font_idx=(hf_font_idx if hf_font_idx is not None
                                       else hf_style_font_idx),
                              tab_mark=hf_tab_mark,

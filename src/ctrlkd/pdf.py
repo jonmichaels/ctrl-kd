@@ -5166,8 +5166,19 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # user print control, which is all but `sawyer/LSRBOX/LSRBOX.WS`.
     hf_pcl = getattr(doc, 'hf_events_pcl', None) or [()] * len(hf_events)
     hf_by_block = {}
-    for (kind, lno, txt, anchor), parity, pcl in zip(hf_events, hf_parity, hf_pcl):
-        hf_by_block.setdefault(anchor, []).append((kind, lno, txt, parity, pcl))
+    # triage Q9: an event read INSIDE a block carries its own line position
+    # (`doc.hf_events_within`) and is emitted THERE, between that block's own
+    # lines, instead of at the block boundary `anchor` names. Printed only --
+    # Modern re-groups a block's lines (`_merged_lines`) so the index would
+    # not mean the same thing, and Modern draws no running head to time.
+    hf_within = getattr(doc, 'hf_events_within', None) or [None] * len(hf_events)
+    hf_mid = {}
+    for (kind, lno, txt, anchor), parity, pcl, within in zip(
+            hf_events, hf_parity, hf_pcl, hf_within):
+        if printed and within is not None:
+            hf_mid.setdefault(within, []).append((kind, lno, txt, parity, pcl))
+        else:
+            hf_by_block.setdefault(anchor, []).append((kind, lno, txt, parity, pcl))
     # round 17 (RULINGS-LEDGER row 5/7): `.pm`/`.psa`/`.psb` extend round 6's
     # RTF vertical-space model to Printed PDF, same relative-computation
     # rules, Printed only (Modern's own `else` branch below never reads
@@ -5369,6 +5380,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         spacing_blanks = spacing_map.get(bi, set())
         _li = 0
         while _li < len(blk_lines):
+            for ev in hf_mid.get((bi, _li), ()):      # triage Q9
+                lines.append(('hf',) + ev)
             _idx = _li
             line = blk_lines[_li]
             _li += 1
@@ -5584,6 +5597,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             else:
                 lines.extend(PageLine(w, soft=line.soft)
                              for w in _wrap_line(spans, MAX_COLS))
+        # triage Q9: any event whose recorded line index is at or past this
+        # block's own line count belongs at the block's END -- the same
+        # place the block-boundary anchor would have put it. `blk_lines` is
+        # not always `b.lines` (`.pf on` re-wraps), so this is a range, not
+        # an equality: an event must never be dropped for landing past it.
+        for _li_end in sorted(li for (b_i, li) in hf_mid
+                              if b_i == bi and li >= len(blk_lines)):
+            for ev in hf_mid.get((bi, _li_end), ()):
+                lines.append(('hf',) + ev)
         if not printed and b.lines:
             lines.append([])                              # blank line between paragraphs
         if printed and doc_sa and b.lines and not first_line_of_block:
@@ -5989,6 +6011,29 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         col_group_index += 1
         if col_group_index >= col_group_cols:
             col_group_index, col_offset_pt = 0, 0.0
+    def _page_already_full(from_idx):
+        """Triage Q9: WordStar closes a page the MOMENT it is full; this
+        engine breaks lazily, when the next line turns out not to fit. A
+        dot command sitting exactly on that boundary is therefore read on
+        the OLD page here and on the NEW page in WordStar -- measured on
+        `sawyer/MACROS/HOLYMAC/8MAC`, whose page 1 fills exactly (its last
+        body line at 7200 decipoints, the last the page has) and whose
+        bare `.fo` sits immediately after it: real WS7 prints `286` at the
+        foot of page 1 and no footer at all on pages 2-10, so that `.fo`
+        was read on page 2. True when the next real line on this page
+        cannot fit, i.e. the break has, in WordStar's own reckoning,
+        already happened. An EXPLICIT break ahead is not this case: the
+        command still belongs to the page it was read on."""
+        if not printed or not page:
+            return False
+        for peek in lines[from_idx + 1:]:
+            if peek is None:
+                return False
+            if isinstance(peek, tuple):
+                continue                      # another sentinel, not a line
+            return spent + _cost(peek) > budget - _col_cut() + 1e-6
+        return False
+
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
             _, kind, lno, txt, parity, pcl = l
@@ -6022,7 +6067,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # "HOLY MACRO!  #" on 2-10. This engine printed the automatic
             # page number on page 1 (centred, 291.6pt) and the footer on
             # page 2.
-            if kind == 'F':
+            if kind == 'F' and not _page_already_full(_li):
                 page_ftrs = dict(cur_ftrs)
                 page_ftrs_pcl = dict(cur_ftrs_pcl)
                 page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
