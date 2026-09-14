@@ -6398,7 +6398,7 @@ def _attach_justify_word_x_printed(doc, pages, size):
                 continue
             segs = []
             for text, styles in _coalesce(line):
-                if not text:
+                if not text and not _is_zero_width_tab(styles):
                     continue
                 written, family, size_here, entry = _span_render(
                     text, styles, fonts, size)
@@ -6467,7 +6467,7 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 continue
             segs = []
             for text, styles in _coalesce(line):
-                if not text:
+                if not text and not _is_zero_width_tab(styles):
                     continue
                 written, family, size_here, entry = _span_render(
                     text, styles, fonts, size)
@@ -6760,6 +6760,18 @@ def _toc_index_pagelines(doc, page_numbers):
         for text in idx:
             lines.append(PageLine([(text, frozenset())]))
     return lines
+
+
+def _is_zero_width_tab(styles) -> bool:
+    """A tab whose own width rounds to no whole column at all
+    (`core._tab_columns`) contributes NO characters -- but it is still a
+    positioning instruction, and the span carrying its `tabhmi<N>` tag is
+    the only thing that carries the stop. Real WS7 moves the pen to that
+    stop and prints nothing (measured, `sawyer/MICKEE/MICKEE.WS` page 23:
+    a 90-HMI leading tab, half a 10-CPI column, starts the line at 10.8pt
+    where the margin alone is 7.2pt). So an EMPTY span is dropped from a
+    printed line, as it always was, unless it is one of these."""
+    return any(t.startswith('tabhmi') for t in styles)
 
 
 def _coalesce(line):
@@ -8443,11 +8455,17 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                               None)
             leader_byte = int(leader_tag[9:]) if leader_tag else 0x20
             if target_x <= x:
-                # Overrun guard, the standard degenerate tab case: the stop
-                # is at or behind the pen already. Never move backward --
-                # advance by a single space width instead, the same
-                # document-column measure the fill branch below uses.
-                x += size * 0.6
+                # The stop is at or behind the pen already. WordStar
+                # collapses such a tab to ZERO width: it does not move the
+                # pen backward, and it does not spend a column either.
+                # MEASURED on sawyer/REF/FONT-TAG.CMP (v4 capture, page 1):
+                # `Bit #:` ends at exactly 273.6pt, which is exactly where
+                # its following tab aims, and WS7 prints `#:Usage:` as one
+                # continuous run with `Usage:` at 273.6 -- no gap at all.
+                # This used to advance by one document column (`size *
+                # 0.6`), which put every following word on the line 7.2pt
+                # too far right.
+                pass
             elif leader_byte == 0x20:
                 # A PLAIN tab (hard/soft/decimal/center/right types all
                 # degrade to space padding -- see _tab_columns): WS7 prints
@@ -9011,7 +9029,7 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                       % (gutter_font.encode(), gutter_size, gx, y, label.encode()))
         segs = []
         for text, styles in _coalesce(line):
-            if not text:
+            if not text and not _is_zero_width_tab(styles):
                 continue
             written, family, size_here, entry = _span_render(
                 text, styles, fonts, size)

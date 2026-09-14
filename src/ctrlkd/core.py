@@ -4577,14 +4577,28 @@ def _tab_columns(content: bytes):
     so those types degrade to plain space padding, but of the CORRECT width
     (from the tab's own HMI size) rather than a guessed constant. Dot-leader
     tabs (any byte outside the documented/undocumented set) repeat their own
-    leader character, which is both more correct and directly observable."""
+    leader character, which is both more correct and directly observable.
+
+    A tab can be ZERO columns wide, and that is not a degenerate case to
+    guard against -- it is what WordStar does whenever the pen has already
+    reached the stop the tab aims at. The block's own width word says so:
+    `sawyer/REF/FONT-TAG.CMP` types `Bit #:`, a tab, then `Usage:`, and
+    the tab's width is 28 HMI -- under a sixth of a 10-CPI column -- while
+    its absolute target (273.6pt from the page's left edge) is exactly
+    where `Bit #:` already ends. Real WS7 prints `Bit #:Usage:`, one
+    continuous run, with no column between them (measured, v4 capture,
+    page 1: `Bit` at 230.4pt and `#:Usage:` at 259.2pt, nothing else on
+    that line). A `max(1, ...)` floor here spent a placeholder column
+    anyway and pushed `Usage:` 7.2pt right of the paper on every surface
+    at once -- printed, layout, RTF/HTML, plain text. 150 of the archive's
+    14,015 type-9 blocks are this shape."""
     if len(content) < 5:
         return 4, b' '                                 # malformed/short block: the old
                                                         # fixed-4-spaces behaviour as a
                                                         # safe fallback, never a crash
     size = int.from_bytes(content[0:2], 'little')
     tab_type = content[4]
-    cols = max(1, round(size / TAB_HMI_PER_COL))
+    cols = round(size / TAB_HMI_PER_COL)
     if tab_type in (0x20, 0xA0, ord('#'), ord('!')) or tab_type in TAB_RIGHT_TYPES:
         leader = b' '
     elif 0x20 <= tab_type < 0x7F:

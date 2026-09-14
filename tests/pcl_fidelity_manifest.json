@@ -13406,12 +13406,12 @@
             213.0
           ],
           "pdf_pos": [
-            241.7,
+            234.5,
             213.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +16.40pt (tolerance 2.5pt)"
+          "detail": "line-start residual +9.20pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-LASERJE_EXT_FNT",
@@ -16667,51 +16667,15 @@
     },
     "sawyer__REF__FONT-TAG_EXT_CMP": {
       "doc": "sawyer__REF__FONT-TAG_EXT_CMP",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/FONT-TAG.CMP",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 6,
       "n_engine_pages": 6,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "extra-word-in-engine": 1,
-        "word-unmatched": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__FONT-TAG_EXT_CMP",
-          "page": 1,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "Usage:"
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            280.8,
-            372.0
-          ],
-          "font_class": "fixed",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "sawyer__REF__FONT-TAG_EXT_CMP",
-          "page": 1,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "#:Usage:"
-          ],
-          "ws7_pos": [
-            259.2,
-            372.0
-          ],
-          "pdf_pos": null,
-          "font_class": "exact",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 293,
         "median_dx": 0.0,
@@ -17841,12 +17805,12 @@
             213.0
           ],
           "pdf_pos": [
-            241.7,
+            234.5,
             213.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +16.40pt (tolerance 2.5pt)"
+          "detail": "line-start residual +9.20pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__FONTS_EXT_REF",
@@ -22065,7 +22029,7 @@
         }
       ],
       "document_frame_offset_pt": {
-        "n": 1276,
+        "n": 1277,
         "median_dx": 0.0,
         "iqr_dx": 0.0
       }
