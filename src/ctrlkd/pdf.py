@@ -3674,7 +3674,9 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                     _li += n_blank
                     stream.append((PageLine([], soft=line.soft, lead=reserved,
                                             overprint=line.overprint,
-                                            image=sub, bi=bi, left=own_left), refs))
+                                            image=sub, bi=bi, left=own_left,
+                                            po_cols=getattr(line, 'po_cols', None)),
+                                   refs))
                     continue
             # A PageLine, not a bare list, so the line's own `.lh` survives the
             # footnote paginator too -- body lines keep their lead whether or
@@ -3730,7 +3732,8 @@ def _body_stream_printed(doc, pix_results=None, pictures='off'):
                                     overprint=line.overprint,
                                     bi=bi, left=own_left,
                                     justify_right_x=justify_right_x,
-                                    parity_left=own_parity_left), refs))
+                                    parity_left=own_parity_left,
+                                    po_cols=getattr(line, 'po_cols', None)), refs))
     return stream
 
 def _area_size(entries):
