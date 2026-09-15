@@ -43,6 +43,13 @@ https://github.com/jonmichaels/ctrl-kd/releases
   and at least two different terms among them — a booklet template that
   repeats one "Space:  The final frontier…" paragraph 37 times shares a
   label column but defines nothing, and is prose.
+- Modern view and Modern PDF drew every running head and foot at the left
+  margin, whatever the document asked for: a booklet template's
+  right-hand head sat on top of its left-hand one. A head or foot that
+  its own style aligns right or centre is now aligned right or centre in
+  Modern's own text measure. A head whose lines ask for DIFFERENT
+  alignments is also written correctly to RTF now (one paragraph per
+  line, since RTF cannot align twice inside one).
 
 ## [4.7.1] — 2026-09-15
 

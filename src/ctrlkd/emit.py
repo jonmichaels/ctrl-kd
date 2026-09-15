@@ -3259,11 +3259,17 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
       A4  the head's own alignment (`header_align`/`footer_align`, the
           `.h#`/`.f#` argument's embedded style-sheet reference, planning
           #255) becomes `\\qr`/`\\qc` on the group's paragraph. RTF's
-          header is ONE paragraph carrying every declared line, so the
-          alignment applied is the FIRST rendered line's -- no corpus
-          document declares two head lines with different alignments, and
-          splitting the group into a paragraph per line would change the
-          bytes of every multi-line head to buy that case.
+          header is ONE paragraph carrying every declared line, joined by
+          `\\line`, for as long as those lines AGREE on their alignment --
+          which is every head and foot in the corpus but one. This row
+          originally applied the FIRST line's alignment to the whole
+          group, on the stated grounds that no corpus document declares
+          two head lines with different alignments; `sawyer/REF/
+          BOOKLET.WS` does, and its left-aligned second head line was
+          right-aligned with its first. A group whose lines disagree is
+          written as a paragraph PER LINE instead (2026-09-15), since
+          `\\line` is a break inside a paragraph and cannot carry a second
+          alignment. Every other document's bytes are unchanged.
       A5  `\\headery`/`\\footery` -- see `_rtf_head_foot_distance`.
 
     Planning #264 item 5: the head's OWN print attributes
@@ -3340,7 +3346,7 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     def group(name, lines, faces, aligns, attrs):
         if not lines:
             return ''
-        rendered, align_ctl = [], ''
+        rendered, line_aligns = [], []
         for n in sorted(lines):
             txt = lines[n]
             if subst is not None:
@@ -3350,8 +3356,7 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
             runs = hf_runs(txt)
             if not runs:
                 continue                     # control-bytes-only head
-            if not rendered:
-                align_ctl = _RTF_HF_ALIGN.get(aligns.get(n), '')
+            line_aligns.append(_RTF_HF_ALIGN.get(aligns.get(n), ''))
             # planning #264 item 5 (planning #255's `header_style_attrs`):
             # the print attributes the head's OWN style turns on. A
             # `.h#`/`.f#` argument can name a style-sheet entry, and that
@@ -3371,8 +3376,26 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
                 for text, styles in runs))
         if not rendered:
             return ''
-        return (r'{\%s \pard\plain %s\f0\fs22 %s\par}'
-                % (name, align_ctl, r'\line '.join(rendered)))
+        # ONE PARAGRAPH while every rendered line agrees on its alignment
+        # -- which is every head and foot in the corpus but one, so this
+        # is byte-identical to the single-paragraph group RTF has always
+        # written. Planning #264 item 4 (row A4) applied the FIRST line's
+        # alignment to the whole group on the stated grounds that "no
+        # corpus document declares two head lines with different
+        # alignments"; `sawyer/REF/BOOKLET.WS` does (a right-aligned
+        # "Header Odd" over a left-aligned "Header Even"), and the group
+        # right-aligned both. `\line` is a break INSIDE a paragraph and
+        # cannot carry a second alignment, so the lines that disagree get
+        # a paragraph each -- the only form RTF has for this -- and the
+        # reader lays them out exactly as Modern PDF now draws them
+        # (2026-08-05: Modern PDF is the printed form of the Modern RTF).
+        if len(set(line_aligns)) <= 1:
+            return (r'{\%s \pard\plain %s\f0\fs22 %s\par}'
+                    % (name, line_aligns[0], r'\line '.join(rendered)))
+        return (r'{\%s %s}'
+                % (name, ''.join(r'\pard\plain %s\f0\fs22 %s\par'
+                                % (a, r) for a, r in zip(line_aligns,
+                                                         rendered))))
 
     def sided(which, name, slots):
         """One head/foot family, as `\\headerl`/`\\headerr` when the

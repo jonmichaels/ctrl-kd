@@ -10404,6 +10404,38 @@ def _modern_note_lines(label, text, width, kind='footnote'):
     return _modern_wrap(_modern_note_toks(label, text, kind), width)
 
 
+def _modern_hf_align(doc, which, lno):
+    r"""One running head/foot line's own alignment, for Modern.
+
+    M5 ruled that Modern keeps the running heads; nothing ever ruled that
+    it flattens them. Every head and foot line was drawn left at Modern's
+    own left margin whatever its own `.h#`/`.f#` style declared, so
+    `sawyer/REF/BOOKLET.WS`'s right-aligned "Header Odd" sat on top of its
+    left-aligned "Header Even" at the same x -- and its own Modern RTF,
+    which has carried `\qr` since planning #264 item 4 (row A4), said
+    otherwise. Modern PDF is ruled to be that RTF's printed form
+    (2026-08-05), so the two have to agree.
+
+    WHAT IT ALIGNS AGAINST IS MODERN'S, not WordStar's. M16's rule -- an
+    aligned head aligns to `.po` plus ITS OWN STYLE's right margin -- is a
+    PRINTED-fidelity rule about a WordStar page this view does not draw:
+    Modern has no `.po` and no style margin, it has its own measure. So
+    the DECISION ("this line is right-aligned") is the document's, read
+    from the same `header_align`/`footer_align` the Printed path and the
+    RTF both read, and the GEOMETRY is Modern's -- `margl` to
+    `margl + width`, exactly as a body line's own alignment resolves.
+
+    PARITY IS NOT READ HERE, and is not this rule's gap: Modern's flow
+    carries no parity at all (`layout.modern_flow`'s own `hf` items are
+    keyed by line number, never by side), so a `.h1o`/`.h1e` document
+    already shows one flat head on both sides in Modern. Reading the flat
+    `header_align` alongside the flat head TEXT keeps the two consistent;
+    reading the parity table here would align a line the other side's
+    text. Pre-existing, named, untouched."""
+    align = (doc.header_align if which == 'H' else doc.footer_align).get(lno)
+    return align if align in ('center', 'right') else 'left'
+
+
 def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt,
                    align='left'):
     """One modern running-head/foot line: Times MODERN_NOTE_PT in the margin
@@ -10419,13 +10451,18 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt,
     the graphic-cell cases neither header nor footer text has ever been
     observed to carry -- see that parameter's own docstring.
 
-    `align` (M15, 2026-09-15): 'left' for every running head and foot,
-    which keeps its own baked spaces because that is how a 1990 head
-    positioned its parts -- byte-identical to before this parameter
-    existed. WordStar's own AUTOMATIC page number is the one caller that
-    passes 'center': it has no typed spaces to honour, and Modern's own
-    reading of "bottom centre" is a real centring in Modern's measure,
-    not Printed's `.pc` column."""
+    `align`: the line's own declared alignment, resolved by
+    `_modern_hf_align` -- 'left' unless the document's own `.h#`/`.f#`
+    style says centre or right, in which case the line is centred or
+    right-aligned in MODERN's measure (`left` to `left + width`), never
+    against a `.po` or a style margin Modern does not have. A head keeps
+    its own baked spaces either way, because that is how a 1990 head
+    positioned its parts; a left-aligned line is therefore byte-identical
+    to every version of this function before alignment was read at all.
+    WordStar's own AUTOMATIC page number passes 'center' directly (M15):
+    it has no typed spaces to honour, and Modern's own reading of "bottom
+    centre" is a real centring in Modern's measure, not Printed's `.pc`
+    column."""
     toks = []
     for run_text, styles in _hf_runs(txt):
         run_text = run_text.replace('#', str(page_no))
@@ -11013,13 +11050,15 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                 continue
             hy = sheet_h - 44.0 - (lno - 1) * note_lead
             ops += _modern_hf_ops(_euro_texts([hdrs[lno]], euro)[0], page_no,
-                                  margl, hy, width, res, tz_state, printed_pt)
+                                  margl, hy, width, res, tz_state, printed_pt,
+                                  align=_modern_hf_align(doc, 'H', lno))
         for lno in sorted(ftrs):
             if not ftrs[lno]:
                 continue
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
             ops += _modern_hf_ops(_euro_texts([ftrs[lno]], euro)[0], page_no,
-                                  margl, fy, width, res, tz_state, printed_pt)
+                                  margl, fy, width, res, tz_state, printed_pt,
+                                  align=_modern_hf_align(doc, 'F', lno))
         # M15 (Jon's ruling 2026-09-15): WordStar's own AUTOMATIC page
         # number -- the one `.pc` positions, never a `#` an author typed
         # into a real `.he`/`.fo`, which `_modern_hf_ops` has always

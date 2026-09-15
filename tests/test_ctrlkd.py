@@ -7644,6 +7644,106 @@ def test_head_foot_style_select_shifts_the_printed_x_right():
     assert hl[0]['x'] > left + 50
 
 
+def _hf_two_line_style_doc(just=-3):
+    """`sawyer/REF/BOOKLET.WS`'s own shape: a `.h1` whose 0x11 style-select
+    asks for one alignment over a plain `.h2` that asks for none."""
+    rec = bytearray(_style_record(just=just % 256))
+    lib = _style_library([('WordStar Defaults', False, None),
+                          ('WordStar Defaults', False, None),
+                          ('Header Style', True, bytes(rec))])
+    style = _style_handle(2)
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            b'.h1 ' + style + b'ODD #' + HARD +
+            b'.h2 EVEN #' + HARD +
+            b'Body text follows.' + HARD)
+    base = ((len(body) + 127) // 128) * 128
+    data = bytearray(body.ljust(base, b'\x1a')) + lib
+    data[4 + 12:4 + 16] = base.to_bytes(4, 'little')
+    return bytes(data)
+
+
+def _modern_head_xs(doc):
+    """Every drawn (x, text) on Modern's own two header rows, page 1."""
+    import re as _re2
+    from ctrlkd import pdf as _pdf
+    out = _pdf.emit_pdf(doc, mode='modern')
+    stream = out.split(b'>>\nstream\n')[1].split(b'\nendstream')[0]
+    pat = _re2.compile(rb'BT /\S+ [\d.]+ Tf [-\d.]+ Ts '
+                       rb'([\d.]+) ([\d.-]+) Td \((.*?)\) Tj ET')
+    rows = {}
+    for x, y, t in pat.findall(stream):
+        rows.setdefault(round(float(y), 1), []).append(
+            (float(x), t.decode('latin-1')))
+    return [rows[k] for k in sorted(rows, reverse=True)]
+
+
+def test_modern_draws_a_right_aligned_head_at_its_own_right_margin():
+    r"""A running head whose own style asks for flush-right was drawn at
+    Modern's LEFT margin like every other head -- M5 kept the heads and
+    nothing ever said to flatten them, and the document's own Modern RTF
+    has carried `\qr` since planning #264 item 4. Modern PDF is that RTF's
+    printed form (2026-08-05), so the two have to agree. The measure is
+    MODERN's, not WordStar's: `margl` to `margl + width`."""
+    from ctrlkd import pdf as _pdf
+    doc = core.parse_ws(_hf_style_doc(just=-3, tag=b'.h1'))
+    assert doc.header_align == {1: 'right'}
+    margl, _mt, _mb, width = _pdf._modern_geometry(doc)
+    row = _modern_head_xs(doc)[0]
+    assert row, row
+    last_x = max(x for x, _t in row)
+    assert last_x > margl + width / 2, (last_x, margl, width)
+    assert min(x for x, _t in row) > margl + 1.0
+
+
+def test_modern_centres_a_centre_aligned_head():
+    from ctrlkd import pdf as _pdf
+    doc = core.parse_ws(_hf_style_doc(just=-2, tag=b'.h1'))
+    assert doc.header_align == {1: 'center'}
+    margl, _mt, _mb, width = _pdf._modern_geometry(doc)
+    row = _modern_head_xs(doc)[0]
+    xs = [x for x, _t in row]
+    assert margl + 1.0 < min(xs) < margl + width / 2, (xs, margl, width)
+
+
+def test_modern_leaves_an_unaligned_head_exactly_where_it_was():
+    """Every head and foot in the corpus but a handful declares no
+    alignment at all, and each of those is drawn at `margl` to the byte,
+    exactly as before alignment was read here."""
+    from ctrlkd import pdf as _pdf
+    doc = core.parse_ws(_hf_style_doc(just=0, tag=b'.h1'))   # 0: left
+    assert doc.header_align == {1: None}
+    margl, _mt, _mb, _w = _pdf._modern_geometry(doc)
+    row = _modern_head_xs(doc)[0]
+    assert min(x for x, _t in row) == pytest.approx(margl, abs=0.01)
+
+
+def test_modern_head_lines_that_disagree_get_a_paragraph_each_in_rtf():
+    r"""RTF's `\line` is a break INSIDE a paragraph and cannot carry a
+    second alignment, so a head whose lines disagree (BOOKLET.WS: a
+    right-aligned "Header Odd" over a left-aligned "Header Even") is
+    written as one paragraph per line. A head whose lines AGREE keeps the
+    single `\line`-joined paragraph RTF has always written."""
+    doc = core.parse_ws(_hf_two_line_style_doc())
+    assert doc.header_align == {1: 'right', 2: None}
+    for mode in ('modern', 'printed'):
+        rtf = emit.emit_rtf(doc, mode=mode)
+        grp = rtf.split(r'{\header', 1)[1]
+        grp = grp[:grp.index(r'\par}') + len(r'\par}')]
+        assert r'\line' not in grp, (mode, grp)
+        assert grp.count(r'\pard\plain') == 2, (mode, grp)
+        first, second = grp.split(r'\par\pard\plain ', 1)
+        assert r'\qr' in first, (mode, grp)
+        assert r'\qr' not in second, (mode, grp)
+    # Two lines that AGREE stay one paragraph, joined by `\line` -- the
+    # group RTF has always written, byte-for-byte.
+    plain = core.parse_ws(_hf_two_line_style_doc(just=0))
+    assert plain.header_align == {1: None, 2: None}
+    rtf = emit.emit_rtf(plain, mode='modern')
+    grp = rtf.split(r'{\header', 1)[1]
+    grp = grp[:grp.index(r'\par}')]
+    assert r'\line' in grp and grp.count(r'\pard\plain') == 1, grp
+
+
 def test_head_foot_no_style_select_is_unchanged():
     """A plain `.h1` with no 0x11 selection at all resolves `header_align`
     to None and renders at the ordinary left margin -- byte-identical to
