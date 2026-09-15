@@ -35,8 +35,8 @@
  },
  "engine_version": "4.7.1",
  "generator": {
-  "date": "2026-09-15T14:49:19-04:00",
-  "git_sha": "0043769ebb0a820c6ac3040e924d36ee67a1e35b",
+  "date": "2026-09-15T15:08:12-04:00",
+  "git_sha": "dd1ba98599e76f2eded5bc1818c8ae52a56ddf8a",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -6600,9 +6600,9 @@
        "sha256": "4479717a7c2ad3febe0443e2ea0120377613b0f99af95ae14d2980ea6b95bc85"
       },
       "pdf.modern": {
-       "bytes": 3491560,
+       "bytes": 3491472,
        "pages": 405,
-       "sha256": "30e1baa77c168b7b1e92ee1c36de7d48053659b05bbb56302e4f1680ed6fd6b1"
+       "sha256": "e14e5dac7f7748fafb32ecfca7da31739a49f4ad1801fb60634e01bf14dcce00"
       },
       "pdf.printed": {
        "bytes": 1350130,
@@ -6714,9 +6714,9 @@
        "sha256": "03a454fc4db34fa4198f78e5760a8b3858f04f2ebd0f5f5bbf55d1672a11981b"
       },
       "pdf.modern": {
-       "bytes": 373701,
+       "bytes": 373657,
        "pages": 36,
-       "sha256": "bc1d96496ad29ac9782ccc400aaa5dc15caf0a052edd227d42fa9e182a8b004f"
+       "sha256": "ef44d621eefc553277e5b0ea9481b15971170683fb25ce9ce88ca715f40ce7a9"
       },
       "pdf.printed": {
        "bytes": 152838,
@@ -6773,7 +6773,7 @@
       "pdf.modern": {
        "bytes": 454316,
        "pages": 60,
-       "sha256": "900e6132cbbdbf4df7151867c4edbfcaaa4f71ee6c7654235e1a70544d135d92"
+       "sha256": "cbb9cad8bd49141018c6f8e66145df0d6b8c3889985973a13f53caf21e381169"
       },
       "pdf.printed": {
        "bytes": 175346,
@@ -6942,9 +6942,9 @@
        "sha256": "886f3110a8d10a655c5997f51c630a8fdf2de2467a57db4158e2000e90cb6b0e"
       },
       "pdf.modern": {
-       "bytes": 238270,
+       "bytes": 238226,
        "pages": 19,
-       "sha256": "30a0a74c7c252c59d796a87fd3134e4ae0bb13f05eb034cd8b16de78cbe01d19"
+       "sha256": "951c042f362f79ceb013e3c15cf057ed895013675331bfaa72724b6bf0c35973"
       },
       "pdf.printed": {
        "bytes": 82080,
@@ -7001,7 +7001,7 @@
       "pdf.modern": {
        "bytes": 472173,
        "pages": 46,
-       "sha256": "4e192f9fb52bfd218e3d860db1b35c5225304fff9ccd385984aae8c600e1232e"
+       "sha256": "35c28b490f2b656d70f2daffaab4a7246dca0187b1ad98baf4325b44ee40a956"
       },
       "pdf.printed": {
        "bytes": 180716,
@@ -7170,9 +7170,9 @@
        "sha256": "fb63c7c1f34466811ba6519ec70fdc3001e565bf18345e2cba003c48dc13fa62"
       },
       "pdf.modern": {
-       "bytes": 66481,
+       "bytes": 66437,
        "pages": 12,
-       "sha256": "c1f67fa198b0e73c6b27e0a42b3b795410dc8eaaf0abae594706c736ad46c824"
+       "sha256": "6bc35f4d821e848aead9b377a54695c52fa87c7854e5c2d27984eebf805f141d"
       },
       "pdf.printed": {
        "bytes": 37560,

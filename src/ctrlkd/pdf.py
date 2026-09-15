@@ -10738,6 +10738,41 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     def note_block_h():
         return (sep_h + note_lead * len(notes_lines)) if notes_lines else 0.0
 
+    # Q9 TIMING FOR THE FOOTER (2026-09-15). A HEADER is emitted at the TOP
+    # of a page, so a `.he`/`.h#` read after the page's first line cannot
+    # reach it -- that is `open_page`'s snapshot below, and it is right. A
+    # FOOTER is emitted at the BOTTOM, so a `.fo`/`.f#` read ANYWHERE
+    # before the page ends still governs that page; Printed has read it
+    # that way since the 8MAC measurement (`_doc_to_pagelines`' own `if
+    # kind == 'F' and not _page_already_full(_li)`), and Modern took the
+    # header's rule for both, which put every mid-page footer change one
+    # page late in Modern alone.
+    #
+    # `_page_already_full` IS THE HALF THAT MATTERS, and it is why this is
+    # a PENDING state rather than a snapshot taken at the event: a footer
+    # read when the page can take no more content belongs to the NEXT
+    # page, not this one. Printed answers that by peeking at the next line;
+    # Modern cannot peek (its own line heights are resolved during
+    # placement, not before it), so it answers the same question by
+    # WAITING -- the footer state a `.fo` declares is handed to whichever
+    # page actually takes the next piece of content. If that content fits,
+    # the page was not full and the footer is its own; if it does not,
+    # `close()` has already fired and the footer lands on the page that
+    # does take it. Same rule, same answers, decided one step later.
+    #
+    # A `.fo` with no content after it at all is Printed's own `peek is
+    # None` case -- not full, so it governs the page it sits on, which is
+    # what the end-of-document `close()` below does with it.
+    #
+    # ONE LIMIT WORTH NAMING, pre-existing and untouched: Modern's flow is
+    # BLOCK-granular (`layout.modern_flow` walks `enumerate(doc.blocks)`
+    # and hangs each `hf` event on its anchor block), so a `.fo` typed
+    # between two physical lines of ONE paragraph has no block to hang on
+    # and never reaches this loop at all. Q9 in Modern is therefore only
+    # as fine-grained as a block boundary. Every corpus document this rule
+    # moves anchors its `.fo` at one.
+    pending_f = None
+
     def open_page():
         # the page's running heads are the state in force when it takes its
         # first content -- OLDTIMES defines .h1 after page 1's title, and a
@@ -10747,7 +10782,15 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             page_h, page_f = dict(cur_h), dict(cur_f)
             opened = True
 
-    def close(hard=False):
+    def take_pending_foot():
+        """Hand the page now taking content the footer state a `.fo` read
+        earlier on it declared -- see the Q9 note above."""
+        nonlocal page_f, pending_f
+        if pending_f is not None:
+            page_f = pending_f
+            pending_f = None
+
+    def close(hard=False, overflow=False):
         """End the current COLUMN. On the last column of a `.co n` sheet --
         and on every page of an ordinary one-column document, where n is 1
         and this is the only branch that ever runs -- that ends the
@@ -10761,22 +10804,21 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         (planning #227 §5, measured on WINGDING.CHT's own short last
         column), and neither does this."""
         nonlocal body, notes_lines, y, opened, col_i, col_body, page_end_bi
+        # Q9: a footer read while this page could still have taken content
+        # governs THIS page. `overflow=True` is Printed's own "already
+        # full" case -- the page ended because the next piece of content
+        # did not fit -- and leaves the pending footer for the page that
+        # does take it. Every other close (an explicit `.pa`, a `.cp` that
+        # breaks, a column-regime change, the end of the document) ends a
+        # page that was still open, so the footer is its own.
+        if not overflow:
+            take_pending_foot()
         open_page()
         col_body = False
         y = sheet_h - margt
         if not hard and cur_cols > 1 and col_i + 1 < cur_cols:
             col_i += 1
             return                       # same sheet, next column
-        # NOTE, reported not changed here: `page_f` above -- what Modern
-        # DRAWS -- takes the page-OPEN snapshot, i.e. the HEADER rule
-        # ("a `.he`/`.h#` read after the page's first line cannot reach
-        # it") applied to footers as well. Printed reads a footer read
-        # ANYWHERE before the page ends onto that page. So Modern's footer
-        # TEXT lands one page late whenever a `.fo` sits mid-page. That is
-        # a real, pre-existing Modern defect, separate from this ruling --
-        # M15 reads the footer's own anchor directly (`foot_anchors`
-        # below) so the page NUMBER is right regardless, and fixing the
-        # drawing moves footer text on documents this item is not about.
         pages.append((body, list(notes_lines), page_h, page_f, page_end_bi))
         body, notes_lines[:] = [], []
         col_i = 0
@@ -10809,6 +10851,8 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         if item[0] == 'hf':
             _, kind, lno, txt = item
             (cur_h if kind == 'H' else cur_f)[lno] = txt
+            if kind == 'F':
+                pending_f = dict(cur_f)      # Q9, see `take_pending_foot`
             continue
         if item[0] == 'break':
             # A bare `.pa` INSIDE a live `.co n>1` region is absorbed, not
@@ -10831,7 +10875,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                 continue                      # no blank at a column top
             h = last_h
             if y - h < margb + note_block_h():
-                close()
+                close(overflow=True)
                 continue
             y -= h
             continue
@@ -10856,8 +10900,9 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             # 14pt default if no text has been placed yet.
             _, pix_idx, w_pt, h_pt = item
             if col_body and y - h_pt < margb + note_block_h():
-                close()
+                close(overflow=True)
             open_page()
+            take_pending_foot()
             page_end_bi = max(page_end_bi, last_bi)
             y -= h_pt
             col_off = col_i * (col_w + col_gap)
@@ -10958,8 +11003,9 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                      + note_lead * len(new_note_lines)) if (vi == 0 and
                                                             new_note_lines) else 0.0
             if col_body and y - h < margb + note_block_h() + extra:
-                close()
+                close(overflow=True)
             open_page()
+            take_pending_foot()
             page_end_bi = max(page_end_bi, last_bi)
             y -= h
             # `last_h` is a LEADING memory (what the next blank item should

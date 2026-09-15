@@ -50,6 +50,10 @@ https://github.com/jonmichaels/ctrl-kd/releases
   Modern's own text measure. A head whose lines ask for DIFFERENT
   alignments is also written correctly to RTF now (one paragraph per
   line, since RTF cannot align twice inside one).
+- A footer command typed part-way down a page put its text on the NEXT
+  page in Modern view and Modern PDF. WordStar prints a footer at the
+  bottom of the page, so it is never too late for one; Printed has read it
+  that way for a while and Modern now does too.
 
 ## [4.7.1] — 2026-09-15
 

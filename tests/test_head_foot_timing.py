@@ -141,3 +141,94 @@ def test_a_foot_read_before_a_page_is_full_still_governs_it():
             + b'.fo' + HARD
             + b''.join(b'M%d' % i + HARD for i in range(1, 5)))
     assert _page_feet(_doc(body))[0] is None
+
+
+# ---------------------------- the same Q9 rule in MODERN (2026-09-15)
+#
+# Modern snapshotted BOTH head and foot at the moment a page took its first
+# content -- the HEADER rule, applied to footers as well -- so a `.fo` read
+# part-way down a page put its text on the NEXT one. Printed has read Q9
+# correctly since the 8MAC measurement above; these are the twins of the two
+# tests either side of this comment, on Modern's own pages.
+
+def _modern_feet(doc):
+    """The text drawn on each Modern page's own footer row (y 44.0)."""
+    import re as _re
+    out = []
+    pdfbytes = pdf.emit_pdf(doc, mode='modern')
+    pat = _re.compile(rb'Ts ([\d.]+) (44\.0) Td \((.*?)\) Tj')
+    for chunk in pdfbytes.split(b'>>\nstream\n')[1:]:
+        stream = chunk.split(b'\nendstream')[0]
+        out.append(''.join(t.decode('latin-1')
+                           for _x, _y, t in pat.findall(stream)).strip() or None)
+    return out
+
+
+# BLANK-SEPARATED PARAGRAPHS ON PURPOSE. Modern's flow is BLOCK-granular
+# (`layout.modern_flow` walks `enumerate(doc.blocks)` and hangs each `hf`
+# event on its anchor block), so a `.fo` typed between two physical lines
+# of ONE paragraph has no block of its own to hang on and never reaches
+# the Modern flow at all. That is a separate, pre-existing limit of the
+# flow's own contract -- named here so these fixtures' shape is not
+# mistaken for an accident -- and it is why every corpus document this
+# rule moves (the HOLYMAC family) anchors its `.fo` at a block boundary.
+_MODERN_FILLER = b''.join(b'The quick brown fox jumps over the lazy dog, and '
+                          b'keeps running until this line has to wrap.'
+                          + HARD + HARD for _ in range(40))
+
+
+def test_modern_reads_a_mid_page_foot_onto_that_page():
+    """A `.fo` read after the page has already taken content governs THAT
+    page in Modern too -- a footer is drawn at the bottom, after everything
+    else, and Modern's pages are no different from Printed's in that."""
+    body = (b'.fo FIRST' + HARD
+            + b'Opening line.' + HARD + HARD
+            + b'.fo SECOND' + HARD
+            + _MODERN_FILLER)
+    feet = _modern_feet(_doc(body))
+    assert len(feet) > 1, feet
+    assert feet[0] == 'SECOND', feet
+
+
+def test_modern_reads_a_foot_after_a_full_page_onto_the_next_one():
+    """The other half of Q9, and the reason this is a PENDING state rather
+    than a snapshot taken at the command: a footer read when the page can
+    take no more content belongs to the next page. Printed peeks at the
+    next line to decide (`_page_already_full`); Modern waits and lets the
+    page that actually takes the next piece of content claim it."""
+    body = (b'.fo FIRST' + HARD + _MODERN_FILLER
+            + b'.fo SECOND' + HARD + _MODERN_FILLER)
+    feet = _modern_feet(_doc(body))
+    assert feet[0] == 'FIRST', feet
+    assert feet[-1] == 'SECOND', feet
+
+
+def test_modern_reads_a_foot_typed_just_before_a_page_break_onto_that_page():
+    """An explicit `.pa` is not "the page was full": the `.fo` in front of
+    it is read while the page is still open, so it governs THAT page.
+    Printed says the same -- its own `_page_already_full` peeks at the next
+    LINE, and a page break is not one -- and this is why only the OVERFLOW
+    close leaves the pending footer behind."""
+    body = (b'.fo FIRST' + HARD + b'Opening line.' + HARD + HARD
+            + b'.fo SECOND' + HARD + b'.pa' + HARD
+            + b'Second page.' + HARD)
+    feet = _modern_feet(_doc(body))
+    assert feet[0] == 'SECOND', feet
+
+
+def test_modern_still_reads_a_head_only_at_the_top():
+    """The header half is UNCHANGED: a `.he` read after the page's first
+    line cannot reach it, in Modern exactly as in Printed."""
+    import re as _re
+    body = (b'.he FIRST' + HARD + b'Opening line.' + HARD + HARD
+            + b'.he SECOND' + HARD + _MODERN_FILLER)
+    pdfbytes = pdf.emit_pdf(_doc(body), mode='modern')
+    pat = _re.compile(rb'Ts ([\d.]+) ([\d.]+) Td \((.*?)\) Tj')
+    heads = []
+    for chunk in pdfbytes.split(b'>>\nstream\n')[1:]:
+        stream = chunk.split(b'\nendstream')[0]
+        top = [t.decode('latin-1') for _x, y, t in pat.findall(stream)
+               if abs(float(y) - 748.0) < 0.05]
+        heads.append(''.join(top).strip() or None)
+    assert heads[0] == 'FIRST', heads
+    assert heads[1] == 'SECOND', heads
