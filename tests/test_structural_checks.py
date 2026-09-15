@@ -293,8 +293,7 @@ def test_synthetic_rtf_is_structurally_sound(mode):
     rtf = emit.emit_rtf(doc, mode=mode)
     assert rtf_brace_depth_errors(rtf) == []
     assert rtf_unknown_control_words(rtf) == []
-    assert rtf_section_count(rtf) == len(emit._rtf_section_breaks(
-        doc, mode == 'printed' or emit._printed(doc)))
+    assert rtf_section_count(rtf) == len(emit._rtf_section_breaks(doc))
 
 
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
@@ -338,8 +337,7 @@ def test_curated_rtf_is_structurally_sound(require_sawyer_doc, name, mode):
     rtf = emit.emit_rtf(doc, mode=mode)
     assert rtf_brace_depth_errors(rtf) == [], name
     assert rtf_unknown_control_words(rtf) == [], name
-    assert rtf_section_count(rtf) == len(emit._rtf_section_breaks(
-        doc, mode == 'printed' or emit._printed(doc))), name
+    assert rtf_section_count(rtf) == len(emit._rtf_section_breaks(doc)), name
 
 
 @pytest.mark.sawyer

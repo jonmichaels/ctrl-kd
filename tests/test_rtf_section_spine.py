@@ -17,14 +17,14 @@ inside every section exactly as it did before.
       section 1 already carried, with `\titlepg` when it starts after
       page 1.
 
-PRINTED ONLY for columns, and the reason is a standing ruling rather than
-a limitation: Modern PDF has no column model at all, and 2026-08-05 ruled
-"Modern PDF needs to be the printed version of the Modern RTF" -- a
-columnar Modern RTF would be a Modern RTF its own PDF could not render.
-Modern's own flow drops `.cb` outright (`layout.semantic_flow` makes a
-break item for `pagebreak` alone), so `\column` is Printed-only for the
-same reason. A13 reaches BOTH modes: Modern keeps running heads (ruling
-M5, 2026-08-06).
+BOTH MODES since M17b (2026-09-15). R1 built the column half Printed-only
+on a standing ruling rather than a limitation: Modern PDF had no column
+model at all, and 2026-08-05 ruled "Modern PDF needs to be the printed
+version of the Modern RTF" -- a columnar Modern RTF would have been a
+Modern RTF its own PDF could not render. M17 gave Modern PDF a column
+model, so the same ruling read the same way now says the opposite, and
+`\cols`/`\colsx`/`\column` reach Modern too. A13 always reached both
+modes: Modern keeps running heads (ruling M5, 2026-08-06).
 
 Synthetic fixtures only.
 """
@@ -102,13 +102,18 @@ def test_turning_columns_off_and_on_again_with_a_new_gutter_is_two_sections():
         r'\sect\sectd\cols2\colsx720', r'\sect\sectd']
 
 
-def test_modern_rtf_stays_one_column():
-    """Not an omission: Modern PDF has no column model, and Modern PDF is
-    ruled to be the printed form of the Modern RTF."""
+def test_modern_rtf_carries_the_column_regime_too():
+    """SUPERSEDED AND RE-PINNED, M17b (2026-09-15). This test was
+    `test_modern_rtf_stays_one_column` and read "Not an omission: Modern
+    PDF has no column model, and Modern PDF is ruled to be the printed
+    form of the Modern RTF." The first half stopped being true when M17
+    gave Modern PDF a column model, and the second half then says the
+    opposite of what it used to: a ONE-column Modern RTF is the one its
+    own PDF cannot print. Renamed rather than silently changed, the same
+    treatment planning #256 gave `test_style_leading.py`'s pair."""
     doc = _ws7(b'One.' + HARD + b'.co 3, 5' + HARD + b'Two.' + HARD)
     rtf = emit.emit_rtf(doc, mode='modern')
-    assert r'\cols' not in rtf
-    assert _sections(rtf) == []
+    assert _section_cols(rtf) == [r'\sect\sectd\cols3\colsx720']
 
 
 def test_a_document_with_no_co_at_all_opens_no_section():
@@ -135,9 +140,14 @@ def test_cb_outside_a_columnar_region_writes_nothing():
     assert r'\column' not in emit.emit_rtf(doc, mode='printed')
 
 
-def test_cb_writes_nothing_in_modern():
+def test_cb_is_a_column_break_in_modern_too():
+    """SUPERSEDED AND RE-PINNED, M17b (2026-09-15): was
+    `test_cb_writes_nothing_in_modern`. Modern PDF's own column cursor
+    takes `.cb` to the next column since M17, so its RTF says so."""
     doc = _ws7(b'.co 2, 5' + HARD + b'One.' + HARD + b'.cb' + HARD + b'Two.' + HARD)
-    assert r'\column' not in emit.emit_rtf(doc, mode='modern')
+    rtf = emit.emit_rtf(doc, mode='modern')
+    assert r'\column ' in rtf
+    assert rtf.index('One.') < rtf.index(r'\column ') < rtf.index('Two.')
 
 
 def test_a_pa_inside_a_columnar_region_is_absorbed():

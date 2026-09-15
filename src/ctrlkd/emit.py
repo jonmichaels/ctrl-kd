@@ -3073,7 +3073,7 @@ def _rtf_keep_plan(doc):
     return plan
 
 
-def _rtf_section_breaks(doc, printed):
+def _rtf_section_breaks(doc):
     r"""`{block_index: (cols, gutter, hdr_slots, ftr_slots)}` -- THE SECTION
     SPINE (planning #264 R1, ruled 2026-09-14; packet section 3's
     recommendation and rows A7/A9/A13).
@@ -3087,13 +3087,16 @@ def _rtf_section_breaks(doc, printed):
 
     TWO things open one:
 
-      A7  a change of newspaper-column regime (`.co n, gutter`). PRINTED
-          ONLY. Modern PDF has no column model at all, and the 2026-08-05
-          ruling is that "Modern PDF needs to be the printed version of
-          the Modern RTF" -- so a columnar Modern RTF would be a Modern
-          RTF its own PDF could not render. Modern stays one column by
-          design. (Modern HTML's `column-count` is a separate, older
-          surface and is untouched.)
+      A7  a change of newspaper-column regime (`.co n, gutter`). BOTH
+          MODES since M17b (2026-09-15). R1 made this Printed-only on the
+          stated grounds that "Modern PDF has no column model at all, and
+          the 2026-08-05 ruling is that Modern PDF needs to be the printed
+          version of the Modern RTF -- so a columnar Modern RTF would be a
+          Modern RTF its own PDF could not render". Modern PDF has a
+          column model now (M17, `pdf._modern_column_width`), so the same
+          ruling read the same way now says the opposite: a ONE-column
+          Modern RTF is the one its own PDF cannot render. (Modern HTML's
+          `column-count` is a separate, older surface and is untouched.)
       A13 a running head or foot REDEFINED mid-document -- a second
           definition of the same slot with different text. The new section
           carries its own `\header`/`\footer` groups.
@@ -3105,18 +3108,17 @@ def _rtf_section_breaks(doc, printed):
     re-anchor (`\pgnrestart\pgnstarts`), and a mid-document `.po`/margin
     change. R1 names A7, A9 and A13; those are the three built."""
     anchors = set(_rtf_hf_redefinitions(doc))
-    state = _rtf_columns_state(doc) if printed else None
-    if printed:
-        for bi, b in enumerate(doc.blocks):
-            # Only a REAL block opens a column regime: a sentinel inherits
-            # the state around it and must not read as a change.
-            if b.columns is None or bi == 0:
-                continue
-            if state[bi] != state[bi - 1]:
-                anchors.add(bi)
+    state = _rtf_columns_state(doc)
+    for bi, b in enumerate(doc.blocks):
+        # Only a REAL block opens a column regime: a sentinel inherits
+        # the state around it and must not read as a change.
+        if b.columns is None or bi == 0:
+            continue
+        if state[bi] != state[bi - 1]:
+            anchors.add(bi)
     out = {}
     for bi in sorted(a for a in anchors if 0 < a < len(doc.blocks)):
-        cols, gutter = state[bi] if printed else (1, None)
+        cols, gutter = state[bi]
         out[bi] = (cols, gutter,
                    _rtf_hf_slots_at(doc, 'H', bi),
                    _rtf_hf_slots_at(doc, 'F', bi))
@@ -3950,8 +3952,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # `_rtf_section_breaks` for what opens a section and what deliberately
     # does not. A document whose geometry never changes gets an empty dict
     # here and emits exactly the bytes it always did.
-    section_breaks = _rtf_section_breaks(doc, printed)
-    columns_state = _rtf_columns_state(doc) if printed else None
+    section_breaks = _rtf_section_breaks(doc)
+    columns_state = _rtf_columns_state(doc)
     # planning #264 R2 (packet row A8): `.cp n`/`.cc n` -> `\keep`/`\keepn`
     # on the paragraphs they asked to hold together. See `_rtf_keep_plan`.
     keep_plan = _rtf_keep_plan(doc)
@@ -3983,14 +3985,12 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             quote_fi_cols = None
         if b.kind == 'colbreak':
             # planning #264 R1 (packet row A9): `.cb` breaks to the next
-            # column -- the reader's own `\column`. PRINTED ONLY, and
-            # inside a columnar region only: Modern has no columns
-            # (`_rtf_section_breaks`) and Modern's own flow drops `.cb`
-            # entirely (`layout.semantic_flow` makes a break item for
-            # `pagebreak` alone), so a `\column` there would be a page
-            # break Modern PDF does not take. Outside a region the control
-            # would mean the same thing to a reader, which is not what
-            # WordStar did with it either -- nothing is written.
+            # column -- the reader's own `\column`. Inside a columnar
+            # region only; outside one the control would mean a break a
+            # reader could still take, which is not what WordStar did with
+            # it either, so nothing is written. BOTH MODES since M17b:
+            # Modern PDF's own column cursor takes `.cb` to the next
+            # column (`pdf._modern_streams`), so its RTF says the same.
             quote_open = False
             quote_fi_cols = None
             if columns_state is not None and columns_state[bi][0] > 1:
@@ -4007,9 +4007,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # WINGDING.CHT's own WS7 capture (its author's `.pa` markers are
             # a manual column-simulation convention that predates the real
             # `.co5` governing the same content; honouring them fragments
-            # one real column into two short pages). RTF had no columns to
-            # fragment before this commit, which is why it could keep the
-            # break; now it has, so it reads the same fact the same way.
+            # one real column into two short pages). Modern PDF absorbs it
+            # on the same evidence since M17, so Modern RTF does too.
             if columns_state is not None and columns_state[bi][0] > 1:
                 continue
             parts.append(r'\page ')
@@ -4283,10 +4282,15 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # derived margins are left exactly as declared (still top/bottom/left
     # relative to the text, same as WordStar's own driver-level rotation
     # never re-interpreted them either) -- only the CANVAS they sit against
-    # changes shape. Printed only: Modern's page is its own fixed Letter
-    # regardless of the document's declared orientation (same doctrine as
-    # every other Printed-only geometry item).
-    landscape = printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape'
+    # changes shape. BOTH MODES since M17b (2026-09-15): this used to be
+    # Printed-only, on the reading that "Modern's page is its own fixed
+    # Letter". M17 retired that reading for Modern PDF -- a landscape
+    # document's Modern MediaBox is 792x612 now -- and Modern PDF is the
+    # printed form of THIS file (ruled 2026-08-05), so a square 8.5x8.5
+    # Modern RTF would be an RTF its own PDF does not print. It is also
+    # the paged-surface doctrine's point 2 read literally: "honor `.pr
+    # or=l` in ALL paged surfaces", and Modern RTF is one.
+    landscape = doc.meta.get('formatting', {}).get('orientation') == 'landscape'
     if landscape:
         # planning #256 (sawyer/REF/-HOW-TO.RJS + the HP-ENV.LST/HP-ENVMM.LST
         # mailing-label pair): a plain swap of `page['height_in']`/`pw_in`
@@ -4324,8 +4328,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                  if page.get('mb_source', 'default') != 'default' else 1440)
         margl = (int(round(float(page.get('po_cols', 10.0)) * 144))
                  if page.get('po_source', 'default') != 'default' else 1440)
+        # A LANDSCAPE sheet is a declared sheet whatever `.pl` says, so it
+        # is never the 11in default: `page` above is already the swapped,
+        # orientation-aware pair (a `.pl 8.5"` resolves to 8.5 tall x 11
+        # wide, not to the un-landscape-aware 8.5x8.5 SQUARE the portrait
+        # resolution gives). Modern PDF composes on exactly that height
+        # (`pdf._modern_sheet_h`), which is what makes the two agree.
         paperh = (int(round(float(page.get('height_in', 11.0)) * 1440))
-                  if page.get('size_source', 'default') != 'default'
+                  if landscape or page.get('size_source', 'default') != 'default'
                   else 15840)
     # width joined the page model 2026-08-06: A4-tall documents get the
     # 210mm sheet; everything else (and every default) stays 12240 twips
@@ -4390,11 +4400,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # regime. `\cols` is a section property and the page setup is section
     # 1's; a document that opens outside a columnar region (all but a
     # handful) resolves to one column and writes nothing, so its bytes do
-    # not move. Printed only -- see `_rtf_section_breaks` for why Modern
-    # stays single-column.
-    if printed:
-        pagesetup += _rtf_cols_control(*(_rtf_columns_state(doc)[0]
-                                         if doc.blocks else (1, None)))
+    # not move. BOTH MODES since M17b -- see `_rtf_section_breaks`.
+    pagesetup += _rtf_cols_control(*(_rtf_columns_state(doc)[0]
+                                     if doc.blocks else (1, None)))
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
     # gated by `--toc` (default off, the ruled default).
     toc_index = _rtf_toc_index(doc, printed) if toc else ''

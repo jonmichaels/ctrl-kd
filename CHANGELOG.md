@@ -3,6 +3,17 @@
 Releases before 4.7.0 are described in their own GitHub release notes:
 https://github.com/jonmichaels/ctrl-kd/releases
 
+## [Unreleased]
+
+### Fixed
+
+- A landscape, two-column document's Modern RTF came out as a square page
+  with no columns — a page the document never describes, and one its own
+  Modern PDF (which keeps the sheet and the columns) does not print. The
+  Modern RTF now carries the real sheet, the landscape flag, the column
+  count and the gutter, and breaks to the next column where the document
+  says to.
+
 ## [4.7.1] — 2026-09-15
 
 ### Fixed

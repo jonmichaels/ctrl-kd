@@ -273,3 +273,90 @@ def test_modern_column_width_is_the_gutter_default_of_one_print_column():
     w, gap = pdf._modern_column_width(500.0, 2, None)
     assert round(gap, 2) == 7.2
     assert round(w, 2) == round((500.0 - 7.2) / 2, 2)
+
+
+# --------------------------------------------- M17b: the Modern RTF says so too
+# The 2026-08-05 ruling runs in both directions: Modern PDF is the printed
+# form of the Modern RTF, so the RTF has to SAY the sheet and the column grid
+# its PDF draws. Before M17b a landscape two-column document's Modern RTF was
+# a square `\paperw12240\paperh12240` with no `\landscape` and no `\cols` --
+# an RTF its own PDF could not print. Reuses planning #264 R1's section spine
+# (`emit._rtf_columns_state`, `_rtf_cols_control`, `_rtf_section_breaks`),
+# which is also what keeps the two engines' readings of "which column regime
+# is this block in" from ever drifting apart.
+
+def _modern_rtf(doc):
+    from ctrlkd import emit
+    return emit.emit_rtf(doc, mode='modern')
+
+
+def test_the_modern_rtf_carries_the_landscape_sheet():
+    doc = _ws7(b'Body text.' + HARD,
+               dots=b'.pr or=l' + HARD + b'.pl 8.50"' + HARD)
+    rtf = _modern_rtf(doc)
+    assert r'\paperw15840' in rtf and r'\paperh12240' in rtf
+    assert r'\landscape' in rtf
+
+
+def test_the_modern_rtf_sheet_is_its_own_pdf_mediabox():
+    """The 08-05 tie, asserted directly: what the RTF declares in twips and
+    what its printed form draws in points are the same sheet."""
+    doc = _ws7(_PARA, dots=b'.pr or=l' + HARD + b'.pl 8.50"' + HARD)
+    w, h = _mediabox(pdf.emit_pdf(doc, mode='modern'))
+    rtf = _modern_rtf(doc)
+    assert r'\paperw%d' % (w * 20) in rtf, (w, rtf[:200])
+    assert r'\paperh%d' % (h * 20) in rtf, (h, rtf[:200])
+
+
+def test_a_portrait_modern_rtf_says_nothing_about_orientation():
+    doc = _ws7(b'Body text.' + HARD, dots=b'.pr or=p' + HARD)
+    rtf = _modern_rtf(doc)
+    assert r'\landscape' not in rtf
+    assert r'\paperw12240' in rtf
+
+
+def test_the_modern_rtf_carries_the_column_count_and_gutter():
+    rtf = _modern_rtf(_columnar(cols=2, gutter=b' 10'))
+    assert r'\cols2' in rtf
+    assert r'\colsx1440' in rtf          # 10 print columns x 144 twips
+
+
+def test_the_modern_rtf_gutter_is_the_pdf_gutter():
+    doc = _columnar(cols=2, gutter=b' 10')
+    _margl, _mt, _mb, width = pdf._modern_geometry(doc)
+    _col_w, gap_pt = pdf._modern_column_width(width, 2, 10.0)
+    m = re.search(r'\\colsx(\d+)', _modern_rtf(doc))
+    assert m and int(m.group(1)) == round(gap_pt * 20), (m, gap_pt)
+
+
+def test_a_one_column_modern_rtf_writes_no_cols():
+    assert r'\cols' not in _modern_rtf(_ws7(_PARA))
+
+
+def test_a_mid_document_co_opens_a_modern_section():
+    doc = _ws7(b'Opening.' + HARD + b'.co 2, 10' + HARD + _PARA)
+    rtf = _modern_rtf(doc)
+    assert r'\sect\sectd' in rtf
+    assert r'\cols2' in rtf
+
+
+def test_cb_is_a_column_break_in_the_modern_rtf():
+    doc = _ws7(b'First.' + HARD + b'.cb' + HARD + b'Second.' + HARD,
+               dots=b'.co 2, 10' + HARD)
+    assert r'\column' in _modern_rtf(doc)
+
+
+def test_cb_outside_a_columnar_region_writes_nothing_in_modern_rtf():
+    doc = _ws7(b'First.' + HARD + b'.cb' + HARD + b'Second.' + HARD)
+    assert r'\column' not in _modern_rtf(doc)
+
+
+def test_a_pa_inside_a_columnar_region_is_absorbed_in_the_modern_rtf():
+    """The same reading Modern PDF takes (planning #227, WINGDING.CHT's own
+    WS7 capture): those `.pa` markers are a manual column simulation, and
+    honouring them fragments one real column into two short pages."""
+    doc = _ws7(b'First.' + HARD + b'.pa' + HARD + b'Second.' + HARD,
+               dots=b'.co 2, 10' + HARD)
+    assert r'\page ' not in _modern_rtf(doc)
+    plain = _ws7(b'First.' + HARD + b'.pa' + HARD + b'Second.' + HARD)
+    assert r'\page ' in _modern_rtf(plain)

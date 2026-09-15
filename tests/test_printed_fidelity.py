@@ -317,10 +317,10 @@ def test_pr_landscape_reaches_modern_pdf_too():
     silently changed, the same way `test_style_leading.py`'s pair were
     when planning #256 superseded them.
 
-    Modern RTF is DELIBERATELY not asserted the other way here: it still
-    writes a portrait `\\paperw`/`\\paperh` pair and no `\\landscape`, and
-    that divergence from its own PDF twin is a real gap awaiting its own
-    ruling, not something this test should bless in either direction."""
+    Modern RTF followed in M17b (2026-09-15) -- it used to write a square
+    `\\paperw12240\\paperh12240` pair and no `\\landscape`, an RTF its own
+    PDF could not print -- and is asserted here alongside its twin. The
+    column half lives in tests/test_modern_columns.py."""
     doc = _landscape_doc()
     out_modern = pdf.emit_pdf(doc, mode='modern')
     m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out_modern)
@@ -331,6 +331,12 @@ def test_pr_landscape_reaches_modern_pdf_too():
     # 792pt top edge, which would put every line above the page.
     ys = [float(t) for t in re.findall(rb' [\d.]+ ([\d.]+) Td', out_modern)]
     assert ys and max(ys) < h, ys
+
+    # M17b: and the Modern RTF declares the same sheet its PDF draws.
+    rtf_modern = emit.emit_rtf(doc, mode='modern')
+    assert r'\landscape' in rtf_modern
+    assert r'\paperw%d' % (w * 20) in rtf_modern
+    assert r'\paperh%d' % (h * 20) in rtf_modern
 
 
 # --------------------------------------------------------------- ledger row 1
