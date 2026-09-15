@@ -633,6 +633,17 @@ UNIVERS_DRIFT_RATE_PT_PER_PT = CGTIMES_DRIFT_RATE_PT_PER_PT
 RASTER_X_EPS_PT = LINE_START_EPS_PT
 RASTER_Y_EPS_PT = BASELINE_EPS_PT
 RASTER_SIZE_EPS_PT = 1.0
+# The automatic page number's own COLUMN, checked by `_page_number_
+# divergences` alongside its digits. WordStar computes this position
+# arithmetically -- `(po + pc - 1)` print columns of 7.2pt from the
+# sheet's left edge (`pdf._auto_pageno_x_pt`) -- so a correct answer is
+# EXACT, and the smallest possible real error is a whole print column,
+# 7.2pt. The only residual measured across all 428 numbered capture pages
+# is 0.2pt (2 decipoints) on `sawyer/REF/GALLEYS.DOT`, whose own running
+# head carries the identical 0.2pt: the WS7 driver's decipoint rounding,
+# the same effect `pdf._printed_top`'s docstring already records on the
+# vertical axis. 0.5pt covers that and nothing else.
+PAGE_NUMBER_X_EPS_PT = 0.5
 
 
 def cgtimes_tolerance_pt(dist_into_line_pt: float) -> float:
@@ -2020,31 +2031,66 @@ def _foot_numbers(chunks):
     asks the two sides different questions: `sawyer/REF/FONTS.REF` page 9
     ends with a font-chart row reading `191` next to a box corner, which is
     "digits plus a glyph" to WS7 and a lone `191` to the engine."""
+    return frozenset(c['text'].strip() for c in _foot_number_chunks(chunks))
+
+
+def _foot_number_chunks(chunks):
+    """The chunks of the automatic page number one side put on one page --
+    the line selection `_foot_numbers` documents, returned whole so the
+    number's POSITION is available too (`_foot_number_x`). Empty list for
+    "no number here". See `_foot_numbers` for every rule applied here."""
     chunks = [c for c in chunks
               if c['text'].strip() and not _is_box_drawing_text(c['text'])]
     if not chunks:
-        return frozenset()
+        return []
     foot_y = max(c['y_top'] for c in chunks)
     line = [c for c in chunks if abs(c['y_top'] - foot_y) < 0.5]
     if not line or not all(c['text'].strip().isdigit() for c in line):
-        return frozenset()
+        return []
     xs = [c['x'] for c in line]
     if max(xs) - min(xs) > 0.5:
-        return frozenset()          # two numbers side by side: not this
-    return frozenset(c['text'].strip() for c in line)
+        return []                   # two numbers side by side: not this
+    return line
+
+
+def _foot_number_pos(chunks):
+    """`(x, y_top)` in points for the automatic page number one side put on
+    one page, or `(None, None)` for "no number here". ONE position:
+    `_foot_number_chunks` has already refused any row whose digit chunks
+    sit more than 0.5pt apart, so an overstruck pair (`sawyer/-SCREEN.WS`)
+    shares one x, and the row itself is one y by construction."""
+    line = _foot_number_chunks(chunks)
+    if not line:
+        return (None, None)
+    return (min(c['x'] for c in line), line[0]['y_top'])
 
 
 def _page_number_divergences(ws7_chunks_all, eng_tokens_all):
-    """[(page, WS7 digits, engine digits), ...] for every page the two
-    sides disagree about -- the automatic page number, checked on its own
-    terms because `_is_unreliable_to_align` hides it from every other check
-    here (see REASON_PAGE_NUMBER_MISMATCH). Each side's digits are a set:
-    see `_foot_numbers` on overstrike.
+    """[(page, WS7 digits, engine digits, WS7 x, engine x), ...] for every
+    page the two sides disagree about -- the automatic page number, checked
+    on its own terms because `_is_unreliable_to_align` hides it from every
+    other check here (see REASON_PAGE_NUMBER_MISMATCH). Each side's digits
+    are a set: see `_foot_numbers` on overstrike.
 
     A DISAGREEMENT is one side printing a number where the other printed
-    none, or the engine's number not being among the digits WS7 struck at
-    that position. Both inputs are PRE-FILTER token lists; the WS7 side has
-    still been through every merge/dedupe pass `load_ws7_tokens` applies.
+    none, the engine's number not being among the digits WS7 struck at that
+    position, OR THE TWO PUTTING THE SAME NUMBER IN DIFFERENT COLUMNS by
+    more than PAGE_NUMBER_X_EPS_PT.
+
+    THE COLUMN IS CHECKED BECAUSE IT WAS INVISIBLE. Every other check here
+    drops the number before matching, and this one used to compare only the
+    digits -- so an automatic number printed at the WRONG x scored clean on
+    every capture in the corpus. It was: five documents that declare
+    `.poe`/`.poo` (`REF/ADVANCE.DOT`, `REF/GALLEYS.DOT`, `REF/BOOKLET.HOW`,
+    `REF/BOOKLET.RJS` and its byte-identical twin `REF/-HOW-TO.RJS`) had
+    their number drawn at the Letter-portrait default column, up to 360pt
+    from where WS7 puts it, and `REF/FONTS.REF` and `REF/REFORM.DOT` were
+    each a mid-document `.po` out (planning #274 follow-up, 2026-09-15).
+    With the number's own `.po` resolved per page, all 428 numbered pages
+    of every non-excluded capture agree on BOTH the digits and the column.
+
+    Both inputs are PRE-FILTER token lists; the WS7 side has still been
+    through every merge/dedupe pass `load_ws7_tokens` applies.
 
     THE RULE THIS ENFORCES, in one sentence: stock WordStar 7 prints a
     centred automatic page number on every page unless the document carries
@@ -2061,13 +2107,22 @@ def _page_number_divergences(ws7_chunks_all, eng_tokens_all):
     for pn in sorted(set(ws7_by_page) & set(eng_by_page)):
         ws7_n = _foot_numbers(ws7_by_page[pn])
         eng_n = _foot_numbers(eng_by_page[pn])
+        ws7_p = _foot_number_pos(ws7_by_page[pn])
+        eng_p = _foot_number_pos(eng_by_page[pn])
         if bool(ws7_n) != bool(eng_n) or (ws7_n and not (eng_n & ws7_n)):
-            out.append((pn, ws7_n, eng_n))
+            out.append((pn, ws7_n, eng_n, ws7_p, eng_p))
+        elif (ws7_p[0] is not None and eng_p[0] is not None
+                and abs(ws7_p[0] - eng_p[0]) > PAGE_NUMBER_X_EPS_PT):
+            out.append((pn, ws7_n, eng_n, ws7_p, eng_p))
     return out
 
 
 def _fmt_foot(digits):
     return '/'.join(sorted(digits)) if digits else 'no automatic number'
+
+
+def _fmt_foot_pos(pos):
+    return 'nowhere' if pos[0] is None else f'x={pos[0]:.1f}pt'
 
 
 # ------------------------------------------------------------ doc report
@@ -2345,11 +2400,17 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
     # The automatic page number, on its own terms -- the one thing
     # `_is_unreliable_to_align` hides from every other check in this
     # function (see REASON_PAGE_NUMBER_MISMATCH).
-    for pn, ws7_n, eng_n in _page_number_divergences(ws7_chunks_all, eng_tokens_all):
-        add(REASON_PAGE_NUMBER_MISMATCH, pn, None, [_fmt_foot(ws7_n)],
-            None, None, None,
-            detail=f'WS7 page {pn} foot: {_fmt_foot(ws7_n)}; '
-                   f'engine: {_fmt_foot(eng_n)}')
+    for (pn, ws7_n, eng_n, ws7_p,
+         eng_p) in _page_number_divergences(ws7_chunks_all, eng_tokens_all):
+        add(REASON_PAGE_NUMBER_MISMATCH, pn,
+            None if ws7_p[1] is None else round(ws7_p[1], 1), [_fmt_foot(ws7_n)],
+            None if ws7_p[0] is None else [round(ws7_p[0], 2), round(ws7_p[1], 2)],
+            None if eng_p[0] is None else [round(eng_p[0], 2), round(eng_p[1], 2)],
+            None,
+            detail=f'WS7 page {pn} foot: {_fmt_foot(ws7_n)} at '
+                   f'{_fmt_foot_pos(ws7_p)}; engine: {_fmt_foot(eng_n)} at '
+                   f'{_fmt_foot_pos(eng_p)} (column tolerance '
+                   f'{PAGE_NUMBER_X_EPS_PT}pt)')
 
     for pidx in mismatched_pages:
         add(REASON_PCL_REPARSE_MISMATCH, pidx, None, None, None, None, None,

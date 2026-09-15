@@ -1039,14 +1039,49 @@ def _auto_pageno_row_y(page_h, pl, mb, fm, size):
     return page_h - (pl - mb + fm) * LEAD - size
 
 
-def _auto_pageno_x_pt(doc):
+def _auto_pageno_x_pt(doc, po_cols=None):
     """Left edge (points) of the automatic page number's text, from `.po`/
     `.pc` -- see `_AUTO_PAGENO_DEFAULT_COL`'s docstring for the formula's
     own measurement. `pc_col` 0 or unset (`page.get('pc_col')` is None or
     falsy either way -- both measured identical) uses the fixed default;
-    an explicit non-zero `.pc N` overrides it."""
+    an explicit non-zero `.pc N` overrides it.
+
+    `po_cols` IS THIS PAGE'S OWN PRINT OFFSET, and the document's
+    default is only the fallback for a caller that has no page in hand.
+    The number rides the running foot's own left origin -- the same
+    `.po`/`.poe`/`.poo` state `_emit_pdf_inner`'s per-page `running_left`
+    resolves -- never the document's opening `.po`. Reading the document
+    default here put the number at the WRONG COLUMN on every page whose
+    own offset differs, which this corpus has three separate ways of
+    producing, all measured against real WS7:
+
+      * `.poe`/`.poo` (an even/odd offset pair). `sawyer/REF/ADVANCE.DOT`
+        `.poo 5.6"` -> 637.2pt, `GALLEYS.DOT` `.poo 5.8125"` -> 652.3pt
+        (predicted 652.5, a 2-decipoint driver residual -- its own
+        running head carries the same 0.2pt), `REF/BOOKLET.HOW` 644.4pt
+        odd / 248.4pt even, `REF/BOOKLET.RJS` and its byte-identical twin
+        `REF/-HOW-TO.RJS` 651.6pt odd / 255.6pt even -- every one of them
+        EXACTLY `(po + pc - 1) * 7.2` once the page's own parity offset
+        is used. This engine drew all five at 291.6pt, the Letter-portrait
+        `.po 8` default. All five are also `.pr or=l` landscape, which is
+        a coincidence of who in this corpus uses `.poe`/`.poo`, NOT part
+        of the rule: the number is not centred on the sheet, and nothing
+        about it reads the sheet's width.
+      * a MID-DOCUMENT `.po`. `sawyer/REF/FONTS.REF` alternates
+        `.po.2i`/`.po.7i`: WS7 numbers its pages 248.4 / 284.4 / 248.4 /
+        284.4... page by page, while the document default (`.po.2i`)
+        alone gives 248.4 throughout.
+      * a `.po` the document's OPENING state never sees at all.
+        `sawyer/REF/REFORM.DOT`'s own `.po 1i` lands past block 0, so the
+        document default stays at WordStar's `.po 8`; WS7 numbers its one
+        page at 306.0pt, which is `.po 1i` = 10 columns.
+
+    The SAME gate the running head/foot uses applies at the call sites
+    (`page_geom_changed or po_parity`): a transient body-only `.po`
+    excursion -- `-HOLYMAC.WS`'s own `.po .3i` box diagrams -- moves
+    neither the head nor the number, measured (planning #241)."""
     page = doc.meta.get('page') or {}
-    po = page.get('po_cols', 8.0)
+    po = page.get('po_cols', 8.0) if po_cols is None else po_cols
     pc = page.get('pc_col') or _AUTO_PAGENO_DEFAULT_COL
     return (po + pc - 1) * _PDF_PT_PER_COL
 
@@ -4304,12 +4339,13 @@ class PageLine(list):
     # the writer draws, not a parallel re-derivation.
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
-                'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells')
+                'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
+                'po_cols')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
-                justify_word_x=None, line_no=None, graphic_cells=None):
+                justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -4335,6 +4371,18 @@ class PageLine(list):
         self.col = col
         self.line_no = line_no
         self.graphic_cells = graphic_cells
+        # This line's own `.po` in PRINT COLUMNS -- the same value `left`
+        # above is the (clamped, points) rendering of, kept unrounded and
+        # unclamped because `_close_page` positions the automatic page
+        # number in columns from it (`_auto_pageno_x_pt`). It comes from
+        # core's own per-line `.po` state, which is why it is the right
+        # source and a dot-command scan is not: core EVALUATES `.if`/`.ei`,
+        # so a `.po` inside a false conditional (`sawyer/REF/REFORM.DOT`,
+        # `sawyer/FONTS/PS/ERROR.WS`: `.po 1i` then `.if 1=0` / `.po .7i`
+        # / `.ei`) never reaches a line, while `doc.meta['dot_positions']`
+        # lists it like any other. None for a line built outside the body
+        # path (TOC/index, wrapped overflow) -- "no opinion".
+        self.po_cols = po_cols
 
 
 class NotesPage(list):
@@ -4375,6 +4423,7 @@ class Page(list):
 
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
+                'auto_pageno_po',
                 'explicit_break', 'explicit_break_bi',
                 'columns', 'column_gutter_pt', 'column_width_pt',
                 'column_top_offset_pt', 'header_pcl', 'footer_pcl',
@@ -4518,6 +4567,13 @@ class Page(list):
         # instead of the declared 14.4pt -- same fallback, `_running_ops`
         # reads `page_po`/`page_geom_changed` only.
         self.po_parity = False
+        # The `.po` in force where WordStar STAMPS this page's automatic
+        # page number -- the page's own LAST block, not its first. None
+        # for "no page-specific answer, use the document's" (every page of
+        # every document that never moves `.po`/`.poe`/`.poo`). See
+        # `_auto_pageno_x_pt` for the captures behind the rule, and
+        # `_close_page` for where this is resolved.
+        self.auto_pageno_po = None
 
 
 def _is_blank_line(line):
@@ -4816,6 +4872,7 @@ def _apply_columns(doc, pages, size):
         merged.fm_lines = getattr(pg, 'fm_lines', None)
         merged.po_cols = getattr(pg, 'po_cols', None)
         merged.po_parity = getattr(pg, 'po_parity', False)
+        merged.auto_pageno_po = getattr(pg, 'auto_pageno_po', None)
         merged.explicit_break = getattr(pg, 'explicit_break', False)
         merged.explicit_break_bi = getattr(pg, 'explicit_break_bi', None)
         # planning #227 follow-up (2026-09-09): this page's own column
@@ -5810,7 +5867,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                         pl = PageLine([], soft=line.soft,
                                      lead=reserved + extra, overprint=line.overprint,
                                      bi=bi, image=(pix_idx, w_pt, h_pt),
-                                     left=own_left)
+                                     left=own_left,
+                                     po_cols=getattr(line, 'po_cols', None))
                         lines.append(pl)
                         first_line_of_block = False
                         continue
@@ -5860,7 +5918,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              kerning=getattr(line, 'kerning', True),
                              left=own_left, roll=own_roll,
                              justify_right_x=justify_right_x,
-                             parity_left=own_parity_left)
+                             parity_left=own_parity_left,
+                             po_cols=getattr(line, 'po_cols', None))
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -6112,6 +6171,52 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # gate -- correctly built to exclude a HOLYMAC-style transient
             # `.po` -- lets it through regardless. See `Page.po_parity`.
             pg.po_parity = cur_poe is not None or cur_poo is not None
+        # THE AUTOMATIC NUMBER IS STAMPED WHERE THE PAGE ENDS, not where
+        # it began -- so its `.po` is the one in force at this page's LAST
+        # block, and `cur_po` (the page-OPEN snapshot every other field
+        # here carries) is the wrong question to ask for it. The oracle is
+        # `sawyer/REF/REFORM.DOT`: its `.po 1i` lands two lines before the
+        # page's own `.pa`, WS7 prints the LAST body line at 72.0pt (10
+        # columns -- the new offset, live) and that same page's number at
+        # 306.0pt, `(10 + 33.5 - 1) * 7.2`. Reading the page's opening
+        # `.po 8` instead put the number at 291.6pt. `sawyer/REF/FONTS.REF`
+        # (alternating `.po.2i`/`.po.7i`, ten numbered pages at 248.4 /
+        # 284.4 page by page) agrees under both readings and so does not
+        # separate them; REFORM does.
+        #
+        # PARITY STILL WINS, resolved at the same block: `.poe`/`.poo` are
+        # the page's own even/odd offsets whatever `.po` says (planning
+        # #231), and `_left_for_parity` is the same one-line rule.
+        page_bis = [b for b in (getattr(ln, 'bi', None) for ln in pg)
+                    if b is not None]
+        if page_bis:
+            end_bi = max(page_bis)
+            # The page's own LAST line's `.po`, straight off the line
+            # (`PageLine.po_cols`, core's `.if`-aware per-line state), and
+            # only then the dot-command checkpoints -- which list a `.po`
+            # inside a FALSE `.if` block like any other and would answer
+            # `REF/REFORM.DOT` and `FONTS/PS/ERROR.WS` with the `.po .7i`
+            # WordStar never executes (WS7 numbers both at 306.0pt, the
+            # `.po 1i` before the conditional; the checkpoint scan says
+            # 284.4).
+            #
+            # NO CHECKPOINT FALLBACK. `PageLine.po_cols` None on every line
+            # of the page means what it means everywhere else in this
+            # module -- "this page agrees with the document's own default"
+            # -- and `_auto_pageno_x_pt` reads that default itself when it
+            # is handed None. Falling back to `_po_at(po_checkpoints, ...)`
+            # instead reintroduces the very `.if` blindness this reads the
+            # lines to avoid: `FONTS/PS/ERROR.WS` is `.po 1i` + `.if 1=0`/
+            # `.po .7i`/`.ei` and NOTHING else, so no line ever carries an
+            # override, the document default is the correct 10 columns, and
+            # the checkpoint scan's own answer is the dead 7.
+            end_po = next(
+                (v for v in (getattr(ln, 'po_cols', None) for ln in reversed(pg))
+                 if v is not None), None)
+            end_poe = _po_at(poe_checkpoints, end_bi) if poe_checkpoints else None
+            end_poo = _po_at(poo_checkpoints, end_bi) if poo_checkpoints else None
+            pg.auto_pageno_po = _left_for_parity(
+                end_po, end_poe, end_poo, is_even_page)
         # planning #250: `.h1e`/`.h1o`/`.f1e`/`.f1o` -- this page's own
         # PARITY (`is_even_page`, just resolved above) picks its real
         # line-1 text the same way `.poe`/`.poo` picks its own left
@@ -6942,6 +7047,13 @@ def _attach_head_foot_lines_printed(doc, pages, size):
                         if page_po is not None
                             and (page_geom_changed or page_po_parity)
                         else left)
+        # The automatic page number's own offset, in COLUMNS and resolved
+        # at the page's CLOSE (`Page.auto_pageno_po`) -- never
+        # `running_left`, which is points and clamped inside a Letter
+        # sheet (`REF/BOOKLET.RJS`'s `.poo` is 58 columns and its number's
+        # column is past that clamp), and never the head/foot's own
+        # page-OPEN `.po`. See `_auto_pageno_x_pt`.
+        running_po = getattr(pg, 'auto_pageno_po', None)
         saved_pg = None
         if (page_mt is not None or page_mb is not None or page_pl is not None
                 or page_hm is not None or page_fm is not None):
@@ -6972,7 +7084,8 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             auto_page_number=auto_page_number,
             head_hf_override=getattr(pg, 'head_hf_override', None),
             foot_hf_override=getattr(pg, 'foot_hf_override', None),
-            footer_in_use=getattr(pg, 'footer_in_use', None))
+            footer_in_use=getattr(pg, 'footer_in_use', None),
+            po_cols=running_po)
         if saved_pg is not None:
             doc.meta['page'] = saved_pg
         if resolved is None:
@@ -7302,7 +7415,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
                              head_hf_override=None, foot_hf_override=None,
                              footer_in_use=None, headers_pcl=None,
-                             footers_pcl=None):
+                             footers_pcl=None, po_cols=None):
     """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
     (each line's `y`; `x` is simply the caller's already-resolved `left`,
     since -- unlike `y` -- no header/footer line's own starting x has ever
@@ -7722,8 +7835,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             po0 = _po_at(_po_checkpoints(doc), 0)
             poe0 = _po_at(poe_cp, 0) if poe_cp else None
             poo0 = _po_at(poo_cp, 0) if poo_cp else None
-            left = _resolve_left_pt(
-                _left_for_parity(po0, poe0, poo0, page_no % 2 == 0), size)
+            po_cols = _left_for_parity(po0, poe0, poo0, page_no % 2 == 0)
+            left = _resolve_left_pt(po_cols, size)
     # planning #255: the print area's own right edge, once per page (every
     # header/footer line on it shares the same `.rm`) -- see `_printed_hf_
     # right`'s own docstring. None for a document that never resolves a
@@ -7811,14 +7924,15 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         # just above -- at most one of the two ever fires for a given page.
         y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, size)
         if y is not None:
-            auto = (str(page_no), _auto_pageno_x_pt(doc), y)
+            auto = (str(page_no), _auto_pageno_x_pt(doc, po_cols), y)
     return {'headers': resolved_headers, 'footers': resolved_footers, 'auto': auto}
 
 
 def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                  headers=None, footers=None, res=None, auto_page_number=False,
                  head_hf_override=None, foot_hf_override=None,
-                 footer_in_use=None, headers_pcl=None, footers_pcl=None):
+                 footer_in_use=None, headers_pcl=None, footers_pcl=None,
+                 po_cols=None):
     """Header and footer text for one page, as content-stream ops -- a
     thin RENDERING shell over `_resolve_head_foot_lines` (planning
     #251(d)): that function resolves WHERE (`y`, and this page's own
@@ -7833,7 +7947,8 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     resolved = _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left,
                                         printed, headers, footers, auto_page_number,
                                         head_hf_override, foot_hf_override,
-                                        footer_in_use, headers_pcl, footers_pcl)
+                                        footer_in_use, headers_pcl, footers_pcl,
+                                        po_cols)
     if resolved is None:
         return []
 
@@ -11473,6 +11588,10 @@ def _emit_pdf_inner(doc, printed, options):
                             if page_po is not None
                                 and (page_geom_changed or page_po_parity)
                             else left)
+            # The automatic page number's own offset -- columns, resolved
+            # at the page's CLOSE. Twin of the one in
+            # `_attach_head_foot_lines_printed`; see `_auto_pageno_x_pt`.
+            running_po = getattr(pl, 'auto_pageno_po', None)
             saved_pg = None
             if (page_mt is not None or page_mb is not None or page_pl is not None
                     or page_hm is not None or page_fm is not None):
@@ -11548,7 +11667,8 @@ def _emit_pdf_inner(doc, printed, options):
                                    headers_pcl=(getattr(pl, 'header_pcl', None)
                                                 if show_headers else None),
                                    footers_pcl=(getattr(pl, 'footer_pcl', None)
-                                                if show_headers else None))
+                                                if show_headers else None),
+                                   po_cols=running_po)
             if saved_pg is not None:
                 doc.meta['page'] = saved_pg
             streams.append(_page_stream(pl, page_top, page_h, lead, size, left,

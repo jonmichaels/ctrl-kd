@@ -1239,3 +1239,31 @@ def test_page_number_divergences_accepts_either_overstruck_digit():
     ws7 = [_c('body', 100.0), _c('1', 806.4), _c('2', 806.4)]
     eng = [_c('body', 100.0), _c('2', 806.4)]
     assert pt._page_number_divergences(ws7, eng) == []
+
+
+# ------------------------------- and the COLUMN it is printed in
+#
+# planning #274 follow-up, 2026-09-15. The digits alone scored clean while
+# five `.poe`/`.poo` documents drew their number at the Letter-portrait
+# default column, up to 360pt out. See `_page_number_divergences`.
+
+def test_page_number_divergences_flags_the_right_digit_in_the_wrong_column():
+    """`REF/ADVANCE.DOT`'s own shape: the same "1" on the same row, at
+    637.2pt in WS7 and 291.6pt in the engine."""
+    ws7 = [_c('body', 100.0), _c('1', 594.4, x=637.2)]
+    eng = [_c('body', 100.0), _c('1', 594.4, x=291.6)]
+    d = pt._page_number_divergences(ws7, eng)
+    assert [x[0] for x in d] == [1]
+    assert d[0][3] == (637.2, 594.4) and d[0][4] == (291.6, 594.4)
+
+
+def test_page_number_divergences_allows_the_drivers_decipoint_rounding():
+    """`REF/GALLEYS.DOT` measures 652.3pt against a predicted 652.5 -- two
+    decipoints, the same residual its own running head carries."""
+    ws7 = [_c('body', 100.0), _c('1', 529.6, x=652.3)]
+    eng = [_c('body', 100.0), _c('1', 529.6, x=652.5)]
+    assert pt._page_number_divergences(ws7, eng) == []
+
+
+def test_foot_number_pos_reports_nothing_when_there_is_no_number():
+    assert pt._foot_number_pos([_c('body', 100.0)]) == (None, None)

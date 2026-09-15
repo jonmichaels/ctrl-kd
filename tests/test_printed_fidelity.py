@@ -533,6 +533,49 @@ def test_page_numbers_pc_is_left_anchored_not_right_anchored():
     assert x1 == x2 == b'122.4'
 
 
+# ------ planning #274 follow-up: the number's own `.po`, page by page
+# The formula above was always right; the `.po` it read was the
+# DOCUMENT's, so every page whose own offset differs was numbered in the
+# wrong column. Captures behind each case: `pdf._auto_pageno_x_pt`.
+
+def test_page_numbers_follow_the_pages_own_poe_poo():
+    """`REF/BOOKLET.RJS`'s own shape -- `.poe 3` / `.poo 58` and no plain
+    `.po` -- numbers odd pages from 58 columns and even ones from 3.
+    Measured: 651.6pt / 255.6pt in the WS7 capture, where this engine drew
+    both at the document default's 291.6pt."""
+    doc = core.parse_ws(('.poe 3\r\n.poo 58\r\n' +
+                         ''.join(f'PARITY-{i:03d}\r\n' for i in range(1, 61))).encode())
+    ops = _pgnum_ops(pdf.emit_pdf(doc, mode='printed', page_numbers='auto'))
+    # (58 + 33.5 - 1) * 7.2 = 651.6 ; (3 + 33.5 - 1) * 7.2 = 255.6
+    assert [(x, n) for x, _y, n in ops] == [(b'651.6', b'1'), (b'255.6', b'2')]
+
+
+def test_page_numbers_follow_a_mid_document_po():
+    """`REF/FONTS.REF`'s own shape: a `.po` that changes part-way numbers
+    the pages after it from the NEW offset, page by page (WS7: 248.4 /
+    284.4 / ... alternating with the document's own `.po.2i`/`.po.7i`),
+    while the document's opening `.po` alone gives one column throughout."""
+    body = ''.join(f'A-{i:03d}\r\n' for i in range(1, 61))
+    rest = ''.join(f'B-{i:03d}\r\n' for i in range(1, 61))
+    doc = core.parse_ws(('.po 2\r\n' + body + '.po 20\r\n' + rest).encode())
+    ops = _pgnum_ops(pdf.emit_pdf(doc, mode='printed', page_numbers='auto'))
+    # page 1 closes under `.po 2` -> (2 + 32.5) * 7.2 = 248.4
+    # page 2 closes under `.po 20` -> (20 + 32.5) * 7.2 = 378.0
+    assert [(x, n) for x, _y, n in ops] == [(b'248.4', b'1'), (b'378.0', b'2'),
+                                            (b'378.0', b'3')]
+
+
+def test_page_numbers_read_the_po_in_force_where_the_page_ends():
+    """`REF/REFORM.DOT` is the oracle that separates "the page's opening
+    `.po`" from "the page's closing one": its `.po 1i` lands two lines
+    before the page's own break, WS7 prints that page's last body line at
+    the new offset AND its number at 306.0pt = `(10 + 33.5 - 1) * 7.2`."""
+    doc = core.parse_ws((''.join(f'R-{i:03d}\r\n' for i in range(1, 20)) +
+                         '.po 10\r\nLAST LINE\r\n').encode())
+    ops = _pgnum_ops(pdf.emit_pdf(doc, mode='printed', page_numbers='auto'))
+    assert [(x, n) for x, _y, n in ops] == [(b'306.0', b'1')]
+
+
 def test_page_numbers_declared_footer_suppresses_it():
     """WSFORMAT.WS's own text: ".PC ... active only when the footers are
     not in use." A declared footer -- even with NO `#` of its own --
