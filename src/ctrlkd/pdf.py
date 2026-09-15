@@ -9910,8 +9910,26 @@ def _modern_column_width(width, cols, gutter):
 def _modern_geometry(doc):
     """(left, top_margin, bottom_margin, text_width) in points. The
     document's declared geometry wins (governing principle); silence is the
-    modern page: 1in margins on Letter. The right margin is always 1in --
-    WordStar's right edge is a text measure, not a page property."""
+    modern page: 1in margins on Letter.
+
+    THE RIGHT MARGIN MIRRORS THE LEFT (Jon's ruling 2026-09-15, "Yes to
+    mirror margin"). It used to be a flat 1in while Modern RTF mirrored
+    `.po` into `\margr` (`emit._rtf_page_setup`: `margr = margl`), so the
+    SAME document's two Modern surfaces disagreed about where its text
+    ended -- `sawyer/REF/BOOKLET.WS` came out 345.6pt wide in RTF against
+    316.8pt in PDF. One rule, both surfaces: whatever `.po` the document
+    declares is the margin on both sides, and 1in is the fallback on both
+    when it declares none. WordStar's own `.rm` is still not consulted:
+    it is a text measure, not a page property, and Modern does not read
+    it on either surface.
+
+    Research (research/2026-09-15_modern-one-inch-margins-impact.md)
+    measured the alternative first, at Jon's instruction: forcing a literal
+    1in on both sides regardless of `.po` blanks 6 label documents on 1in-
+    tall sheets, moves envelope address blocks by up to 5.5in and collapses
+    the two space-set character charts. Mirroring the DECLARED value harms
+    none of those -- a screenplay's or a hanging indent's own structure is
+    a text measure inside the frame, not the frame."""
     page = _modern_page_dict(doc)
     margt = (float(page.get('mt_lines', 6.0)) * 12.0
              if page.get('mt_source', 'default') != 'default' else 72.0)
@@ -9920,7 +9938,7 @@ def _modern_geometry(doc):
     margl = (float(page.get('po_cols', 10.0)) * 7.2
              if page.get('po_source', 'default') != 'default' else 72.0)
     page_w = float(page.get('pw_in', 8.5)) * 72.0     # A4 files are narrower
-    return margl, margt, margb, max(144.0, page_w - margl - 72.0)
+    return margl, margt, margb, max(144.0, page_w - margl - margl)
 
 
 def _modern_tok_font(text, styles, fonts, nonprop_fallback=False):
