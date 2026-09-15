@@ -1427,6 +1427,46 @@ class Document:
     # can `|` it into a run's own styles unconditionally.
     header_style_attrs: dict = field(default_factory=dict)
     footer_style_attrs: dict = field(default_factory=dict)
+    # M16 (2026-09-15, WS7 probes B0-B5 against sawyer/REF/BOOKLET.WS): the
+    # RIGHT MARGIN the head/foot line's own style declares, in print
+    # columns at 10 CPI (`right_margin_hmi / 180`), or absent when the
+    # style declares none. `{line: cols}`.
+    #
+    # A right- or centre-aligned running head aligns against THIS, measured
+    # from `.po` -- not against the document's `.rm`, not against the
+    # column grid, and not against the sheet. Measured, five probes printed
+    # by real WS7 under DOSBox-X: turning `.co 2` off (B2) and changing it
+    # to `.co 3` with a `.rm` of 2.50" instead of 4.50" (B3) both leave
+    # BOOKLET.WS's "Header Odd 1" at exactly the x the unmodified document
+    # prints it at, while moving `.po` from 0.2in to 1.2in (B4) moves it by
+    # exactly 1.00in. Its style's own `right_margin_hmi` is 18000 = 100
+    # columns = 10.00in, and `.po` 0.2in + 10.00in = 10.20in is where the
+    # last glyph of "Header Odd 1" ends, to 0.5pt.
+    #
+    # Every other document in the corpus with a right-aligned head declares
+    # a style right margin EQUAL to its own `.rm` (a "Header at Top of
+    # Page" style at 11700 = 6.50in beside a `.rm 65`), which is why the
+    # `.rm` reading was right everywhere else and wrong here.
+    header_style_rm: dict = field(default_factory=dict)
+    footer_style_rm: dict = field(default_factory=dict)
+    # M16: the LINE HEIGHT in force where this head/foot line was DEFINED,
+    # in 48ths of an inch -- the step between successive running-head
+    # lines, and 0 when the document asked for zero. `{line: lh_48}`.
+    #
+    # Measured (probe B1): removing BOOKLET.WS's own `.lh 0` -- which sits
+    # immediately before its `.f1`/`.h1`/`.h2` and is cancelled by a
+    # `.lh12` immediately after them -- makes real WS7 print its two header
+    # lines on two rows 1/6in apart instead of both on one row, with the
+    # columns left in place. Turning the columns off instead (B2) leaves
+    # them on one row. So the collapse is the line height's doing, not the
+    # column grid's, and it is the value in force at the COMMAND (the
+    # `.lh12` that follows governs the body and not these lines).
+    #
+    # The block is anchored on its LAST line either way (probe B5: a
+    # one-line head prints on the same row the second of two occupies), so
+    # a zero step stacks every line onto that row.
+    header_leads: dict = field(default_factory=dict)
+    footer_leads: dict = field(default_factory=dict)
     # Planning #250: `.H1E`/`.H1O`/`.F1E`/`.F1O` (WSFORMAT.TXT: ".HE can
     # optionally specify even or odd numbered page headers" / the matching
     # ".FO" sentence -- confirmed the ONLY two lines that do; `.H2`-`.H5`/
@@ -3273,7 +3313,18 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 resolved = _resolve_lh_arg(value, m.group(2))
                 if resolved is not None:     # junk/non-positive: state stands
                     state['lead_48'] = resolved
+                    state['hf_lead_48'] = resolved
                     state['lh_auto'] = False
+                elif value == 0:
+                    # M16 (2026-09-15): `.lh 0` leaves `lead_48` alone --
+                    # a zero body leading is not something any renderer or
+                    # the pagination arithmetic can use, and no evidence
+                    # says WordStar applies it to the body -- but it IS
+                    # what a running head's own line step becomes, proved
+                    # by probes B0/B1/B2 against real WS7 (see
+                    # `Document.header_leads`). Recorded on its own key so
+                    # the head can read it and nothing else changes.
+                    state['hf_lead_48'] = 0.0
     elif name in (b'LM', b'RM', b'PM'):     # left / right / paragraph margin
         # Print columns at 10 CPI, matching `.po`; a unit suffix converts. The
         # archive writes both (`.rm 65` and `.rm 6.5"`).
@@ -3637,7 +3688,8 @@ def _hf_within(doc, cur, cur_line):
 
 def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
                      tab_mark=None, align=None, style_attrs=None,
-                     pctl_marks=None, within=None):
+                     pctl_marks=None, within=None, style_rm_cols=None,
+                     lead_48=None):
     """Record `.he`/`.h1`-`.h5` and `.fo`/`.f1`-`.f5` text on the Document.
 
     `.HE` and `.FO` are line 1; the numbered forms select their own line, so a
@@ -3766,6 +3818,18 @@ def _parse_head_foot(cmd: bytes, doc, encoding: str, anchor=None, font_idx=None,
     which_style_attrs = (doc.header_style_attrs if kind == 'H'
                          else doc.footer_style_attrs)
     which_style_attrs[line] = style_attrs or frozenset()
+    # M16: see `Document.header_style_rm`/`header_leads` for the probes.
+    which_style_rm = (doc.header_style_rm if kind == 'H'
+                      else doc.footer_style_rm)
+    if style_rm_cols is not None:
+        which_style_rm[line] = style_rm_cols
+    else:
+        which_style_rm.pop(line, None)
+    which_leads = doc.header_leads if kind == 'H' else doc.footer_leads
+    if lead_48 is not None:
+        which_leads[line] = lead_48
+    else:
+        which_leads.pop(line, None)
     if parity is not None:
         which_p = doc.headers_parity if kind == 'H' else doc.footers_parity
         which_fonts_p = (doc.header_fonts_parity if kind == 'H'
@@ -6146,6 +6210,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             hf_align = None
             hf_style_font_idx = None
             hf_style_attrs = None
+            hf_style_rm = None
             if hf_style_w0 is not None and (hf_style_w0 >> 8) == 0x02:
                 _hf_entry = style_slots.get(hf_style_w0 & 0xFF)
                 if _hf_entry is not None:
@@ -6153,6 +6218,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     if _hf_entry.get('font') and any(_hf_entry['font']):
                         hf_style_font_idx = _style_font(_hf_entry['font'])
                     hf_style_attrs = _hf_entry.get('attrs')
+                    # M16: the same 180-HMI-per-column conversion
+                    # `emit.py` already applies to a BODY block's own
+                    # style right margin, read here for the head.
+                    if _hf_entry.get('right_margin_hmi'):
+                        hf_style_rm = _hf_entry['right_margin_hmi'] / 180.0
             _parse_head_foot(cmd if strip_hibit else raw.rstrip(), doc,
                              encoding,
                              anchor=len(doc.blocks) + (1 if cur.lines or
@@ -6175,7 +6245,16 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                       else hf_style_font_idx),
                              tab_mark=hf_tab_mark,
                              align=hf_align, style_attrs=hf_style_attrs,
-                             pctl_marks=hf_pctl_marks)
+                             pctl_marks=hf_pctl_marks,
+                             style_rm_cols=hf_style_rm,
+                             # M16: the `.lh` in force RIGHT HERE, which is
+                             # what the step between running-head lines
+                             # turns out to be -- `hf_lead_48` and not
+                             # `lead_48`, because a `.lh 0` leaves the
+                             # latter standing (it is not a body leading
+                             # any renderer could use) while still being
+                             # the head's own answer.
+                             lead_48=fmt.get('hf_lead_48'))
             # The index of the block this entry POINTS AT -- the one that follows it,
             # which is the block still open (if it has content) or the next to open.
             # "This heading is in the table of contents" refers forward, not back.

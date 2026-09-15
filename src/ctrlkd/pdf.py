@@ -7118,6 +7118,52 @@ def _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
     return left + max(0.0, (right_edge - left - w) / 2.0)
 
 
+def _hf_line_right(doc, kind, line, left, doc_right):
+    """The right edge one head/foot LINE aligns against, in points.
+
+    M16 (2026-09-15, ruled by evidence rather than by reading): the line's
+    OWN STYLE's right margin, measured from this page's `.po` origin --
+    and the document's `.rm`-derived edge only when the style declares
+    none. Five probes printed by real WordStar 7 under DOSBox-X against
+    sawyer/REF/BOOKLET.WS settle it (see `core.Document.header_style_rm`
+    for the numbers): turning its `.co 2` off, and turning it into a
+    `.co 3` with a narrower `.rm`, both leave its right-aligned "Header
+    Odd 1" at exactly the x the unmodified document prints; moving `.po`
+    moves it by exactly the same amount. So the reference is neither the
+    column grid nor `.rm` nor the sheet -- it is `.po` plus the style's
+    own right margin, which for this document's "Header Odd" style is
+    18000 HMI = 100 columns = 10.00in.
+
+    Every other corpus document with a right-aligned head declares a style
+    right margin EQUAL to its own `.rm`, so this changes nothing for any
+    of them -- which is also why the `.rm` reading survived this long.
+    """
+    style_rm = (doc.header_style_rm if kind == 'H'
+                else doc.footer_style_rm).get(line)
+    if style_rm is None:
+        return doc_right
+    return left + style_rm * _PDF_PT_PER_COL
+
+
+def _hf_line_step_pt(doc, kind, line):
+    """The vertical step BELOW one head/foot line, in points -- the `.lh`
+    in force where that line was defined, and WordStar's own 1/6in default
+    when the document never said.
+
+    M16: this was a flat `LEAD` (12pt), which is the same number for every
+    document that leaves `.lh` alone -- all but one in the corpus. It is
+    not the same number for `sawyer/REF/BOOKLET.WS`, whose `.lh 0`
+    immediately precedes its `.f1`/`.h1`/`.h2` (and is cancelled by a
+    `.lh12` immediately after): real WS7 prints its two header lines on
+    ONE row, and prints them on two rows 1/6in apart the moment that
+    `.lh 0` is removed with everything else left alone (probe B1). See
+    `core.Document.header_leads`."""
+    lh_48 = (doc.header_leads if kind == 'H' else doc.footer_leads).get(line)
+    if lh_48 is None:
+        return float(LEAD)
+    return lh_48 * 72.0 / 48.0
+
+
 def _printed_hf_right(doc, left):
     """The print area's own right edge, in points, for a header/footer
     line's own right/center alignment (planning #255) -- `left` (the
@@ -7601,11 +7647,21 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # anyway since `_hf_align_x` already treats None as "no alignment").
     right_edge = _printed_hf_right(doc, left)
     resolved_headers = []
+    # M16 (2026-09-15): the header block is anchored on its LAST line --
+    # `head_base` is `mt - hm - top_head`, so line `top_head` always lands
+    # at `mt - hm - 1` whatever the line count, and real WS7 agrees (probe
+    # B5: a one-line head prints on the row the second of two occupies).
+    # What was wrong was the STEP between the lines: a flat `LEAD`, where
+    # WordStar uses the `.lh` in force at each line's own command. Identical
+    # for every document that leaves `.lh` alone (the default 8/48in IS
+    # 12pt), and 0 for the one that asks for 0.
+    last_head_y = page_h - (head_base + top_head - 1) * LEAD - size
     for n in sorted(set(headers) | set(headers_pcl)):
         txt = headers.get(n) or ''
         if not txt and not headers_pcl.get(n):
             continue
-        y = page_h - (head_base + n - 1) * LEAD - size
+        y = last_head_y + sum(_hf_line_step_pt(doc, 'H', k)
+                              for k in range(n, top_head))
         # planning #250: `head_hf_override` (this page's own `.h1e`/`.h1o`
         # resolution, `pdf.py`'s `_close_page`) wins for whichever line it
         # names -- None (every page of every document that never uses the
@@ -7618,7 +7674,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             align = doc.header_align.get(n)
             style_attrs = doc.header_style_attrs.get(n) or frozenset()
         text = _resolve_line_text(txt, font_idx, tab_rec)
-        x = _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
+        x = _hf_align_x(align, text, font_idx, doc, size, left,
+                        _hf_line_right(doc, 'H', n, left, right_edge),
                         style_attrs)
         resolved_headers.append((n, text, y, font_idx, x, style_attrs))
     # b26-header-baseline: `fm` is deliberately UNCHANGED -- checked for the
@@ -7652,7 +7709,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
             align = doc.footer_align.get(n)
             style_attrs = doc.footer_style_attrs.get(n) or frozenset()
         text = _resolve_line_text(txt, font_idx, tab_rec)
-        x = _hf_align_x(align, text, font_idx, doc, size, left, right_edge,
+        x = _hf_align_x(align, text, font_idx, doc, size, left,
+                        _hf_line_right(doc, 'F', n, left, right_edge),
                         style_attrs)
         resolved_footers.append((n, text, y, font_idx, x, style_attrs))
     auto = None

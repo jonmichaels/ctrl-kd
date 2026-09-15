@@ -28,6 +28,13 @@ https://github.com/jonmichaels/ctrl-kd/releases
   turning the automatic number off without printing anything — still got a
   page number in the RTF exports. Real WordStar 7 prints none, and now
   neither do they.
+- A booklet template's two running-head lines came out on two rows, with
+  the right-hand one printed a third of the way across the page. Real
+  WordStar 7 prints both on one row, one at each edge. A head or foot that
+  its own style aligns right or centre now aligns against the margin that
+  style declares, and successive head lines step by the line height the
+  document asked for — including a line height of zero, which is how this
+  template asks for its two heads on one line.
 
 ## [4.7.1] — 2026-09-15
 
