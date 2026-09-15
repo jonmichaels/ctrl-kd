@@ -152,6 +152,10 @@ Which number moves: **patch** = bug fix, no interface change; **minor** = new
 format/flag/IR field, existing code keeps working; **major** = anything that breaks
 the CLI, `convert()`, or the IR contract (see above).
 
+0. **UPDATE EVERY CHECKOUT FIRST** — this repo, the private engine repo and
+   the corpus, on every machine that will run a suite (`git pull --rebase`
+   each; the Mac's drop-box copies too). A stale checkout on one machine
+   failed 1,085 cross-engine cells on 2026-09-15. Then:
 1. Bump `__version__` in `src/ctrlkd/__init__.py` — the ONLY version
    (pyproject reads it dynamically; a guard fails the release if the tag
    disagrees).
