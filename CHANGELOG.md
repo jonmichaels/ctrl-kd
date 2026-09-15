@@ -13,6 +13,12 @@ https://github.com/jonmichaels/ctrl-kd/releases
   Modern RTF now carries the real sheet, the landscape flag, the column
   count and the gutter, and breaks to the next column where the document
   says to.
+- A document whose page is shorter than US Letter — an envelope, a label,
+  a Rolodex card — came out of Modern view and Modern PDF with every page
+  blank: the text was drawn above the top of the short page it was drawn
+  on. A taller page lost the extra room instead. Modern now lays out on
+  the page the document declares, and a document that turns page breaks
+  off with `.pl 0` gets a Letter-sized page instead of a zero-height one.
 
 ## [4.7.1] — 2026-09-15
 

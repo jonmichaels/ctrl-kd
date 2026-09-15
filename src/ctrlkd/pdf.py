@@ -128,13 +128,18 @@ def _landscape_page(page):
 
 
 def _resolved_page_height(doc, printed):
-    """Page height in points for THIS document. Printed mode honours the
+    """Page height in points for THIS document, PRINTED. It honours the
     file's own .pl-derived geometry (core.py's doc.meta['page']['height_in']
-    -- file geometry wins for page size, best-effort). Modern mode does NOT:
-    it deliberately reflows to fill its own fixed page rather than preserve
-    the original measure (Printed is the faithfulness mode; Modern's whole
-    point is a page that's simply pleasant to read), so it always renders at
-    the fixed US Letter height regardless of what the file declares."""
+    -- file geometry wins for page size, best-effort).
+
+    Modern has its own answer, `_modern_sheet_h`, and since M18
+    (2026-09-15) it is the same answer: the document's declared sheet.
+    The `not printed` branch below is now only the shape of this
+    function's contract, never a live Modern render -- `emit_pdf`'s Modern
+    branch overwrites `page_h` with `_modern_sheet_h(doc)` before anything
+    reads it. It used to say Modern "always renders at the fixed US Letter
+    height regardless of what the file declares", which stopped being true
+    for landscape sheets in M17 and for every other sheet in M18."""
     if not printed:
         return PAGE_H
     height_in = doc.meta.get('page', {}).get('height_in', 11.0)
@@ -9433,29 +9438,49 @@ def _modern_page_dict(doc):
 
 
 def _modern_sheet_h(doc):
-    """The height of the sheet Modern composes on, in points.
+    """The height of the sheet Modern composes on, in points: the
+    document's OWN declared sheet, always -- and the same number
+    `emit_pdf` writes into the Modern MediaBox, so the page Modern draws
+    on and the page it says it drew on can never disagree.
 
-    Letter's own 792 for a portrait document -- what Modern has always
-    laid out from regardless of what the file declares
-    (`_resolved_page_height`'s own Modern branch states the rule), left
-    exactly as it was.
-
-    A LANDSCAPE sheet is genuinely shorter than Letter, and laying out
-    from 792 on one draws every line above the top of the page it is
-    drawn on. Measured before this change: `.pl 8.5"` + `.pr or=l`
-    produced a 612x612 MediaBox whose first body line was already off the
-    top edge.
-
-    NOT FIXED HERE, and worth naming: the portrait half of the same
-    arithmetic is a real, separate defect. A label/envelope template
+    M18 (Jon's queue 2026-09-15). This used to answer Letter's own 792 for
+    every portrait document whatever the file declared, and M17 corrected
+    only the landscape half of that ("a landscape sheet is genuinely
+    shorter than Letter, and laying out from 792 on one draws every line
+    above the top of the page"), naming the portrait half as a real,
+    separate defect in this docstring: "a label/envelope template
     (`.pl 4.17"`) gets a 612x300 MediaBox with every line drawn at
-    y >= 552 -- the whole page blank. That moves a class of ONE-COLUMN
-    PORTRAIT documents, which this ruling does not touch, so it waits for
-    its own."""
-    if doc.meta.get('formatting', {}).get('orientation') != 'landscape':
+    y >= 552 -- the whole page blank." That is this fix. MAILLIST/
+    ENVELOPE.LST rendered every one of its pages blank; so did the rest
+    of the label/envelope/Rolodex template family, and an A4 document
+    (`.pl 11.69"`) lost the 50pt its taller sheet gives it.
+
+    THE SHEET IS NOT SOMETHING MODERN RE-DECIDES. Modern's own choices
+    are typographic -- its fonts, its 1.2 line height, its margins, its
+    running heads -- and the MediaBox has read the document's declared
+    height since 2026-08-06 ("the page is the document's declared size
+    (Letter/Legal/A4)"). Only the composing ORIGIN was hardcoded, which
+    is why the defect reads as a blank page rather than as a wrong page
+    size: the text was drawn, at coordinates off the top of the sheet it
+    was drawn on.
+
+    `.pl 0` IS NOT A SHEET. It is WordStar's "page breaks off" (bug
+    12284; `core._text_lines_per_page`), and the text model already never
+    breaks, so the page BOX falls back to Letter -- a truly unbounded page
+    is not expressible in PDF. That is verbatim what Printed has done
+    since `_resolved_page_height` was written, quoted here rather than
+    re-decided, and it is also why sawyer/REF/-PATCHES.WS (`.pl0`) is an
+    excluded `degenerate` document by Jon's 2026-09-10 ruling (planning
+    #261) rather than something to render well. Before this fix it gave
+    Modern a ZERO-HEIGHT MediaBox.
+
+    The floor is Printed's own, for Printed's own reason: a page has to
+    hold the footnote floor's worth of lines (`FOOTNOTE_FLOOR + 1`)."""
+    page = _modern_page_dict(doc)
+    height_in = float(page.get('height_in') or 0.0)
+    if height_in == 0:
         return PAGE_H
-    h = float(_modern_page_dict(doc).get('height_in') or 0.0) * 72.0
-    return int(round(h)) if h > 0 else PAGE_H
+    return max(LEAD * (FOOTNOTE_FLOOR + 1), int(round(height_in * 72.0)))
 
 
 def _modern_column_width(width, cols, gutter):
@@ -11180,8 +11205,13 @@ def _emit_pdf_inner(doc, printed, options):
         # footnotes at the page bottom, fontless body Times 14. The page is
         # the document's declared size (Letter/Legal/A4 -- ruled 2026-08-06);
         # silence is Letter, exactly as before.
-        page_h = int(round(float((doc.meta.get('page') or {})
-                                 .get('height_in', 11.0)) * 72))
+        # M18 (2026-09-15): ONE definition of Modern's sheet height, shared
+        # with `_modern_streams`' own composing origin. It used to be
+        # computed here a second time, straight off `height_in` with no
+        # `.pl 0` guard and no floor, while the composing origin was a
+        # hardcoded Letter 792 -- so a short portrait sheet got a correct,
+        # short MediaBox and every line drawn above the top of it.
+        page_h = _modern_sheet_h(doc)
         res = FontRes()
         streams = _modern_streams(doc, options, res)
     # Width joined the page model 2026-08-06 ("the 3 main page sizes"):
