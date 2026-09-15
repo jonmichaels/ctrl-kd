@@ -39,7 +39,10 @@ https://github.com/jonmichaels/ctrl-kd/releases
   by two spaces into a definition-list entry with a hanging indent — a
   plain callout paragraph ("Note:  Some printers may not…") got the same
   treatment as a real list of terms. A definition list now has to look
-  like one: at least two entries whose labels start at the same column.
+  like one: at least two entries whose labels start at the same column,
+  and at least two different terms among them — a booklet template that
+  repeats one "Space:  The final frontier…" paragraph 37 times shares a
+  label column but defines nothing, and is prose.
 
 ## [4.7.1] — 2026-09-15
 

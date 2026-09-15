@@ -91,7 +91,7 @@ the requested `note_refs` scheme.
 """
 
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import replace as _replace
 
 from .core import (merged_lines, Span, trailing_blank_lines,
@@ -151,7 +151,10 @@ def rm_indent_cols(rm):
 # once M17 put that document into narrow columns. A def list is a SHAPE,
 # and a shape needs more than one instance to be one: the rule is now the
 # same run rule the bullet marker below already has -- see
-# `classify_rows`' own `def_cols`.
+# `classify_rows`' own run rule, which additionally requires the run's
+# labels to DIFFER from each other (a definition list defines different
+# terms; 37 copies of one paragraph share a label column but define
+# nothing).
 #
 # The label must itself end in a colon. Found the hard way against the
 # Sawyer WS7 archive's own prose corpus (OLDTIMES.WS): the era's own
@@ -303,15 +306,31 @@ def classify_rows(entries):
     # them), so consecutive `para` rows in `entries` are exactly "adjacent
     # def rows, blank lines allowed between them" -- which is how a 1990
     # author actually types a definition list.
+    #
+    # AND THE LABELS MUST DIFFER (Athena's ruling 2026-09-15, under Jon's
+    # "I don't want to waste time on obvious things you should be handling"):
+    # a genuine definition list defines DIFFERENT terms. Sharing a label
+    # column is necessary but not sufficient -- `sawyer/REF/BOOKLET.WS` is
+    # 37 copies of one filler paragraph, every one of them opening
+    # "Space:  The final frontier..." at the same column, so the column rule
+    # alone passes all 37 and hands a repeated PARAGRAPH the hanging indent
+    # of a definition list. Only the labels' own content can tell a repeated
+    # paragraph from a repeated label, so a run at a column counts only when
+    # at least two DISTINCT labels appear there. One term stated 37 times is
+    # not a list of 37 definitions; it is one paragraph typed 37 times.
     def_runs = set()
-    run_cols = Counter()
+    run_labels = defaultdict(list)
     run_rows = []
 
     def _close_run():
         for rr in run_rows:
-            if run_cols[rr['col']] >= 2:
+            labs = run_labels[rr['col']]
+            # Two rules, spelled out separately though the second implies
+            # the first: >=2 rows at this label column (7030874), and >=2
+            # DISTINCT labels among them (this one).
+            if len(labs) >= 2 and len(set(labs)) >= 2:
                 def_runs.add(id(rr))
-        run_cols.clear()
+        run_labels.clear()
         del run_rows[:]
 
     for r in rows:
@@ -319,9 +338,9 @@ def classify_rows(entries):
             _close_run()
             continue
         t = r['text']
-        if (not (_marker_candidate(t) and (r['col'], t[0]) in bullet_cols)
-                and _DEFLIST_RE.match(t)):
-            run_cols[r['col']] += 1
+        m = _DEFLIST_RE.match(t)
+        if m and not (_marker_candidate(t) and (r['col'], t[0]) in bullet_cols):
+            run_labels[r['col']].append(m.group(1))
             run_rows.append(r)
     _close_run()
 

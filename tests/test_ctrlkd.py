@@ -7213,6 +7213,30 @@ def test_deflist_needs_a_sibling_at_its_own_label_column():
             if i['kind'] == 'para'] == [None, None]
 
 
+def test_deflist_run_of_one_repeated_label_is_not_a_list():
+    """A definition list defines DIFFERENT terms (Athena's ruling
+    2026-09-15, refining the run rule above). Sharing a label column is
+    necessary but not sufficient: `sawyer/REF/BOOKLET.WS` is 37 copies of
+    one filler paragraph, every one of them opening "Space:  The final
+    frontier..." at column 5, and the column rule alone passed all 37 --
+    handing a repeated PARAGRAPH the hanging indent of a list. One term
+    stated 37 times is one paragraph typed 37 times, not 37 definitions.
+    The same shape with two distinct labels is still a list."""
+    from ctrlkd.layout import modern_flow
+    same = _modern(b'Space:  the final frontier.' + HARD
+                   + b'Space:  the final frontier.' + HARD
+                   + b'Space:  the final frontier.' + HARD)
+    assert [i['structure']['kind'] for i in modern_flow(same)['items']
+            if i['kind'] == 'para'] == [None, None, None]
+    # One distinct sibling among them is enough to make it a list again,
+    # and the repeated rows come back with it -- the run is judged whole.
+    mixed = _modern(b'Space:  the final frontier.' + HARD
+                    + b'Space:  the final frontier.' + HARD
+                    + b'Time:   the other one.' + HARD)
+    assert [i['structure']['kind'] for i in modern_flow(mixed)['items']
+            if i['kind'] == 'para'] == ['def', 'def', 'def']
+
+
 def test_a_def_list_survives_blank_lines_between_its_entries():
     """A 1990 author separates definition entries with blank lines. Blanks
     carry no column of their own and never reach `classify_rows`, so the
