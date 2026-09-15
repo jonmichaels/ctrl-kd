@@ -3,6 +3,15 @@
 Releases before 4.7.0 are described in their own GitHub release notes:
 https://github.com/jonmichaels/ctrl-kd/releases
 
+## [4.7.1] — 2026-09-15
+
+### Fixed
+
+- A document that used footnotes and also asked for no page numbers got a
+  page number printed at the foot of every page anyway. Real WordStar 7
+  prints none on such a document, and now neither does ctrl-kd — in the
+  PDF, RTF and HTML exports and in the page-layout views alike.
+
 ## [4.7.0] — 2026-09-14
 
 4.6.0 shipped page-level accuracy in PDF only and flagged RTF/HTML as not
