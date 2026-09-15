@@ -750,7 +750,21 @@ def _checkpoints_by_page(checkpoints, pages):
     trailing blanks: a page of nothing but blank lines ends up empty, with
     no `bi` on it at all, which is precisely the shape a leading blank run
     makes. A page that never got one (a synthetic or degenerate page)
-    inherits the last real position rather than resetting the walk."""
+    inherits the last real position rather than resetting the walk.
+
+    A PAGE WITH NO POSITION AT ALL -- not even an inherited one, because no
+    earlier page had one either -- FALLS BACK TO THE BLOCK-RANGE RULE, the
+    granularity this walk replaced on 2026-09-14: the last checkpoint whose
+    block index is at or before the highest block index this page carries.
+    Leaving it on the seeded checkpoint 0 instead silently answered "the
+    document's opening default" for a page that plainly reads further in,
+    and the document's own `.op` was never consulted: `samples/LYING.WS`
+    numbered all three of its pages where real WordStar 7 numbers none of
+    them, because the footnote paginator sets no `read_pos` and LYING's
+    `.op` is checkpoint 1 (research: "Why real WS7 prints no page number on
+    some documents", 2026-09-15). Never moves BACKWARD -- the walk's
+    consumers (`_resolve_page_numbers`' re-anchor test) read a falling index
+    as a new anchor."""
     out, last, pos = [], 0, None
     for pg in pages:
         pos = getattr(pg, 'read_pos', None) or pos
@@ -761,8 +775,36 @@ def _checkpoints_by_page(checkpoints, pages):
                 if not (cp_bi < pos_bi or (cp_bi == pos_bi and cp_li < pos_count)):
                     break
                 last = idx
+        else:
+            last = max(last, _checkpoint_by_block(checkpoints, pg))
         out.append(last)
     return out
+
+
+def _checkpoint_by_block(checkpoints, pg):
+    """The BLOCK-RANGE answer for one page: the index of the last checkpoint
+    whose block index is at or before the highest block index the page
+    carries -- `_pgnum_at`/`_pl_at`'s own "last checkpoint at or before this
+    block wins" contract, as an index rather than a value so the positional
+    walk above can keep using it as a floor.
+
+    A page carrying no `.bi` at all (nothing but emitter-made lines -- a
+    footnote-area-only page, a blank page whose trailing blanks were
+    stripped) has no block range to test, so it keeps whatever the walk
+    already had."""
+    top = None
+    for ln in pg:
+        bi = getattr(ln, 'bi', None)
+        if bi is not None and (top is None or bi > top):
+            top = bi
+    if top is None:
+        return 0
+    last = 0
+    for idx in range(1, len(checkpoints)):
+        if checkpoints[idx][0] > top:
+            break
+        last = idx
+    return last
 
 
 # no `\b` after the 2-letter code (matches `_PN_CMD_RE`'s own shape,
@@ -3795,6 +3837,18 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
     # footnote AREA or with plain BODY text -- `_endnote_pages` needs the
     # distinction to decide whether a blank line precedes the first endnote.
     last_page_has_area = False
+    # The same running per-block line tally `_doc_to_pagelines`' paginator
+    # keeps, for the same consumer: `_checkpoints_by_page` asks each page
+    # HOW FAR INTO THE DOCUMENT it had read when it closed, and a page built
+    # here never answered -- so a document with footnotes lost its own
+    # `.op`/`.pn`/`.pg` and took the seeded "numbering ON" default.
+    # `samples/LYING.WS` numbered all three pages where real WS7 numbers
+    # none (research: "Why real WS7 prints no page number on some
+    # documents", 2026-09-15). Counted off the BODY only: a footnote area's
+    # lines are the emitter's own, and the reference that pulled them down
+    # here was already counted on the body line carrying it.
+    read_tally = {}
+    read_pos = None
     i, n = 0, len(stream)
     while i < n:
         body, entries, is_terminal = [], [], False
@@ -3838,6 +3892,10 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             if body and body_len + cost + _area_size(entries) > _col_cap():
                 break                            # natural page-full: line moves on
             body.append(spans)
+            bi_here = getattr(spans, 'bi', None)
+            if bi_here is not None:
+                read_tally[bi_here] = read_tally.get(bi_here, 0) + 1
+                read_pos = (bi_here, read_tally[bi_here])
             body_len += cost
             if i == last_idx:
                 is_terminal = True
@@ -3886,7 +3944,9 @@ def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
             override = target_first - body_y
             if override > 0:
                 area = [PageLine(area[0], lead=override)] + area[1:]
-        pages.append(body + area)
+        closed = NotesPage(body + area)
+        closed.read_pos = read_pos
+        pages.append(closed)
         _advance_column()
         last_page_cost = body_len + _area_size(entries)
         last_page_has_area = bool(entries)
@@ -4180,6 +4240,26 @@ class PageLine(list):
         self.col = col
         self.line_no = line_no
         self.graphic_cells = graphic_cells
+
+
+class NotesPage(list):
+    """A page built by `_paginate_printed_notes`, carrying ONE thing beyond
+    a plain list: the `read_pos` `_checkpoints_by_page` needs.
+
+    Deliberately NOT a `Page`. `Page.__init__` seeds `headers`/`footers` to
+    `{}`, and `_emit_pdf_inner` reads an empty dict as an authoritative "this
+    page has no running head" rather than "no opinion, use the document's"
+    (see `_apply_columns`' own `merged.headers` comment) -- so promoting the
+    notes paginator's plain lists to `Page` would drop a real running head
+    from every footnote-bearing document. This subclass leaves every other
+    attribute undefined, so each `getattr(pg, ..., default)` in the emitters
+    still lands on exactly the default a bare list did."""
+
+    __slots__ = ('read_pos',)
+
+    def __init__(self, seq=()):
+        super().__init__(seq)
+        self.read_pos = None
 
 
 class Page(list):
@@ -6830,9 +6910,18 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             # reads this SAME `pages` list a few lines later -- keeps
             # seeing byte-identical `getattr(pl, 'headers', None)`
             # answers; PDF bytes do not move.
+            # `read_pos` carried across too (2026-09-15): the notes
+            # paginator now records one, and `_checkpoints_by_page` is
+            # asked the automatic-number question a SECOND time by
+            # `_emit_pdf_inner`'s own render loop, off this very list.
+            # Dropping the position here would let the two answers
+            # disagree about where a `.op`/`.pn` was read -- the same
+            # two-sources-of-truth fault this promotion exists to close.
+            was = getattr(pg, 'read_pos', None)
             pg = Page(pg)
             pg.headers = None
             pg.footers = None
+            pg.read_pos = was
             pages[page_index] = pg
         if resolved['headers']:
             # `style_attrs` (planning #255) is a PDF-render-time concern

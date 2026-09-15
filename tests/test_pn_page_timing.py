@@ -166,3 +166,128 @@ def test_the_checkpoints_carry_their_line_position():
     cps = pdf._pn_checkpoints(doc)
     assert [c[2] for c in cps][-2:] == [3, 7], cps
     assert cps[-1][1] > cps[-2][1], cps      # the later one read further in
+
+
+# ====== the footnote path reads the document's own `.op` (2026-09-15) ======
+#
+# Research: "Why real WS7 prints no page number on some documents"
+# (jon_vault, 2026-09-15). Real WordStar 7 numbers every page unless the
+# document says otherwise, and `.op` is one of the four things that say
+# otherwise. `samples/LYING.WS` carries `.op` AND a footnote, and the
+# positional walk this file's own Q12 tests introduced printed a number on
+# all three of its pages: a page built by the FOOTNOTE paginator got no
+# `read_pos`, the walk's inner loop never ran, and the answer stayed on the
+# seeded "numbering ON" checkpoint 0 -- the `.op` was never consulted.
+# Across all 308 WS7 captures no document carrying `.op` prints a number,
+# with zero counter-examples, and a whole-corpus sweep finds exactly three
+# documents carrying both a footnote and a numbering-off command (LYING,
+# and two private ones), so these are the whole blast radius.
+
+import os
+
+SAMPLES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'samples')
+
+# WordStar's own default geometry again, but with no `.ps off`: a document
+# whose ONLY dot command is the one under test, so nothing else can be
+# blamed for the answer.
+PLAIN = b'.pl 66' + HARD + b'.mt 3' + HARD + b'.mb 8' + HARD + b'.po1i' + HARD
+
+
+def _ws7_block(cmd, content=b''):
+    """One WS7 0x1D-delimited block -- the shape
+    tests/test_note_rulings_20260824.py already builds notes with."""
+    count = (len(content) + 4).to_bytes(2, 'little')
+    return b'\x1d' + count + bytes([cmd]) + content + count + b'\x1d'
+
+
+def _footnote(text, number=1):
+    """A one-line FOOTNOTE (note command 0x03) -- the kind that sends a
+    document down `_paginate_printed_notes`, which is the paginator that
+    lost the `.op`."""
+    return _ws7_block(0x03, (1).to_bytes(2, 'little')
+                      + number.to_bytes(2, 'little') + bytes([0x30]) + text)
+
+
+def _foot_digits(data):
+    """Per page, the digit-only chunks drawn on that page's LOWEST print
+    line -- the research note's own install-independent test for "is there
+    an automatic page number here", which assumes no fixed x or y (`.pl`,
+    `.mb`, `.po` and `.pc` all move the real one)."""
+    out = pdf.emit_pdf(core.parse_ws(data), mode='printed')
+    pages = []
+    for stream in re.findall(rb'stream\n(.*?)endstream', out, re.S):
+        rows = {}
+        for x, y, t in re.findall(rb'([\d.]+) ([\d.]+) Td\s*\((.*?)\) Tj', stream):
+            rows.setdefault(float(y), []).append(t.decode('latin-1'))
+        if not rows:
+            pages.append([])
+            continue
+        foot = rows[min(rows)]                  # PDF y grows UPWARD: lowest line
+        pages.append([t for t in foot if t.strip().isdigit()])
+    return pages
+
+
+def test_lying_ws_prints_no_automatic_page_number_on_any_page():
+    """The regression itself, pinned on the bundled public-domain sample.
+    LYING.WS's `.op` is the FIRST LINE OF THE FILE -- it follows the header
+    block's closing 0x1D with no CR LF before it -- and it turns the
+    automatic number off for the whole document. Real WS7's own capture
+    (ws7-prints/v3) prints no number on any of the three pages."""
+    data = open(os.path.join(SAMPLES_DIR, 'LYING.WS'), 'rb').read()
+    doc = core.parse_ws(data)
+    assert doc.notes, 'LYING.WS is the fixture BECAUSE it has a footnote'
+    pages = pdf._doc_to_pagelines(doc, printed=True)
+    on = pdf._pgnum_by_page(pdf._pgnum_checkpoints(doc), pages)
+    assert on == [False] * len(pages), on
+    assert _foot_digits(data) == [[], [], []], _foot_digits(data)
+
+
+def test_a_footnote_document_that_omits_numbers_reads_its_own_op():
+    """The same shape synthetically, so the rule is pinned even if the
+    sample ever changes: `.op`, a footnote, two pages of body."""
+    data = (PLAIN + b'.op' + HARD + b'OPBODY' + _footnote(b'A footnote.')
+            + HARD + _blanks(80) + b'OPTAIL' + HARD)
+    assert _foot_digits(data) == [[], []], _foot_digits(data)
+
+
+def test_a_footnote_document_with_pn_is_still_numbered():
+    """The control, and the half a too-broad fix would break: footnotes have
+    NOTHING to do with the automatic number. 28 numbered WS7 captures carry
+    real footnotes. `.pn` says number the pages, and it still does."""
+    data = (PLAIN + b'.pn 1' + HARD + b'PNBODY' + _footnote(b'A footnote.')
+            + HARD + _blanks(80) + b'PNTAIL' + HARD)
+    assert _foot_digits(data) == [['1'], ['2']], _foot_digits(data)
+
+
+def test_the_footnote_paginator_records_where_each_page_read_to():
+    """The first half of the mechanism: a page built by the notes-aware
+    paginator now carries its own `read_pos`, so it answers the walk
+    directly instead of falling through to the seeded default."""
+    for name, dot in (('LYING.WS', None), (None, b'.pn 1'), (None, b'.op')):
+        if name:
+            data = open(os.path.join(SAMPLES_DIR, name), 'rb').read()
+        else:
+            data = (PLAIN + dot + HARD + b'XBODY' + _footnote(b'A footnote.')
+                    + HARD + _blanks(80) + b'XTAIL' + HARD)
+        doc = core.parse_ws(data)
+        assert pdf._has_placeable_notes(doc), (name, dot)
+        positions = [getattr(pg, 'read_pos', None)
+                     for pg in pdf._doc_to_pagelines(doc, printed=True)]
+        assert all(p is not None for p in positions), (name, dot, positions)
+        assert positions == sorted(positions), (name, dot, positions)
+
+
+def test_a_page_with_no_read_position_falls_back_to_the_block_range_rule():
+    """The second half, and the belt to that brace: a page that carries no
+    read position at all -- a synthetic or degenerate page, from any future
+    paginator -- is answered by block range (the last checkpoint at or
+    before the highest block the page carries), not by the seeded
+    checkpoint 0. Checkpoints here: ON at block 0, OFF at block 2."""
+    checkpoints = [(0, 0, True), (2, 0, False)]
+    early, late = pdf.PageLine([('x', None)]), pdf.PageLine([('y', None)])
+    early.bi, late.bi = 1, 3
+    assert pdf._checkpoints_by_page(checkpoints, [[early], [late]]) == [0, 1]
+    assert pdf._checkpoints_by_page(checkpoints, [[late]]) == [1]
+    # No `.bi` anywhere on the page: nothing to range over, walk unchanged.
+    assert pdf._checkpoints_by_page(checkpoints, [[]]) == [0]
