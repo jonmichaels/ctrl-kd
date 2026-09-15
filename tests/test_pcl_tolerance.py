@@ -1170,3 +1170,72 @@ def test_the_guard_refuses_a_sheet_as_wide_as_the_ceiling():
     assert not pt.both_words_are_off_the_paper(999.9, 1200.0, None)
     assert pt.sheet_right_edge_pt({}) is None
     assert pt.sheet_right_edge_pt(None) is None
+
+
+# ------------------------------------------- the automatic page number
+#
+# `_is_unreliable_to_align` drops every chunk of two characters or fewer
+# from both sides before matching, so an automatic page number below 100
+# is invisible to every other check in this module. `_foot_numbers` and
+# `_page_number_divergences` are the check that sees it (2026-09-15,
+# research "Why real WS7 prints no page number on some documents").
+
+def _c(text, y, x=200.0, page=1):
+    return {'text': text, 'y_top': y, 'x': x, 'page': page}
+
+
+def test_foot_numbers_reads_a_lone_digit_run_on_the_lowest_line():
+    assert pt._foot_numbers([_c('body', 100.0), _c('7', 700.0)]) == {'7'}
+
+
+def test_foot_numbers_is_empty_when_the_lowest_line_is_not_all_digits():
+    """A footer with text, or a number sitting beside one, is not the
+    automatic number -- it is a `.fo`, which REPLACES it."""
+    assert pt._foot_numbers([_c('body', 100.0),
+                             _c('Page', 700.0, x=180.0),
+                             _c('7', 700.0, x=220.0)]) == frozenset()
+
+
+def test_foot_numbers_refuses_two_numbers_side_by_side():
+    """Two digit chunks at DIFFERENT x on one row are a table row, not one
+    overstruck position."""
+    assert pt._foot_numbers([_c('12', 700.0, x=100.0),
+                             _c('34', 700.0, x=300.0)]) == frozenset()
+
+
+def test_foot_numbers_returns_both_digits_of_an_overstrike():
+    """`sawyer/-SCREEN.WS` and `sawyer/REF/-LASERJE.FNT` each capture two
+    digit chunks at the IDENTICAL coordinate -- one printed position
+    carrying overstruck ink. Naming either as "the" number would invent a
+    fact, so both are returned and agreeing with either is agreement."""
+    assert pt._foot_numbers([_c('1', 806.4), _c('2', 806.4)]) == {'1', '2'}
+
+
+def test_foot_numbers_ignores_box_drawing_on_the_lowest_line():
+    """This engine draws cp437 line-drawing characters as VECTORS, so they
+    are never text on the engine side while WS7 sends them as glyphs.
+    `sawyer/REF/FONTS.REF` page 9 ends `191` beside a box corner: with the
+    corner counted, the two sides are asked different questions."""
+    assert pt._foot_numbers([_c('191', 739.6, x=36.0),
+                             _c('┐', 739.6, x=108.0)]) == {'191'}
+
+
+def test_page_number_divergences_flags_only_a_real_disagreement():
+    ws7 = [_c('body', 100.0), _c('3', 700.0),
+           _c('body', 100.0, page=2), _c('4', 700.0, page=2)]
+    same = list(ws7)
+    assert pt._page_number_divergences(ws7, same) == []
+    # the engine printing none where WS7 printed one
+    missing = [c for c in ws7 if c['text'] != '3']
+    assert [d[0] for d in pt._page_number_divergences(ws7, missing)] == [1]
+    # the engine printing a DIFFERENT number
+    wrong = [dict(c, text='9') if c['text'] == '3' else c for c in ws7]
+    assert [d[0] for d in pt._page_number_divergences(ws7, wrong)] == [1]
+    # a page only one side has is a page-count question, not this one
+    assert pt._page_number_divergences(ws7, ws7[:2]) == []
+
+
+def test_page_number_divergences_accepts_either_overstruck_digit():
+    ws7 = [_c('body', 100.0), _c('1', 806.4), _c('2', 806.4)]
+    eng = [_c('body', 100.0), _c('2', 806.4)]
+    assert pt._page_number_divergences(ws7, eng) == []

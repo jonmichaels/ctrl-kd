@@ -32,6 +32,8 @@ Synthetic fixtures only.
 """
 import re
 
+import pytest
+
 from ctrlkd import core, emit, pdf
 
 HARD = b'\x0d\x0a'
@@ -160,8 +162,48 @@ def test_mb_zero_silences_the_modern_number():
 def test_the_row_test_is_the_one_printed_uses():
     """One definition, two readers: Printed draws at this y, Modern only
     asks whether it is None."""
-    assert pdf._auto_pageno_row_y(792, 66, 8, 2, 12.0, 12) == 60.0
-    assert pdf._auto_pageno_row_y(72, 6, 0, 0, 12.0, 12) is None
+    assert pdf._auto_pageno_row_y(792, 66, 8, 2, 12) == 60.0
+    assert pdf._auto_pageno_row_y(72, 6, 0, 0, 12) is None
+
+
+def test_the_row_steps_by_a_page_line_not_the_documents_lh():
+    """Planning #274: `.pl`/`.mb`/`.fm` count PAGE lines -- WordStar's
+    fixed 6-LPI grid -- and the row used to be multiplied by the
+    document's own `.lh` instead. Identical whenever `.lh` is the default
+    12pt, which is why it went unseen; a document that sets `.lh` higher
+    had the row pushed down by (lh - 12) x ~60 lines and lost its number.
+    `sawyer/REF/SUB-SUPE.TST` (`.lh` 24pt, `.pl 66 .mb 8 .fm 2`) is the
+    case: real WS7 prints its number 732pt from the top of the sheet, the
+    row this arithmetic gives at 6 LPI and nowhere near the 1452pt a
+    24pt step would."""
+    assert pdf._auto_pageno_row_y(792, 66, 8, 2, 12) == 792 - 60 * 12 - 12
+
+
+def test_the_row_keeps_fractional_page_lines():
+    """`.mb 1.8`/`.fm 1.14` are ordinary corpus values
+    (`sawyer/REF/PS-FONTS.REF`, `sawyer/REF/ADVANCE.DOT`) and truncating
+    them to integers moved the row by most of an inch."""
+    assert pdf._auto_pageno_row_y(792, 66.0, 1.8, 2.0, 12) == \
+        pytest.approx(792 - 66.2 * 12 - 12, abs=1e-9)
+
+
+def test_the_row_is_returned_even_when_it_falls_past_the_paper():
+    """Real WS7 does not clamp: with `.mb 1.8 .fm 2` on a 66-line page it
+    commands the number 806.4pt from the top of a 792pt sheet -- 14.4pt
+    past the bottom edge -- and the printer clips it. The engine does the
+    same and lets the page clip it, instead of dropping the row. A blanket
+    "must be on the paper" guard used to do the dropping, and it was
+    standing in for the `.mb 0` rule below."""
+    y = pdf._auto_pageno_row_y(792, 66.0, 1.8, 2.0, 12)
+    assert y is not None and y < 0
+
+
+def test_no_bottom_margin_means_no_row_at_all():
+    """Research 2026-09-15 rule 3, 24 captures and no counter-example: no
+    bottom margin means there is no footer line on the sheet, so there is
+    nowhere to put a number. `MAILLIST/LABELA` is `.pl 6 .mb 0 .fm 0`."""
+    assert pdf._auto_pageno_row_y(72, 6, 0, 0, 12) is None
+    assert pdf._auto_pageno_row_y(792, 0.0, 0.0, 2.0, 12) is None
 
 
 # ------------------------------------------------------------- the flag

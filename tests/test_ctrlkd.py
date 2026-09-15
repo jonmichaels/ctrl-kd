@@ -1672,7 +1672,18 @@ def test_pdf_output_bytes_carry_mt_top_and_lh_lead():
     data = (b'.MT 6' + HARD + b'.LH 16' + HARD +
             b'Line one.' + HARD + b'Line two.' + HARD + b'Line three.' + HARD)
     pdf = emit_pdf(core.parse_ws(data), mode='printed')
-    ys = [float(m) for m in re.findall(rb'[\d.]+ ([\d.]+) Td', pdf)]
+    # WordStar's own automatic page number rides the footer row and is
+    # drawn FIRST; planning #274 (2026-09-15) put it back on the paper for
+    # a document like this one, whose `.lh 16` used to push the row off the
+    # sheet. It is not a body line, so it is dropped here -- a lone
+    # digits-only op on the page's lowest drawn row, the same shape the
+    # PCL tier recognises.
+    drawn = [(float(y), t) for _x, y, t in
+             re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', pdf)]
+    low = min(y for y, _t in drawn)
+    if len([t for y, t in drawn if y == low]) == 1:
+        drawn = [(y, t) for y, t in drawn if y != low]
+    ys = [y for y, _t in drawn]
     assert ys[0] == 792 - 72 - 24                  # top from .mt alone, first lead from .lh
     assert ys[0] - ys[1] == 24.0                   # lead from .lh, not fixed 12
     assert ys[1] - ys[2] == 24.0

@@ -54,6 +54,14 @@ https://github.com/jonmichaels/ctrl-kd/releases
   page in Modern view and Modern PDF. WordStar prints a footer at the
   bottom of the page, so it is never too late for one; Printed has read it
   that way for a while and Modern now does too.
+- The automatic page number vanished from any document that set a line
+  height above 12pt, and from any document that is all dot commands and
+  running heads with no body at all — a font reference, a printer sample,
+  a galley template. Its row is counted in WordStar page lines (1/6 in)
+  now, not in the document's own line height, and the fractions of a line
+  a `.mb 1.8` asks for are kept instead of rounded. Documents that set no
+  bottom margin at all correctly print no number, which a few of them used
+  to.
 
 ## [4.7.1] — 2026-09-15
 

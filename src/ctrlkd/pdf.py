@@ -949,10 +949,65 @@ def _pgnum_at(checkpoints, bi):
 _AUTO_PAGENO_DEFAULT_COL = 33.5
 
 
-def _auto_pageno_row_y(page_h, pl, mb, fm, lead, size):
+def _pgnum_is_bodiless(pages):
+    """True when NOT ONE line on any page carries a block index -- a
+    document with no body at all. `sawyer/REF/ADVANCE.DOT` and
+    `sawyer/REF/GALLEYS.DOT` are the corpus's examples: galley and
+    manuscript TEMPLATES, one page each, nothing but dot commands and a
+    pair of `.h1o`/`.h1e` running heads. See `_pgnum_for_bodiless_page`."""
+    return not any(getattr(ln, 'bi', None) is not None
+                   for pg in pages for ln in pg)
+
+
+def _pgnum_for_bodiless_page(checkpoints, fallback_bi, bodiless_doc):
+    """Whether WordStar numbers a page that carries no `.bi` of its own.
+
+    `explicit_break_bi` (planning #228) is the `.pa` block's own index and
+    stands in for "wherever the document's own state was when this page
+    opened" on a confirmed trailing-`.pa` page, which DOES need a number
+    (WS7 stamps one). That case is unchanged.
+
+    A page with NEITHER used to answer a hard False, which is not a
+    fallback but a different rule. Planning #274 (2026-09-15): a document
+    that is ALL HEAD AND NO BODY got no number on its one page even though
+    nothing in it ever asked for `.op`, while real WS7 (`ws7-prints/v4`)
+    stamps one at the exact row this engine already computes --
+    `sawyer/REF/ADVANCE.DOT` and `sawyer/REF/GALLEYS.DOT`. For such a
+    document the opening state IS the page's state: there is no later block
+    whose `.op`/`.pn`/`.pg` could have been read, so checkpoint 0 is not an
+    approximation, it is the answer.
+
+    THAT IS WHY `bodiless_doc` IS A WHOLE-DOCUMENT TEST and not a
+    per-page one. A page that merely came out EMPTY inside a document that
+    does have blocks -- a run of blank lines, `_finalize_pages` having
+    stripped them -- is a different thing: answering it from checkpoint 0
+    would ignore every command read since, which is exactly the
+    `-HOLYMAC.WS` misnumbering the 2026-09-15 research note names. Those
+    pages keep the previous answer."""
+    if fallback_bi is not None:
+        return _pgnum_at(checkpoints, fallback_bi)
+    return _pgnum_at(checkpoints, 0) if bodiless_doc else False
+
+
+def _auto_pageno_row_y(page_h, pl, mb, fm, size):
     """The baseline y (points) of WordStar's automatic page-number row --
     the SAME row a `.fo` line 1 rides, `pl - mb + fm` -- or None when the
     sheet has no such row at all.
+
+    THE STEP IS A WORDSTAR PAGE LINE, 1/6 IN, NEVER THE DOCUMENT'S `.lh`
+    (planning #274, 2026-09-15). `.pl`/`.mb`/`.fm` count PAGE lines -- the
+    fixed 6-LPI grid WordStar measures a sheet in -- and this arithmetic
+    used to multiply that count by `_printed_lead(doc)`, the document's own
+    body leading. The two are the same number for every document that
+    leaves `.lh` alone (the default 8/48in IS 12pt), which is why it went
+    unnoticed; a document that sets `.lh` higher pushed the row down by
+    (lh - 12) x ~60 lines and off the paper entirely, and the number simply
+    vanished. MEASURED against all 212 WS7 captures that print an automatic
+    number (`ws7-prints/v3` + `v4`, per-page lowest print line): the 1/6in
+    step agrees with 211 of them, the current `.lh` step with 200. The one
+    disagreement under either rule is `sawyer/REF/-PATCHES.WS`, whose own
+    `.pl 0` makes WordStar's behaviour undefined and which Jon removed from
+    all further work on 2026-09-10 (planning #261).
 
     ONE DEFINITION, two readers. Printed DRAWS at this y
     (`_resolve_head_foot_lines`). Modern only asks whether it is None,
@@ -966,13 +1021,22 @@ def _auto_pageno_row_y(page_h, pl, mb, fm, lead, size):
     None IS THE `.mb 0` RULE (research 2026-09-15, rule 3: "no bottom
     margin -- there is no footer line on the sheet at all, so there is
     nowhere to put a number"; in this corpus, label stock, Rolodex cards
-    and mail-merge format files). It falls out of the arithmetic rather
-    than being tested for: MAILLIST/LABELA is `.pl 6 .mb 0 .fm 0` on a
-    72pt sheet, so the row lands at y = -12 and there is none. Nothing
-    here special-cases `.mb`; the row either fits on the paper or does
-    not, which is also why `.pl`/`.fm` participate on the same terms."""
-    y = page_h - (pl - mb + fm) * lead - size
-    return y if y >= 0 else None
+    and mail-merge format files -- 24 captures, not one of them numbered).
+    It is TESTED FOR, since 2026-09-15. It used to fall out of the
+    arithmetic instead -- `MAILLIST/LABELA` is `.pl 6 .mb 0 .fm 0` on a
+    72pt sheet, so the row landed at y = -12 and a blanket "must be on the
+    paper" guard dropped it -- and that guard was wrong about the OTHER
+    class it caught. Real WS7 does not clamp the row to the sheet: with
+    `.mb 1.8 .fm 2` on a 66-line page (`sawyer/REF/PS-FONTS.REF`,
+    `FONTS.REF`, `-LASERJE.FNT`) it commands the number at 806.4pt from the
+    top of a 792pt sheet, 14.4pt PAST the bottom edge, and with `.mb 1.2`
+    (`sawyer/LSRBOX/PAGE.RND`) at 813.6pt. Those are real captures. So the
+    row is returned wherever the arithmetic puts it and the page clips it
+    exactly as the printer does; only a document with NO bottom margin has
+    no row at all."""
+    if mb <= 0:
+        return None
+    return page_h - (pl - mb + fm) * LEAD - size
 
 
 def _auto_pageno_x_pt(doc):
@@ -6862,6 +6926,7 @@ def _attach_head_foot_lines_printed(doc, pages, size):
     page_h = _resolved_page_height(doc, True)
     pgnum_checkpoints = _pgnum_checkpoints(doc)
     pgnum_on_page = _pgnum_by_page(pgnum_checkpoints, pages)
+    bodiless_doc = _pgnum_is_bodiless(pages)
     page_numbers = _resolve_page_numbers(_pn_checkpoints(doc), pages)
     for page_index, pg in enumerate(pages):
         page_mt = getattr(pg, 'mt_lines', None)
@@ -6898,8 +6963,8 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             auto_page_number = pgnum_on_page[page_index]
         else:
             fallback_bi = getattr(pg, 'explicit_break_bi', None)
-            auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
-                                if fallback_bi is not None else False)
+            auto_page_number = _pgnum_for_bodiless_page(
+                pgnum_checkpoints, fallback_bi, bodiless_doc)
         resolved = _resolve_head_foot_lines(
             doc, page_numbers[page_index], page_h, lead, size, running_left,
             True, headers=getattr(pg, 'headers', None),
@@ -7419,6 +7484,26 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     pl = int(page.get('pl_lines', 66))
     mb = int(page.get('mb_lines', 8))
     fm = int(page.get('fm_lines', 2))
+    # THE AUTOMATIC NUMBER'S OWN ROW IS READ IN REAL PAGE LINES, never the
+    # truncated integers the footer-TEXT loop below uses (planning #274,
+    # 2026-09-15). `.mb 1.8`/`.fm 1.14` are ordinary corpus values --
+    # `sawyer/REF/PS-FONTS.REF`, `sawyer/REF/ADVANCE.DOT` -- and truncating
+    # them moves the row by most of an inch. Measured: with the fractions
+    # kept and the 1/6in page-line step of `_auto_pageno_row_y`, the
+    # predicted row matches 211 of the 212 WS7 captures that print a
+    # number, to within the captures' own decipoint rounding.
+    #
+    # THE FOOTER-TEXT LOOP IS DELIBERATELY LEFT ALONE, and it is not a
+    # silent inconsistency: `show_auto_num` already excludes every page a
+    # real footer is in use on (WSFORMAT.WS's "active only when the footers
+    # are not in use"), so the truncated `foot_line` and this one never
+    # place two things on one page. That loop ALSO steps by the document's
+    # own `.lh` rather than a page line. Both are the same class of defect
+    # as this one and neither has been measured against a capture yet --
+    # named here as a follow-up, not fixed on a guess.
+    auto_pl = float(page.get('pl_lines', 66))
+    auto_mb = float(page.get('mb_lines', 8))
+    auto_fm = float(page.get('fm_lines', 2))
 
     def render(txt):
         return txt.replace('#', str(page_no))
@@ -7724,7 +7809,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         # real footer is in use (WSFORMAT.WS's own "active only when the
         # footers are not in use"), so this never collides with the loop
         # just above -- at most one of the two ever fires for a given page.
-        y = _auto_pageno_row_y(page_h, pl, mb, fm, lead, size)
+        y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, size)
         if y is not None:
             auto = (str(page_no), _auto_pageno_x_pt(doc), y)
     return {'headers': resolved_headers, 'footers': resolved_footers, 'auto': auto}
@@ -9544,7 +9629,7 @@ def _modern_auto_pageno_shows(doc, bi, page_numbers, pgnum_checkpoints,
     mb = float(_mt_mb_at(_mt_mb_checkpoints(doc), bi)[1])
     fm = float(page.get('fm_lines', 2))
     if _auto_pageno_row_y(_resolved_page_height(doc, True), pl, mb, fm,
-                          _printed_lead(doc), _printed_size(doc)) is None:
+                          _printed_size(doc)) is None:
         return False
     if page_numbers == 'on':
         return True
@@ -11309,6 +11394,7 @@ def _emit_pdf_inner(doc, printed, options):
                          if pgnum_checkpoints is not None else None)
         res = FontRes()
         streams = []
+        bodiless_doc = _pgnum_is_bodiless(pages)
         for page_index, pl in enumerate(pages):
             # Finding 3 (b26-print-fidelity-2): a page whose own .mt/.mb
             # (Page.mt_lines/mb_lines, set by _doc_to_pagelines from
@@ -11436,16 +11522,9 @@ def _emit_pdf_inner(doc, printed, options):
                 if bis:
                     auto_page_number = pgnum_on_page[page_index]
                 else:
-                    # #228: a page with no lines at all has no `.bi` to
-                    # read -- true of both an ordinary degenerate page
-                    # (kept False, as before) and our new confirmed
-                    # trailing-`.pa` page, which DOES need a number (WS7
-                    # stamps one). `explicit_break_bi` (the `.pa` block's
-                    # own index) stands in for "wherever the document's
-                    # own state was when this page opened."
                     fallback_bi = getattr(pl, 'explicit_break_bi', None)
-                    auto_page_number = (_pgnum_at(pgnum_checkpoints, fallback_bi)
-                                        if fallback_bi is not None else False)
+                    auto_page_number = _pgnum_for_bodiless_page(
+                        pgnum_checkpoints, fallback_bi, bodiless_doc)
             # "Is a footer in use" is a property of the DOCUMENT, never of
             # the `--headers` flag (planning #264 R7): WordStar's automatic
             # number is off whenever the file declares a `.fo`, whether or

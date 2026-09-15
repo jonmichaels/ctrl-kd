@@ -54,9 +54,23 @@ MODERN_FOOT_ZONE = 44.0
 
 def _line_ys(out):
     """Distinct baseline Y positions in draw order (a visual line often
-    splits into several Tj ops -- one per word -- all sharing one Td y)."""
-    ys = [float(y) for _, y in re.findall(rb'([\d.]+) ([\d.]+) Td \(', out)
-          if float(y) > MODERN_FOOT_ZONE]
+    splits into several Tj ops -- one per word -- all sharing one Td y).
+
+    The automatic page number is dropped whichever mode drew it: Modern
+    puts it in the foot zone above, and PRINTED puts it on its own
+    `pl - mb + fm` row, which is well inside the sheet and which planning
+    #274 moved onto the paper for every document with a `.lh` above 12pt
+    -- these fixtures included. It is recognised the same way the PCL
+    tier recognises it: a LONE digits-only op on the page's lowest drawn
+    row."""
+    drawn = [(float(y), t) for _x, y, t in
+             re.findall(rb'([\d.]+) ([\d.]+) Td \((.*?)\) Tj', out)]
+    if drawn:
+        low = min(y for y, _t in drawn)
+        row = [t for y, t in drawn if y == low]
+        if len(row) == 1 and row[0].isdigit():
+            drawn = [(y, t) for y, t in drawn if y != low]
+    ys = [y for y, _t in drawn if y > MODERN_FOOT_ZONE]
     uniq = []
     for y in ys:
         if not uniq or abs(uniq[-1] - y) > 1e-6:

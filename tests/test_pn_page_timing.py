@@ -291,3 +291,36 @@ def test_a_page_with_no_read_position_falls_back_to_the_block_range_rule():
     assert pdf._checkpoints_by_page(checkpoints, [[late]]) == [1]
     # No `.bi` anywhere on the page: nothing to range over, walk unchanged.
     assert pdf._checkpoints_by_page(checkpoints, [[]]) == [0]
+
+
+# --------------------------- a document with no body at all (planning #274)
+
+def test_a_bodiless_document_is_numbered_from_its_opening_state():
+    """`sawyer/REF/ADVANCE.DOT` and `sawyer/REF/GALLEYS.DOT` are galley and
+    manuscript TEMPLATES: one page each, nothing but dot commands and a
+    pair of `.h1o`/`.h1e` running heads, not one body line. A page with no
+    block of its own used to answer a hard False, which is not a fallback
+    but a different rule -- the number vanished even though nothing in the
+    document ever asked for `.op`, while real WS7 (`ws7-prints/v4`) stamps
+    one. For such a document the opening state IS the page's state: there
+    is no later block whose `.op`/`.pn`/`.pg` could have been read."""
+    assert pdf._pgnum_for_bodiless_page([(0, 0, True)], None, True) is True
+    assert pdf._pgnum_for_bodiless_page([(0, 0, False)], None, True) is False
+
+
+def test_an_empty_page_inside_a_real_document_keeps_the_old_answer():
+    """The other half, and the reason the test is a WHOLE-DOCUMENT one: a
+    page that merely came out empty -- a run of blank lines,
+    `_finalize_pages` having stripped them -- sits inside a document that
+    does have blocks, and answering it from checkpoint 0 would ignore every
+    command read since. That is exactly the `-HOLYMAC.WS` misnumbering the
+    2026-09-15 research note names."""
+    assert pdf._pgnum_for_bodiless_page([(0, 0, True)], None, False) is False
+
+
+def test_a_trailing_pa_page_still_reads_its_own_break_block():
+    """Planning #228 is untouched: `explicit_break_bi` wins wherever it
+    exists, bodiless document or not."""
+    cps = [(0, 0, True), (1, 5, False)]
+    assert pdf._pgnum_for_bodiless_page(cps, 5, False) is False
+    assert pdf._pgnum_for_bodiless_page(cps, 0, True) is True

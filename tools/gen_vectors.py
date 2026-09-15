@@ -33,6 +33,7 @@ nothing to hardcode and nothing about the caller's filesystem is assumed).
 """
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
@@ -206,6 +207,55 @@ def _rw_convert(cases):
     return out
 
 
+# The y operand of a PDF text-positioning `Td`, as the content stream spells it.
+_TD_Y_RE = re.compile(rb'[\d.]+ (-?[\d.]+) Td \(')
+
+
+def _rw_geometry_cases(cases):
+    """The vertical page-geometry vectors -- `geometry-vectors-*.json`'s own `cases`
+    list, one `parse_ws` document each with its resolved `page` meta and whichever
+    derived expectations that case carries.
+
+    ADDED 2026-09-15 (planning #274). This section was NOT regenerable before: the
+    dispatch above keys on section NAME and `cases` was handled only in its
+    dict-shaped, notes-vectors form, so a geometry file's list-shaped `cases` fell
+    through every branch and the script reported the file "unchanged" while leaving
+    every expectation in it untouched. The page-number row change moved
+    `pdf_td_y_first3` on two cases, and the only options left were hand-editing the
+    arrays -- which this script's own docstring calls turning the oracle into a
+    mirror of whatever you just wrote -- or leaving the port red. Both were wrong
+    answers to a tooling gap, so the gap is closed instead.
+
+    Every field is recomputed ONLY IF THE CASE ALREADY CARRIES IT, the same rule
+    every other rewriter here follows: this script never invents an expectation and
+    never invents a case."""
+    out = []
+    for c in cases:
+        doc = core.parse_ws(bytes.fromhex(c['input_hex']))
+        new = dict(c)
+        if 'page' in new:
+            page = doc.meta.get('page') or {}
+            new['page'] = {k: page[k] for k in new['page'] if k in page}
+        for field, fn in (('printed_cap', pdf._printed_cap),
+                          ('printed_top', pdf._printed_top),
+                          ('printed_lead', pdf._printed_lead),
+                          ('printed_size', pdf._printed_size)):
+            if field in new:
+                new[field] = fn(doc)
+        if 'printed_page_line_counts' in new:
+            new['printed_page_line_counts'] = [
+                len(pg) for pg in pdf._doc_to_pagelines(doc, True)]
+        if 'pdf_td_y_first3' in new:
+            # The y operand of each `Td`, in the order the content stream draws
+            # them -- which is the order the Swift side's own `pdfTdYStrings`
+            # reads, running heads and WordStar's automatic page number included.
+            ys = _TD_Y_RE.findall(pdf.emit_pdf(doc, mode='printed'))
+            new['pdf_td_y_first3'] = [y.decode()
+                                      for y in ys[:len(c['pdf_td_y_first3'])]]
+        out.append(new)
+    return out
+
+
 def _rw_notes_cases(cases):
     out = {}
     for name, c in cases.items():
@@ -275,9 +325,14 @@ def _rewrite_file(path):
             doc[key] = rewriter(doc[key])
             touched.append(key)
 
-    # notes-vectors keeps its cases in a dict keyed by name, not a list.
+    # notes-vectors keeps its cases in a dict keyed by name, not a list; the
+    # geometry vectors keep theirs in a list of `{name, input_hex, page, ...}`.
     if 'cases' in doc and isinstance(doc['cases'], dict):
         doc['cases'] = _rw_notes_cases(doc['cases'])
+        touched.append('cases')
+    elif (isinstance(doc.get('cases'), list) and doc['cases']
+            and 'page' in doc['cases'][0]):
+        doc['cases'] = _rw_geometry_cases(doc['cases'])
         touched.append('cases')
 
     if 'convert' in doc and isinstance(doc['convert'], list):

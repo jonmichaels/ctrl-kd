@@ -501,6 +501,23 @@ REASON_RASTER_POSITION_SHIFT = 'raster-position-shift'
 REASON_RASTER_SIZE_MISMATCH = 'raster-size-mismatch'
 REASON_RASTER_COUNT_MISMATCH = 'raster-count-mismatch'
 
+# The AUTOMATIC PAGE NUMBER, which nothing else in this gate can see.
+# Research: "Why real WS7 prints no page number on some documents"
+# (2026-09-15). Every other check in this module runs its tokens through
+# `_is_unreliable_to_align` first, and that filter drops any chunk of two
+# characters or fewer -- so an automatic page number below 100 is deleted
+# from BOTH sides before matching, in either direction, for every document
+# in this corpus. The one page-number bug this tier ever did catch (triage
+# cause 1, a stray "251" on MACROS/HOLYMAC/7MAC3) was visible only because
+# that document is long enough to pass page 99; LYING.WS carried three
+# wrong page numbers past a `clean` verdict for a day.
+#
+# Widening the filter is NOT the fix -- it exists because a lone `,` or `(`
+# genuinely cannot be aligned by whole-document text matching, and loosening
+# it would manufacture false divergences everywhere. The page number gets
+# its own check instead, on its own terms: see `_page_number_divergences`.
+REASON_PAGE_NUMBER_MISMATCH = 'page-number-mismatch'
+
 # ------------------------------------------- the printer's right ceiling
 # Planning #270 item 27 / triage Q1, Jon's ruling 2026-09-13: "We are sure
 # it's a WordStar doc. Assuming it is, it's what WordStar is doing. We
@@ -572,7 +589,7 @@ ALL_REASONS = frozenset({
     REASON_UNIVERS_DRIFT_EXCEEDS_TOLERANCE, REASON_UNCLASSIFIED_FONT_TIER,
     REASON_PRISTINE_FRAME_OFFSET, REASON_RASTER_POSITION_SHIFT,
     REASON_RASTER_SIZE_MISMATCH, REASON_RASTER_COUNT_MISMATCH,
-    REASON_PAGE_MEMBERSHIP,
+    REASON_PAGE_MEMBERSHIP, REASON_PAGE_NUMBER_MISMATCH,
 })
 
 # Mechanism I (tools/PCL-DIVERGENCE-TRIAGE.md): real CG-Times/Univers
@@ -1886,7 +1903,15 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
     chunks difflib can't reliably align (_is_unreliable_to_align) are left
     out of the returned list entirely -- they still fix where a line
     visually starts (`dist_into_line_pt` on later tokens is measured from
-    them), but never become a checkable token themselves. Also returns the
+    them), but never become a checkable token themselves.
+
+    SECOND RETURN VALUE: [{text, page, y_top, x}, ...] -- the same chunks
+    after the same merge/dedupe passes, with the short/punctuation filter
+    NOT applied. One thing that filter throws away is a real finding: the
+    automatic PAGE NUMBER, one or two digits for every document in this
+    corpus short of 100 pages. See `_page_number_divergences`.
+
+    Also returns the
     list of WS7 page
     numbers where a fresh parse_pcl_extended pass over the .pcl disagrees
     with measurements.json's own chunk count for that page (see module
@@ -1898,6 +1923,7 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
     pages, _unhandled, _rnr, _meta = pr.parse_pcl_extended(pcl_bytes)
 
     tokens = []
+    all_chunks = []
     mismatched_pages = []
     for pidx, chunks in enumerate(pages, start=1):
         text_chunks = [c for c in chunks if c.get('type', 'text') == 'text']
@@ -1936,6 +1962,14 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
             line_start_x = items[0][0]['x_decipoints'] / fg.DECIPT_PER_PT
             checkable_idx = 0
             for pc, tc in items:
+                # EVERY surviving chunk, short ones included -- the
+                # page-number check (`_page_number_divergences`) needs the
+                # one thing `_is_unreliable_to_align` throws away. It runs
+                # AFTER every merge/dedupe pass above, so it sees `-SCREEN`'s
+                # own double-struck page number as ONE chunk, not two.
+                all_chunks.append({'text': pc['text'], 'page': pidx,
+                                   'y_top': pc['y_decipoints'] / fg.DECIPT_PER_PT,
+                                   'x': pc['x_decipoints'] / fg.DECIPT_PER_PT})
                 if _is_box_drawing_text(pc['text']) or _is_unreliable_to_align(pc['text']):
                     continue
                 x_pt = pc['x_decipoints'] / fg.DECIPT_PER_PT
@@ -1949,7 +1983,91 @@ def load_ws7_tokens(pcl_path: str, measurements_path: str):
                     'is_line_start': checkable_idx == 0,
                 })
                 checkable_idx += 1
-    return tokens, mismatched_pages
+    return tokens, all_chunks, mismatched_pages
+
+
+def _foot_numbers(chunks):
+    """The automatic page number one side put on one page: the set of digit
+    strings struck at that one position, empty for "no number here".
+
+    THE TEST IS INSTALL-INDEPENDENT, by necessity: `.pl`, `.mb`, `.fm`,
+    `.po`, `.poo`/`.poe` and `.pc` all move the real number, and across the
+    corpus it lands at y = 5976, 7320, 7440, 7560, 8064 decipoints and at
+    x = 2484-6516. So no fixed coordinate is assumed. What IS constant is
+    its shape: WordStar's automatic number is the only thing on the LOWEST
+    PRINT LINE of the page, and it is all digits. A footer with text, a
+    body line, a footer and a number side by side -- none of those answer.
+
+    Both sides are asked the identical question, so a document whose last
+    body line happens to be a lone number (a table total, a year) answers
+    the same on both sides and produces no divergence.
+
+    A SET, because of OVERSTRIKE: `sawyer/-SCREEN.WS` and
+    `sawyer/REF/-LASERJE.FNT` each capture TWO digit chunks at the
+    IDENTICAL coordinate on one page's foot -- the closing page's number
+    and the next one's, WordStar having emitted the second with no form
+    feed after it. That is one printed position carrying overstruck ink,
+    and which of the two an extractor lists first is an accident of the
+    capture; naming either one as "the" number would be inventing a fact.
+    The engine, which overstrikes nothing, answers with one value, and
+    agreeing with EITHER struck digit is agreement.
+
+    BOX-DRAWING CHUNKS ARE NOT PRINT, for this question. This engine draws
+    cp437 line-drawing characters as VECTORS (`pdf._graphic_ops`), so they
+    never appear as text on the engine side at all, while WS7 sends them as
+    ordinary glyphs -- `_is_box_drawing_text` is the filter every other
+    check here already applies for exactly that reason. Leaving them in
+    asks the two sides different questions: `sawyer/REF/FONTS.REF` page 9
+    ends with a font-chart row reading `191` next to a box corner, which is
+    "digits plus a glyph" to WS7 and a lone `191` to the engine."""
+    chunks = [c for c in chunks
+              if c['text'].strip() and not _is_box_drawing_text(c['text'])]
+    if not chunks:
+        return frozenset()
+    foot_y = max(c['y_top'] for c in chunks)
+    line = [c for c in chunks if abs(c['y_top'] - foot_y) < 0.5]
+    if not line or not all(c['text'].strip().isdigit() for c in line):
+        return frozenset()
+    xs = [c['x'] for c in line]
+    if max(xs) - min(xs) > 0.5:
+        return frozenset()          # two numbers side by side: not this
+    return frozenset(c['text'].strip() for c in line)
+
+
+def _page_number_divergences(ws7_chunks_all, eng_tokens_all):
+    """[(page, WS7 digits, engine digits), ...] for every page the two
+    sides disagree about -- the automatic page number, checked on its own
+    terms because `_is_unreliable_to_align` hides it from every other check
+    here (see REASON_PAGE_NUMBER_MISMATCH). Each side's digits are a set:
+    see `_foot_numbers` on overstrike.
+
+    A DISAGREEMENT is one side printing a number where the other printed
+    none, or the engine's number not being among the digits WS7 struck at
+    that position. Both inputs are PRE-FILTER token lists; the WS7 side has
+    still been through every merge/dedupe pass `load_ws7_tokens` applies.
+
+    THE RULE THIS ENFORCES, in one sentence: stock WordStar 7 prints a
+    centred automatic page number on every page unless the document carries
+    `.op`, a footer command, `.mb 0`, or prints nothing at all -- zero
+    counter-examples across all 308 WS7 captures (research, 2026-09-15).
+    A page present on only one side is not judged here: that is already a
+    `page-count-mismatch`."""
+    ws7_by_page, eng_by_page = defaultdict(list), defaultdict(list)
+    for c in ws7_chunks_all:
+        ws7_by_page[c['page']].append(c)
+    for t in eng_tokens_all:
+        eng_by_page[t['page']].append(t)
+    out = []
+    for pn in sorted(set(ws7_by_page) & set(eng_by_page)):
+        ws7_n = _foot_numbers(ws7_by_page[pn])
+        eng_n = _foot_numbers(eng_by_page[pn])
+        if bool(ws7_n) != bool(eng_n) or (ws7_n and not (eng_n & ws7_n)):
+            out.append((pn, ws7_n, eng_n))
+    return out
+
+
+def _fmt_foot(digits):
+    return '/'.join(sorted(digits)) if digits else 'no automatic number'
 
 
 # ------------------------------------------------------------ doc report
@@ -2173,7 +2291,8 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
                 'capture_set': capture_set, 'install': install,
                 'reason': f'source not found at {published_source}'}
 
-    ws7_tokens, mismatched_pages = load_ws7_tokens(pcl_path, measurements_path)
+    ws7_tokens, ws7_chunks_all, mismatched_pages = load_ws7_tokens(
+        pcl_path, measurements_path)
     ws7_meta = json.load(open(measurements_path))
     n_ws7_pages = len(ws7_meta['pages'])
 
@@ -2222,6 +2341,15 @@ def doc_report(doc_name: str, engine_words: dict = None, engine_chars: dict = No
     if n_ws7_pages != n_engine_pages:
         add(REASON_PAGE_COUNT_MISMATCH, None, None, None, None, None, None,
             detail=f'WS7 {n_ws7_pages} pages, engine {n_engine_pages} pages')
+
+    # The automatic page number, on its own terms -- the one thing
+    # `_is_unreliable_to_align` hides from every other check in this
+    # function (see REASON_PAGE_NUMBER_MISMATCH).
+    for pn, ws7_n, eng_n in _page_number_divergences(ws7_chunks_all, eng_tokens_all):
+        add(REASON_PAGE_NUMBER_MISMATCH, pn, None, [_fmt_foot(ws7_n)],
+            None, None, None,
+            detail=f'WS7 page {pn} foot: {_fmt_foot(ws7_n)}; '
+                   f'engine: {_fmt_foot(eng_n)}')
 
     for pidx in mismatched_pages:
         add(REASON_PCL_REPARSE_MISMATCH, pidx, None, None, None, None, None,
