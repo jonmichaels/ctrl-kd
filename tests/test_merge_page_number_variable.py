@@ -297,7 +297,14 @@ def _modern_page_words(doc, **kw):
             body = zlib.decompress(m.group(1)).decode('latin-1')
         except zlib.error:
             body = m.group(1).decode('latin-1')
-        words = re.findall(r'\((.*?)\) Tj', body)
+        # M15 (2026-09-15): Modern draws WordStar's own automatic page
+        # number in the bottom margin zone (y <= 44). These tests are
+        # about the MERGE variable in the body, so that zone is skipped --
+        # otherwise every page's word list grows a trailing page number
+        # that has nothing to do with `&#&`.
+        words = [t for _x, y, t
+                 in re.findall(r'Ts ([\d.]+) ([\d.]+) Td \((.*?)\) Tj', body)
+                 if float(y) > 44.0]
         if words:
             out.append(words)
     return out

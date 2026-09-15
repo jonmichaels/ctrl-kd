@@ -2883,6 +2883,30 @@ def hf_runs(txt):
     return runs
 
 
+def _rtf_footer_in_use(doc, slots=None):
+    """Is a FOOTER declared at all -- with text, bare, or carrying only
+    invisible characters?
+
+    The question WordStar's automatic page number turns on ("active only
+    when the footers are not in use", WSFORMAT.WS), and deliberately NOT
+    the same question as "is there footer text to draw". `_hf_slots` is
+    the drawing answer and drops an event with no text; this is the
+    declaration answer and counts it, matching `pdf._close_page`'s own
+    `footer_in_use = bool(page_ftrs)` taken before the empty slots are
+    dropped.
+
+    `slots` is `_rtf_running_heads`' own argument: None for the document
+    (section 1, which is the whole document for every file that opens no
+    later section), or a resolved `(hdr_slots, ftr_slots)` pair for a
+    later section -- in which case that section's own already-resolved
+    footer slots are the answer, because `_rtf_hf_slots_at` is what
+    decided them."""
+    if slots is not None:
+        return bool(slots[1])
+    return any(kind == 'F' for kind, _l, _t, _a
+               in getattr(doc, 'hf_events', ()))
+
+
 def _rtf_auto_page_number(doc, page_numbers='auto'):
     """Whether WordStar's own AUTOMATIC page number -- the one `.pc`
     positions, never a `#` the author typed into a real `.he`/`.fo` -- is
@@ -3275,13 +3299,28 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     # and WordStar's automatic number stays off -- which is exactly what
     # `pdf._close_page` records (`footer_in_use = bool(page_ftrs)`, before
     # the empty slots are dropped).
+    #
+    # M15 FOLLOW-UP (2026-09-15): that is what the paragraph above says,
+    # and `ftr_slots` was not it. `_hf_slots` drops an event with NO text
+    # at all (`if ... not txt: continue`), so a document whose only footer
+    # command is a BARE `.fo` read as "no footer in use" and RTF printed
+    # the automatic number on it -- while both PDFs, reading
+    # `footer_in_use` off the un-dropped slots, printed none. Real WS7
+    # prints none: "That holds whether the footer has text, is bare, or
+    # contains only invisible characters" (research/2026-09-15_ws7-
+    # missing-auto-page-number.md, rule 2; the same rule the PDF's own
+    # triage cause 1 fixed on 2026-09-12). Five documents in the public
+    # archive are that shape -- MACROS/HOLYMAC/4MAC2, 4MAC3, 7MAC2, 7MAC3
+    # and LSRBOX/LSRBOX.WS, four of them named in that research as WS7
+    # printing no number on any of their 41/53/35/35 pages -- and their
+    # `rtf.printed` and `rtf.modern` both move here.
     # planning #264 R7 (ruled 2026-09-14): the two flags are SEPARATE and
     # RTF follows the PDF. `headers` governs running heads and feet -- and
     # so a `#` the author typed INSIDE one, which is that head's own text
     # -- while `--page-numbers` governs WordStar's AUTOMATIC number alone.
     # The first RTF batch made `--headers off` swallow the automatic number
     # too; that is reverted here, on both surfaces.
-    show_auto_num = auto_page_number and not ftr_slots
+    show_auto_num = auto_page_number and not _rtf_footer_in_use(doc, slots)
     if not headers:
         hdr_slots, ftr_slots = {}, {}
     headery, footery = _rtf_head_foot_distance(doc.meta.get('page') or {},

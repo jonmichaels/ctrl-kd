@@ -19,6 +19,15 @@ https://github.com/jonmichaels/ctrl-kd/releases
   on. A taller page lost the extra room instead. Modern now lays out on
   the page the document declares, and a document that turns page breaks
   off with `.pl 0` gets a Letter-sized page instead of a zero-height one.
+- Modern view and Modern PDF now show WordStar's automatic page number
+  wherever the Printed view does, centred at the foot of the page in
+  Modern's own type. It vanished the moment you switched a numbered
+  document from Printed to Modern. `--page-numbers auto/on/off` controls
+  it on export exactly as it does for Printed.
+- A document whose only footer command is a bare `.fo` — WordStar's way of
+  turning the automatic number off without printing anything — still got a
+  page number in the RTF exports. Real WordStar 7 prints none, and now
+  neither do they.
 
 ## [4.7.1] — 2026-09-15
 

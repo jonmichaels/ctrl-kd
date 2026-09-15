@@ -57,13 +57,30 @@ def _page_streams(out):
             for s in out.split(b'>>\nstream\n')[1:]]
 
 
+# M15 (2026-09-15): Modern draws its running feet -- and WordStar's own
+# automatic page number -- in the bottom margin zone, at y <= 44. These
+# tests are about the COLUMN grid, so the zone is skipped rather than each
+# assertion being taught to expect one more (centred) x; Modern's body
+# never reaches it.
+MODERN_FOOT_ZONE = 44.0
+
+_TD_XY = re.compile(rb'Ts ([\d.]+) ([\d.]+) Td \((.*?)\) Tj')
+
+
+def _body_ops(stream):
+    """(x, y, text) for every drawn op outside the running-foot zone."""
+    return [(float(x), float(y), t.decode('latin-1'))
+            for x, y, t in _TD_XY.findall(stream)
+            if float(y) > MODERN_FOOT_ZONE]
+
+
 def _xs(stream):
     """Every drawn text x, in draw order."""
-    return [float(t) for t in re.findall(rb'Ts ([\d.]+) [\d.]+ Td', stream)]
+    return [x for x, _y, _t in _body_ops(stream)]
 
 
 def _words(stream):
-    return [t.decode('latin-1') for t in re.findall(rb'\((.*?)\) Tj', stream)]
+    return [t for _x, _y, t in _body_ops(stream)]
 
 
 _PARA = (b'The quick brown fox jumps over the lazy dog and keeps running '

@@ -949,6 +949,32 @@ def _pgnum_at(checkpoints, bi):
 _AUTO_PAGENO_DEFAULT_COL = 33.5
 
 
+def _auto_pageno_row_y(page_h, pl, mb, fm, lead, size):
+    """The baseline y (points) of WordStar's automatic page-number row --
+    the SAME row a `.fo` line 1 rides, `pl - mb + fm` -- or None when the
+    sheet has no such row at all.
+
+    ONE DEFINITION, two readers. Printed DRAWS at this y
+    (`_resolve_head_foot_lines`). Modern only asks whether it is None,
+    because "the Modern view shows WordStar's automatic page number
+    wherever Printed does" (Jon's ruling M15, 2026-09-15) is a question
+    about WHETHER WordStar numbers this page, never about where Modern
+    then puts it -- Modern places it in its own margin model. Deriving
+    that answer twice is how the two views would come to disagree about
+    the same document.
+
+    None IS THE `.mb 0` RULE (research 2026-09-15, rule 3: "no bottom
+    margin -- there is no footer line on the sheet at all, so there is
+    nowhere to put a number"; in this corpus, label stock, Rolodex cards
+    and mail-merge format files). It falls out of the arithmetic rather
+    than being tested for: MAILLIST/LABELA is `.pl 6 .mb 0 .fm 0` on a
+    72pt sheet, so the row lands at y = -12 and there is none. Nothing
+    here special-cases `.mb`; the row either fits on the paper or does
+    not, which is also why `.pl`/`.fm` participate on the same terms."""
+    y = page_h - (pl - mb + fm) * lead - size
+    return y if y >= 0 else None
+
+
 def _auto_pageno_x_pt(doc):
     """Left edge (points) of the automatic page number's text, from `.po`/
     `.pc` -- see `_AUTO_PAGENO_DEFAULT_COL`'s docstring for the formula's
@@ -7640,8 +7666,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         # real footer is in use (WSFORMAT.WS's own "active only when the
         # footers are not in use"), so this never collides with the loop
         # just above -- at most one of the two ever fires for a given page.
-        y = page_h - foot_line * lead - size
-        if y >= 0:
+        y = _auto_pageno_row_y(page_h, pl, mb, fm, lead, size)
+        if y is not None:
             auto = (str(page_no), _auto_pageno_x_pt(doc), y)
     return {'headers': resolved_headers, 'footers': resolved_footers, 'auto': auto}
 
@@ -9411,6 +9437,62 @@ MODERN_LEVEL_STEP_COLS = 4
 MODERN_DEF_HANG_PT = 72.0
 
 
+def _modern_auto_pageno_shows(doc, bi, page_numbers, pgnum_checkpoints,
+                             footer_in_use):
+    """Does WordStar's AUTOMATIC page number appear on a Modern page whose
+    content begins at block `bi`?
+
+    Jon's ruling M15 (2026-09-15): "I think it should in Modern View...
+    it looks weird that it suddenly goes away. Now on Export that's
+    different. There's a flag if people want Page Number or not." So the
+    Modern view shows the number wherever Printed does, and Modern exports
+    obey `--page-numbers` auto/on/off exactly as Printed does -- which is
+    the same thing said twice, because the view IS the `auto` export.
+
+    THE THREE SILENCERS, and they are the document's, not Modern's
+    (research/2026-09-15_ws7-missing-auto-page-number.md, measured across
+    308 real WS7 captures with zero counter-examples):
+
+      1. `.op` -- and `.pn`/`.pg` turn it back on, from where THEY sit.
+         Read here through `_pgnum_at`, the same block-granular state
+         Printed reads, so a document that switches numbering off
+         half-way switches it off in Modern at the same block.
+      2. ANY footer command (`.fo`, `.f1`-`.f8`), with text, bare, or
+         carrying only invisible characters. The footer REPLACES the
+         number. `footer_in_use` is the caller's own `bool(cur_f)` --
+         the un-filtered per-page footer state, which is exactly what
+         `Page.footer_in_use` carries on the Printed side and for the
+         same reason: a bare `.fo` leaves no text to draw and must still
+         silence the number.
+      3. `.mb 0` -- no footer row on the sheet at all. `_auto_pageno_
+         row_y` is the one definition of that, shared with Printed.
+
+    `page_numbers` is the export flag: `off` and `on` force it either way
+    (`on` even over a document's own `.op`, `off` even over `.pn`), and
+    `auto` -- the default, and what the app's own Modern view renders --
+    asks the document. The footer and `.mb 0` rules are NOT flag-gated:
+    they are what WordStar itself does, and `--page-numbers on` cannot
+    conjure a row onto a sheet that has none or overwrite a footer that
+    occupies it."""
+    if page_numbers == 'off' or footer_in_use:
+        return False
+    # A page that closed with no content of its own (an explicit break
+    # with nothing after it) has no position to read; it falls back to the
+    # document's opening state, the same thing `_pgnum_at` is kept for on
+    # the Printed side.
+    bi = max(bi, 0)
+    page = doc.meta.get('page') or {}
+    pl = float(_pl_at(_pl_checkpoints(doc), bi))
+    mb = float(_mt_mb_at(_mt_mb_checkpoints(doc), bi)[1])
+    fm = float(page.get('fm_lines', 2))
+    if _auto_pageno_row_y(_resolved_page_height(doc, True), pl, mb, fm,
+                          _printed_lead(doc), _printed_size(doc)) is None:
+        return False
+    if page_numbers == 'on':
+        return True
+    return bool(_pgnum_at(pgnum_checkpoints, bi))
+
+
 def _modern_page_dict(doc):
     """`doc.meta['page']` as MODERN reads it: the document's own declared
     sheet, with `.pr or=l`'s landscape swap applied.
@@ -10264,7 +10346,8 @@ def _modern_note_lines(label, text, width, kind='footnote'):
     return _modern_wrap(_modern_note_toks(label, text, kind), width)
 
 
-def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt):
+def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt,
+                   align='left'):
     """One modern running-head/foot line: Times MODERN_NOTE_PT in the margin
     zone, WordStar's `#` token as the page number (same rule as printed:
     `.op` never suppresses an explicit `#`). The header keeps its own baked
@@ -10276,7 +10359,15 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt):
 
     `printed_pt` (planning #254): threaded to `_modern_line_ops` only for
     the graphic-cell cases neither header nor footer text has ever been
-    observed to carry -- see that parameter's own docstring."""
+    observed to carry -- see that parameter's own docstring.
+
+    `align` (M15, 2026-09-15): 'left' for every running head and foot,
+    which keeps its own baked spaces because that is how a 1990 head
+    positioned its parts -- byte-identical to before this parameter
+    existed. WordStar's own AUTOMATIC page number is the one caller that
+    passes 'center': it has no typed spaces to honour, and Modern's own
+    reading of "bottom centre" is a real centring in Modern's measure,
+    not Printed's `.pc` column."""
     toks = []
     for run_text, styles in _hf_runs(txt):
         run_text = run_text.replace('#', str(page_no))
@@ -10286,7 +10377,7 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt):
             toks.append((m.group(0), styles, 'Times', MODERN_NOTE_PT, None, w))
     if not toks:
         return []
-    return _modern_line_ops(toks, left, y, width, 'left', res, tz_state,
+    return _modern_line_ops(toks, left, y, width, align, res, tz_state,
                             printed_pt)
 
 
@@ -10507,6 +10598,16 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     # 3.94 on -README.WS, so it stays exactly as fe87b41/a9c94d3 left it.
     y = sheet_h - margt
     cur_h, cur_f = {}, {}          # running-head state as events replay
+    # M15 (2026-09-15): the LAST block whose content reached this page.
+    # WordStar's automatic page number is a per-PAGE answer to a
+    # positional question, and Printed resolves it at the position the
+    # page had READ UP TO when it closed (`_checkpoints_by_page`), not at
+    # the page's start -- its own `.op`/`.pn`/`.pg` is read on the page it
+    # physically sits on. Modern's flow carries block indices and no
+    # source line indices, so this is `_checkpoint_by_block`'s granularity
+    # exactly: the highest block index the page carries. -1 until the page
+    # takes content.
+    page_end_bi = -1
     page_h, page_f = {}, {}        # state when the OPEN page took content
     opened = False
     # The newspaper-column cursor. A document begins outside any columnar
@@ -10564,17 +10665,28 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         than n columns is simply left short -- WordStar does not balance
         (planning #227 §5, measured on WINGDING.CHT's own short last
         column), and neither does this."""
-        nonlocal body, notes_lines, y, opened, col_i, col_body
+        nonlocal body, notes_lines, y, opened, col_i, col_body, page_end_bi
         open_page()
         col_body = False
         y = sheet_h - margt
         if not hard and cur_cols > 1 and col_i + 1 < cur_cols:
             col_i += 1
             return                       # same sheet, next column
-        pages.append((body, list(notes_lines), page_h, page_f))
+        # NOTE, reported not changed here: `page_f` above -- what Modern
+        # DRAWS -- takes the page-OPEN snapshot, i.e. the HEADER rule
+        # ("a `.he`/`.h#` read after the page's first line cannot reach
+        # it") applied to footers as well. Printed reads a footer read
+        # ANYWHERE before the page ends onto that page. So Modern's footer
+        # TEXT lands one page late whenever a `.fo` sits mid-page. That is
+        # a real, pre-existing Modern defect, separate from this ruling --
+        # M15 reads the footer's own anchor directly (`foot_anchors`
+        # below) so the page NUMBER is right regardless, and fixing the
+        # drawing moves footer text on documents this item is not about.
+        pages.append((body, list(notes_lines), page_h, page_f, page_end_bi))
         body, notes_lines[:] = [], []
         col_i = 0
         opened = False
+        page_end_bi = -1
 
     for fi, item in enumerate(flow):
         sem_i = sem_index_of_item[fi] if sem_index_of_item is not None else None
@@ -10651,6 +10763,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             if col_body and y - h_pt < margb + note_block_h():
                 close()
             open_page()
+            page_end_bi = max(page_end_bi, last_bi)
             y -= h_pt
             col_off = col_i * (col_w + col_gap)
             body.append((y, item, 'left', col_off, -col_off, sem_i))
@@ -10752,6 +10865,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             if col_body and y - h < margb + note_block_h() + extra:
                 close()
             open_page()
+            page_end_bi = max(page_end_bi, last_bi)
             y -= h
             # `last_h` is a LEADING memory (what the next blank item should
             # advance by), so it records the line's own height, never the
@@ -10809,7 +10923,27 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
 
     streams = []
     start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
-    for pi, (body, nlines, hdrs, ftrs) in enumerate(pages):
+    # M15: the `.op`/`.pn`/`.pg` state, resolved once for the document and
+    # read per page at that page's own block -- the same checkpoints
+    # `_emit_pdf_inner`'s Printed loop reads, never a second derivation.
+    page_numbers_mode = options.get('page_numbers', 'auto')
+    pgnum_checkpoints = _pgnum_checkpoints(doc)
+    # M15: WHERE EACH FOOTER COMMAND WAS READ, off the document's own
+    # `hf_events` rather than off the page's `cur_f` snapshot. Two reasons,
+    # both measured:
+    #   * "A FOOTER is emitted at the BOTTOM, so a `.fo`/`.f#` read
+    #     ANYWHERE before the page ends still governs that page"
+    #     (`_doc_to_pagelines`' own rule, WS7 v4/PRISTINE.EXE) -- so the
+    #     anchor is compared against the page's LAST block, not its first.
+    #   * A `.fo` typed after the document's last block (`sawyer/REF/
+    #     BUGS.WS`: two blocks, footer anchored at block 2) never reaches
+    #     the Modern FLOW at all -- `layout.modern_flow` walks
+    #     `enumerate(doc.blocks)` and an anchor past the end has no block
+    #     to hang on. Real WordStar still reads it before the document
+    #     ends, so it governs the last page; `cur_f` could never say so.
+    foot_anchors = sorted(a for kind, _l, _t, a
+                          in getattr(doc, 'hf_events', ()) if kind == 'F')
+    for pi, (body, nlines, hdrs, ftrs, pbi) in enumerate(pages):
         tz_state = [TZ_DEFAULT]
         ops = []
         page_no = start_no + pi
@@ -10828,6 +10962,28 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
             ops += _modern_hf_ops(_euro_texts([ftrs[lno]], euro)[0], page_no,
                                   margl, fy, width, res, tz_state, printed_pt)
+        # M15 (Jon's ruling 2026-09-15): WordStar's own AUTOMATIC page
+        # number -- the one `.pc` positions, never a `#` an author typed
+        # into a real `.he`/`.fo`, which `_modern_hf_ops` has always
+        # substituted. Modern RTF has carried it since M5 (a `\footer`
+        # group of `\chpgn`, centred, in the body face); Modern PDF is
+        # ruled to be that RTF's printed form (2026-08-05) and was the one
+        # surface still dropping it, so the app's Modern view showed a
+        # document's numbering vanish the moment you switched to it.
+        #
+        # PLACEMENT IS MODERN'S OWN, exactly as the ruling says ("placed
+        # the Modern way"): the row a Modern footer line 1 rides, centred
+        # in Modern's own measure, in the face and size Modern's running
+        # feet already use -- never Printed's `.pc` column or its
+        # `pl - mb + fm` row. WHETHER it shows is the document's answer,
+        # and `_modern_auto_pageno_shows` is where that is read.
+        footer_in_use = bool(foot_anchors) and (
+            foot_anchors[0] <= pbi or pi == len(pages) - 1)
+        if (pbi >= 0
+                and _modern_auto_pageno_shows(doc, pbi, page_numbers_mode,
+                                              pgnum_checkpoints, footer_in_use)):
+            ops += _modern_hf_ops(str(page_no), page_no, margl, 44.0, width,
+                                  res, tz_state, printed_pt, align='center')
         for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks

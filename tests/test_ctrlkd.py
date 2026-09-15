@@ -4893,7 +4893,16 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     fixture that happens to contain a whitespace-only span -- the single
     space between `\x02bold\x02` and `\x13under\x13` -- moves at all. The
     underline rule for the run that IS underlined is still emitted
-    (`0.6 w 136.8 742.5 m 172.8 742.5 l S`), verified in the stream."""
+    (`0.6 w 136.8 742.5 m 172.8 742.5 l S`), verified in the stream.
+
+    Re-pinned a SEVENTH time 2026-09-15 (the `make_prose` MODERN hash ONLY
+    -- the three PRINTED hashes are untouched): M15, Jon's ruling that the
+    Modern view shows WordStar's automatic page number wherever Printed
+    does. This fixture declares no `.op`, no footer and no `.mb 0`, so it
+    is a numbering document and its Modern PDF gains one drawn op per page
+    -- a centred number on Modern's own footer row. Nothing else about it
+    moves: the body ladder, every x and every page break are unchanged.
+    The PRINTED hashes cannot move, because Printed already drew it."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4907,7 +4916,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     assert digest(core.parse_ws(make_prose()), 'printed') == \
         '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
-        'cd3760328da8b4ffadd366e6d253a8e9cf3adbe1981fa68f7f1c5a8bc472c87b'
+        'fbb4a53b849f6fd06036c7b7ff9f5aa551b981f62444374d7f6ce66219959e08'
     assert digest(core.parse_ws(styled), 'printed') == \
         '0f0797c238b8e8e347baa2eca89c3cfb363c8b1a38dc73a65acac2cb8df30472'
     assert digest(core.parse_printstream(stream), 'printed') == \

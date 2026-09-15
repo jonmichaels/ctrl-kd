@@ -69,6 +69,15 @@ def _unesc(b):
              .replace(b'\\\\', b'\\').decode('cp1252', 'replace'))
 
 
+# M15 (2026-09-15): Modern draws its running feet -- and WordStar's own
+# automatic page number -- in the bottom margin zone, at y <= 44. These
+# tests are about BODY geometry, so the zone is skipped rather than each
+# assertion being taught to expect one more row. Modern's body never
+# reaches it (its own bottom margin is 72 by default and never less than
+# the sheet allows), so nothing real is filtered out.
+MODERN_FOOT_ZONE = 44.0
+
+
 def _lines(out, page=1):
     """[(y, x, text), ...] top to bottom for one page -- one entry per
     visual line, its x the leftmost INK on it, its text the line's own INK
@@ -77,6 +86,8 @@ def _lines(out, page=1):
     by_y = {}
     for m in TD.finditer(_streams(out)[page - 1]):
         x, y, t = float(m.group(1)), float(m.group(2)), m.group(3)
+        if y <= MODERN_FOOT_ZONE:
+            continue          # a running foot, or M15's automatic number
         by_y.setdefault(round(y, 3), []).append((x, _unesc(t)))
     rows = []
     for y in sorted(by_y, reverse=True):

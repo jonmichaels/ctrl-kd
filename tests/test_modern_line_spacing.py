@@ -44,10 +44,19 @@ def font_block(points, width=180):
                      + (0).to_bytes(2, 'little') + bytes(6))
 
 
+# M15 (2026-09-15): Modern draws its running feet -- and WordStar's own
+# automatic page number -- in the bottom margin zone, at y <= 44. These
+# tests are about BODY leading, so the zone is skipped rather than each
+# assertion being taught to expect one more baseline; Modern's body never
+# reaches it.
+MODERN_FOOT_ZONE = 44.0
+
+
 def _line_ys(out):
     """Distinct baseline Y positions in draw order (a visual line often
     splits into several Tj ops -- one per word -- all sharing one Td y)."""
-    ys = [float(y) for _, y in re.findall(rb'([\d.]+) ([\d.]+) Td \(', out)]
+    ys = [float(y) for _, y in re.findall(rb'([\d.]+) ([\d.]+) Td \(', out)
+          if float(y) > MODERN_FOOT_ZONE]
     uniq = []
     for y in ys:
         if not uniq or abs(uniq[-1] - y) > 1e-6:
