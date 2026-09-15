@@ -576,6 +576,62 @@ def test_page_numbers_read_the_po_in_force_where_the_page_ends():
     assert [(x, n) for x, _y, n in ops] == [(b'306.0', b'1')]
 
 
+# --------- planning #274 follow-up: the footer TEXT rides the same row
+# `_auto_pageno_row_y`'s three causes (page lines not `.lh`, fractional
+# `.mb`/`.fm` kept, no "must be on the paper" guard) were fixed for the
+# automatic number against 211 of 212 captures; the footer-text row is
+# literally the same row and used to compute its own, different answer.
+
+def _footer_ops(pdf_bytes, word):
+    return re.findall(rb'([-\d.]+) ([-\d.]+) Td \(' + word + rb'[^)]*\) Tj',
+                      pdf_bytes)
+
+
+def test_footer_text_steps_in_page_lines_not_the_documents_lh():
+    """`.lh 24pt` doubles the document's body leading. The foot row is
+    `.pl - .mb + .fm` PAGE lines at 6 LPI, so it must not move at all --
+    `sawyer/REF/BOOKLET.WS` (an 18pt `.lh`) and `fixtures-ws5/LJ6DTP.WS`
+    (14pt) are the corpus's real cases, both with a print-control-only
+    footer that draws no glyph, which is how this survived."""
+    body = ''.join(f'FLINE-{i:03d}\r\n' for i in range(1, 40))
+    plain = core.parse_ws(('.fo FOOTERTEXT\r\n' + body).encode())
+    tall = core.parse_ws(('.lh 24pt\r\n.fo FOOTERTEXT\r\n' + body).encode())
+    y_plain = _footer_ops(pdf.emit_pdf(plain, mode='printed'), b'FOOTERTEXT')
+    y_tall = _footer_ops(pdf.emit_pdf(tall, mode='printed'), b'FOOTERTEXT')
+    # .pl 66 - .mb 8 + .fm 2 = 60 page lines: 792 - 60 * 12 - 12 = 60.0
+    assert [y for _x, y in y_plain] == [b'60.0']
+    # `.lh 24pt` halves the body's own capacity, so this one runs to two
+    # pages -- both footers on the same, unmoved page-line row.
+    assert [y for _x, y in y_tall] == [b'60.0', b'60.0']
+
+
+def test_footer_text_keeps_fractional_page_lines():
+    """`.mb 5.4`/`.fm 1.14` are ordinary corpus values
+    (`sawyer/REF/BOOKLET.WS`, `MAILLIST/PHONE.LST`) and truncating them to
+    integers moved the row by most of a line."""
+    body = ''.join(f'FLINE-{i:03d}\r\n' for i in range(1, 40))
+    doc = core.parse_ws(('.mb 5.4\r\n.fm 1.14\r\n.fo FOOTERTEXT\r\n'
+                         + body).encode())
+    ops = _footer_ops(pdf.emit_pdf(doc, mode='printed'), b'FOOTERTEXT')
+    # 66 - 5.4 + 1.14 = 61.74 page lines: 792 - 61.74 * 12 - 12 = 39.12,
+    # written at this emitter's own one-decimal precision. Truncating the
+    # two to `.mb 5`/`.fm 1` would have put it at 48.0, a whole line out.
+    assert [y for _x, y in ops] == [b'39.1']
+
+
+def test_footer_text_is_not_dropped_for_falling_past_the_paper():
+    """Real WS7 does not clamp the foot row (`_auto_pageno_row_y`: it
+    commands the number past the bottom edge and the printer clips it).
+    The footer text on that same row used to be DELETED by a blanket
+    `y < 0` guard instead -- `fixtures-ws5/LJ6DTP.WS`'s own footer lands at
+    -2.0pt."""
+    body = ''.join(f'FLINE-{i:03d}\r\n' for i in range(1, 40))
+    doc = core.parse_ws(('.mb 1.8\r\n.fo FOOTERTEXT\r\n' + body).encode())
+    ops = _footer_ops(pdf.emit_pdf(doc, mode='printed'), b'FOOTERTEXT')
+    # 66 - 1.8 + 2 = 66.2 page lines: 792 - 66.2 * 12 - 12 = -14.4
+    assert [y for _x, y in ops] == [b'-14.4']
+
+
 def test_page_numbers_declared_footer_suppresses_it():
     """WSFORMAT.WS's own text: ".PC ... active only when the footers are
     not in use." A declared footer -- even with NO `#` of its own --

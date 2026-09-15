@@ -7597,26 +7597,22 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # asked for. The spec sentence was quoted in this very docstring while the code
     # did the opposite of it. `.pg` (which restores numbering after `.op`) was not
     # handled at all, so the state was one-way as well.
-    pl = int(page.get('pl_lines', 66))
-    mb = int(page.get('mb_lines', 8))
-    fm = int(page.get('fm_lines', 2))
-    # THE AUTOMATIC NUMBER'S OWN ROW IS READ IN REAL PAGE LINES, never the
-    # truncated integers the footer-TEXT loop below uses (planning #274,
-    # 2026-09-15). `.mb 1.8`/`.fm 1.14` are ordinary corpus values --
+    # THE FOOT ROW IS READ IN REAL PAGE LINES. It used to be read twice, and
+    # the other reading truncated these three to integers (planning #274 +
+    # its follow-up, both 2026-09-15). `.mb 1.8`/`.fm 1.14` are ordinary
+    # corpus values --
     # `sawyer/REF/PS-FONTS.REF`, `sawyer/REF/ADVANCE.DOT` -- and truncating
     # them moves the row by most of an inch. Measured: with the fractions
     # kept and the 1/6in page-line step of `_auto_pageno_row_y`, the
     # predicted row matches 211 of the 212 WS7 captures that print a
     # number, to within the captures' own decipoint rounding.
     #
-    # THE FOOTER-TEXT LOOP IS DELIBERATELY LEFT ALONE, and it is not a
-    # silent inconsistency: `show_auto_num` already excludes every page a
-    # real footer is in use on (WSFORMAT.WS's "active only when the footers
-    # are not in use"), so the truncated `foot_line` and this one never
-    # place two things on one page. That loop ALSO steps by the document's
-    # own `.lh` rather than a page line. Both are the same class of defect
-    # as this one and neither has been measured against a capture yet --
-    # named here as a follow-up, not fixed on a guess.
+    # THE FOOTER-TEXT LOOP READS THE SAME THREE (planning #274 follow-up,
+    # 2026-09-15). It used to truncate them and step by the document's own
+    # `.lh` -- the same class of defect as this one, left named rather than
+    # fixed on a guess until the row itself had been measured. It has been:
+    # the footer-text loop now calls `_auto_pageno_row_y` directly, one
+    # definition for one row. See that loop for what moved.
     auto_pl = float(page.get('pl_lines', 66))
     auto_mb = float(page.get('mb_lines', 8))
     auto_fm = float(page.get('fm_lines', 2))
@@ -7893,15 +7889,48 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # evidence that a default `.fm` already participates in the footer's
     # own placement, unlike a default `.hm` in the header's. Reported, not
     # acted on.
-    foot_line = pl - mb + fm
+    # THE FOOTER TEXT RIDES THE SAME ROW THE AUTOMATIC NUMBER DOES, so it is
+    # the same function, not a second arithmetic (planning #274 follow-up,
+    # 2026-09-15). This loop used to compute `pl - mb + fm` from the
+    # TRUNCATED integers above and step it by the DOCUMENT'S OWN `.lh`, and
+    # to drop any line the result put off the paper -- all three of the
+    # causes #274 measured and fixed for the number, against 211 of the 212
+    # WS7 captures that print one. Two rows, one definition: the note that
+    # used to sit here saying "the footer-text loop is deliberately left
+    # alone ... neither has been measured against a capture yet" is now
+    # discharged, because the row itself was.
+    #
+    # WHAT THIS MOVES, measured across all 194 captures: NOTHING VISIBLE.
+    # Only 7 captured documents declare a footer at all, and the three with
+    # real TEXT in it (`REF/BUGS.WS`, `REF/WSFORMAT.WS`, `RTF-RJS/NOVEL.WS`)
+    # are all `.pl 66 .mb 8 .fm 2` at the default 12pt lead, where the old
+    # and new arithmetic agree EXACTLY -- 65 of 68 comparable footer rows
+    # matched WS7 before this change and the same 65 match after (the 3 that
+    # do not are `MICKEE/MICKEE.WS`, off by whole lines on 3 of its 24 pages
+    # under both formulas: a different, pre-existing cause). The four whose
+    # geometry this really does change -- `REF/BOOKLET.WS` (`.pl 51 .mb 5.4
+    # .fm 1.14`, an 18pt `.lh`), `fixtures-ws5/LJ6DTP.WS` (a 14pt `.lh`),
+    # `MICKEE/MICKEE.WS`, `UTIL/DOSYMSEQ.WS` -- all carry a footer whose
+    # entire content is 0x0F print-control bytes with no visible glyph, which
+    # is exactly why the defect survived a corpus-wide comparison.
+    #
+    # `.mb 0` -> no row, so no footer line: `_auto_pageno_row_y`'s own rule
+    # ("no bottom margin -- there is nowhere to put it"), and the SAME
+    # outcome the removed `y < 0` guard already produced for that case.
+    first_foot_y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, size)
     resolved_footers = []
     for n in sorted(set(footers) | set(footers_pcl)):
         txt = footers.get(n) or ''
         if not txt and not footers_pcl.get(n):
             continue
-        y = page_h - (foot_line + n - 1) * lead - size
-        if y < 0:
+        if first_foot_y is None:
             continue
+        # The step BETWEEN footer lines is each line's own `.lh`, the rule
+        # M16 measured for the head block (`_hf_line_step_pt`) -- identical
+        # to the flat `lead` this used for every document that never moves
+        # `.lh`, which is every multi-line-footer document in this corpus.
+        y = first_foot_y - sum(_hf_line_step_pt(doc, 'F', k)
+                               for k in range(1, n))
         # planning #250: same override as the header loop above.
         if foot_hf_override is not None and n in foot_hf_override:
             font_idx, tab_rec, align, style_attrs = foot_hf_override[n]
