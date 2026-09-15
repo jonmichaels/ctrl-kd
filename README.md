@@ -9,8 +9,8 @@
 
 Convert WordStar for DOS v4-v7 files to modern formats. **^KD: save and done.**
 
-`ctrl-kd` reads WordStar for DOS documents, and WordStar print stream files, 
-and writes plain text, Markdown, HTML, RTF, or PDF (set on a viewer's 
+`ctrl-kd` reads WordStar for DOS documents, WordStar print stream files, and 
+MailMerge data files, and writes plain text, Markdown, HTML, RTF, or PDF (set on a viewer's 
 built-in base-14 fonts — no dependencies, nothing embedded, the page as it 
 would have printed: printed mode follows the document's own font blocks and 
 its own layout arithmetic, while modern mode is the same document reflowed 
