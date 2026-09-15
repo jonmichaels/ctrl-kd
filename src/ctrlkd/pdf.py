@@ -37,7 +37,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     Line as _Line, coalesce_spans as _coalesce_spans, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
-    _font_family, hf_runs as _hf_runs
+    _font_family, hf_runs as _hf_runs, _rtf_columns_state
 from . import layout as _layout
 from .symbolmap import font_translit_kind, untransliterate, SYMBOL_REVERSE, \
     symbol_fallback_kind
@@ -9406,12 +9406,92 @@ MODERN_LEVEL_STEP_COLS = 4
 MODERN_DEF_HANG_PT = 72.0
 
 
+def _modern_page_dict(doc):
+    """`doc.meta['page']` as MODERN reads it: the document's own declared
+    sheet, with `.pr or=l`'s landscape swap applied.
+
+    Jon's ruling 2026-09-15 ("Yes. Fix it."): Modern PDF keeps the
+    document's sheet ORIENTATION. That is the paged-surface doctrine's own
+    point 2 (2026-08-17, "honor `.pr or=l` in all paged surfaces") finally
+    reaching the one paged surface it had not, and it follows from the
+    2026-08-05 ruling that Modern PDF is the printed form of the Modern
+    RTF -- a landscape document printed portrait is not a printing of
+    anything the document says.
+
+    IDEMPOTENT, deliberately. `_landscape_page` recomputes the
+    height/width pair fresh from the page's own `.pl` rather than swapping
+    whatever height it is handed, so this answers the same thing whether
+    or not `emit_pdf` has already installed the swapped dict on
+    `doc.meta` -- which matters because `emit_layout` reaches
+    `_modern_streams` (through `_attach_graphic_cells_modern`) OUTSIDE
+    that swap's own scope, and the two passes must compose the same
+    pages."""
+    page = doc.meta.get('page') or {}
+    if doc.meta.get('formatting', {}).get('orientation') == 'landscape':
+        page = _landscape_page(page)
+    return page
+
+
+def _modern_sheet_h(doc):
+    """The height of the sheet Modern composes on, in points.
+
+    Letter's own 792 for a portrait document -- what Modern has always
+    laid out from regardless of what the file declares
+    (`_resolved_page_height`'s own Modern branch states the rule), left
+    exactly as it was.
+
+    A LANDSCAPE sheet is genuinely shorter than Letter, and laying out
+    from 792 on one draws every line above the top of the page it is
+    drawn on. Measured before this change: `.pl 8.5"` + `.pr or=l`
+    produced a 612x612 MediaBox whose first body line was already off the
+    top edge.
+
+    NOT FIXED HERE, and worth naming: the portrait half of the same
+    arithmetic is a real, separate defect. A label/envelope template
+    (`.pl 4.17"`) gets a 612x300 MediaBox with every line drawn at
+    y >= 552 -- the whole page blank. That moves a class of ONE-COLUMN
+    PORTRAIT documents, which this ruling does not touch, so it waits for
+    its own."""
+    if doc.meta.get('formatting', {}).get('orientation') != 'landscape':
+        return PAGE_H
+    h = float(_modern_page_dict(doc).get('height_in') or 0.0) * 72.0
+    return int(round(h)) if h > 0 else PAGE_H
+
+
+def _modern_column_width(width, cols, gutter):
+    """(one column's own measure, the gutter) in points, inside Modern's
+    text frame -- `.co n, gutter` as MODERN reads it.
+
+    Modern PDF is the printed form of the Modern RTF (ruled 2026-08-05),
+    and `\\cols n\\colsx g` says exactly this to a reader: divide THIS
+    section's own text area into n equal columns separated by g. So Modern
+    divides its OWN measure -- Modern's margins scaled to the sheet --
+    rather than re-deriving the column from the document's `.rm` the way
+    Printed does. Those are the same measure stated twice: `_apply_columns`
+    reads the column off `.rm` precisely because "an author who wants n
+    real columns sets `.rm` to ONE column's own width first", and
+    BOOKLET.WS proves the pair agree (`.po .2i` + `.rm 4.50"` + a 1.00"
+    gutter fills an 11in landscape sheet almost exactly as this division
+    does). Applying the `.rm` cut ON TOP of the division would narrow
+    every column twice, which is why a columnar region's lines take the
+    column as their measure and not the block's own cut.
+
+    The gutter is print columns at 10 CPI -- WordStar's own unit for it,
+    the same `.po` uses -- and an author who names none gets one print
+    column: the identical reading `emit._rtf_cols_control` gives the very
+    same `.co` pair when it writes `\\colsx`."""
+    if not cols or cols <= 1:
+        return width, 0.0
+    gutter_pt = float(gutter if gutter else 1) * _PDF_PT_PER_COL
+    return max(36.0, (width - (cols - 1) * gutter_pt) / cols), gutter_pt
+
+
 def _modern_geometry(doc):
     """(left, top_margin, bottom_margin, text_width) in points. The
     document's declared geometry wins (governing principle); silence is the
     modern page: 1in margins on Letter. The right margin is always 1in --
     WordStar's right edge is a text measure, not a page property."""
-    page = doc.meta.get('page') or {}
+    page = _modern_page_dict(doc)
     margt = (float(page.get('mt_lines', 6.0)) * 12.0
              if page.get('mt_source', 'default') != 'default' else 72.0)
     margb = (float(page.get('mb_lines', 6.0)) * 12.0
@@ -9772,7 +9852,8 @@ def _modern_structure_indent_hang(structure, col_pt, toks, printed_pt):
 
 def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                  pictures='off', text_width_pt=0.0, sentence_spacing=False,
-                 record_sem_index=None, sem_cached=None):
+                 record_sem_index=None, sem_cached=None,
+                 record_block_index=None):
     """The MEASURED Modern flow: layout.modern_flow's semantic items (the
     single implementation of the M-rules -- see layout.py's contract)
     converted to this emitter's tuples:
@@ -9818,7 +9899,18 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
     decides. `_attach_graphic_cells_modern` uses it to attribute a
     wrapped/paginated visual line's own graphic cells back to the
     semantic item the `layout` JSON's own `modern['items']` array will
-    serialize it against."""
+    serialize it against.
+
+    `record_block_index` (Jon's ruling 2026-09-15, Modern columns): the
+    same shape, one entry per element of the returned flow -- the
+    `doc.blocks` index that produced it (layout.py already carries `bi` on
+    every 'para' item), or None for an item that has no block of its own
+    (a blank, a break, a running-head change, an end-matter note).
+    `_modern_streams` reads the `.co n` regime in force, and the `.cb`
+    column breaks sitting between two blocks, off the IR with it. An
+    out-parameter for the same reason `record_sem_index` is one: the item
+    dicts ARE the `layout` JSON contract, and this ruling moves no
+    schema."""
     embed_images = pictures in ('embed', 'export') and pix_results
     pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
     # planning #254: the document's own fixed-pitch size, for a graphic
@@ -9872,10 +9964,12 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                         and doc.meta.get('formatting', {}).get('proportional') is False)
     flow = []
 
-    def _emit(entry, _sem_i):
+    def _emit(entry, _sem_i, _bi=None):
         flow.append(entry)
         if record_sem_index is not None:
             record_sem_index.append(_sem_i)
+        if record_block_index is not None:
+            record_block_index.append(_bi)
 
     for sem_i, it in enumerate(sem['items']):
         k = it['kind']
@@ -9912,7 +10006,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                     [(r['text'], r['styles']) for r in it['runs']],
                     pix_map, text_width_pt)
                 if sub is not None:
-                    _emit(('image',) + sub, sem_i)
+                    _emit(('image',) + sub, sem_i, it.get('bi'))
                     continue
             toks = []
             # planning #263: a def row renders as LABEL + a two-space gap +
@@ -10087,7 +10181,7 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
             # actually carry. Never clears a `no_wrap` an earlier rule set.
             no_wrap = no_wrap or _modern_clips_row(toks)
             _emit(('para', toks, align, notes, indent, cut, no_wrap,
-                  page_marker, False, tight, hang), sem_i)
+                  page_marker, False, tight, hang), sem_i, bi)
     return flow
 
 
@@ -10317,6 +10411,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     keep = frozenset(options.get('notes', ())) or frozenset(
         ('footnote', 'endnote', 'annotation'))
     margl, margt, margb, width = _modern_geometry(doc)
+    sheet_h = _modern_sheet_h(doc)
     # planning #254: threaded to every `_modern_line_ops`/`_modern_hf_ops`
     # call below -- see `_modern_w`'s own docstring.
     printed_pt = _printed_size(doc)
@@ -10333,12 +10428,22 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     # branch), so 'auto' always resolves to single here.
     ss_on = _resolve_sentence_spacing(options.get('sentence_spacing', 'auto'), False)
     sem_index_of_item = [] if attach_graphic_cells is not None else None
+    # `.co n` reaches Modern (Jon's ruling 2026-09-15). The regime in force
+    # at every block, and where the `.cb` hard column breaks sit, come off
+    # the IR through the SAME helper Printed RTF's own section spine reads
+    # (`emit._rtf_columns_state`) -- one definition of "which column regime
+    # is this block in", never a second one that could drift from it.
+    block_of_item = []
+    col_state = _rtf_columns_state(doc)
+    colbreak_bis = frozenset(i for i, b in enumerate(doc.blocks)
+                             if b.kind == 'colbreak')
     flow = _modern_flow(doc, keep, options.get('note_refs') or 'word',
                         pix_results=options.get('pix_results'),
                         pictures=options.get('pictures', 'off'),
                         text_width_pt=width, sentence_spacing=ss_on,
                         record_sem_index=sem_index_of_item,
-                        sem_cached=sem_cached)
+                        sem_cached=sem_cached,
+                        record_block_index=block_of_item)
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
 
@@ -10375,10 +10480,20 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     # form of it (it is waiting on `afm.INK_TOP`). Changing it here would
     # move the engine's spacers AWAY from the app's measured 3.70/3.71/
     # 3.94 on -README.WS, so it stays exactly as fe87b41/a9c94d3 left it.
-    y = PAGE_H - margt
+    y = sheet_h - margt
     cur_h, cur_f = {}, {}          # running-head state as events replay
     page_h, page_f = {}, {}        # state when the OPEN page took content
     opened = False
+    # The newspaper-column cursor. A document begins outside any columnar
+    # region, so `cur_cols` is 1 and every line below takes the full
+    # measure and sits at `col_i == 0` -- exactly the arithmetic that was
+    # here before this ruling, which is why a document with no `.co`
+    # anywhere in it emits the bytes it always did.
+    cur_cols, cur_gutter = 1, None
+    col_w, col_gap = width, 0.0
+    col_i = 0                      # 0-based column of the open sheet
+    col_body = False               # has THIS column taken content yet
+    last_bi = -1                   # last block that reached the page
     # b26-modern item 4: a blank line's own advance must scale with the
     # SURROUNDING text's font size, same principle as Printed's established
     # "a blank advances at the preceding block's own leading" rule
@@ -10411,31 +10526,77 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             page_h, page_f = dict(cur_h), dict(cur_f)
             opened = True
 
-    def close():
-        nonlocal body, notes_lines, y, opened
+    def close(hard=False):
+        """End the current COLUMN. On the last column of a `.co n` sheet --
+        and on every page of an ordinary one-column document, where n is 1
+        and this is the only branch that ever runs -- that ends the
+        physical page too.
+
+        `hard=True` ends the physical page whatever column it was on: the
+        one caller is a change of column regime, which starts its own
+        sheet the same way `_doc_to_pagelines`' own block loop forces a
+        break on every `columns` state change. A trailing group of fewer
+        than n columns is simply left short -- WordStar does not balance
+        (planning #227 §5, measured on WINGDING.CHT's own short last
+        column), and neither does this."""
+        nonlocal body, notes_lines, y, opened, col_i, col_body
         open_page()
+        col_body = False
+        y = sheet_h - margt
+        if not hard and cur_cols > 1 and col_i + 1 < cur_cols:
+            col_i += 1
+            return                       # same sheet, next column
         pages.append((body, list(notes_lines), page_h, page_f))
         body, notes_lines[:] = [], []
-        y = PAGE_H - margt
+        col_i = 0
         opened = False
 
     for fi, item in enumerate(flow):
         sem_i = sem_index_of_item[fi] if sem_index_of_item is not None else None
+        bi = block_of_item[fi]
+        if bi is not None:
+            # `.cb` (a `colbreak` block) between the last block that put
+            # something on the page and this one: a hard break to the next
+            # column, and -- exactly as `emit._rtf_cols_control`'s twin
+            # writes nothing for a `.cb` outside a columnar region -- a
+            # no-op outside one. Read off the IR here rather than carried
+            # as a flow item because the Modern flow IS the `layout` JSON
+            # contract and this ruling moves no schema.
+            if cur_cols > 1 and any(j in colbreak_bis
+                                    for j in range(last_bi + 1, bi)):
+                close()
+            want = col_state[bi] if bi < len(col_state) else (1, None)
+            if want != (cur_cols, cur_gutter):
+                if body or notes_lines or col_body:
+                    close(hard=True)
+                cur_cols, cur_gutter = want
+                col_w, col_gap = _modern_column_width(width, cur_cols,
+                                                      cur_gutter)
+                col_i = 0
+            last_bi = bi
         if item[0] == 'hf':
             _, kind, lno, txt = item
             (cur_h if kind == 'H' else cur_f)[lno] = txt
             continue
         if item[0] == 'break':
-            close()
+            # A bare `.pa` INSIDE a live `.co n>1` region is absorbed, not
+            # taken -- the identical reading Printed has carried since
+            # planning #227 (measured against WINGDING.CHT's own real WS7
+            # capture: the author's `.pa` markers are a manual column
+            # simulation that predates the real `.co` governing the same
+            # content, and honouring them fragments one real column) and
+            # that Printed RTF adopted with its section spine.
+            if cur_cols <= 1:
+                close()
             continue
         if item[0] == 'cond':
             need = item[1] * MODERN_LINE * MODERN_BODY_PT
-            if body and y - (margb + note_block_h()) < need:
+            if col_body and y - (margb + note_block_h()) < need:
                 close()
             continue
         if item[0] == 'blank':
-            if not body:
-                continue                      # no blank at a page top
+            if not col_body:
+                continue                      # no blank at a column top
             h = last_h
             if y - h < margb + note_block_h():
                 close()
@@ -10462,11 +10623,13 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             # the most recently placed TEXT line's own leading, or the
             # 14pt default if no text has been placed yet.
             _, pix_idx, w_pt, h_pt = item
-            if body and y - h_pt < margb + note_block_h():
+            if col_body and y - h_pt < margb + note_block_h():
                 close()
             open_page()
             y -= h_pt
-            body.append((y, item, 'left', 0.0, 0.0, sem_i))
+            col_off = col_i * (col_w + col_gap)
+            body.append((y, item, 'left', col_off, -col_off, sem_i))
+            col_body = True
             continue
         (_, toks, align, notes, indent, cut, no_wrap, page_marker,
          end_notes_start, tight, hang) = item
@@ -10503,7 +10666,13 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         # so the whole line places as ONE visual line regardless of its
         # natural width, exactly as real screenplay software keeps a
         # slugline unbroken.
-        line_w = _math.inf if no_wrap else max(36.0, width - indent - cut)
+        # INSIDE A COLUMNAR REGION THE COLUMN IS THE MEASURE, and the
+        # block's own `.rm` cut is not spent on top of it -- the two are
+        # the same measure stated twice (see `_modern_column_width`), and
+        # taking both would narrow every column by the amount the division
+        # already took off.
+        eff_cut = (width - col_w) if cur_cols > 1 else cut
+        line_w = _math.inf if no_wrap else max(36.0, width - indent - eff_cut)
         vis = _modern_wrap(toks, line_w, hang)
         # planning #263, job 437: a tightened paragraph that actually WRAPS
         # renders at the body's ordinary leading throughout instead. The
@@ -10555,7 +10724,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             extra = ((sep_h if not notes_lines else 0.0)
                      + note_lead * len(new_note_lines)) if (vi == 0 and
                                                             new_note_lines) else 0.0
-            if body and y - h < margb + note_block_h() + extra:
+            if col_body and y - h < margb + note_block_h() + extra:
                 close()
             open_page()
             y -= h
@@ -10563,12 +10732,23 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             # advance by), so it records the line's own height, never the
             # one-off headroom spent above it.
             last_h = lead
+            # WHICH COLUMN THIS LINE SITS IN, resolved here because the fit
+            # test just above may have moved it to the next one. The offset
+            # is added to the line's own indent and taken back off its cut,
+            # so the frame MOVES without changing width: the drawing loop
+            # below spends `margl + indent` and `width - indent - cut`, and
+            # those two come out as the column's own left edge and the
+            # column's own measure. `col_gap`/`col_w` are 0/`width` outside
+            # a columnar region, where this is a no-op by arithmetic.
+            col_off = col_i * (col_w + col_gap)
             # THE PAGE BASELINE MODEL (planning #263): `y` is this line
             # BOX's own bottom edge -- the next box's top -- and the
             # baseline sits one face DESCENT above it, never on it. See the
             # note at the head of this function.
             body.append((y + _modern_descent(face, face_pt), vline, align,
-                         indent + (hang if vi else 0.0), cut, sem_i))
+                         indent + col_off + (hang if vi else 0.0),
+                         eff_cut - col_off, sem_i))
+            col_body = True
             if record_merge_pages is not None:
                 # planning #270 item 42: this visual line is now ON the
                 # page being composed (`len(pages)` is its index -- the
@@ -10595,7 +10775,10 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                     record_merge_pages['notes'] += [len(pages)] * new_note_merges
                     new_note_merges = 0
                 new_note_lines = []
-    close()
+    # The document is over, so the sheet is over whichever column it had
+    # reached -- `hard`, or a columnar document's own last sheet would
+    # advance to an empty column instead of being handed to the page list.
+    close(hard=True)
     while len(pages) > 1 and not pages[-1][0] and not pages[-1][1]:
         pages.pop()
 
@@ -10611,7 +10794,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         for lno in sorted(hdrs):
             if not hdrs[lno]:
                 continue
-            hy = PAGE_H - 44.0 - (lno - 1) * note_lead
+            hy = sheet_h - 44.0 - (lno - 1) * note_lead
             ops += _modern_hf_ops(_euro_texts([hdrs[lno]], euro)[0], page_no,
                                   margl, hy, width, res, tz_state, printed_pt)
         for lno in sorted(ftrs):
@@ -10623,8 +10806,13 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks
+                # `margl + indent` rather than a bare `margl`: an image in
+                # a columnar region carries its own column's offset as an
+                # indent, exactly as a text line does. Every image outside
+                # one carries an indent of 0.0, so this is byte-identical
+                # everywhere the previous form was reached.
                 ops.append(b'q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q'
-                           % (w_pt, h_pt, margl, y, pix_idx))
+                           % (w_pt, h_pt, margl + indent, y, pix_idx))
                 continue
             line_cells = [] if attach_graphic_cells is not None else None
             ops += _modern_line_ops(list(toks), margl + indent, y,
@@ -10676,9 +10864,18 @@ def emit_pdf(doc, mode='printed', **options):
         if page_settings:
             from .core import effective_page
             page = effective_page(page, page_settings)
-        # round 17 (RULINGS-LEDGER row 2): `.pr or=l` -- Printed only, same
-        # doctrine as every other Printed-only geometry item.
-        if printed and doc.meta.get('formatting', {}).get('orientation') == 'landscape':
+        # round 17 (RULINGS-LEDGER row 2): `.pr or=l`. Printed only until
+        # Jon's ruling 2026-09-15 ("Yes. Fix it.") took it to Modern as
+        # well -- the paged-surface doctrine's own point 2 ("honor .pr or=l
+        # landscape in ALL paged surfaces", 2026-08-17) reaching the last
+        # paged surface that still ignored it, and the 2026-08-05 ruling
+        # that Modern PDF is the printed form of the Modern RTF: a
+        # landscape document printed portrait prints nothing the document
+        # says. `_modern_geometry`/`_modern_sheet_h` derive the same
+        # swapped pair independently (idempotently) so the page a caller
+        # OUTSIDE this scope composes -- `emit_layout`, through
+        # `_attach_graphic_cells_modern` -- is the same page.
+        if doc.meta.get('formatting', {}).get('orientation') == 'landscape':
             page = _landscape_page(page)
         if page is not doc.meta['page']:
             saved_page = doc.meta['page']

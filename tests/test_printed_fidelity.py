@@ -306,17 +306,31 @@ def test_pr_landscape_flips_printed_rtf_paper_and_sets_landscape_keyword():
     assert paperw == 15840 and paperh == 12240
 
 
-def test_pr_landscape_never_reaches_modern_pdf_or_rtf():
-    """Modern must remain untouched -- its own fixed Letter page regardless
-    of the document's declared orientation, same doctrine as every other
-    Printed-only geometry item."""
+def test_pr_landscape_reaches_modern_pdf_too():
+    """Jon's ruling 2026-09-15 ("Yes. Fix it."): Modern PDF keeps the
+    document's own sheet ORIENTATION.
+
+    This test used to pin the OPPOSITE -- it was named
+    `test_pr_landscape_never_reaches_modern_pdf_or_rtf` and said so
+    explicitly ("Modern must remain untouched ... same doctrine as every
+    other Printed-only geometry item"). Renamed and re-pinned rather than
+    silently changed, the same way `test_style_leading.py`'s pair were
+    when planning #256 superseded them.
+
+    Modern RTF is DELIBERATELY not asserted the other way here: it still
+    writes a portrait `\\paperw`/`\\paperh` pair and no `\\landscape`, and
+    that divergence from its own PDF twin is a real gap awaiting its own
+    ruling, not something this test should bless in either direction."""
     doc = _landscape_doc()
     out_modern = pdf.emit_pdf(doc, mode='modern')
     m = re.search(rb'/MediaBox \[0 0 (\d+) (\d+)\]', out_modern)
-    assert (int(m.group(1)), int(m.group(2))) == (612, 792)
+    w, h = int(m.group(1)), int(m.group(2))
+    assert (w, h) == (792, 612), (w, h)   # wider than tall: the swap landed
 
-    r_modern = emit.emit_rtf(doc, mode='modern')
-    assert r'\landscape' not in r_modern
+    # ... and the body is laid out ON that sheet, not from Letter's own
+    # 792pt top edge, which would put every line above the page.
+    ys = [float(t) for t in re.findall(rb' [\d.]+ ([\d.]+) Td', out_modern)]
+    assert ys and max(ys) < h, ys
 
 
 # --------------------------------------------------------------- ledger row 1
