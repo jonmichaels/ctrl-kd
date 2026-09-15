@@ -5455,8 +5455,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
         _attach_line_numbers_printed(doc, pages, _printed_size(doc))
         _attach_graphic_cells_printed(doc, pages, _printed_size(doc))
+        # Same fallback-page ordering as the plain path -- see its own
+        # comment (planning #274 follow-up, 2026-09-15).
+        pages = pages or [[]]
         _attach_head_foot_lines_printed(doc, pages, _printed_size(doc))
-        return pages or [[]]
+        return pages
 
     refs_all = _ref_pairs(_annotated_notes(doc))
 
@@ -6668,6 +6671,21 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         _attach_justify_word_x_printed(doc, pages, size_for_left)
         _attach_line_numbers_printed(doc, pages, size_for_left)
         _attach_graphic_cells_printed(doc, pages, size_for_left)
+        # planning #274 follow-up (2026-09-15): THE FALLBACK PAGE HAS TO
+        # EXIST BEFORE THIS PASS. `pages or [[]]` used to happen at the
+        # `return` below, so a document whose pagination produces NO page
+        # at all -- `sawyer/REF/ADVANCE.DOT`, `GALLEYS.DOT`, the
+        # content-free `.DOT` templates -- got its one page invented after
+        # every attach pass had already run, and the MODEL (the `layout`
+        # JSON) carried no running head, no footer and no automatic
+        # number for it. The PDF WRITER paginates and resolves its own and
+        # draws all three (`TITLE . 1` at 666.2, the number at 637.2), so
+        # the two disagreed -- the same two-sources-of-truth fault
+        # `_attach_head_foot_lines_printed`'s own bare-list promotion
+        # exists to close, one step earlier. No other document changes:
+        # `pages` is non-empty for every one of them, and `or` returns it
+        # untouched.
+        pages = pages or [[]]
         _attach_head_foot_lines_printed(doc, pages, size_for_left)
     return pages or [[]]
 
