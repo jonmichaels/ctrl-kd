@@ -35,6 +35,11 @@ https://github.com/jonmichaels/ctrl-kd/releases
   style declares, and successive head lines step by the line height the
   document asked for — including a line height of zero, which is how this
   template asks for its two heads on one line.
+- Modern view turned any paragraph that happened to open `Word:` followed
+  by two spaces into a definition-list entry with a hanging indent — a
+  plain callout paragraph ("Note:  Some printers may not…") got the same
+  treatment as a real list of terms. A definition list now has to look
+  like one: at least two entries whose labels start at the same column.
 
 ## [4.7.1] — 2026-09-15
 

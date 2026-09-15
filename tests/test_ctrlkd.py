@@ -7176,40 +7176,100 @@ def test_deflist_ragged_label_widths_share_one_column():
             '<dt>LONGLABEL:</dt><dd>longer label, same column.</dd></dl>') in html
 
 
-def test_deflist_single_entry_needs_no_repetition():
-    """Edge case: unlike a bullet marker (a bare glyph could just be
-    punctuation, so it needs a repeated sibling to be trusted), one
-    label+gap+description line alone is already unambiguous."""
+def test_deflist_single_entry_is_ordinary_prose():
+    """SUPERSEDED AND RE-PINNED (Jon's ruling 2026-09-15). This test was
+    `test_deflist_single_entry_needs_no_repetition` and read "unlike a
+    bullet marker (a bare glyph could just be punctuation, so it needs a
+    repeated sibling to be trusted), one label+gap+description line alone
+    is already unambiguous."
+
+    It is not unambiguous. Any prose paragraph opening `Word:` and the
+    era's own double space matched it, and got a hanging indent for it --
+    sawyer/REF/CTRL-K.H1's filler paragraph opens "Space:  The final
+    frontier. These are the voyages...", and so do several real callout
+    paragraphs ("Important:  If you're using WordStar 5.0..."). A def list
+    is a SHAPE and one row is not a shape, so a def row now needs a
+    sibling at its own label column, exactly as a bullet needs one at its
+    own marker column."""
     from ctrlkd.layout import modern_flow
     data = b'Note:  a single hanging label, alone in its own document.' + HARD
     doc = _modern(data)
     s = modern_flow(doc)['items'][0]['structure']
-    assert s['kind'] == 'def' and s['label'] == 'Note:'
-    assert s['body'] == 'a single hanging label, alone in its own document.'
+    assert s['kind'] is None
+    assert s['label'] is None and s['body'] is None
+
+
+def test_deflist_needs_a_sibling_at_its_own_label_column():
+    """Two rows whose labels start at the SAME column are a list; the same
+    two rows at different columns are two paragraphs that happen to open
+    with a colon (sawyer/ARTICLES/YOURWAY.WS's three centred headings,
+    which sit at columns 13, 21 and 17)."""
+    from ctrlkd.layout import modern_flow
+    same = _modern(b'A:     first.' + HARD + b'BB:    second.' + HARD)
+    assert [i['structure']['kind'] for i in modern_flow(same)['items']
+            if i['kind'] == 'para'] == ['def', 'def']
+    apart = _modern(b'A:     first.' + HARD + b'    BB:    second.' + HARD)
+    assert [i['structure']['kind'] for i in modern_flow(apart)['items']
+            if i['kind'] == 'para'] == [None, None]
+
+
+def test_a_def_list_survives_blank_lines_between_its_entries():
+    """A 1990 author separates definition entries with blank lines. Blanks
+    carry no column of their own and never reach `classify_rows`, so the
+    two rows are still adjacent as far as the run rule is concerned."""
+    from ctrlkd.layout import modern_flow
+    data = (b'A:     first.' + HARD + HARD + HARD
+            + b'BB:    second.' + HARD)
+    doc = _modern(data)
+    assert [i['structure']['kind'] for i in modern_flow(doc)['items']
+            if i['kind'] == 'para'] == ['def', 'def']
+
+
+def test_a_hard_break_ends_the_def_run():
+    """`.pa` is a real break in flow. Two lone labels on either side of one
+    are two paragraphs, not a two-entry list spanning the break -- the
+    same reset the bullet rule's own nesting stack takes."""
+    from ctrlkd.layout import modern_flow
+    data = (b'A:     first.' + HARD + b'.pa' + HARD + b'A:     second.' + HARD)
+    doc = _modern(data)
+    assert [i['structure']['kind'] for i in modern_flow(doc)['items']
+            if i['kind'] == 'para'] == [None, None]
 
 
 def test_bullet_list_with_nested_deflist():
     """Rule 2: a def-list nested INSIDE a bullet list -- the same column-
     geometry mechanism as rule 1, one level deeper. CONVERT.WS's own
-    'Peter Mierau...: WSASC.COM: ...' shape."""
+    'Peter Mierau...: WSASC.COM: ...' shape.
+
+    The nested list carries TWO entries since Jon's 2026-09-15 ruling that
+    a def row needs a sibling at its own label column -- which is what
+    CONVERT.WS's own sub-list has, and what this fixture should always
+    have had: a one-entry list was never the shape it claims to build."""
     from ctrlkd.emit import emit_html
     data = (b'.lm 2\r\n'
             b'* First bullet item.' + HARD +
             b'* Second bullet, introduces a sub-list:' + HARD +
             b' LABEL:  nested description.' + HARD +
+            b' OTHER:  a second nested description.' + HARD +
             b'* Third bullet, back at the outer level.' + HARD)
     doc = _modern(data)
     html = emit_html(doc, mode='modern')
     assert ('<ul><li>First bullet item.</li>'
             '<li>Second bullet, introduces a sub-list:'
-            '<dl><dt>LABEL:</dt><dd>nested description.</dd></dl></li>'
+            '<dl><dt>LABEL:</dt><dd>nested description.</dd>'
+            '<dt>OTHER:</dt><dd>a second nested description.</dd></dl></li>'
             '<li>Third bullet, back at the outer level.</li></ul>') in html
 
 
 def test_three_level_nesting():
     """Edge case: nesting recurses to arbitrary depth, not just one level
     -- a bullet list containing a nested bullet list containing a nested
-    def-list, three columns deep."""
+    def-list, three columns deep.
+
+    The deepest list carries TWO entries since Jon's 2026-09-15 ruling
+    that a def row needs a sibling at its own label column; with one it
+    was not a list at all, and the third level it is here to prove never
+    opened."""
     from ctrlkd.layout import modern_flow
     from ctrlkd.emit import emit_html
     data = (b'.lm 2\r\n'
@@ -7217,16 +7277,18 @@ def test_three_level_nesting():
             b'* Outer bullet two, introduces inner list:' + HARD +
             b'  # Inner one' + HARD +
             b'  # Inner two, introduces a def-list:' + HARD +
-            b'   LABEL:  deepest.' + HARD)
+            b'   LABEL:  deepest.' + HARD +
+            b'   OTHER:  deepest too.' + HARD)
     doc = _modern(data)
     items = [i for i in modern_flow(doc)['items'] if i['kind'] == 'para']
-    assert [i['structure']['level'] for i in items] == [1, 1, 2, 2, 3]
+    assert [i['structure']['level'] for i in items] == [1, 1, 2, 2, 3, 3]
     html = emit_html(doc, mode='modern')
     assert ('<ul><li>Outer bullet one.</li>'
             '<li>Outer bullet two, introduces inner list:'
             '<ul><li>Inner one</li>'
             '<li>Inner two, introduces a def-list:'
-            '<dl><dt>LABEL:</dt><dd>deepest.</dd></dl></li></ul></li></ul>') in html
+            '<dl><dt>LABEL:</dt><dd>deepest.</dd>'
+            '<dt>OTHER:</dt><dd>deepest too.</dd></dl></li></ul></li></ul>') in html
 
 
 def test_centered_by_spaces_detected_and_rendered():

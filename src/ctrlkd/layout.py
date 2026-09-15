@@ -140,9 +140,18 @@ def rm_indent_cols(rm):
 # description by 2+ spaces -- WordStar has no def-list markup, so a human
 # author signals "this word IS the label" the only way the era's plain
 # text allows: padding it out to a shared description column with spaces.
-# One label alone is already unambiguous (EXTENDING.md-style: `word.py:
-# does the thing`); no repetition is required to trust it, unlike a bullet
-# marker below.
+#
+# ONE LABEL ALONE IS NOT A LIST (Jon's ruling 2026-09-15). This used to say
+# the opposite -- "one label alone is already unambiguous (EXTENDING.md-
+# style: `word.py: does the thing`); no repetition is required to trust it,
+# unlike a bullet marker below" -- and that reading turns any prose
+# paragraph that happens to open `Word:  text` into a hanging-indent def
+# row. `sawyer/REF/BOOKLET.WS` opens "Space:  The final frontier. These are
+# the voyages..." and got a hanging indent for it, which became conspicuous
+# once M17 put that document into narrow columns. A def list is a SHAPE,
+# and a shape needs more than one instance to be one: the rule is now the
+# same run rule the bullet marker below already has -- see
+# `classify_rows`' own `def_cols`.
 #
 # The label must itself end in a colon. Found the hard way against the
 # Sawyer WS7 archive's own prose corpus (OLDTIMES.WS): the era's own
@@ -279,13 +288,51 @@ def classify_rows(entries):
             counts[(r['col'], t[0])] += 1
     bullet_cols = {k for k, n in counts.items() if n >= 2}
 
+    # A DEF LIST IS A SHAPE, AND ONE ROW IS NOT A SHAPE (Jon's ruling
+    # 2026-09-15; see `_DEFLIST_RE`'s own comment for what this replaces).
+    # The same run rule the bullet marker above earns its marker with, with
+    # the LABEL COLUMN standing in for the glyph: a `word:  description`
+    # row reads as a def row only when another row in the same block starts
+    # its own label at the same column. A lone match is ordinary prose that
+    # happens to open with a colon and the era's own double space.
+    #
+    # WITHIN THE SAME BLOCK, which here means "between two hard resets":
+    # `modern_flow` emits a `('hard',)` entry for a real break or a
+    # conditional page and NOTHING AT ALL for a blank line (blanks, tabs,
+    # head/foot and note carriers are dropped before this function sees
+    # them), so consecutive `para` rows in `entries` are exactly "adjacent
+    # def rows, blank lines allowed between them" -- which is how a 1990
+    # author actually types a definition list.
+    def_runs = set()
+    run_cols = Counter()
+    run_rows = []
+
+    def _close_run():
+        for rr in run_rows:
+            if run_cols[rr['col']] >= 2:
+                def_runs.add(id(rr))
+        run_cols.clear()
+        del run_rows[:]
+
+    for r in rows:
+        if r is None:                      # a hard reset ends the run
+            _close_run()
+            continue
+        t = r['text']
+        if (not (_marker_candidate(t) and (r['col'], t[0]) in bullet_cols)
+                and _DEFLIST_RE.match(t)):
+            run_cols[r['col']] += 1
+            run_rows.append(r)
+    _close_run()
+
     for r in rows:
         if r is None:
             continue
         t = r['text']
         is_bullet = (_marker_candidate(t)
                      and (r['col'], t[0]) in bullet_cols)
-        m = None if is_bullet else _DEFLIST_RE.match(t)
+        m = (None if is_bullet or id(r) not in def_runs
+             else _DEFLIST_RE.match(t))
         if is_bullet:
             r['kind'], r['marker'] = 'bullet', t[0]
             r['label'], r['body'] = None, t[2:]

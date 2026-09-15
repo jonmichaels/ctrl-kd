@@ -245,9 +245,16 @@ def test_no_spacer_between_two_consecutive_graphic_rows():
 # ------------------------------------------------ rule 2: the ladder and hang
 
 def _def_doc(extra=b''):
+    # TWO entries since Jon's ruling 2026-09-15: a def row needs a sibling at
+    # its own label column to be a def row at all (`layout.classify_rows`'
+    # `def_cols`), which is what a real definition list has and what this
+    # fixture should always have had. The FIRST entry is the one every
+    # assertion below measures; the second only makes the first a list.
     body = (b'WS.EXE:  a mostly default installation with a description long '
             b'enough to wrap onto a second visual line of its own.')
-    return _modern(b'Intro sentence.' + HARD + HARD + body + HARD + extra)
+    sibling = b'WSRJS.EXE:  a second entry at the same label column.'
+    return _modern(b'Intro sentence.' + HARD + HARD + body + HARD
+                   + sibling + HARD + extra)
 
 
 def test_a_level_one_def_row_starts_at_the_margin():
@@ -266,19 +273,29 @@ def test_a_def_row_renders_its_label_over_a_two_space_gap():
     """The author's own column padding between label and body is typewriter
     geometry, not content: Modern re-sets the row as a hanging label."""
     padded = b'WS.EXE:' + b' ' * 8 + b'body text of the entry.'
-    flow = [i for i in _flow(b'Intro.' + HARD + HARD + padded + HARD)
+    # A sibling at the same label column, for the 2026-09-15 run rule; the
+    # assertion still measures the padded row, which is now flow[-2].
+    sibling = b'WSRJS.EXE:  a second entry.'
+    flow = [i for i in _flow(b'Intro.' + HARD + HARD + padded + HARD
+                             + sibling + HARD)
             if i[0] == 'para']
-    assert (''.join(t[0] for t in flow[-1][1])
+    assert (''.join(t[0] for t in flow[-2][1])
             == 'WS.EXE:  body text of the entry.')
 
 
 def test_the_ladder_steps_four_columns_per_nesting_level():
     """Level 1 sits AT the margin; each deeper level steps in by
     `MODERN_LEVEL_STEP_COLS`, whatever raw column the source used."""
+    # Each level carries two entries, for the 2026-09-15 run rule: a lone
+    # label at a column is prose, so a one-entry "list" never opened a level
+    # to step from in the first place.
     outer = b'OUTER:  the outer entry.'
+    outer2 = b'OTHER:  a second outer entry.'
     inner = b'    INNER:  the nested entry.'
+    inner2 = b'    INNR2:  a second nested entry.'
     out = pdf.emit_pdf(_modern(b'Intro.' + HARD + HARD + outer + HARD
-                                + inner + HARD), mode='modern')
+                                + inner + HARD + inner2 + HARD
+                                + outer2 + HARD), mode='modern')
     rows = _lines(out)
     col_pt = 12.0 * 0.6
     assert rows[1][1] == pytest.approx(72.0)
