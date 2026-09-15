@@ -7154,23 +7154,29 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             pg.read_pos = was
             pages[page_index] = pg
         if resolved['headers']:
-            # `style_attrs` (planning #255) is a PDF-render-time concern
-            # only here -- `_running_ops` ORs it into `hf_runs`' own
-            # per-run styles before drawing; the page-lines MODEL keeps
-            # its pre-existing dict shape (`text`/`x`/`y`/`font` only),
-            # unchanged for every document, matching this field's own
-            # established "byte-identical unless a document actually uses
-            # the mechanism" convention -- `font_idx` (already threaded
-            # through `_style_font`) is enough for a consumer to resolve
-            # the style's own face; bold/italic is this text's own toggle-
-            # byte concern, `hf_runs` already exposes it the same way for
-            # every other header/footer line.
-            pg.header_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx}
-                               for _n, text, y, font_idx, x, _attrs
+            # `style_attrs` (planning #255) IS IN THE MODEL (2026-09-15). It
+            # used to be a PDF-render-time concern only -- `_running_ops`
+            # ORs it into `hf_runs`' own per-run styles before drawing --
+            # and this dict carried `text`/`x`/`y`/`font` alone, on the
+            # reasoning that `font_idx` resolves the style's own FACE and
+            # bold/italic is the text's own toggle-byte concern.
+            #
+            # That reasoning is wrong for a document whose head carries NO
+            # toggle bytes and takes its weight from the `.h#` argument's
+            # own 0x11 style-select instead: `sawyer/REF/BOOKLET.WS`'s two
+            # running heads are bold, and nothing in this model said so, so
+            # the apps -- which draw the Printed head themselves from this
+            # JSON -- drew them light. The selected style's baseline attrs
+            # are part of WHAT THE LINE IS, not of how one emitter happens
+            # to draw it.
+            pg.header_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx,
+                                'style': sorted(attrs)}
+                               for _n, text, y, font_idx, x, attrs
                                in resolved['headers']]
         if resolved['footers']:
-            pg.footer_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx}
-                               for _n, text, y, font_idx, x, _attrs
+            pg.footer_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx,
+                                'style': sorted(attrs)}
+                               for _n, text, y, font_idx, x, attrs
                                in resolved['footers']]
         if resolved['auto'] is not None:
             text, x, y = resolved['auto']

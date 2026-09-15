@@ -3857,7 +3857,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 10
+    assert out['version'] == 11
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -6708,15 +6708,42 @@ def test_head_foot_lines_land_on_the_model_matching_the_writer():
     pages = _doc_to_pagelines(doc, True)
     assert len(pages) == 2
     p1, p2 = pages
-    assert p1.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
-    assert p1.footer_lines == [{'text': 'Footer Text', 'x': 57.6, 'y': 60.0, 'font': None}]
+    assert p1.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0,
+                                'font': None, 'style': []}]
+    assert p1.footer_lines == [{'text': 'Footer Text', 'x': 57.6, 'y': 60.0,
+                                'font': None, 'style': []}]
     assert p1.auto_pageno is None            # a real footer is in force -> no auto number
-    assert p2.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
+    assert p2.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0,
+                                'font': None, 'style': []}]
 
     pdf = emit_pdf(doc, 'printed')
     ops = _td_ops6(pdf)
     assert (57.6, 780.0, b'Header Text') in ops
     assert (57.6, 60.0, b'Footer Text') in ops
+
+
+def test_head_foot_lines_carry_the_selected_styles_own_attrs():
+    """A running head can be BOLD with no toggle byte anywhere in its text
+    -- the weight comes from the `.h#` argument's own 0x11 style select,
+    which `_resolve_head_foot_lines` resolves into `style_attrs` and
+    `_running_ops` ORs into every run before drawing. The MODEL used to
+    drop it, so a consumer drawing the printed page from the `layout` JSON
+    (the Mac and iOS apps do) drew `sawyer/REF/BOOKLET.WS`'s two heads
+    light. `style` is a sorted tag list and is always present."""
+    from ctrlkd.pdf import _doc_to_pagelines
+
+    class _StyledDoc:
+        pass
+
+    data = (b'.h1 Plain Head\r\n' +
+            b'Body prose, plain and ordinary and long enough here.' + HARD)
+    doc = core.parse_ws(data)
+    # The overwhelming majority: no style selected anywhere.
+    assert _doc_to_pagelines(doc, True)[0].header_lines[0]['style'] == []
+
+    # And the real one, straight off the archive document that needed it.
+    doc.header_style_attrs[1] = frozenset({'b'})
+    assert _doc_to_pagelines(doc, True)[0].header_lines[0]['style'] == ['b']
 
 
 def test_head_foot_lines_resolve_the_same_page_number_substitution_and_tab_bake():
@@ -6797,7 +6824,7 @@ def test_head_foot_lines_omitted_when_the_document_has_neither():
     assert pages[0].footer_lines is None
     assert pages[0].auto_pageno is None
     out = json.loads(emit_layout(doc))
-    assert out['version'] == 10
+    assert out['version'] == 11
     jp = out['printed']['pages'][0]
     assert 'header_lines' not in jp and 'footer_lines' not in jp
     assert 'auto_page_number' not in jp
@@ -6972,7 +6999,8 @@ def test_layout_json_carries_resolved_head_foot_lines():
     doc = core.parse_ws(data)
     out = json.loads(emit_layout(doc))
     jp = out['printed']['pages'][0]
-    assert jp['header_lines'] == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0, 'font': None}]
+    assert jp['header_lines'] == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0,
+                                   'font': None, 'style': []}]
     assert jp['auto_page_number'] == {'text': '1', 'x': 291.6, 'y': 60.0}
 
 
@@ -7039,7 +7067,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 10
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 11
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])

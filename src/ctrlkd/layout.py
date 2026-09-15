@@ -1086,6 +1086,19 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     document with no Modern graphic content anywhere emits byte-
     identical JSON to version 6.
 
+    version 11 (2026-09-15): every `header_lines`/`footer_lines` entry
+    gains `style` -- the SELECTED STYLE's own baseline span attrs for that
+    line, a sorted tag list spelled exactly as a modern run's own `styles`
+    is, and always present (`[]` when the line selects no style, which is
+    almost every line in the corpus). The four fields it joins
+    (`text`/`x`/`y`/`font`) could not say that a running head is BOLD when
+    the boldness comes from the `.h#` argument's own 0x11 style select
+    rather than from toggle bytes in the text -- `sawyer/REF/BOOKLET.WS`'s
+    two heads are exactly that, and every consumer drawing the printed page
+    from this JSON drew them light. A document whose heads and feet select
+    no style emits `[]` on each line and is otherwise byte-identical to
+    version 10.
+
     version 10 (planning #264 running list, the batch-23 finding): a new
     `invisibles['modern_print_controls']` -- `[{'item', 'run', 'label',
     'hmi', 'columns'}, ...]`, flow order -- carrying every 0x0F print
@@ -1215,17 +1228,27 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
         # this shipped (WSMIN.PAT/WS-CON.TXT/descript.bu, all print streams).
         # `float()` first forces the SAME `X.0` spelling every other rounded
         # field here already gets from its own float-only arithmetic.
+        # `style` (version 11, 2026-09-15): the SELECTED STYLE's own baseline
+        # span attrs for this line -- a sorted tag list, the same spelling a
+        # modern run's own `styles` uses, and ALWAYS PRESENT (`[]` for the
+        # overwhelming majority, which select no style at all) rather than
+        # omitted, so a consumer reads one shape. `sawyer/REF/BOOKLET.WS` is
+        # the document that needed it: its two running heads carry no toggle
+        # bytes and are bold purely from the `.h#` argument's own 0x11 style
+        # select, so every consumer drawing this JSON drew them light.
         pg_header_lines = getattr(page, 'header_lines', None)
         if pg_header_lines is not None:
             pg['header_lines'] = [
                 {'text': e['text'], 'x': round(float(e['x']), 1),
-                 'y': round(float(e['y']), 1), 'font': e['font']}
+                 'y': round(float(e['y']), 1), 'font': e['font'],
+                 'style': list(e.get('style') or ())}
                 for e in pg_header_lines]
         pg_footer_lines = getattr(page, 'footer_lines', None)
         if pg_footer_lines is not None:
             pg['footer_lines'] = [
                 {'text': e['text'], 'x': round(float(e['x']), 1),
-                 'y': round(float(e['y']), 1), 'font': e['font']}
+                 'y': round(float(e['y']), 1), 'font': e['font'],
+                 'style': list(e.get('style') or ())}
                 for e in pg_footer_lines]
         pg_auto_pageno = getattr(page, 'auto_pageno', None)
         if pg_auto_pageno is not None:
@@ -1301,7 +1324,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 10,
+        'version': 11,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
