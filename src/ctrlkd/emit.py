@@ -4378,11 +4378,30 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     def _twips_lines(key, default_lines):
         v = page.get(key, default_lines)
         return int(round(float(v) * 240))            # 1 line at 6 LPI = 240 twips
+
+    def _paper_twips(height_in):
+        """A declared sheet height in inches -> `\\paperh` twips, with `.pl 0`
+        falling back to Letter.
+
+        `.pl 0` IS NOT A SHEET. It is WordStar's "page breaks off" (bug
+        12284, `core._text_lines_per_page`), and this emitter's text model
+        already never breaks, so the PAGE BOX falls back to Letter -- the
+        rule Printed PDF has carried since `_resolved_page_height` was
+        written and Modern PDF adopted in M18 (`pdf._modern_sheet_h`),
+        quoted here rather than re-decided.
+
+        RTF was the surface still writing the arithmetic straight through:
+        `\\paperh0`, which LibreOffice refuses to open at all. Five
+        documents: `LSRBOX/LSRBOXES.MRG`, `LSRBOX/LSRLINES.MRG`,
+        `RTF-RJS/1-5LINES.WS`, `RTF-RJS/1-SINGLE.WS`, `RTF-RJS/2-DOUBLE.WS`.
+        A document that declares any real height is untouched."""
+        twips = int(round(float(height_in) * 1440))
+        return twips if twips > 0 else 15840
     if printed:
         margt = _twips_lines('mt_lines', 3.0)
         margb = _twips_lines('mb_lines', 8.0)
         margl = int(round(float(page.get('po_cols', 8.0)) * 144))
-        paperh = int(round(float(page.get('height_in', 11.0)) * 1440))
+        paperh = _paper_twips(page.get('height_in', 11.0))
     else:
         margt = (_twips_lines('mt_lines', 6.0)
                  if page.get('mt_source', 'default') != 'default' else 1440)
@@ -4396,7 +4415,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         # wide, not to the un-landscape-aware 8.5x8.5 SQUARE the portrait
         # resolution gives). Modern PDF composes on exactly that height
         # (`pdf._modern_sheet_h`), which is what makes the two agree.
-        paperh = (int(round(float(page.get('height_in', 11.0)) * 1440))
+        paperh = (_paper_twips(page.get('height_in', 11.0))
                   if landscape or page.get('size_source', 'default') != 'default'
                   else 15840)
     # width joined the page model 2026-08-06: A4-tall documents get the

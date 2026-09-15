@@ -632,6 +632,22 @@ def test_footer_text_is_not_dropped_for_falling_past_the_paper():
     assert [y for _x, y in ops] == [b'-14.4']
 
 
+def test_rtf_paper_height_falls_back_to_letter_for_pl_zero():
+    """`.pl 0` is WordStar's "page breaks off", not a zero-inch sheet. The
+    PDF page box has fallen back to Letter since `_resolved_page_height`
+    was written (and Modern PDF since M18); RTF wrote the arithmetic
+    straight through as `\\paperh0`, which LibreOffice refuses to open.
+    Both RTF modes, and a real height is untouched."""
+    from ctrlkd import emit
+    body = ''.join(f'PLZERO-{i:03d}\r\n' for i in range(1, 10))
+    zero = core.parse_ws(('.pl 0\r\n' + body).encode())
+    tall = core.parse_ws(('.pl 14"\r\n' + body).encode())
+    for mode in ('printed', 'modern'):
+        assert r'\paperh15840' in emit.emit_rtf(zero, mode=mode)
+        assert r'\paperh0' not in emit.emit_rtf(zero, mode=mode)
+        assert r'\paperh20160' in emit.emit_rtf(tall, mode=mode)
+
+
 def test_page_numbers_declared_footer_suppresses_it():
     """WSFORMAT.WS's own text: ".PC ... active only when the footers are
     not in use." A declared footer -- even with NO `#` of its own --
