@@ -22,7 +22,7 @@ BANNER = r"""        __       __      __       __
 # because the name never changes; no .flf machinery needed.
 
 
-from . import core, emit, pictures
+from . import core, emit, pictures, quirks
 from .convert import DEFAULT_NOTE_KINDS   # module attr, not the re-exported convert()
 
 def diagnose(path, data):
@@ -51,8 +51,21 @@ def write_samples(outdir):
         written.append(dest)
     return written
 
+def _quirked(ap, doc, a):
+    """`doc` with this run's quirks resolved and applied. A bad NAME is a
+    usage error (a typo, or a plugin that isn't installed), not something to
+    swallow -- silently ignoring it would hand back output the caller did not
+    ask for."""
+    try:
+        return quirks.apply_quirks(doc, enable=a.quirk, disable=a.no_quirk,
+                                   mode=a.quirks)
+    except quirks.UnknownQuirk as e:
+        ap.error(str(e))
+
+
 def main(argv=None):
     emit.load_plugins()          # third-party emitters (ctrlkd.emitters entry points)
+    quirks.load_plugins()        # third-party quirks (ctrlkd.quirks entry points)
     ap = argparse.ArgumentParser(
         prog='ctrl-kd',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -202,6 +215,36 @@ def main(argv=None):
     ap.add_argument('--comments', action='store_true',
                     help="include WordStar comments, which it never printed "
                          "(author's asides, hidden since the file was written)")
+    ap.add_argument('--quirk', action='append', metavar='NAME', default=[],
+                    help='turn a named quirk ON for this conversion '
+                         '(repeatable). A quirk is a NAMED departure from a '
+                         'literal reading of the bytes -- see --list-quirks '
+                         'for every name this build knows, what it does, and '
+                         'whether it applies to your file. Naming a quirk '
+                         'the document does not trip does nothing (so one '
+                         'standing list can be passed to every file); naming '
+                         'one that does not exist is an error.')
+    ap.add_argument('--no-quirk', action='append', metavar='NAME', default=[],
+                    help='turn a named quirk OFF (repeatable). The quirks '
+                         'that are on by default are the ones the document '
+                         "itself points at -- its own last-used printer "
+                         'driver changed what some characters print as -- so '
+                         'this is how you see the raw character instead.')
+    ap.add_argument('--quirks', choices=('auto', 'off', 'all'), default='auto',
+                    help='the baseline --quirk/--no-quirk then adjust. auto '
+                         '(DEFAULT): the quirks the document itself points '
+                         'at, and no others. off: none at all, the most '
+                         'literal reading of the bytes this converter can '
+                         'give. all: every quirk that applies to this '
+                         'document, including the ones that are off by '
+                         'default because they are somebody\'s judgement '
+                         'rather than the file\'s own evidence.')
+    ap.add_argument('--list-quirks', action='store_true',
+                    help='list every quirk this build knows as JSON -- name, '
+                         'one-line description, and whether it is on by '
+                         'default; WITH file arguments, also whether each '
+                         'applies to that file, why, and whether it is in '
+                         'force. No conversion.')
     ap.add_argument('--diagnose', action='store_true',
                     help='report what the file is (variant, margin, dot commands, '
                          'unknown codes) as JSON; no conversion')
@@ -210,6 +253,24 @@ def main(argv=None):
         for dest in write_samples(a.samples):
             print(f'-> {dest}', file=sys.stderr)
         return 0
+    if a.list_quirks:
+        if not a.files:
+            print(json.dumps(quirks.list_quirks(), indent=2, ensure_ascii=False))
+            return 0
+        status = 0
+        for path in a.files:
+            try:
+                data = open(path, 'rb').read()
+                doc = core.parse(data, encoding=a.encoding, variant=a.variant)
+            except (OSError, ValueError) as e:
+                print(f'ctrl-kd: {path}: {e}', file=sys.stderr)
+                status = 1
+                continue
+            doc = _quirked(ap, doc, a)
+            print(json.dumps({'file': os.path.basename(path),
+                              'quirks': quirks.list_quirks(doc)},
+                             indent=2, ensure_ascii=False))
+        return status
     if not a.files:
         ap.error('the following arguments are required: files')
     mode_explicit = a.mode is not None
@@ -284,6 +345,10 @@ def main(argv=None):
                   f'--variant to force)', file=sys.stderr)
             status = 1
             continue
+        # Quirks are resolved ONCE per document, here, before any emitter
+        # reads it -- so every requested format renders the same decision and
+        # the layout JSON's own report can never disagree with what ran.
+        doc = _quirked(ap, doc, a)
         # D5 notice (ruled 2026-08-05): when the user EXPLICITLY asked for
         # modern and the input can only render printed, say so once instead
         # of silently disobeying the flag. The override itself stands -- a

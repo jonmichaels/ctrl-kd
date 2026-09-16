@@ -100,6 +100,7 @@ from .core import (merged_lines, Span, trailing_blank_lines,
                    looks_like_verse, paragraph_layout_context)
 from .emit import (DEFAULT_NOTE_KINDS, _annotated_notes, _ref_pairs,
                    note_ref_labels, emitter)
+from . import quirks as _quirks
 
 # The era line: 65 columns at 10 CPI is the full measure every `.rm` is
 # read against (same constant printed layout wraps at).
@@ -531,7 +532,16 @@ def peseta_euro_table(doc):
     the leading upper-case/digit run with the record tag stripped, so a
     real document always arrives as 'LASERJET'/'LJ6DTP'/'HP4'; the match
     is stated case-insensitively anyway so the rule does not silently
-    depend on that one parser detail."""
+    depend on that one parser detail.
+
+    Quirks mode (2026-09-16) names this rule `driver-euro-sign` and lets a
+    reader switch it off to see the literal peseta even on a patched-driver
+    document. It is an AUTO quirk -- on unless a caller says otherwise -- so
+    a document that names one of the three drivers AND actually types a
+    peseta gets exactly the same table it always did."""
+    from .quirks import enabled as _quirk_enabled
+    if not _quirk_enabled(doc, 'driver-euro-sign'):
+        return None
     name = (doc.meta.get('printer_driver') or '').strip().upper()
     return PESETA_TO_EURO if name in EURO_PATCHED_DRIVERS else None
 
@@ -652,7 +662,14 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                           'text': euro_texts([n.text], euro)[0],
                           'origin': getattr(n, 'origin', 'block')})
 
-    lj = doc.meta.get('printer_driver') == 'LJ6DTP'
+    # planning #266 / quirks mode: the LJ6DTP driver's own two substitution
+    # families are separately named quirks (`lj6dtp-typography`,
+    # `lj6dtp-box-corners`), each switchable on its own; both are AUTO, so a
+    # document declaring that driver behaves exactly as it always did.
+    from .quirks import enabled as _quirk_enabled
+    lj_typo = _quirk_enabled(doc, 'lj6dtp-typography')
+    lj_corners = _quirk_enabled(doc, 'lj6dtp-box-corners')
+    lj = lj_typo or lj_corners
     fonts = getattr(doc, 'fonts', ()) or ()
     hf_by_block = {}
     for kind, lno, txt, anchor in getattr(doc, 'hf_events', ()):
@@ -817,8 +834,9 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                 if lj:
                     entry = _entry_for(sp.styles, fonts)
                     if entry is not None and entry.get('proportional'):
-                        text = text.translate(LJ_SUBST)
-                        if (entry.get('typestyle_name') or
+                        if lj_typo:
+                            text = text.translate(LJ_SUBST)
+                        if lj_corners and (entry.get('typestyle_name') or
                                 '').startswith('Univers'):
                             text = text.translate(LJ_SUBST_UNIVERS)
                 if euro is not None:
@@ -1129,6 +1147,23 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     control anywhere emits an empty `print_controls` list and otherwise
     byte-identical JSON to version 8.
 
+    version 12 (2026-09-16, Jon's quirks ruling): the document MAY now
+    carry two top-level lists, `quirks_applicable` and `quirks_applied`.
+    The first names every registered quirk this document actually trips
+    (`ctrlkd.quirks`), whether or not anybody turned it on -- that is what
+    lets a reader be OFFERED a known quirk on a plain, faithful run instead
+    of having to guess one exists. The second names the subset actually in
+    force for this render. Both are OMITTED, not empty, when the document
+    trips nothing at all, so a document with no quirk available emits
+    byte-identical JSON to version 11; a document that trips one carries
+    both lists even when `quirks_applied` is empty, because "available and
+    off" is exactly the state an app needs to show. The names are stable
+    kebab-case identifiers; their one-line, user-facing descriptions and the
+    plain-language REASON each applies come from
+    `ctrlkd.quirks.list_quirks(doc)`, not from this JSON -- they are
+    properties of the build, not of the document, and would be dead weight
+    repeated in every file.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -1324,7 +1359,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 11,
+        'version': 12,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
@@ -1360,6 +1395,13 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                       for n in getattr(doc, 'notes', ())],
         },
     }
+    # version 12: quirks. Omitted entirely -- not `[]` -- for a document that
+    # trips none, which is nearly all of them, so this costs the corpus
+    # nothing and changes no existing file's JSON.
+    _applicable, _applied = _quirks.report(doc)
+    if _applicable:
+        out['quirks_applicable'] = _applicable
+        out['quirks_applied'] = _applied
     return json.dumps(out, ensure_ascii=False, indent=1) + '\n'
 
 
@@ -1413,7 +1455,10 @@ def driver_substituter(doc):
     driver-keyed content substitutions, or None when neither rule applies
     to it (the overwhelmingly common case -- callers skip the whole pass
     and nothing is copied)."""
-    lj = (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP'
+    from .quirks import enabled as _quirk_enabled
+    lj_typo = _quirk_enabled(doc, 'lj6dtp-typography')
+    lj_corners = _quirk_enabled(doc, 'lj6dtp-box-corners')
+    lj = lj_typo or lj_corners
     euro = peseta_euro_table(doc)
     if not lj and euro is None:
         return None
@@ -1425,8 +1470,10 @@ def driver_substituter(doc):
         if lj:
             entry = _entry_for(styles, fonts)
             if entry is not None and entry.get('proportional'):
-                text = text.translate(LJ_SUBST)
-                if (entry.get('typestyle_name') or '').startswith('Univers'):
+                if lj_typo:
+                    text = text.translate(LJ_SUBST)
+                if lj_corners and (entry.get('typestyle_name')
+                                   or '').startswith('Univers'):
                     text = text.translate(LJ_SUBST_UNIVERS)
         if euro is not None:
             text = text.translate(euro)

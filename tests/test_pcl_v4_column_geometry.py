@@ -250,7 +250,7 @@ def test_the_layout_json_publishes_the_column_top_offset():
     column_top_offset_pt`. Without the field it cannot know where."""
     doc = _columns_fixture()
     out = json.loads(layout.emit_layout(doc, mode='printed'))
-    assert out['version'] == 11
+    assert out['version'] == 12
     pages = [p for p in out['printed']['pages'] if p.get('columns')]
     assert pages and pages[0]['column_top_offset_pt'] == pytest.approx(24.0)
 

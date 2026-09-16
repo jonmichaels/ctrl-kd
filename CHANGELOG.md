@@ -5,6 +5,40 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Added
+
+- **Quirks**: named, individually switchable departures from a literal reading
+  of the bytes. ctrl-kd stays faithful by default and never quietly cleans
+  anything up — instead each known departure now has a name, a one-line
+  plain-language description, and a switch. `--list-quirks` prints them all;
+  `--list-quirks FILE` also says which apply to that file and why;
+  `--quirk NAME` / `--no-quirk NAME` turn one on or off (both repeatable);
+  `--quirks off|auto|all` sets the baseline.
+  - Six ship with this release. Five are on by default because the file's own
+    printer header is the evidence for them — the peseta printing as a euro
+    sign, and the four LaserJet LJ6DTP substitutions (typography, Univers box
+    corners, colours as grey shades, colours as hatched fill patterns). These
+    are exactly the substitutions ctrl-kd already made; naming them changes no
+    output, and now they can be switched off to see the literal character.
+  - One is off by default: `stray-style-strikeout` ignores a strikethrough
+    that a paragraph style switches on while the writing itself never crosses
+    anything out. That is how to read cleanly the documents whose style sheet
+    turns strikethrough on and never turns it off (see 4.8.1).
+  - Quirks are extensible the same way output formats are: `@ctrlkd.quirk`,
+    or a pip-installable plugin through the `ctrlkd.quirks` entry-point group.
+    See EXTENDING.md, "Adding a quirk".
+- The `layout` format reports quirks: `quirks_applicable` (every quirk this
+  document trips, whether or not it was turned on — so a reader can be offered
+  one without having to already know it exists) and `quirks_applied` (the
+  subset in force). Both omitted entirely when the document trips none.
+
+### Changed
+
+- `layout` format version 11 → 12 for the two fields above. Purely additive: a
+  document that trips no quirk emits byte-identical JSON to version 11 apart
+  from the version number itself. Every `layout` answer-key cell was
+  re-recorded for the version number; no other cell in the key moved.
+
 ## [4.8.1] — 2026-09-16
 
 ### Fixed

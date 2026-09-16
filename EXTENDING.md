@@ -190,6 +190,107 @@ $ ctrl-kd ESSAY.WS -t bbcode
 The output extension defaults to `.<name>`; set an `ext` attribute on the
 function (`emit_bbcode.ext = '.bb'`) to override.
 
+## Adding a quirk
+
+A **quirk** is a named, individually switchable departure from a literal
+reading of the bytes. The engine is faithful by default — a WordStar file's
+bytes say what they say, and plenty of readers want exactly that — so nothing
+is ever silently "cleaned up". A quirk gives a departure a name, a one-line
+plain-language description, a reason it applies to a particular document, and
+an on/off switch.
+
+Quirks come in two classes, and the difference is evidence:
+
+* **auto** — the document's own bytes point at the change. A WS7 header names
+  the printer driver the file was last printed through, and some of those
+  drivers were modified so that certain characters PRINT as something else;
+  reproducing what the paper showed is the faithful answer for such a file.
+  On by default, and switchable off with `--no-quirk NAME`.
+* **opt-in** — nothing in the file says the change is wanted; a person judged
+  it from context. Off by default, and turned on with `--quirk NAME`.
+
+### The contract
+
+```python
+import ctrlkd
+
+def detect_shouty_headings(doc):
+    """The REASON this document trips the quirk, in plain language, or None."""
+    shouty = [b for b in doc.blocks if b.heading
+              and ''.join(ln.text() for ln in b.lines).isupper()]
+    if not shouty:
+        return None
+    return 'every heading in this file is typed in capitals'
+
+@ctrlkd.quirk('shouty-headings',
+              description='Sets headings typed entirely in capitals in ordinary '
+                          'mixed case instead.',
+              quirk_class='opt-in',
+              detect=detect_shouty_headings)
+def apply_shouty_headings(doc):
+    """(doc) -> Document. Return a COPY; never edit `doc` in place."""
+    from dataclasses import replace
+    return replace(doc, blocks=[...])
+```
+
+* `name` — kebab-case, and stable forever once shipped: it is what a user
+  types, what the layout JSON publishes, and what an application stores as a
+  per-document setting.
+* `description` — ONE line of plain language, shown to a user as-is. No
+  internal vocabulary: an application puts this next to a checkbox, and
+  somebody who has never heard of WordStar has to understand what turning it
+  on does.
+* `detect(doc)` — cheap, and run on EVERY document whether or not quirks were
+  asked for, so that the layout JSON can always distinguish "not applicable"
+  from "applicable but off". It returns the reason as a string (shown to the
+  user next to the description) or `None`.
+* `apply(doc)` — the whole-document transform, non-mutating: one `convert()`
+  call hands the same `Document` to several emitters, so return a copy.
+  Returning `doc` unchanged is legitimate and means the change is implemented
+  where it is rendered, with that code asking
+  `ctrlkd.quirks.enabled(doc, name)` — which is how the built-in driver quirks
+  work, because their substitutions already lived in the renderers.
+
+### Using it
+
+```console
+$ ctrl-kd --list-quirks                     # every quirk this build knows
+$ ctrl-kd --list-quirks ESSAY.WS            # ... and which apply to this file, and why
+$ ctrl-kd --quirk shouty-headings ESSAY.WS  # turn one on (repeatable)
+$ ctrl-kd --no-quirk driver-euro-sign X.WS  # turn one off (repeatable)
+$ ctrl-kd --quirks off X.WS                 # nothing at all: the literal bytes
+$ ctrl-kd --quirks all X.WS                 # everything this document trips
+```
+
+Naming a quirk the document does not trip does nothing — an application can
+hold one standing list and hand it to every file. Naming a quirk that is not
+registered at all is an error, because that is a typo or a missing plugin.
+
+From the library, resolve once after parsing and before emitting:
+
+```python
+from ctrlkd import core, quirks, emit
+doc = core.parse(open('ESSAY.WS', 'rb').read())
+doc = quirks.apply_quirks(doc, enable=['shouty-headings'])
+print(emit.emit_html(doc, 'modern'))
+```
+
+`quirks.list_quirks(doc)` returns the rows an application needs to draw a
+settings list: name, description, class, whether it applies to this document,
+why, and whether it is in force. The `layout` format reports the same decision
+as `quirks_applicable` and `quirks_applied` (both omitted when the document
+trips nothing).
+
+### Shipping it as an installable plugin
+
+Same mechanism as an emitter, a different entry-point group. The value may be
+a `ctrlkd.Quirk` or a zero-argument callable returning one:
+
+```toml
+[project.entry-points."ctrlkd.quirks"]
+shouty-headings = "ctrlkd_shouty:QUIRK"
+```
+
 ## Checklist for a good emitter
 
 - [ ] Handles all three block kinds (`softpage` only renders in printed mode)

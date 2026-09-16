@@ -18,6 +18,7 @@ WordStar document rendered as the typescript it was, on Letter pages:
 Styles: bold/italic map to the family's variants, underline is drawn,
 superscript is raised and reduced. Non-Latin-1 characters degrade to '?'.
 """
+import collections as _collections
 import math as _math
 import re as _re
 import zlib as _zlib
@@ -2157,7 +2158,25 @@ _LJ_SUBST = str.maketrans({'☻': '©', '☼': '…', "'": '’', '_': '—',
 _LJ_SUBST_UNIVERS = str.maketrans({'♥': '╭', '♦': '╮', '♣': '╰', '♠': '╯'})
 
 
-def _lj_substitute(segs, kerning=True):
+# Quirks mode (2026-09-16): the LJ6DTP driver's four swaps are four separately
+# named AUTO quirks, so a reader can switch any one of them off on its own and
+# see what the raw bytes say. The code that DOES each swap is unchanged and
+# still lives here -- these flags only decide whether it runs. Resolved ONCE
+# per render, at the writer's entry points, never per line.
+_DriverQuirks = _collections.namedtuple(
+    '_DriverQuirks', 'typography corners colour patterns')
+
+
+def _driver_quirks(doc):
+    from .quirks import enabled as _quirk_enabled
+    return _DriverQuirks(
+        typography=_quirk_enabled(doc, 'lj6dtp-typography'),
+        corners=_quirk_enabled(doc, 'lj6dtp-box-corners'),
+        colour=_quirk_enabled(doc, 'lj6dtp-colour-as-gray'),
+        patterns=_quirk_enabled(doc, 'lj6dtp-fill-patterns'))
+
+
+def _lj_substitute(segs, kerning=True, typography=True, corners=True):
     """Apply the LJ6DTP print-time substitutions to one line's spans.
 
     `kerning` is core.Line.kerning -- the `.KR` state in force where the
@@ -2179,11 +2198,12 @@ def _lj_substitute(segs, kerning=True):
     out = []
     for text, styles, family, size_here, entry in segs:
         if entry is not None and entry.get('proportional'):
-            text = text.translate(_LJ_SUBST)
-            if kerning:
-                text = text.replace('‘‘', '“').replace(
-                    '’’', '”')
-            if (entry.get('typestyle_name') or '').startswith('Univers'):
+            if typography:
+                text = text.translate(_LJ_SUBST)
+                if kerning:
+                    text = text.replace('‘‘', '“').replace(
+                        '’’', '”')
+            if corners and (entry.get('typestyle_name') or '').startswith('Univers'):
                 text = text.translate(_LJ_SUBST_UNIVERS)
         out.append((text, styles, family, size_here, entry))
     return out
@@ -6846,8 +6866,7 @@ def _attach_justify_word_x_printed(doc, pages, size):
     fonts = doc.fonts
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
-    colour_map = (_COLOUR_GRAY_LJ6DTP
-                 if doc.meta.get('printer_driver') == 'LJ6DTP' else {})
+    dq = _driver_quirks(doc)
     for page in pages:
         for line in page:
             if getattr(line, 'justify_right_x', None) is None:
@@ -6860,8 +6879,9 @@ def _attach_justify_word_x_printed(doc, pages, size):
                     text, styles, fonts, size)
                 segs.append((written, styles, family, size_here, entry))
             segs = _expand_bare_tabs_for_printed_layout(segs)
-            if colour_map:
-                segs = _lj_substitute(segs, getattr(line, 'kerning', True))
+            if dq.typography or dq.corners:
+                segs = _lj_substitute(segs, getattr(line, 'kerning', True),
+                                      dq.typography, dq.corners)
             segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
             if len(segs) != 1:
                 continue
@@ -6913,8 +6933,8 @@ def _attach_graphic_cells_printed(doc, pages, size):
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
     ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
-    colour_map = (_COLOUR_GRAY_LJ6DTP
-                 if doc.meta.get('printer_driver') == 'LJ6DTP' else {})
+    dq = _driver_quirks(doc)
+    colour_map = _COLOUR_GRAY_LJ6DTP if dq.colour else {}
     pcl_programs = doc.pcl_programs
     page_h = _resolved_page_height(doc, True)
     for page in pages:
@@ -6941,7 +6961,9 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 getattr(line, 'justify_right_x', None),
                 getattr(line, 'justify_word_x', None),
                 record_graphic_cells=record,
-                pm_active=getattr(line, 'pm_active', False))
+                pm_active=getattr(line, 'pm_active', False),
+                lj_typo=dq.typography, lj_corners=dq.corners,
+                hp_patterns=dq.patterns)
             if record:
                 line.graphic_cells = record
 
@@ -8719,7 +8741,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
                       kerning=True, justify_right_x=None, justify_word_x=None,
-                      record_graphic_cells=None, pm_active=False):
+                      record_graphic_cells=None, pm_active=False,
+                      lj_typo=False, lj_corners=False, hp_patterns=False):
     """One laid-out line, on the document's own horizontal grid.
 
     `pm_active` (planning #257, PageLine.pm_active): whether this line's own
@@ -8886,10 +8909,11 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # its own rule first. Named here, not silently left unmentioned,
     # planning #251 audit item (d).
     segs = _expand_bare_tabs_for_printed_layout(segs)
-    if colour_map:
-        # colour_map is non-empty exactly when the document declares driver
-        # LJ6DTP -- the same gate covers its character substitutions.
-        segs = _lj_substitute(segs, kerning)
+    if lj_typo or lj_corners:
+        # Quirks mode: the two character families (`lj6dtp-typography`,
+        # `lj6dtp-box-corners`) switch independently of the colour ones,
+        # which is why this no longer rides on `colour_map` being non-empty.
+        segs = _lj_substitute(segs, kerning, lj_typo, lj_corners)
     segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
     if fi and segs and segs[0][5]:            # segs[0][5] is that first
         fi = None                             # segment's own `indent` flag
@@ -8974,14 +8998,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         # one extra byte. This is what makes LJ6DTP's knockouts work: white
         # (15) text overprinted onto a black bar punches out of it exactly
         # as the LaserJet printed it.
-        if col_state is not None and colour_map:
+        if col_state is not None and (colour_map or hp_patterns):
             ctag = next((t for t in styles if t.startswith('colour')), None)
             cidx = int(ctag[6:]) if ctag else None
             # colour9-14 (HP1-HP6) fill with a tiling PATTERN instead of a
             # flat gray -- registered per-page in /Resources by emit_pdf,
             # same mechanism as /Font and /XObject. Anything else (or no
             # colour tag at all) keeps the plain DeviceGray fill.
-            if cidx is not None and cidx in _LJ6DTP_HP_PATTERNS:
+            if hp_patterns and cidx is not None and cidx in _LJ6DTP_HP_PATTERNS:
                 want = ('p', cidx)
                 want_darken = False
             else:
@@ -9390,7 +9414,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  left=float(MARGIN), running=(), fonts=(), res=None,
                  colour_map=None, roll_pt=None, ul_continuous=False,
                  line_no_checkpoints=None, pcl_programs=(),
-                 column_top_offset_pt=0.0):
+                 column_top_offset_pt=0.0,
+                 lj_typo=False, lj_corners=False, hp_patterns=False):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -9631,7 +9656,9 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  getattr(line, 'kerning', True),
                                  getattr(line, 'justify_right_x', None),
                                  getattr(line, 'justify_word_x', None),
-                                 pm_active=getattr(line, 'pm_active', False))
+                                 pm_active=getattr(line, 'pm_active', False),
+                                 lj_typo=lj_typo, lj_corners=lj_corners,
+                                 hp_patterns=hp_patterns)
     return b'\n'.join(ops)
 
 
@@ -11542,6 +11569,11 @@ def _emit_pdf_inner(doc, printed, options):
     # bound for the pattern-object step near the bottom, which runs on both
     # paths and needs to know "no patterns to build" on Modern's.
     colour_map = {}
+    # Same reasoning for the driver quirks: Modern never applies any of them
+    # here, so the pattern/ExtGState resource steps near the bottom (which run
+    # on both paths) must see "nothing to build" -- the real answer is
+    # resolved inside the printed branch below.
+    dq = _DriverQuirks(False, False, False, False)
     if printed:
         pages = _doc_to_pagelines(doc, printed, pix_results=pix_results, pictures=pictures,
                                   sentence_spacing=ss_on)
@@ -11572,8 +11604,8 @@ def _emit_pdf_inner(doc, printed, options):
                                if options.get('line_numbers', True) else None)
         page_h = _resolved_page_height(doc, printed)
         fonts = doc.fonts
-        colour_map = _COLOUR_GRAY_LJ6DTP if (
-            doc.meta.get('printer_driver') == 'LJ6DTP') else {}
+        dq = _driver_quirks(doc)
+        colour_map = _COLOUR_GRAY_LJ6DTP if dq.colour else {}
         start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
         # register b31-dot-command-sweep: `.pn` re-anchors mid-document
         # too (see `_resolve_page_numbers`) -- one number per real page,
@@ -11765,7 +11797,10 @@ def _emit_pdf_inner(doc, printed, options):
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_checkpoints,
                                         doc.pcl_programs,
-                                        getattr(pl, 'column_top_offset_pt', None) or 0.0))
+                                        getattr(pl, 'column_top_offset_pt', None) or 0.0,
+                                        lj_typo=dq.typography,
+                                        lj_corners=dq.corners,
+                                        hp_patterns=dq.patterns))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
         # pages at the document's own end (Jon: "It should probably export
         # in all formats even though non-paged ones couldn't be
@@ -11786,7 +11821,10 @@ def _emit_pdf_inner(doc, printed, options):
                                        res=res)
                 streams.append(_page_stream(chunk, top, page_h, lead, size, left,
                                             running, fonts, res, colour_map, roll_pt,
-                                            ul_continuous, None))
+                                            ul_continuous, None,
+                                            lj_typo=dq.typography,
+                                            lj_corners=dq.corners,
+                                            hp_patterns=dq.patterns))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,
@@ -11873,7 +11911,7 @@ def _emit_pdf_inner(doc, printed, options):
     # selects colour9-14 (every page but 5) references a /Pattern resource
     # dict it never uses, which costs nothing per the PDF spec.
     pattern_objs = {}                                      # colour idx -> obj num
-    if colour_map:
+    if dq.patterns:
         for idx in sorted(_LJ6DTP_HP_PATTERNS):
             w, h, content = _LJ6DTP_HP_PATTERNS[idx]
             objs.append((next_num,

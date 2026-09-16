@@ -27,6 +27,8 @@ $ ctrl-kd --diagnose MYSTERY.FIL        # what IS this file?
 $ ctrl-kd --comments MEMO.WS            # include the author's hidden comments
 $ ctrl-kd --no-notes PAPER.WS           # body text only, no notes
 $ ctrl-kd --samples DIR                 # write 4 bundled public-domain sample .WS files into DIR
+$ ctrl-kd --list-quirks ESSAY.WS        # which known quirks this file has, and why
+$ ctrl-kd --quirk stray-style-strikeout NOVEL.WS   # turn one on
 ```
 
 ## Modes
@@ -50,6 +52,31 @@ $ pipx install ctrl-kd                     # or: pip install ctrl-kd
 Download Windows x86_64: [Latest Version](https://github.com/jonmichaels/ctrl-kd/releases/latest/download/ctrl-kd-windows-x86_64.zip)
 
 Python ≥ 3.9, no dependencies. Library API: `ctrlkd.convert(data, to='html')`.
+
+## Quirks
+
+Some WordStar files ask for something the bytes do not quite mean. A file's own
+header names the printer it was last printed through, and some of those
+printers were modified so that a character prints as something else — a peseta
+printing as a euro sign, an underscore printing as an em dash. Other files
+carry a setting somebody left switched on by accident, like a paragraph style
+that crosses out every line it touches.
+
+ctrl-kd is faithful by default and never quietly cleans anything up. Instead
+each such departure is a named **quirk** you can see and switch:
+
+```console
+$ ctrl-kd --list-quirks           # every quirk, with a plain-language description
+$ ctrl-kd --list-quirks NOVEL.WS  # which of them apply to this file, and why
+$ ctrl-kd --quirk NAME FILE       # turn one on           (repeatable)
+$ ctrl-kd --no-quirk NAME FILE    # turn one off          (repeatable)
+$ ctrl-kd --quirks off FILE       # none at all: the most literal reading
+```
+
+Quirks whose evidence is in the file itself (its own printer header) are on by
+default; ones that are somebody's judgement rather than the file's own evidence
+are off until you ask. Writing your own — including as a pip-installable
+plugin — is in **[EXTENDING.md](EXTENDING.md)**.
 
 ## Adding an output format
 
