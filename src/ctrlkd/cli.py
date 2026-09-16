@@ -130,15 +130,17 @@ def main(argv=None):
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
     ap.add_argument('--headers', choices=('on', 'off'), default='on',
-                    help='headers, footers, and page numbers in the paged '
-                         'surfaces (Printed/Native PDF and RTF). Default: on')
+                    help="the document's own running heads and feet (.he/.fo) "
+                         'in the paged surfaces -- Printed PDF, Modern PDF and '
+                         "both RTF modes. WordStar's own automatic page number "
+                         'is --page-numbers\' business alone. Default: on')
     ap.add_argument('--page-numbers', choices=('auto', 'on', 'off'),
                     default='auto',
                     help="WordStar's own AUTOMATIC page number -- the one "
                          '.pc positions, a separate mechanism from a # the '
-                         'author placed inside a real .he/.fo (that always '
-                         'prints, unaffected by this flag). Printed PDF '
-                         'and both RTF modes. auto (DEFAULT): the '
+                         'author placed inside a real .he/.fo (that goes '
+                         'with its head, under --headers, never this flag). '
+                         'Every paged surface. auto (DEFAULT): the '
                          'document\'s own dot '
                          'commands decide -- .pn/.pg turn it on, .op turns '
                          'it off, exactly like real WordStar; a document '
@@ -149,8 +151,9 @@ def main(argv=None):
                          'silent document. off: suppress it unconditionally. '
                          'A declared footer always pre-empts it, in every '
                          'mode (WSFORMAT.WS: "active only when the footers '
-                         'are not in use"). --headers off also suppresses '
-                         'it, per --headers\' own documented scope.')
+                         'are not in use") -- a property of the document, so '
+                         '--headers off does not lift it, and does not '
+                         'suppress the number either.')
     ap.add_argument('--line-numbers', choices=('on', 'off'), default='on',
                     help="the document's own .l# line-number gutter in the "
                          'paged surfaces (Printed/Native PDF and RTF); no '

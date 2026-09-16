@@ -272,3 +272,73 @@ def test_an_invisible_only_footer_silences_it_too():
     doc = _ws7(_LONG, dots=b'.fo \x0f\x0f' + HARD)
     assert not _rtf_auto_footer(emit.emit_rtf(doc, mode='modern'))
     assert _numbers(doc)[0] is None
+
+
+# ------------------------------------------- `--headers off` reaches Modern
+#
+# `--headers` governs the RUNNING HEADS AND FEET on every paged surface
+# (register, "Flag UI + defaults"; ruled again 2026-09-14, planning #264
+# R7). Printed PDF and both RTF modes have honoured it since `722b877`;
+# Modern PDF was the one paged surface still drawing its heads under
+# `off`, so `sr -t pdf --mode modern --headers off` on `REF/BOOKLET.WS`
+# kept all three of that document's running heads. M5 ("Modern keeps
+# running heads", ruled 2026-08-06) is the DEFAULT this flag turns off,
+# never a refusal of the flag.
+
+_HEAD_AND_FOOT = b'.h1 Running Head' + HARD + b'.f1 Running Foot' + HARD
+
+
+def _drawn(doc, **options):
+    """Every string Modern's first page draws, in the order it draws it."""
+    st = _streams(pdf.emit_pdf(doc, mode='modern', **options))[0]
+    return [t.decode('latin-1') for _x, _y, t in _TD.findall(st)]
+
+
+def test_headers_off_drops_moderns_running_heads_and_feet():
+    doc = _ws7(_LONG, dots=_HEAD_AND_FOOT)
+    on = _drawn(doc, headers=True)
+    assert 'Head' in on and 'Foot' in on
+    off = _drawn(doc, headers=False)
+    assert 'Head' not in off and 'Foot' not in off
+
+
+def test_headers_off_never_touches_moderns_body():
+    """The flag reaches the margin zones and nothing else."""
+    doc = _ws7(_LONG, dots=_HEAD_AND_FOOT)
+    body_on = [t for t in _drawn(doc, headers=True) if t not in ('Running', 'Head', 'Foot')]
+    body_off = [t for t in _drawn(doc, headers=False) if t != 'Running']
+    assert body_off == body_on and body_on[:3] == ['The', 'quick', 'brown']
+
+
+def test_headers_off_keeps_moderns_automatic_number():
+    """Two flags, two subjects: `--page-numbers` governs WordStar's own
+    automatic number ALONE, so it survives `--headers off` exactly as it
+    does in Printed (`test_printed_fidelity.py`'s own twin)."""
+    doc = _ws7(_LONG, dots=b'.h1 Running Head' + HARD)
+    for headers in (True, False):
+        assert _numbers(doc, headers=headers)[0] == '1'
+        assert _numbers(doc, headers=headers, page_numbers='off')[0] is None
+    assert 'Head' not in _drawn(doc, headers=False)
+
+
+def test_a_declared_footer_still_pre_empts_moderns_number_with_headers_off():
+    """"In use" is a property of the DOCUMENT, not of the flag -- the same
+    hazard `722b877` pinned on the Printed side. Suppressing a footer's
+    DRAWING must not conjure a number the document never had."""
+    for dots in (b'.fo' + HARD, b'.f1 Running Foot' + HARD):
+        doc = _ws7(_LONG, dots=dots)
+        for headers in (True, False):
+            assert _numbers(doc, headers=headers)[0] is None, (dots, headers)
+
+
+def test_the_modern_footer_row_keeps_the_number_when_its_head_is_suppressed():
+    """The number rides Modern's own footer row. A document with a head
+    and no footer declared keeps that row's number under `--headers off`,
+    centred where it always was."""
+    doc = _ws7(_LONG, dots=b'.h1 Running Head' + HARD)
+    margl, _mt, _mb, width = pdf._modern_geometry(doc)
+    row = _foot_row(_streams(pdf.emit_pdf(doc, mode='modern', headers=False))[0])
+    assert len(row) == 1
+    x, txt = row[0]
+    assert txt == '1'
+    assert abs(x - (margl + width / 2.0)) < 10.0, (x, margl, width)

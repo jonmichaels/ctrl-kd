@@ -11358,6 +11358,22 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     #     ends, so it governs the last page; `cur_f` could never say so.
     foot_anchors = sorted(a for kind, _l, _t, a
                           in getattr(doc, 'hf_events', ()) if kind == 'F')
+    # `--headers off` reaches Modern too. The flag governs the RUNNING
+    # HEADS AND FEET on every paged surface (register, "Flag UI +
+    # defaults"; ruled again 2026-09-14, planning #264 R7) -- Printed PDF
+    # and both RTF modes have honoured it since `722b877`, and Modern PDF
+    # was the one paged surface still drawing its heads under `off`. M5
+    # ("Modern keeps running heads") is the DEFAULT this flag turns off,
+    # never a refusal of the flag.
+    #
+    # `footer_in_use` below is deliberately NOT gated with it: "in use" is
+    # a property of the DOCUMENT (a declared `.fo`), never of what we draw
+    # -- the same rule, and the same hazard, `722b877` spells out for the
+    # Printed PDF's own call site. Suppressing a footer's DRAWING must not
+    # conjure an automatic number the document never had. And the
+    # automatic number itself answers to `--page-numbers` alone, so it is
+    # drawn below under `--headers off` exactly as it is under `on`.
+    show_headers = options.get('headers', True)
     for pi, (body, nlines, hdrs, ftrs, pbi) in enumerate(pages):
         tz_state = [TZ_DEFAULT]
         ops = []
@@ -11365,14 +11381,14 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
         # running heads live in the margin zones: header lines walk down
         # from ~0.6in off the top edge, footer lines sit ~0.6in off the
         # bottom -- inside Modern's 1in margins, clear of the body
-        for lno in sorted(hdrs):
+        for lno in (sorted(hdrs) if show_headers else ()):
             if not hdrs[lno]:
                 continue
             hy = sheet_h - 44.0 - (lno - 1) * note_lead
             ops += _modern_hf_ops(_euro_texts([hdrs[lno]], euro)[0], page_no,
                                   margl, hy, width, res, tz_state, printed_pt,
                                   align=_modern_hf_align(doc, 'H', lno))
-        for lno in sorted(ftrs):
+        for lno in (sorted(ftrs) if show_headers else ()):
             if not ftrs[lno]:
                 continue
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)

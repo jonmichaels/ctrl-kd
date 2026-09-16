@@ -20,6 +20,13 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ### Fixed
 
+- `--headers off` did nothing at all to Modern PDF: a document's running
+  heads and feet were still drawn on every Modern page, while the Printed
+  PDF and both RTF exports dropped them as asked. Modern drops them too
+  now. WordStar's own automatic page number is a separate matter and stays
+  under `--page-numbers`, exactly as it already did everywhere else — and
+  a document that declares a footer still has no automatic number, whether
+  or not that footer is drawn.
 - A landscape, two-column document came out of Modern view, Modern PDF and
   Modern RTF as a portrait, single-column page — a page the document never
   describes. All three now keep the sheet the document declares, its
