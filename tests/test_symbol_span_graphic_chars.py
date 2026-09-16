@@ -1,6 +1,16 @@
 """cp437 block/shade/box glyphs degrading to '?' in a Symbol-mapped span
 (Printed and Modern PDF alike).
 
+PARTLY SUPERSEDED, 2026-09-16: the premise below -- "a real WS7 quirk this
+project has to live with", a font block named Brush Script whose character-set
+bits read 'math' resolving to the Adobe Symbol face -- is exactly the misread
+the 2026-09-16 ruling ends ("a resolved ordinary typeface beats the
+character-set bits"; class tests in
+tests/test_style_symbol_map_resolved_face.py). That run now stays on its own
+ordinary face. The GEOMETRY guarantee this file was written for is unchanged
+and still the point of every test here: box/shade glyphs draw as vector fills
+and a middle dot stays a real byte, in every font state a span can be in.
+
 FOUND against the real corpus: sawyer/REF/-LASERJE.FNT line 9 -- twelve
 cp437 glyphs ('░▒▓│┤╡╢╖╕╣║╗') typed under a font block whose typestyle is
 Brush Script, then a real WS7 quirk this project has to live with: that
@@ -127,24 +137,32 @@ def test_no_font_ordinary_font_and_symbol_mapped_font_all_draw_vectors_not_quest
         # a decoded-Python-string comparison.
 
 
-def test_symbol_mapped_span_middle_dot_and_box_run_still_select_the_symbol_font():
-    """The fix must not stop the Symbol-mapped span's OWN font resolution:
-    its Tj text (middle dot, byte 0xB7 -- Adobe Symbol's periodcentered)
-    still runs under a /BaseFont /Symbol resource, and the box run right
-    before it still draws as geometry (no font operator needed for a fill)."""
+def test_symbol_mapped_span_no_longer_selects_the_symbol_font_at_all():
+    """SUPERSEDED BY THE 2026-09-16 RULING ("a resolved ordinary typeface beats
+    the character-set bits"). This case -- typestyle 54, 'Brush Script', with
+    the coarse symbol-map bits reading 'math' -- is the very misread that
+    ruling ends: Brush Script is a perfectly ordinary named face, so its run
+    now stays on the ordinary text font and the character-set bits govern only
+    the extended characters, as WordStar intended.
+
+    What this file's own bug fix guaranteed is unchanged and still checked
+    here: the twelve box/shade glyphs draw as vector geometry and the middle
+    dot stays a real 0xB7 text byte, never the '?' degradation. The byte is
+    the same either way -- cp1252 and Adobe Symbol both carry periodcentered
+    at 0xB7 -- so the visible page does not move; only the font resource does.
+    See tests/test_style_symbol_map_resolved_face.py for the ruling's own
+    class tests."""
     doc = _build_doc()
     pdf_bytes = pdf.emit_pdf(doc, mode='printed')
-    symbol_names = _symbol_font_names(pdf_bytes)
-    assert symbol_names, 'no /BaseFont /Symbol resource registered at all'
+    assert not _symbol_font_names(pdf_bytes), (
+        'a /BaseFont /Symbol resource was registered for a run whose typeface '
+        'name resolves to an ordinary face')
     content = _decoded_content(pdf_bytes)
     # The LAST Tj in the stream is the third span's middle dot -- one bare
-    # 0xB7 byte, under one of the Symbol resource names, never '?' (0x3f).
+    # 0xB7 byte, never '?' (0x3f).
     last_tj = list(re.finditer(rb'/(F\d+) \d+ Tf[^()]*\(([^()]*)\) Tj', content))[-1]
-    assert last_tj[1] in symbol_names, (
-        f'last Tj ({last_tj[2]!r}) is not under a Symbol font resource')
     assert last_tj[2] == b'\xb7', (
-        f'Symbol-mapped middle dot did not encode as periodcentered (0xb7): '
-        f'got {last_tj[2]!r}')
+        f'the middle dot did not survive as a real byte: got {last_tj[2]!r}')
 
 
 def test_fontless_and_ordinary_font_spans_are_unaffected_baseline():

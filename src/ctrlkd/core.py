@@ -5226,6 +5226,26 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
             includes, driver[0], sorted(shift_runs), marks, header,
             pcl_programs)
 
+# The style attributes that KEEP RUNNING past the paragraph that turned them
+# on, until a later style's own attrs_OFF word clears them (ruling 2026-09-16,
+# WordStar-Feature-Decision-Register, "Style-library strikeout runs until a
+# style clears it").
+#
+# WSFORMAT.TXT states the inherit rule for the attribute words as a whole --
+# "if both corresponding bits are off, then the attribute is inherited from
+# the current state" -- but the only attribute the WS7 LaserJet captures can
+# actually DEMONSTRATE it for is strikeout: in every corpus document that
+# turns bold, underline or italic on in a style, the next style used sets
+# that same bit in its own attrs_off word, so an inheriting model and a
+# reset-per-paragraph model produce identical pages and the captures cannot
+# choose between them. Strikeout is the one bit no corpus style ever clears,
+# which is exactly why its run is visible (NOVEL.WS: 954 overstrike dash rows
+# across all 52 captured pages). So the rule is applied to strikeout only,
+# on measured evidence, and the wider question is left open rather than
+# guessed. Add a bit here only with a capture that shows it.
+STICKY_STYLE_ATTRS = ((0x01, 'strike'),)
+
+
 def _parse_style_library(raw: bytes, base: int, encoding: str = 'cp437'):
     """The paragraph style library at file-absolute offset `base`.
 
@@ -6501,8 +6521,34 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                     # value forward, not reset to nothing -- style_fmt.clear()
                     # below must not lose it.
                     _prev_vmi = style_fmt.get('line_height_vmi')
+                    # Ruling 2026-09-16 ("Style-library strikeout runs until a
+                    # style clears it"): an attribute a style turns ON stays on
+                    # past that paragraph. WSFORMAT.TXT's own rule for the two
+                    # attribute words is "if both corresponding bits are off,
+                    # then the attribute is inherited from the current state" --
+                    # so only a later style that sets the bit in its attrs_OFF
+                    # word ends the run. Real WS7 agrees: NOVEL.WS's H3 sets
+                    # strikeout on the title page and nothing in that file's
+                    # library ever clears it, and the LaserJet capture prints
+                    # the overstrike dash row on all 52 pages.
+                    _prev_sticky = style_fmt.get('sticky_attrs', frozenset())
                     style_fmt.clear()
                     style_fmt['style_id'] = slot
+                    _sticky = set(_prev_sticky)
+                    if entry is not None:
+                        _on, _off = entry.get('attrs_on') or 0, entry.get('attrs_off') or 0
+                        for _bit, _tag in STICKY_STYLE_ATTRS:
+                            if _on & _bit:
+                                _sticky.add(_tag)
+                            elif _off & _bit:
+                                _sticky.discard(_tag)
+                    style_fmt['sticky_attrs'] = frozenset(_sticky)
+                    if _sticky:
+                        # Also for an UNRESOLVABLE handle (a 0x03xx editing-temp
+                        # pool entry, or a slot this file's library doesn't
+                        # carry): it declares neither word, so every attribute
+                        # inherits, including the running one.
+                        style_fmt['attrs'] = frozenset(_sticky)
                     if entry is not None:
                         style_fmt['style_name'] = entry['name']
                         style_fmt['heading'] = _style_heading_level(entry['name'])
@@ -6522,8 +6568,11 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                                 # HMI 1/1800in -> print columns at 10 CPI,
                                 # the unit .lm/.rm already use (180 = 1 col)
                                 style_fmt[dst_k] = round(hmi / 180)
-                        if entry.get('attrs'):
-                            style_fmt['attrs'] = entry['attrs']
+                        if entry.get('attrs') or _sticky:
+                            # The style's own ON bits, plus every sticky
+                            # attribute still running from an earlier style.
+                            style_fmt['attrs'] = frozenset(
+                                entry.get('attrs') or ()) | style_fmt['sticky_attrs']
                         # Register C5: the style's own declared colour index
                         # (0-15, WSFORMAT's fixed CGA/EGA palette -- same
                         # space as an inline type-1 colour change). `is not

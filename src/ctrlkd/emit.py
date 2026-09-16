@@ -1467,6 +1467,36 @@ def _html_colour_used(doc):
     return sorted(used)
 
 
+# A style attribute a block is RUNNING UNDER without its own style record
+# declaring it -- `core.STICKY_STYLE_ATTRS`, ruling 2026-09-16 ("Style-library
+# strikeout runs until a style clears it"). HTML is the one emitter whose
+# paragraph-level attributes ride a CSS class keyed to the STYLE SLOT rather
+# than to the block, so an attribute inherited from an EARLIER style has
+# nowhere to land on this slot's own rule; it gets a class of its own instead.
+# Every other emitter merges `block.style_attrs` into its runs
+# (`core.effective_span_styles`) and picks the same attribute up for free.
+# The property text is the same table `_style_css` writes for a style's own
+# declared attributes, so the two paths cannot drift.
+_INHERITED_ATTR_CSS = {
+    'b': 'font-weight:bold',
+    'i': 'font-style:italic',
+    'u': 'text-decoration:underline',
+    'strike': 'text-decoration:line-through',
+    'sub': 'vertical-align:sub;font-size:smaller',
+    'sup': 'vertical-align:super;font-size:smaller',
+}
+
+
+def _style_own_attrs(doc):
+    """slot -> the attributes that slot's OWN record turns on."""
+    return {e['slot']: e.get('attrs') or frozenset() for e in doc.styles}
+
+
+def _inherited_attrs(b, own):
+    """The attributes on this block that its own style record does not declare."""
+    return b.style_attrs - own.get(b.style_id, frozenset())
+
+
 def _style_css(doc, printed=True, inline_styling=True):
     """CSS rules derived from the style records themselves -- a PASS-THROUGH
     of the file's own data (Jon, 2026-08-04: never hardwire a style name to
@@ -1570,6 +1600,14 @@ def _style_css(doc, printed=True, inline_styling=True):
         for n in _html_colour_used(doc):
             rules.append('.ws-colour-%d { color:#%02x%02x%02x }'
                          % ((n,) + _CGA_PALETTE[n % 16]))
+    # One rule per attribute some block actually inherited -- never a fixed
+    # six, so a document with no running attribute gets no extra CSS at all.
+    own = _style_own_attrs(doc)
+    inherited = set()
+    for b in doc.blocks:
+        inherited |= _inherited_attrs(b, own)
+    for tag in sorted(inherited & set(_INHERITED_ATTR_CSS)):
+        rules.append('.ws-inherit-%s { %s }' % (tag, _INHERITED_ATTR_CSS[tag]))
     return '\n'.join(rules)
 
 
@@ -1865,6 +1903,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     style_class = {}
+    style_own = _style_own_attrs(doc)
     if styles:
         style_class = {s['slot']: ' class="%s"' % _style_slug(s)
                        for s in doc.styles}
@@ -1993,6 +2032,13 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             parts.append('<hr class="pb">')
             continue
         cls = style_class.get(b.style_id, '')
+        if styles:
+            # An attribute still running from an EARLIER style (ruling
+            # 2026-09-16): the slot's own rule cannot carry it. See
+            # `_INHERITED_ATTR_CSS`.
+            for tag in sorted(_inherited_attrs(b, style_own)
+                              & set(_INHERITED_ATTR_CSS)):
+                cls = _add_html_class(cls, 'ws-inherit-' + tag)
         keep_para, keepn_para = keep_plan.get(bi, (False, False))
         if keep_para:
             cls = _add_html_class(cls, 'ws-keep')
