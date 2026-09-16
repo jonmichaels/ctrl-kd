@@ -5,6 +5,27 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+## [4.8.1] — 2026-09-16
+
+### Fixed
+
+- A style whose typeface was an ordinary face — Courier, for one — but whose
+  character-set bits said "math" printed its whole text in the Symbol font:
+  Greek letters instead of words, in every export. A resolved typeface now
+  wins; the character-set bits only decide when the typeface itself is
+  unknown. (A manuscript's front matter, set in Courier and marked with
+  those bits, was the visible case.)
+- Strikethrough declared by a paragraph style stayed on only until the next
+  styled paragraph, so a document whose style sheet turns strikethrough on
+  and never turns it off stopped printing it struck through partway in.
+  Real WordStar 7 keeps a style's strikethrough on until a later style turns
+  it off, and ctrl-kd now matches — such documents print struck through to
+  the end, as on paper. An opt-in "quirks" mode to read such documents
+  cleanly is planned for a future release.
+
+40 answer-key cells across 5 reference documents were re-recorded for these
+two fixes.
+
 ## [4.8.0] — 2026-09-16
 
 ### Added
