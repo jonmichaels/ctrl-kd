@@ -5,20 +5,32 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+## [4.8.0] — 2026-09-16
+
+### Added
+
+- The `layout` JSON that an app draws a Printed page from now says which
+  style each running head and footer line is in, not only which face. A
+  head that takes its weight from the document's own style select — as a
+  booklet template's two heads do — came out bold in the PDF and light in
+  anything drawing from the JSON.
+- The check against real WordStar 7 output now compares the automatic page
+  number by the column it is printed in as well as by its digits. A number
+  printed in the wrong place used to score clean.
+
 ### Fixed
 
-- A landscape, two-column document's Modern RTF came out as a square page
-  with no columns — a page the document never describes, and one its own
-  Modern PDF (which keeps the sheet and the columns) does not print. The
-  Modern RTF now carries the real sheet, the landscape flag, the column
-  count and the gutter, and breaks to the next column where the document
-  says to.
+- A landscape, two-column document came out of Modern view, Modern PDF and
+  Modern RTF as a portrait, single-column page — a page the document never
+  describes. All three now keep the sheet the document declares, its
+  landscape flag, its column count and its gutter, and break to the next
+  column where the document says to. Nothing is balanced, because WordStar
+  does not balance: a short last group of columns stays short.
 - A document whose page is shorter than US Letter — an envelope, a label,
   a Rolodex card — came out of Modern view and Modern PDF with every page
   blank: the text was drawn above the top of the short page it was drawn
   on. A taller page lost the extra room instead. Modern now lays out on
-  the page the document declares, and a document that turns page breaks
-  off with `.pl 0` gets a Letter-sized page instead of a zero-height one.
+  the page the document declares.
 - Modern view and Modern PDF now show WordStar's automatic page number
   wherever the Printed view does, centred at the foot of the page in
   Modern's own type. It vanished the moment you switched a numbered
@@ -28,13 +40,39 @@ https://github.com/jonmichaels/ctrl-kd/releases
   turning the automatic number off without printing anything — still got a
   page number in the RTF exports. Real WordStar 7 prints none, and now
   neither do they.
+- Modern view and Modern PDF drew every running head and foot at the left
+  margin, whatever the document asked for: a booklet template's
+  right-hand head sat on top of its left-hand one. A head or foot that its
+  own style aligns right or centre is now aligned right or centre in
+  Modern's own text measure. A head whose lines ask for DIFFERENT
+  alignments is also written correctly to RTF now (one paragraph per
+  line, since RTF cannot align twice inside one).
+- A footer command typed part-way down a page put its text on the NEXT
+  page in Modern view and Modern PDF. WordStar prints a footer at the
+  bottom of the page, so it is never too late for one; Printed has read it
+  that way for a while and Modern now does too.
+- The automatic page number was placed from the document's own left print
+  offset rather than from the offset in force on the page being numbered,
+  so it sat in the wrong column on every page that moves the offset — the
+  landscape templates that alternate a wide odd-page offset with a narrow
+  even-page one, and the documents that change the offset part-way
+  through. Footnote-bearing pages take the same rule now, instead of
+  falling back to the document default.
+- The automatic page number vanished from any document that set a line
+  height above 12pt, and from any document that is all dot commands and
+  running heads with no body at all — a font reference, a printer sample,
+  a galley template. Its row, and the row a footer's own text prints on,
+  are both counted in WordStar page lines (1/6 in) now, not in the
+  document's own line height, and the fractions of a line a `.mb 1.8`
+  asks for are kept instead of rounded. Documents that set no bottom
+  margin at all correctly print no number, which a few of them used to.
 - A booklet template's two running-head lines came out on two rows, with
   the right-hand one printed a third of the way across the page. Real
   WordStar 7 prints both on one row, one at each edge. A head or foot that
-  its own style aligns right or centre now aligns against the margin that
-  style declares, and successive head lines step by the line height the
-  document asked for — including a line height of zero, which is how this
-  template asks for its two heads on one line.
+  its own style aligns right or centre now aligns against the page offset
+  plus the right margin that style declares, and successive head lines
+  step by the line height the document asked for — including a line height
+  of zero, which is how this template asks for its two heads on one line.
 - Modern view turned any paragraph that happened to open `Word:` followed
   by two spaces into a definition-list entry with a hanging indent — a
   plain callout paragraph ("Note:  Some printers may not…") got the same
@@ -43,25 +81,15 @@ https://github.com/jonmichaels/ctrl-kd/releases
   and at least two different terms among them — a booklet template that
   repeats one "Space:  The final frontier…" paragraph 37 times shares a
   label column but defines nothing, and is prose.
-- Modern view and Modern PDF drew every running head and foot at the left
-  margin, whatever the document asked for: a booklet template's
-  right-hand head sat on top of its left-hand one. A head or foot that
-  its own style aligns right or centre is now aligned right or centre in
-  Modern's own text measure. A head whose lines ask for DIFFERENT
-  alignments is also written correctly to RTF now (one paragraph per
-  line, since RTF cannot align twice inside one).
-- A footer command typed part-way down a page put its text on the NEXT
-  page in Modern view and Modern PDF. WordStar prints a footer at the
-  bottom of the page, so it is never too late for one; Printed has read it
-  that way for a while and Modern now does too.
-- The automatic page number vanished from any document that set a line
-  height above 12pt, and from any document that is all dot commands and
-  running heads with no body at all — a font reference, a printer sample,
-  a galley template. Its row is counted in WordStar page lines (1/6 in)
-  now, not in the document's own line height, and the fractions of a line
-  a `.mb 1.8` asks for are kept instead of rounded. Documents that set no
-  bottom margin at all correctly print no number, which a few of them used
-  to.
+- Modern PDF forced a flat 1-inch right margin while Modern RTF mirrored
+  the document's own left print offset, so the same document's two Modern
+  surfaces disagreed about where its text ended. Both now mirror whatever
+  offset the document declares, falling back to 1 inch when it declares
+  none.
+- A document that turns page breaks off with `.pl 0` was written to RTF
+  with a zero-height sheet, which some word processors refuse to open at
+  all. Both RTF modes now fall back to a Letter page, the same way the
+  PDF writers already did.
 
 ## [4.7.1] — 2026-09-15
 
