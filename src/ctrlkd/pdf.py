@@ -8247,9 +8247,25 @@ def _sized(styles, size, roll_pt=None, family=None):
     return size, 0
 
 
-def _rules(styles, text, x, y, w, continuous=True):
+def _rules(styles, text, x, y, w, continuous=True, strike_sink=None):
     """Underline / strikethrough as stroked paths (PDF has no text attribute
     for either), for a span occupying `w` points from `x`.
+
+    `strike_sink` (E3, 2026-09-16): a list, or None. When given, this call
+    RECORDS its piece as `(struck, x0, x1)` instead of emitting the strike
+    rule, and the caller draws the line's strikes itself once every piece is
+    placed -- see `_strike_runs` and `_line_ops_printed`'s own use of it.
+    WordStar's strikeout is not a per-word decoration: WS7 turns it on and
+    overstrikes EVERY horizontal movement until it goes off again, word gaps
+    included, exactly the way this module already draws a continuous
+    underline (the `span_ul` lift below, Jon's ruling 2026-08-20). Measured
+    against ws7-prints/v4 `sawyer/RTF-RJS/NOVEL.WS` page 20, whose headings
+    print as one unbroken rule across "Books by Robert J. Sawyer"; this
+    engine drew five rules with four clear gaps, because it splits a span
+    into per-word pieces for width-fitting and each piece reached this
+    function alone. None (Modern's own call site, which passes a whole span
+    at a time and was already continuous by construction) keeps the inline
+    emission unchanged.
 
     `continuous` (Jon's ruling 2026-08-20, REVERSING round 17b's default --
     RULINGS-LEDGER row 5/6, register C21): the DEFAULT is now continuous,
@@ -8271,7 +8287,12 @@ def _rules(styles, text, x, y, w, continuous=True):
     ops = []
     if not text.strip():
         return ops
-    if 'strike' in styles:
+    if strike_sink is not None:
+        # Unstruck inked pieces are recorded too: they are what BREAKS a run
+        # (a strike that stops and restarts later on the same line is two
+        # rules, not one spanning the gap between them).
+        strike_sink.append(('strike' in styles, x, x + w))
+    elif 'strike' in styles:
         ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x, y + 3, x + w, y + 3))
     if 'u' not in styles:
         return ops
@@ -8737,6 +8758,34 @@ def _justify_pieces_printed(text, pitch, x0, justify_right_x, basefont, pt):
     return out
 
 
+def _strike_runs(sink, y):
+    """The stroke ops for one line's strikeout, from `_rules`'s own
+    `strike_sink` records (E3, 2026-09-16).
+
+    Consecutive STRUCK pieces merge into one rule spanning the first inked
+    glyph to the last, so the word gaps between them are overstruck the way
+    real WS7 overstrikes them; an unstruck inked piece ends the run. Sorted
+    by x because a justified or tab-placed line does not necessarily emit its
+    pieces left to right. Same 0.6pt width and same y + 3 baseline offset the
+    per-piece emission used, so a single-piece run is byte-identical to what
+    this module drew before."""
+    ops = []
+    x0 = x1 = None
+    for struck, a, b in sorted(sink, key=lambda r: (r[1], r[2])):
+        if not struck:
+            if x0 is not None:
+                ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x0, y + 3, x1, y + 3))
+                x0 = x1 = None
+            continue
+        if x0 is None:
+            x0, x1 = a, b
+        else:
+            x1 = max(x1, b)
+    if x0 is not None:
+        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S' % (x0, y + 3, x1, y + 3))
+    return ops
+
+
 def _line_ops_printed(segs, left, y, size, res, tz_state,
                       col_state=None, colour_map=None, roll_pt=None, fi=None,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
@@ -8930,6 +8979,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # tags -- drawn_pcl guards against executing the same control's PCL
     # program once per fragment.
     drawn_pcl = set()
+    # E3: every `_rules` call on this line records into here instead of
+    # emitting its own strike rule; `_strike_runs` draws them at the end.
+    strike_sink = []
     for text, styles, family, size_here, entry, indent in segs:
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
@@ -9136,7 +9188,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                     tz_state[0] = TZ_DEFAULT
                 if count:
                     ops += _rules(styles, run_text, x, y, char_w * count,
-                                  ul_continuous)
+                                  ul_continuous, strike_sink=strike_sink)
                 x = target_x
             continue
         # cp437 graphics (blocks, shades, box-drawing) draw as vectors at the
@@ -9280,7 +9332,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                     if ul_x0 is None:
                         ul_x0 = x
                     ul_x1 = x + pw
-                ops += _rules(piece_styles, piece, x, y, pw, ul_continuous)
+                ops += _rules(piece_styles, piece, x, y, pw, ul_continuous,
+                              strike_sink=strike_sink)
                 x += pw
             if span_ul and ul_x0 is not None:
                 ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
@@ -9353,7 +9406,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                 ul_x0 = piece_x
                             ul_x1 = piece_x + actual_w
                         ops += _rules(piece_styles, piece, piece_x, y, actual_w,
-                                     ul_continuous)
+                                     ul_continuous, strike_sink=strike_sink)
                     if span_ul and ul_x0 is not None:
                         ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
                                   % (ul_x0, y - 1.5, ul_x1, y - 1.5))
@@ -9405,8 +9458,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                 ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
                            (font.encode(), pt, rise, want, x, y, _esc(text)))
                 tz_state[0] = want
-        ops += _rules(styles, text, x, y, w, ul_continuous)
+        ops += _rules(styles, text, x, y, w, ul_continuous,
+                      strike_sink=strike_sink)
         x += w
+    # E3 (2026-09-16): the line's strikeout, drawn once now that every piece
+    # has been placed -- one rule per struck RUN, word gaps included, the way
+    # real WS7 overstrikes them. See `_rules`'s own `strike_sink` note.
+    ops += _strike_runs(strike_sink, y)
     return ops
 
 
