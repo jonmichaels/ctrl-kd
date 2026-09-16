@@ -172,8 +172,11 @@ def test_every_registered_quirk_states_all_five_things():
     for q in (quirks.get_quirk(n) for n in quirks.quirk_names()):
         assert re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', q.name), q.name
         assert q.quirk_class in (AUTO, OPT_IN), q.name
+        # Jon's wording, 2026-09-16: a description is a short LABEL for a
+        # checkbox, not a sentence -- capitalised, no closing period. The
+        # strings themselves are Jon's, verbatim; this only pins their shape.
         assert q.description and q.description[0].isupper() \
-            and q.description.endswith('.'), q.name
+            and not q.description.endswith('.'), q.name
         assert callable(q.detect) and callable(q.apply), q.name
 
 

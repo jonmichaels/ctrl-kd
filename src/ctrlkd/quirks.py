@@ -329,8 +329,7 @@ def _detect_euro(doc):
 
 
 @quirk('driver-euro-sign',
-       description='Prints the peseta character as a euro sign, the way this '
-                   'document’s own printer driver was modified to.',
+       description='Euro instead of peseta',
        quirk_class=AUTO, detect=_detect_euro)
 def _apply_euro(doc):
     """No IR transform here: `layout.peseta_euro_table` is the one place that
@@ -346,10 +345,7 @@ def _detect_lj(doc):
 
 
 @quirk('lj6dtp-typography',
-       description='Prints the typewriter stand-ins as real typography — '
-                   'em and en dashes, curly quotes, an ellipsis, a copyright '
-                   'sign — the way this document’s own printer '
-                   'driver was modified to.',
+       description='Real dashes, curly quotes, ellipsis, ©',
        quirk_class=AUTO,
        detect=_detect_lj)
 def _apply_lj_typography(doc):
@@ -359,9 +355,7 @@ def _apply_lj_typography(doc):
 
 
 @quirk('lj6dtp-box-corners',
-       description='Draws the card-suit characters as box corners — '
-                   'rounded on the printed page — in Univers text, the '
-                   'way this document’s own printer driver was modified to.',
+       description='Card suits as box corners (Univers)',
        quirk_class=AUTO,
        detect=_detect_lj)
 def _apply_lj_corners(doc):
@@ -371,9 +365,7 @@ def _apply_lj_corners(doc):
 
 
 @quirk('lj6dtp-colour-as-gray',
-       description='Prints WordStar’s screen colours as the grey shades '
-                   'this document’s own printer driver made of them, '
-                   'including white text knocked out of a black bar.',
+       description='Screen colours as grey',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_colour(doc):
     """No IR transform: the PDF writer's own colour state (`pdf.py`'s
@@ -382,9 +374,7 @@ def _apply_lj_colour(doc):
 
 
 @quirk('lj6dtp-fill-patterns',
-       description='Fills with the six hatched and cross-hatched patterns '
-                   'this document’s own printer driver made of '
-                   'WordStar’s colours 9 to 14.',
+       description='Colours 9–14 as hatch patterns',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_patterns(doc):
     """No IR transform: the PDF writer's own pattern resources (`pdf.py`'s
@@ -428,10 +418,7 @@ def _detect_stray_style_strikeout(doc):
 
 
 @quirk('stray-style-strikeout',
-       description='Ignores a strikethrough that one of the document’s '
-                   'paragraph styles switches on while the writing itself '
-                   'never crosses anything out — almost always a setting '
-                   'left on by accident rather than a real cross-out.',
+       description='Ignore a strikeout set only by a style',
        quirk_class=OPT_IN, detect=_detect_stray_style_strikeout)
 def _apply_stray_style_strikeout(doc):
     """Drop the style-declared strikeout, and only that.
