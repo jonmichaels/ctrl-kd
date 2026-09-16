@@ -5829,6 +5829,163 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             style_font_cache[fs] = idx
         return idx
 
+    def _select_style(_w0, _rel, font_sink):
+        """Apply one 0x11 paragraph-style SELECTION, in the stream order it
+        occurs. Returns True if it closed a block (the caller's own
+        `style_closed_here`).
+
+        Extracted from the per-line mark loop (which is still the only
+        caller for a selection that lands on a CONTENT line) so the
+        dot-command branch can apply one too. A selection whose bytes sit at
+        the very END of a line lands at offset 0 of whatever comes next, and
+        when that is a dot-command line the mark used to die with it -- the
+        same hazard `carried_marks` already names for colour and font, but
+        worse, because ORDER matters here: `.lh` and a style's own line
+        height are the same WordStar setting, so deferring the selection past
+        the dot line would let the style silently win a contest the file says
+        the dot command wins. See the dot-command branch's own call.
+        """
+        _closed = False
+        # Resolve the handle against the file's own library. Pool tag
+        # 0x02 = this file; anything else (0x03xx editing temps) is
+        # unresolvable BY DESIGN and left unstyled rather than guessed.
+        # Heading level comes from the RESOLVED NAME -- the corpus
+        # proved slot numbers carry none (see the 0x11 parse site).
+        # The selection PERSISTS: style_fmt stays in force for every
+        # following block until the next 0x11. A recordless entry
+        # (the inherit-everything base, e.g. 'WordStar Defaults')
+        # resets formatting to the dot-command state by construction,
+        # since it contributes no record fields.
+        w0 = _w0
+        if (w0 >> 8) == 0x02:
+            slot = w0 & 0xFF
+            entry = style_slots.get(slot)
+            # #236 (WORDSTAR.WS/REF/wordstar-file-format.ws title
+            # blocks): a style record's line_height_vmi of -1 means
+            # INHERIT, already folded to None by `_parse_style_library`
+            # (sword_none). Measured against WORDSTAR.WS's own capture
+            # (Double-Indented Quote, a style with NO font of its own
+            # AND an inherited line height): its body renders at
+            # 16.0pt leading, not the document's 12pt default -- the
+            # SAME 16.0pt the immediately preceding paragraph style
+            # (MS Body Copy, explicit vmi=320) was already using.
+            # 'Inherit' means carry the AMBIENT (previously active)
+            # value forward, not reset to nothing -- style_fmt.clear()
+            # below must not lose it.
+            # 'style_vmi_ambient' is the last line height a STYLE declared,
+            # kept apart from the ACTIVE one because a `.lh` supersedes the
+            # active value (see the dot-command branch) without erasing what
+            # the NEXT style's own 'inherit' should inherit. Measured on
+            # `sawyer/RTF-RJS/NOVEL.WS` page 20 (ws7-prints/v4): inside a
+            # book-list section running at `.lh 12pt`, the entering advance to
+            # each sub-heading -- H3/H2, both of which inherit their line
+            # height -- is 24.0pt, the vmi 'MS Body Copy' declared, and not
+            # the 12pt `.lh` in force. Falls back to the active value, so a
+            # document that never writes a `.lh` behaves exactly as before
+            # (the #236 WORDSTAR.WS measurement above is unmoved).
+            _prev_vmi = style_fmt.get('style_vmi_ambient',
+                                      style_fmt.get('line_height_vmi'))
+            # Ruling 2026-09-16 ("Style-library strikeout runs until a
+            # style clears it"): an attribute a style turns ON stays on
+            # past that paragraph. WSFORMAT.TXT's own rule for the two
+            # attribute words is "if both corresponding bits are off,
+            # then the attribute is inherited from the current state" --
+            # so only a later style that sets the bit in its attrs_OFF
+            # word ends the run. Real WS7 agrees: NOVEL.WS's H3 sets
+            # strikeout on the title page and nothing in that file's
+            # library ever clears it, and the LaserJet capture prints
+            # the overstrike dash row on all 52 pages.
+            _prev_sticky = style_fmt.get('sticky_attrs', frozenset())
+            style_fmt.clear()
+            if _prev_vmi is not None:
+                style_fmt['style_vmi_ambient'] = _prev_vmi
+            style_fmt['style_id'] = slot
+            _sticky = set(_prev_sticky)
+            if entry is not None:
+                _on, _off = entry.get('attrs_on') or 0, entry.get('attrs_off') or 0
+                for _bit, _tag in STICKY_STYLE_ATTRS:
+                    if _on & _bit:
+                        _sticky.add(_tag)
+                    elif _off & _bit:
+                        _sticky.discard(_tag)
+            style_fmt['sticky_attrs'] = frozenset(_sticky)
+            if _sticky:
+                # Also for an UNRESOLVABLE handle (a 0x03xx editing-temp
+                # pool entry, or a slot this file's library doesn't
+                # carry): it declares neither word, so every attribute
+                # inherits, including the running one.
+                style_fmt['attrs'] = frozenset(_sticky)
+            if entry is not None:
+                style_fmt['style_name'] = entry['name']
+                style_fmt['heading'] = _style_heading_level(entry['name'])
+                if entry.get('justification') in ('left', 'justify',
+                                                  'center', 'right'):
+                    # 'left' means EXPLICIT no-justification -- it
+                    # overrides a running .oj, so it must occupy the
+                    # align slot rather than fall through
+                    style_fmt['align'] = entry['justification']
+                if entry.get('word_wrap') is not None:
+                    style_fmt['wrap'] = entry['word_wrap']
+                for src_k, dst_k in (('left_margin_hmi', 'left_margin'),
+                                     ('right_margin_hmi', 'right_margin'),
+                                     ('para_margin_hmi', 'para_margin')):
+                    hmi = entry.get(src_k)
+                    if hmi is not None:
+                        # HMI 1/1800in -> print columns at 10 CPI,
+                        # the unit .lm/.rm already use (180 = 1 col)
+                        style_fmt[dst_k] = round(hmi / 180)
+                if entry.get('attrs') or _sticky:
+                    # The style's own ON bits, plus every sticky
+                    # attribute still running from an earlier style.
+                    style_fmt['attrs'] = frozenset(
+                        entry.get('attrs') or ()) | style_fmt['sticky_attrs']
+                # Register C5: the style's own declared colour index
+                # (0-15, WSFORMAT's fixed CGA/EGA palette -- same
+                # space as an inline type-1 colour change). `is not
+                # None` mirrors line_height_vmi just below: 0 is a
+                # real, explicit "Black" distinct from "the style
+                # never set one", even though nothing downstream
+                # currently treats 0 differently from unset.
+                if entry.get('colour') is not None:
+                    style_fmt['style_colour'] = entry['colour']
+                # line_height_vmi: -2 = auto (the only value the
+                # measured oracle carries), a positive count =
+                # explicit VMI (WSFORMAT.WS: same 1/1440in unit as a
+                # font's own height word). sword_none already folded
+                # -1 (inherit) to None at parse time, so a bare
+                # `is not None` is the right test here -- 'inherit'
+                # never reaches this branch.
+                if entry.get('line_height_vmi') is not None:
+                    style_fmt['line_height_vmi'] = entry['line_height_vmi']
+                    style_fmt['style_vmi_ambient'] = entry['line_height_vmi']
+                elif _prev_vmi is not None:
+                    # -1/inherit: carry the ambient value forward
+                    # (see the #236 comment above this block).
+                    style_fmt['line_height_vmi'] = _prev_vmi
+                    style_fmt['style_vmi_ambient'] = _prev_vmi
+                # an all-zero triple records NO font (OLDTIMES's
+                # 'Double-Indented Quote'), distinct from the -1
+                # inherit sentinel only in never having been set
+                if entry.get('font') and any(entry['font']):
+                    font_sink.append((_rel, _style_font(entry['font'])))
+                    # The style's own declared size, in points --
+                    # captured on the BLOCK (not just the span-level
+                    # font_at mark) so a spanless blank line, which
+                    # carries no font tag of its own, can still
+                    # resolve its style's auto/explicit leading.
+                    style_fmt['style_font_pt'] = entry['font'][1] / 20.0
+            # style_fmt is updated BEFORE this close: the previous
+            # block keeps its old style, the fresh block picks the
+            # new one up from _new_block()
+            close_block()
+            _closed = True
+        else:
+            # 0x03xx temp-pool handle: unresolvable by design, but a
+            # selection is still a block boundary in the file
+            close_block()
+            _closed = True
+        return _closed
+
     def _new_block():
         return Block('para',
                      align=style_fmt.get('align') or _align_now(fmt),
@@ -6093,6 +6250,36 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # this line would otherwise have mutated is withheld.
             if if_active and not all(if_active):
                 continue
+            # A style SELECTION whose bytes sit at the very END of the
+            # PREVIOUS line lands at offset 0 of this one (lines_pass's
+            # `a <= off < a + ln` cannot place it inside the line it
+            # follows). A dot-command line is CONSUMED below, so the mark
+            # used to die with it -- the same hazard the `carried_marks`
+            # note further down names for colour and font. It is NOT enough
+            # to carry it forward, because ORDER decides the outcome: `.lh`
+            # and a paragraph style's own line height are the same WordStar
+            # setting, and a style applied AFTER the `.lh` line would undo a
+            # dot command the file puts second. So it is applied HERE, before
+            # this line's own command runs -- which is exactly where the
+            # bytes are.
+            #
+            # rel == 0 is what distinguishes the two cases, and it is exact:
+            # a dot line's own first byte is its '.', so nothing of this
+            # line's can mark offset 0, while a style block written INSIDE a
+            # `.h1`/`.f1` argument (or a commented-out `..f1`) always sits
+            # past the command letters and marks rel >= 4. Those belong to
+            # the running head, which reads its own mark (`hf_style_w0`
+            # below), and must never reach the body -- `sawyer/RTF-RJS/
+            # NOVEL.WS` page 1 renders its whole front-matter block in the
+            # FOOTER style's 6pt Univers if they do.
+            _dot_style_fonts = []
+            for _srel, _sm in line_marks:
+                if _sm[0] == 'style' and _srel == 0:
+                    _select_style(_sm[1], 0, _dot_style_fonts)
+            if _dot_style_fonts:
+                # The selection's own font reaches the next CONTENT line the
+                # way every other carried state does -- at its offset 0.
+                carried_marks.extend(('font', _idx) for _r, _idx in _dot_style_fonts)
             # '..' and '.ig' are COMMENT lines (ruling 2026-08-06): both
             # WordStar comment syntaxes unify into Note(kind='comment'),
             # each emitting a reference mark at its own position -- the
@@ -6297,6 +6484,35 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # single block cannot hold both.
             before = _block_format(fmt)
             _parse_format_dot(cmd, fmt)
+            # `.lh` and a paragraph STYLE's own `line_height_vmi` are the
+            # SAME WordStar setting -- a line height -- reached two ways, so
+            # the one that comes LATER in the file wins. `_style_lead_pt`
+            # gives the style's value precedence over the generic `.lh`,
+            # which is right for every document that selects a style and then
+            # leaves the leading alone (LYING.WS, WARPRAYR.WS: no `.lh` at
+            # all). It is wrong the moment a file writes a real `.lh` AFTER
+            # the selection, which is what `sawyer/RTF-RJS/NOVEL.WS` does at
+            # each of its five book-list sections: select 'MS Body Copy'
+            # (vmi 480 = 24pt), then `.lh 12pt`. Real WS7 prints those lists
+            # single-spaced at 12pt (ws7-prints/v4, page 20: baselines 144,
+            # 156, 168 ... exactly 12.0pt apart); the style's 24pt made the
+            # section overflow onto a 52nd page the real print does not have.
+            # Dropping the style's value here hands the following blocks back
+            # to `Line.lead_48`, which is where a `.lh` already lives; the
+            # next selection re-establishes its own.
+            _lhm = _DOT_CMD_RE.match(cmd)
+            if (_lhm and _lhm.group(1).upper() == b'LH'
+                    and style_fmt.get('line_height_vmi') is not None
+                    and _lhm.group(2).strip().lower()[:1] != b'a'):
+                _lhn = _dot_num_match(_lhm.group(2))
+                if _lhn:
+                    try:
+                        _lhv = float(_lhn.group(1))
+                    except (TypeError, ValueError):
+                        _lhv = None
+                    if _lhv is not None and _resolve_lh_arg(_lhv, _lhn.group(2)):
+                        style_fmt.pop('line_height_vmi', None)
+                        close_block()
             # #241 remainder: a same-line `.RR` ruler IMAGE (`.RR--!...R`)
             # updates left_margin/para_margin/right_margin exactly like an
             # explicit `.lm`/`.pm`/`.rm` would -- see `_apply_ruler_margins`'s
@@ -6494,127 +6710,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
                 # for the measurement.
                 cur_line.softpage = True
             elif m[0] == 'style':
-                # Resolve the handle against the file's own library. Pool tag
-                # 0x02 = this file; anything else (0x03xx editing temps) is
-                # unresolvable BY DESIGN and left unstyled rather than guessed.
-                # Heading level comes from the RESOLVED NAME -- the corpus
-                # proved slot numbers carry none (see the 0x11 parse site).
-                # The selection PERSISTS: style_fmt stays in force for every
-                # following block until the next 0x11. A recordless entry
-                # (the inherit-everything base, e.g. 'WordStar Defaults')
-                # resets formatting to the dot-command state by construction,
-                # since it contributes no record fields.
-                w0 = m[1]
-                if (w0 >> 8) == 0x02:
-                    slot = w0 & 0xFF
-                    entry = style_slots.get(slot)
-                    # #236 (WORDSTAR.WS/REF/wordstar-file-format.ws title
-                    # blocks): a style record's line_height_vmi of -1 means
-                    # INHERIT, already folded to None by `_parse_style_library`
-                    # (sword_none). Measured against WORDSTAR.WS's own capture
-                    # (Double-Indented Quote, a style with NO font of its own
-                    # AND an inherited line height): its body renders at
-                    # 16.0pt leading, not the document's 12pt default -- the
-                    # SAME 16.0pt the immediately preceding paragraph style
-                    # (MS Body Copy, explicit vmi=320) was already using.
-                    # 'Inherit' means carry the AMBIENT (previously active)
-                    # value forward, not reset to nothing -- style_fmt.clear()
-                    # below must not lose it.
-                    _prev_vmi = style_fmt.get('line_height_vmi')
-                    # Ruling 2026-09-16 ("Style-library strikeout runs until a
-                    # style clears it"): an attribute a style turns ON stays on
-                    # past that paragraph. WSFORMAT.TXT's own rule for the two
-                    # attribute words is "if both corresponding bits are off,
-                    # then the attribute is inherited from the current state" --
-                    # so only a later style that sets the bit in its attrs_OFF
-                    # word ends the run. Real WS7 agrees: NOVEL.WS's H3 sets
-                    # strikeout on the title page and nothing in that file's
-                    # library ever clears it, and the LaserJet capture prints
-                    # the overstrike dash row on all 52 pages.
-                    _prev_sticky = style_fmt.get('sticky_attrs', frozenset())
-                    style_fmt.clear()
-                    style_fmt['style_id'] = slot
-                    _sticky = set(_prev_sticky)
-                    if entry is not None:
-                        _on, _off = entry.get('attrs_on') or 0, entry.get('attrs_off') or 0
-                        for _bit, _tag in STICKY_STYLE_ATTRS:
-                            if _on & _bit:
-                                _sticky.add(_tag)
-                            elif _off & _bit:
-                                _sticky.discard(_tag)
-                    style_fmt['sticky_attrs'] = frozenset(_sticky)
-                    if _sticky:
-                        # Also for an UNRESOLVABLE handle (a 0x03xx editing-temp
-                        # pool entry, or a slot this file's library doesn't
-                        # carry): it declares neither word, so every attribute
-                        # inherits, including the running one.
-                        style_fmt['attrs'] = frozenset(_sticky)
-                    if entry is not None:
-                        style_fmt['style_name'] = entry['name']
-                        style_fmt['heading'] = _style_heading_level(entry['name'])
-                        if entry.get('justification') in ('left', 'justify',
-                                                          'center', 'right'):
-                            # 'left' means EXPLICIT no-justification -- it
-                            # overrides a running .oj, so it must occupy the
-                            # align slot rather than fall through
-                            style_fmt['align'] = entry['justification']
-                        if entry.get('word_wrap') is not None:
-                            style_fmt['wrap'] = entry['word_wrap']
-                        for src_k, dst_k in (('left_margin_hmi', 'left_margin'),
-                                             ('right_margin_hmi', 'right_margin'),
-                                             ('para_margin_hmi', 'para_margin')):
-                            hmi = entry.get(src_k)
-                            if hmi is not None:
-                                # HMI 1/1800in -> print columns at 10 CPI,
-                                # the unit .lm/.rm already use (180 = 1 col)
-                                style_fmt[dst_k] = round(hmi / 180)
-                        if entry.get('attrs') or _sticky:
-                            # The style's own ON bits, plus every sticky
-                            # attribute still running from an earlier style.
-                            style_fmt['attrs'] = frozenset(
-                                entry.get('attrs') or ()) | style_fmt['sticky_attrs']
-                        # Register C5: the style's own declared colour index
-                        # (0-15, WSFORMAT's fixed CGA/EGA palette -- same
-                        # space as an inline type-1 colour change). `is not
-                        # None` mirrors line_height_vmi just below: 0 is a
-                        # real, explicit "Black" distinct from "the style
-                        # never set one", even though nothing downstream
-                        # currently treats 0 differently from unset.
-                        if entry.get('colour') is not None:
-                            style_fmt['style_colour'] = entry['colour']
-                        # line_height_vmi: -2 = auto (the only value the
-                        # measured oracle carries), a positive count =
-                        # explicit VMI (WSFORMAT.WS: same 1/1440in unit as a
-                        # font's own height word). sword_none already folded
-                        # -1 (inherit) to None at parse time, so a bare
-                        # `is not None` is the right test here -- 'inherit'
-                        # never reaches this branch.
-                        if entry.get('line_height_vmi') is not None:
-                            style_fmt['line_height_vmi'] = entry['line_height_vmi']
-                        elif _prev_vmi is not None:
-                            # -1/inherit: carry the ambient value forward
-                            # (see the #236 comment above this block).
-                            style_fmt['line_height_vmi'] = _prev_vmi
-                        # an all-zero triple records NO font (OLDTIMES's
-                        # 'Double-Indented Quote'), distinct from the -1
-                        # inherit sentinel only in never having been set
-                        if entry.get('font') and any(entry['font']):
-                            font_at.append((rel, _style_font(entry['font'])))
-                            # The style's own declared size, in points --
-                            # captured on the BLOCK (not just the span-level
-                            # font_at mark) so a spanless blank line, which
-                            # carries no font tag of its own, can still
-                            # resolve its style's auto/explicit leading.
-                            style_fmt['style_font_pt'] = entry['font'][1] / 20.0
-                    # style_fmt is updated BEFORE this close: the previous
-                    # block keeps its old style, the fresh block picks the
-                    # new one up from _new_block()
-                    close_block()
-                    style_closed_here = True
-                else:
-                    # 0x03xx temp-pool handle: unresolvable by design, but a
-                    # selection is still a block boundary in the file
-                    close_block()
+                if _select_style(m[1], rel, font_at):
                     style_closed_here = True
             # every other mark kind is SPAN-LEVEL and was collected in the
             # pass above this one, before the form-feed branch that needs it
