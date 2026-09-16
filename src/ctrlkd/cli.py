@@ -255,7 +255,8 @@ def main(argv=None):
         return 0
     if a.list_quirks:
         if not a.files:
-            print(json.dumps(quirks.list_quirks(), indent=2, ensure_ascii=False))
+            print(json.dumps(quirks.list_quirks(), indent=2, ensure_ascii=False,
+                             sort_keys=True))
             return 0
         status = 0
         for path in a.files:
@@ -267,9 +268,11 @@ def main(argv=None):
                 status = 1
                 continue
             doc = _quirked(ap, doc, a)
+            # sort_keys/ensure_ascii chosen to MATCH sr's own JSON writer exactly,
+            # so the two CLIs' --list-quirks output is byte-identical.
             print(json.dumps({'file': os.path.basename(path),
                               'quirks': quirks.list_quirks(doc)},
-                             indent=2, ensure_ascii=False))
+                             indent=2, ensure_ascii=False, sort_keys=True))
         return status
     if not a.files:
         ap.error('the following arguments are required: files')
