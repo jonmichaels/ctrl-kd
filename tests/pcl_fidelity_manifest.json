@@ -26963,11 +26963,3868 @@
     },
     "sawyer__RTF-RJS__NOVEL_EXT_WS": {
       "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-      "verdict": "excluded",
-      "source_ws": null,
-      "counts_by_reason": {},
-      "divergences": [],
-      "reason": "postscript: PostScript-targeted document (sawyer/RTF-RJS/NOVEL.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)"
+      "verdict": "divergent",
+      "source_ws": "sawyer/RTF-RJS/NOVEL.WS",
+      "capture_set": "v4",
+      "install": "pristine",
+      "n_ws7_pages": 51,
+      "n_engine_pages": 52,
+      "no_substitute_word_count": 1,
+      "counts_by_reason": {
+        "baseline-shift": 49,
+        "extra-word-in-engine": 23,
+        "line-start-shift": 21,
+        "page-count-mismatch": 1,
+        "page-membership": 4661,
+        "univers-drift-exceeds-tolerance": 61,
+        "word-unmatched": 274
+      },
+      "divergences": [
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            57.6,
+            732.0
+          ],
+          "pdf_pos": [
+            57.6,
+            732.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "file",
+            "file"
+          ],
+          "ws7_pos": [
+            85.4,
+            732.0
+          ],
+          "pdf_pos": [
+            84.61,
+            732.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +6.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 84.0,
+          "words": [
+            "Books",
+            "Books"
+          ],
+          "ws7_pos": [
+            175.2,
+            84.0
+          ],
+          "pdf_pos": [
+            175.6,
+            84.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 84.0,
+          "words": [
+            "Robert",
+            "Robert"
+          ],
+          "ws7_pos": [
+            261.6,
+            84.0
+          ],
+          "pdf_pos": [
+            255.1,
+            84.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 84.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            344.8,
+            84.0
+          ],
+          "pdf_pos": [
+            331.8,
+            84.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 132.0,
+          "words": [
+            "NOVELS",
+            "NOVELS"
+          ],
+          "ws7_pos": [
+            264.0,
+            132.0
+          ],
+          "pdf_pos": [
+            262.8,
+            132.0
+          ],
+          "font_class": "univers",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -120.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 144.0,
+          "words": [
+            "Golden",
+            "Golden"
+          ],
+          "ws7_pos": [
+            244.8,
+            144.0
+          ],
+          "pdf_pos": [
+            244.8,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -108.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 144.0,
+          "words": [
+            "Fleece",
+            "Fleece"
+          ],
+          "ws7_pos": [
+            295.2,
+            144.0
+          ],
+          "pdf_pos": [
+            295.8,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -108.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 156.0,
+          "words": [
+            "End",
+            "End"
+          ],
+          "ws7_pos": [
+            244.8,
+            156.0
+          ],
+          "pdf_pos": [
+            244.8,
+            180.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -96.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 156.0,
+          "words": [
+            "Era",
+            "Era"
+          ],
+          "ws7_pos": [
+            316.8,
+            156.0
+          ],
+          "pdf_pos": [
+            311.0,
+            180.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -96.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 168.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            208.8,
+            168.0
+          ],
+          "pdf_pos": [
+            208.8,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -84.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 168.0,
+          "words": [
+            "Terminal",
+            "Terminal"
+          ],
+          "ws7_pos": [
+            237.6,
+            168.0
+          ],
+          "pdf_pos": [
+            236.9,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -84.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 168.0,
+          "words": [
+            "Experiment",
+            "Experiment"
+          ],
+          "ws7_pos": [
+            302.4,
+            168.0
+          ],
+          "pdf_pos": [
+            297.8,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -84.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Starplex",
+            "Starplex"
+          ],
+          "ws7_pos": [
+            262.8,
+            180.0
+          ],
+          "pdf_pos": [
+            262.8,
+            228.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -72.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 192.0,
+          "words": [
+            "Frameshift",
+            "Frameshift"
+          ],
+          "ws7_pos": [
+            255.6,
+            192.0
+          ],
+          "pdf_pos": [
+            255.6,
+            252.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -60.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 204.0,
+          "words": [
+            "Illegal",
+            "Illegal"
+          ],
+          "ws7_pos": [
+            244.8,
+            204.0
+          ],
+          "pdf_pos": [
+            244.8,
+            276.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -48.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 204.0,
+          "words": [
+            "Alien",
+            "Alien"
+          ],
+          "ws7_pos": [
+            302.4,
+            204.0
+          ],
+          "pdf_pos": [
+            287.4,
+            276.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -48.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "Factoring",
+            "Factoring"
+          ],
+          "ws7_pos": [
+            226.8,
+            216.0
+          ],
+          "pdf_pos": [
+            226.8,
+            300.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 216.0,
+          "words": [
+            "Humanity",
+            "Humanity"
+          ],
+          "ws7_pos": [
+            298.8,
+            216.0
+          ],
+          "pdf_pos": [
+            293.0,
+            300.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -36.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 228.0,
+          "words": [
+            "FlashForward",
+            "FlashForward"
+          ],
+          "ws7_pos": [
+            248.4,
+            228.0
+          ],
+          "pdf_pos": [
+            248.4,
+            324.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 240.0,
+          "words": [
+            "Calculating",
+            "Calculating"
+          ],
+          "ws7_pos": [
+            237.6,
+            240.0
+          ],
+          "pdf_pos": [
+            237.6,
+            348.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 240.0,
+          "words": [
+            "God",
+            "God"
+          ],
+          "ws7_pos": [
+            324.0,
+            240.0
+          ],
+          "pdf_pos": [
+            315.2,
+            348.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual -12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 264.0,
+          "words": [
+            "Rollback",
+            "Rollback"
+          ],
+          "ws7_pos": [
+            262.8,
+            264.0
+          ],
+          "pdf_pos": [
+            262.8,
+            396.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +12.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 276.0,
+          "words": [
+            "Triggers",
+            "Triggers"
+          ],
+          "ws7_pos": [
+            262.8,
+            276.0
+          ],
+          "pdf_pos": [
+            262.8,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +24.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "Red",
+            "Red"
+          ],
+          "ws7_pos": [
+            234.0,
+            288.0
+          ],
+          "pdf_pos": [
+            234.0,
+            444.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +36.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "Planet",
+            "Planet"
+          ],
+          "ws7_pos": [
+            262.8,
+            288.0
+          ],
+          "pdf_pos": [
+            263.7,
+            444.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +36.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "Blues",
+            "Blues"
+          ],
+          "ws7_pos": [
+            313.2,
+            288.0
+          ],
+          "pdf_pos": [
+            308.5,
+            444.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +36.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 300.0,
+          "words": [
+            "Quantum",
+            "Quantum"
+          ],
+          "ws7_pos": [
+            244.8,
+            300.0
+          ],
+          "pdf_pos": [
+            244.8,
+            468.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +48.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 300.0,
+          "words": [
+            "Night",
+            "Night"
+          ],
+          "ws7_pos": [
+            302.4,
+            300.0
+          ],
+          "pdf_pos": [
+            308.7,
+            468.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +48.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 312.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            194.4,
+            312.0
+          ],
+          "pdf_pos": [
+            194.4,
+            492.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +60.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 312.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            223.2,
+            312.0
+          ],
+          "pdf_pos": [
+            222.5,
+            492.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +60.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 312.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            309.6,
+            312.0
+          ],
+          "pdf_pos": [
+            314.6,
+            492.0
+          ],
+          "font_class": "exact",
+          "reason": "baseline-shift",
+          "detail": "baseline residual +60.00pt (tolerance 1.0pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 282.0,
+          "words": [
+            "ALTERNATIVE"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            308.6,
+            282.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 402.0,
+          "words": [
+            "SAWYER"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            296.0,
+            402.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 259.2,
+          "words": [
+            "flight,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            259.2
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 468.5,
+          "words": [
+            "\"Jr.\""
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            187.2,
+            468.5
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 203.4,
+          "words": [
+            "EXCEPTION:"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            203.4
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 342.9,
+          "words": [
+            "EXCEPTIONS:"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            342.9
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 412.7,
+          "words": [
+            "Titanic's"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            412.7
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 273.9,
+          "words": [
+            "--Amazing"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            273.9
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 13,
+          "line_y_top_pt": 252.0,
+          "words": [
+            "Alternative,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            252.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 684.0,
+          "words": [
+            "Ploughshares,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            684.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 15,
+          "line_y_top_pt": 396.0,
+          "words": [
+            "--Eric"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            396.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 17,
+          "line_y_top_pt": 132.0,
+          "words": [
+            "--Analog"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            132.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 17,
+          "line_y_top_pt": 396.0,
+          "words": [
+            "Card,"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            396.0
+          ],
+          "font_class": "fixed",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "WordStar"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            57.6,
+            732.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "file"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            84.6,
+            732.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            360.5,
+            12.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            382.6,
+            12.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            452.3,
+            12.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 252.0,
+          "words": [
+            "COMPLETE"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            196.3,
+            252.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 252.0,
+          "words": [
+            "SHORT"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            276.2,
+            252.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 46,
+          "line_y_top_pt": 132.0,
+          "words": [
+            "Years"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            245.5,
+            132.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 46,
+          "line_y_top_pt": 132.0,
+          "words": [
+            "Later:"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            286.6,
+            132.0
+          ],
+          "font_class": "sans",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 282.0,
+          "words": [
+            "THE",
+            "THE"
+          ],
+          "ws7_pos": [
+            107.2,
+            282.0
+          ],
+          "pdf_pos": [
+            88.2,
+            282.0
+          ],
+          "font_class": "no_substitute",
+          "reason": "line-start-shift",
+          "detail": "line-start residual -19.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 354.0,
+          "words": [
+            "Best-Novel",
+            "Best-Novel"
+          ],
+          "ws7_pos": [
+            142.3,
+            354.0
+          ],
+          "pdf_pos": [
+            136.0,
+            354.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual -6.30pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 402.0,
+          "words": [
+            "ROBERT",
+            "ROBERT"
+          ],
+          "ws7_pos": [
+            187.9,
+            402.0
+          ],
+          "pdf_pos": [
+            171.6,
+            402.0
+          ],
+          "font_class": "no_substitute",
+          "reason": "line-start-shift",
+          "detail": "line-start residual -16.30pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "Draft:",
+            "Draft:"
+          ],
+          "ws7_pos": [
+            204.4,
+            618.0
+          ],
+          "pdf_pos": [
+            252.1,
+            618.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +47.70pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 8,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            308.8,
+            12.0
+          ],
+          "pdf_pos": [
+            320.8,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 10,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 15,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 16,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 17,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 18,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 19,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "line-start-shift",
+          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": null,
+          "line_y_top_pt": null,
+          "words": null,
+          "ws7_pos": null,
+          "pdf_pos": null,
+          "font_class": null,
+          "reason": "page-count-mismatch",
+          "detail": "WS7 51 pages, engine 52 pages"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "Humans",
+            "Humans"
+          ],
+          "ws7_pos": [
+            270.0,
+            444.0
+          ],
+          "pdf_pos": [
+            270.0,
+            60.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 456.0,
+          "words": [
+            "Hybrids",
+            "Hybrids"
+          ],
+          "ws7_pos": [
+            266.4,
+            456.0
+          ],
+          "pdf_pos": [
+            266.4,
+            84.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 492.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            240.9,
+            492.0
+          ],
+          "pdf_pos": [
+            240.6,
+            132.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 492.0,
+          "words": [
+            "WWW",
+            "WWW"
+          ],
+          "ws7_pos": [
+            265.9,
+            492.0
+          ],
+          "pdf_pos": [
+            263.3,
+            132.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 492.0,
+          "words": [
+            "Trilogy",
+            "Trilogy"
+          ],
+          "ws7_pos": [
+            306.0,
+            492.0
+          ],
+          "pdf_pos": [
+            297.7,
+            132.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 504.0,
+          "words": [
+            "Wake",
+            "Wake"
+          ],
+          "ws7_pos": [
+            277.2,
+            504.0
+          ],
+          "pdf_pos": [
+            277.2,
+            156.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 516.0,
+          "words": [
+            "Watch",
+            "Watch"
+          ],
+          "ws7_pos": [
+            273.6,
+            516.0
+          ],
+          "pdf_pos": [
+            273.6,
+            180.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 528.0,
+          "words": [
+            "Wonder",
+            "Wonder"
+          ],
+          "ws7_pos": [
+            270.0,
+            528.0
+          ],
+          "pdf_pos": [
+            270.0,
+            204.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 564.0,
+          "words": [
+            "FICTION",
+            "FICTION"
+          ],
+          "ws7_pos": [
+            329.5,
+            564.0
+          ],
+          "pdf_pos": [
+            327.9,
+            252.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 576.0,
+          "words": [
+            "Volume",
+            "Volume"
+          ],
+          "ws7_pos": [
+            237.6,
+            576.0
+          ],
+          "pdf_pos": [
+            237.6,
+            276.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 576.0,
+          "words": [
+            "Earth",
+            "Earth"
+          ],
+          "ws7_pos": [
+            309.6,
+            576.0
+          ],
+          "pdf_pos": [
+            306.8,
+            276.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 588.0,
+          "words": [
+            "Volume",
+            "Volume"
+          ],
+          "ws7_pos": [
+            237.6,
+            588.0
+          ],
+          "pdf_pos": [
+            237.6,
+            300.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 588.0,
+          "words": [
+            "Space",
+            "Space"
+          ],
+          "ws7_pos": [
+            309.6,
+            588.0
+          ],
+          "pdf_pos": [
+            306.8,
+            300.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 600.0,
+          "words": [
+            "Volume",
+            "Volume"
+          ],
+          "ws7_pos": [
+            241.2,
+            600.0
+          ],
+          "pdf_pos": [
+            241.2,
+            324.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 600.0,
+          "words": [
+            "Time",
+            "Time"
+          ],
+          "ws7_pos": [
+            313.2,
+            600.0
+          ],
+          "pdf_pos": [
+            310.4,
+            324.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "For",
+            "For"
+          ],
+          "ws7_pos": [
+            57.6,
+            636.0
+          ],
+          "pdf_pos": [
+            57.6,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "book-club",
+            "book-club"
+          ],
+          "ws7_pos": [
+            86.4,
+            636.0
+          ],
+          "pdf_pos": [
+            86.4,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "discussion",
+            "discussion"
+          ],
+          "ws7_pos": [
+            158.4,
+            636.0
+          ],
+          "pdf_pos": [
+            158.4,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "guides,",
+            "guides,"
+          ],
+          "ws7_pos": [
+            237.6,
+            636.0
+          ],
+          "pdf_pos": [
+            237.6,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "visit",
+            "visit"
+          ],
+          "ws7_pos": [
+            295.2,
+            636.0
+          ],
+          "pdf_pos": [
+            295.2,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 636.0,
+          "words": [
+            "(((sfwriter.com)))&|&&",
+            "(((sfwriter.com)))&|&&"
+          ],
+          "ws7_pos": [
+            338.4,
+            636.0
+          ],
+          "pdf_pos": [
+            338.4,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 660.0,
+          "words": [
+            "URL-sf",
+            "URL-sf"
+          ],
+          "ws7_pos": [
+            57.6,
+            660.0
+          ],
+          "pdf_pos": [
+            57.6,
+            396.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 660.0,
+          "words": [
+            "TXT-sf",
+            "TXT-sf"
+          ],
+          "ws7_pos": [
+            158.4,
+            660.0
+          ],
+          "pdf_pos": [
+            158.4,
+            396.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "WordStar",
+            "WordStar"
+          ],
+          "ws7_pos": [
+            57.6,
+            732.0
+          ],
+          "pdf_pos": [
+            57.6,
+            732.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 20,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "file",
+            "file"
+          ],
+          "ws7_pos": [
+            85.4,
+            732.0
+          ],
+          "pdf_pos": [
+            84.61,
+            732.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 20 word matched an engine word on page 21 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Sawyer",
+            "Sawyer"
+          ],
+          "ws7_pos": [
+            301.9,
+            12.0
+          ],
+          "pdf_pos": [
+            314.7,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 228.0,
+          "words": [
+            "Dedication",
+            "Dedication"
+          ],
+          "ws7_pos": [
+            245.2,
+            228.0
+          ],
+          "pdf_pos": [
+            245.6,
+            228.0
+          ],
+          "font_class": "univers",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 324.0,
+          "words": [
+            "For",
+            "For"
+          ],
+          "ws7_pos": [
+            280.8,
+            324.0
+          ],
+          "pdf_pos": [
+            280.8,
+            324.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 372.0,
+          "words": [
+            "Alisha",
+            "Alisha"
+          ],
+          "ws7_pos": [
+            237.6,
+            372.0
+          ],
+          "pdf_pos": [
+            237.6,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 372.0,
+          "words": [
+            "Souillet",
+            "Souillet"
+          ],
+          "ws7_pos": [
+            288.0,
+            372.0
+          ],
+          "pdf_pos": [
+            288.0,
+            372.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 420.0,
+          "words": [
+            "Who",
+            "Who"
+          ],
+          "ws7_pos": [
+            194.4,
+            420.0
+          ],
+          "pdf_pos": [
+            194.4,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 420.0,
+          "words": [
+            "made",
+            "made"
+          ],
+          "ws7_pos": [
+            223.2,
+            420.0
+          ],
+          "pdf_pos": [
+            223.2,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 420.0,
+          "words": [
+            "this",
+            "this"
+          ],
+          "ws7_pos": [
+            259.2,
+            420.0
+          ],
+          "pdf_pos": [
+            259.2,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 420.0,
+          "words": [
+            "better",
+            "better"
+          ],
+          "ws7_pos": [
+            309.6,
+            420.0
+          ],
+          "pdf_pos": [
+            309.6,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 420.0,
+          "words": [
+            "book",
+            "book"
+          ],
+          "ws7_pos": [
+            360.0,
+            420.0
+          ],
+          "pdf_pos": [
+            360.0,
+            420.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "And",
+            "And"
+          ],
+          "ws7_pos": [
+            212.4,
+            444.0
+          ],
+          "pdf_pos": [
+            212.4,
+            444.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 21,
+          "line_y_top_pt": 444.0,
+          "words": [
+            "better",
+            "better"
+          ],
+          "ws7_pos": [
+            277.2,
+            444.0
+          ],
+          "pdf_pos": [
+            277.2,
+            444.0
+          ],
+          "font_class": "exact",
+          "reason": "page-membership",
+          "detail": "WS7 page 21 word matched an engine word on page 22 instead"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 354.0,
+          "words": [
+            "Hugo",
+            "Hugo"
+          ],
+          "ws7_pos": [
+            227.5,
+            354.0
+          ],
+          "pdf_pos": [
+            217.2,
+            354.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -10.30pt at 109.5pt into the line (tolerance 5.69pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 354.0,
+          "words": [
+            "and",
+            "and"
+          ],
+          "ws7_pos": [
+            271.6,
+            354.0
+          ],
+          "pdf_pos": [
+            258.9,
+            354.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -12.70pt at 153.6pt into the line (tolerance 6.57pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 354.0,
+          "words": [
+            "Nebula",
+            "Nebula"
+          ],
+          "ws7_pos": [
+            303.8,
+            354.0
+          ],
+          "pdf_pos": [
+            289.3,
+            354.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -14.50pt at 185.8pt into the line (tolerance 7.22pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 354.0,
+          "words": [
+            "Award-Winner",
+            "Award-Winner"
+          ],
+          "ws7_pos": [
+            360.0,
+            354.0
+          ],
+          "pdf_pos": [
+            342.5,
+            354.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -17.50pt at 242.0pt into the line (tolerance 8.34pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Request",
+            "Request"
+          ],
+          "ws7_pos": [
+            225.8,
+            180.0
+          ],
+          "pdf_pos": [
+            218.6,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -7.20pt at 99.4pt into the line (tolerance 5.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            324.2,
+            180.0
+          ],
+          "pdf_pos": [
+            309.2,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -15.00pt at 197.8pt into the line (tolerance 7.46pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Art",
+            "Art"
+          ],
+          "ws7_pos": [
+            356.4,
+            180.0
+          ],
+          "pdf_pos": [
+            338.8,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -17.60pt at 230.0pt into the line (tolerance 8.10pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 180.0,
+          "words": [
+            "Director",
+            "Director"
+          ],
+          "ws7_pos": [
+            387.3,
+            180.0
+          ],
+          "pdf_pos": [
+            367.4,
+            180.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -19.90pt at 260.9pt into the line (tolerance 8.72pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 108.0,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            270.0,
+            108.0
+          ],
+          "pdf_pos": [
+            263.7,
+            108.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -6.30pt at 84.3pt into the line (tolerance 5.19pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 108.0,
+          "words": [
+            "Copyeditor",
+            "Copyeditor"
+          ],
+          "ws7_pos": [
+            302.1,
+            108.0
+          ],
+          "pdf_pos": [
+            293.3,
+            108.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -8.80pt at 116.4pt into the line (tolerance 5.83pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 8,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 8,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            358.3,
+            12.0
+          ],
+          "pdf_pos": [
+            366.65,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 9,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            381.1,
+            12.0
+          ],
+          "pdf_pos": [
+            388.66,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 10,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 10,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 10,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 87.9,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            209.7,
+            87.9
+          ],
+          "pdf_pos": [
+            203.5,
+            81.9
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -6.20pt at 88.3pt into the line (tolerance 5.27pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 87.9,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            246.9,
+            87.9
+          ],
+          "pdf_pos": [
+            237.7,
+            81.9
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -9.20pt at 125.5pt into the line (tolerance 6.01pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 11,
+          "line_y_top_pt": 87.9,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            368.4,
+            87.9
+          ],
+          "pdf_pos": [
+            349.5,
+            81.9
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual -18.90pt at 247.0pt into the line (tolerance 8.44pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 12,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 13,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Alternative",
+            "Alternative"
+          ],
+          "ws7_pos": [
+            445.2,
+            12.0
+          ],
+          "pdf_pos": [
+            452.25,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            351.3,
+            12.0
+          ],
+          "pdf_pos": [
+            360.55,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 12.0,
+          "words": [
+            "Oppenheimer",
+            "Oppenheimer"
+          ],
+          "ws7_pos": [
+            374.1,
+            12.0
+          ],
+          "pdf_pos": [
+            382.56,
+            12.0
+          ],
+          "font_class": "univers",
+          "reason": "univers-drift-exceeds-tolerance",
+          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 282.0,
+          "words": [
+            "TERNA"
+          ],
+          "ws7_pos": [
+            354.7,
+            282.0
+          ],
+          "pdf_pos": null,
+          "font_class": "no_substitute",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 282.0,
+          "words": [
+            "TIVE"
+          ],
+          "ws7_pos": [
+            427.2,
+            282.0
+          ],
+          "pdf_pos": null,
+          "font_class": "no_substitute",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 402.0,
+          "words": [
+            "J.SA"
+          ],
+          "ws7_pos": [
+            283.6,
+            402.0
+          ],
+          "pdf_pos": null,
+          "font_class": "no_substitute",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 402.0,
+          "words": [
+            "WYER"
+          ],
+          "ws7_pos": [
+            330.0,
+            402.0
+          ],
+          "pdf_pos": null,
+          "font_class": "no_substitute",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            251.0,
+            618.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 618.0,
+          "words": [
+            "2026"
+          ],
+          "ws7_pos": [
+            343.2,
+            618.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 2,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 3,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 4,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 259.2,
+          "words": [
+            "flight,------------------------------------"
+          ],
+          "ws7_pos": [
+            57.6,
+            259.2
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 468.4,
+          "words": [
+            "\"Jr."
+          ],
+          "ws7_pos": [
+            187.2,
+            468.4
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 5,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 203.4,
+          "words": [
+            "EXCEPTION:----------"
+          ],
+          "ws7_pos": [
+            57.6,
+            203.4
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "C:\\WS\\DOC.WS"
+          ],
+          "ws7_pos": [
+            95.5,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "September"
+          ],
+          "ws7_pos": [
+            151.9,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "2026,"
+          ],
+          "ws7_pos": [
+            191.0,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "11:48"
+          ],
+          "ws7_pos": [
+            217.4,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 6,
+          "line_y_top_pt": 732.0,
+          "words": [
+            "p.m."
+          ],
+          "ws7_pos": [
+            236.6,
+            732.0
+          ],
+          "pdf_pos": null,
+          "font_class": "univers",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
+          "page": 7,
+          "line_y_top_pt": 342.9,
+          "words": [
+            "EXCEPTIONS:-----------"
+          ],
+          "ws7_pos": [
+            57.6,
+            342.9
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        }
+      ],
+      "document_frame_offset_pt": {
+        "n": 526,
+        "median_dx": 0.0,
+        "iqr_dx": 0.0
+      }
     },
     "sawyer__RTF-RJS__RTFDS_EXT_WS": {
       "doc": "sawyer__RTF-RJS__RTFDS_EXT_WS",

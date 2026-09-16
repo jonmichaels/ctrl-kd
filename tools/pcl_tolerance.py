@@ -327,10 +327,19 @@ INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
 # the skip without recomputing anything, and a future v4 capture round
 # finds these names pre-excluded rather than rediscovering the same
 # ruling.
+#
+# ONE DOCUMENT LEFT THE 'postscript' CLASS, 2026-09-16.  sawyer/RTF-RJS/
+# NOVEL.WS was excluded on 2026-09-08 as "PostScript-targeted (unclassified
+# typeface ID 16602)".  That tag was a guess, and it was wrong: 16602 is the
+# PCL Arial family value, read straight out of the LASERJET printer driver's
+# own byte table -- the same driver the document's capture was printed
+# through, which contains no PostScript operators at all.  The document is
+# PCL like the rest of the tier, so it is back in it, judged like any other.
+# Evidence: research/2026-09-16_sawyer-printer-pdf-strikeout.md (the driver's
+# own font-substitution record, and the capture's own escape sequences).
 EXCLUDED_V4 = {
     'sawyer__REF__PS_EXT_TST': "postscript: PostScript-targeted document (sawyer/REF/PS.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
     'sawyer__PSPRINT_EXT_TST': "postscript: PostScript-targeted document (sawyer/PSPRINT.TST) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
-    'sawyer__RTF-RJS__NOVEL_EXT_WS': "postscript: PostScript-targeted document (sawyer/RTF-RJS/NOVEL.WS) -- excluded from the PCL tier, Jon's ruling 2026-09-08 06:13 (planning #224)",
     'sawyer__OLDTIMES_EXT_WS': "freeze: WordStar itself freezes printing sawyer/OLDTIMES.WS -- excluded from the PCL tier, Jon's ruling 2026-09-08 (planning #224)",
     'sawyer__DEFAULT__BOX': "duplicate: byte-identical duplicate of sawyer/BOX.WS (sawyer/DEFAULT/BOX is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
     'sawyer__DEFAULT__DEFAULT_EXT_WS': "duplicate: byte-identical duplicate of sawyer/REGULAR.WS (sawyer/DEFAULT/DEFAULT.WS is the excluded half) -- excluded from the PCL tier so duplicate content isn't judged twice, Jon's ruling 2026-09-08 (planning #226)",
