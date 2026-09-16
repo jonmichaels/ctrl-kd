@@ -13265,12 +13265,12 @@
             213.0
           ],
           "pdf_pos": [
-            234.5,
+            235.3,
             213.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +9.20pt (tolerance 2.5pt)"
+          "detail": "line-start residual +10.00pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__-LASERJE_EXT_FNT",
@@ -17210,12 +17210,12 @@
             213.0
           ],
           "pdf_pos": [
-            234.5,
+            235.3,
             213.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +9.20pt (tolerance 2.5pt)"
+          "detail": "line-start residual +10.00pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__REF__FONTS_EXT_REF",
