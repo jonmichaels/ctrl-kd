@@ -11,4 +11,4 @@ from .pdf import emit_pdf                        # registers the 'pdf' format
 from .convert import convert, select_notes, DEFAULT_NOTE_KINDS, ALL_NOTE_KINDS
 from .info import document_info
 
-__version__ = '4.9.0'
+__version__ = '4.10.0'

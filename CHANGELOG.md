@@ -5,7 +5,23 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+## [4.10.0] — 2026-09-17
+
 ### Added
+
+- **A page can declare its own sheet.** `.pr or=` (landscape/portrait)
+  measured against real WordStar 7: set at the top of a page it applies to
+  that page immediately; set in the middle of a page it waits for the next
+  page boundary, exactly as WS7 does. The Printed PDF now draws each page on
+  its own sheet size instead of one page size for the whole document, and
+  the running head/foot and automatic page number follow that page's own
+  height (a landscape page's number no longer resolves off the top of a
+  portrait document). `layout` JSON version 13 publishes a page's own size
+  (width/height/orientation) only where it differs from the document's — the
+  same "omit unless it differs" rule every other per-page field here already
+  follows; a page that never changes size emits nothing new. Modern is
+  unchanged by design — it composes on one reflowed sheet regardless of what
+  the source document's pages asked for.
 
 - **The `layout` JSON says when a running head, foot or page number is off the
   paper** (version 12). WordStar commands such a row anyway and lets the printer
@@ -75,6 +91,51 @@ https://github.com/jonmichaels/ctrl-kd/releases
   showed it. Every module is now compiled with warnings as errors by both the
   test suite and `tools/run-full-suite.sh`, so it cannot come back.
 
+- **Printed RTF's text column is the document's own ruler width, not a
+  fixed arithmetic off the page margins.** The column had been computed as
+  paper width minus twice the left margin, which has nothing to do with what
+  the author actually typed the page to hold; at the ordinary default it came
+  out one character narrower than a common 69-character line, so thousands of
+  facsimile lines across the public corpus arrived re-wrapped by the reader —
+  the one thing Printed mode exists to prevent. The column now follows the
+  widest ruler in the document (or the longest printed line itself, when box
+  art or a print stream runs past its own ruler), and the page grows to fit
+  it, up to Word's own maximum page size. A document whose lines are wider
+  than even that still re-wraps in the reader — there is no page any reader
+  accepts that would hold them, and that group shrank from 132 documents to
+  32 in a full sweep.
+
+- **A reverse-video banner ("white on black") is visible in RTF and HTML,
+  not white text on a white page.** Both exporters kept WordStar's white
+  colour but never painted the black ground behind it, so the words were
+  simply not there — three documents in the public corpus lost a banner this
+  way, one of which says outright in its own text that it should read white
+  on black. The ground is drawn now; turning off inline styling removes it
+  along with the colour, same as it always has for every other colour.
+
+- **A Printed HTML page is no longer twice as tall as the document.** The
+  facsimile block already breaks a line on its own newline; the emitter was
+  also writing a `<br>` at the end of every line, so each line was followed
+  by a blank one. A 57-page document rendered at double height with its line
+  grid gone. The extra break is removed.
+
+- **Newspaper-style columns (`.co`) render as one column block per section,
+  in both Printed and Modern HTML**, not one box per paragraph. Modern had
+  been opening a fresh pair of columns for every paragraph in a columnar
+  region, which balances each paragraph on its own and leaves ragged,
+  half-empty columns underneath; Printed dropped the columns entirely. Both
+  now open a single container for the whole section, closing it only where
+  the document itself ends the columns.
+
+- **A Modern HTML page no longer scrolls sideways on a phone.** The Modern
+  stylesheet had no line-length limit at all — a wide window gave a line
+  roughly twice a comfortable reading length, and at phone width a long path,
+  a run of control words, or a wide row of block graphics pushed the whole
+  page off the edge of the screen. Modern HTML now keeps a reading-width
+  column and lets only the one unbreakable row (an embedded picture) scroll
+  inside itself, the way the Printed facsimile already does. Printed HTML is
+  untouched — it was already narrow enough.
+
 ### Changed
 
 - **Every quirk was renamed**, and the names that shipped in 4.9.0 still work.
@@ -98,6 +159,30 @@ https://github.com/jonmichaels/ctrl-kd/releases
   new name only, so one output can never show both spellings for one quirk.
 - Descriptions and the quirk window's own row titles use US spelling: "Screen
   colors as gray", "Colors 9–14 as hatch patterns".
+- `--headers` and `--page-numbers` now say outright, in their own `--help`
+  text, that they apply to PDF and RTF only. Text, Markdown and HTML are
+  unpaged by design and never carried running heads, feet or page numbers;
+  the flags are still accepted (and ignored, with no error) on those three
+  formats — nothing about how they convert has changed.
+
+3,325 answer-key cells were re-recorded across this release's commits (a cell
+can move more than once as later commits build on earlier ones): 796 for the
+per-page-sheet schema bump (792 `layout` cells at the version number alone,
+one document's `pdf.printed`/`rtf.printed` pair for its actual landscape
+page, and that same document's `layout` cells re-recorded a second time for
+a follow-up fix to the running-head model), 540 for the Printed RTF column
+width (385 documents' `rtf.printed`, 148 `rtf.modern`), 508 for the doubled
+HTML line height (352 `html.printed`,
+149 `html.modern`), 246 for the Modern HTML reading measure (all `html.modern`),
+154 for the quirk renames (72 documents' `layout` cells, where the applied-quirk
+list is spelled out), 897 for page-furniture fonts (354 `rtf.printed`, 353
+`rtf.modern`, 178 `pdf.modern`, plus the picture-bearing twin of each), 115 for
+the three Markdown fixes (`markdown.modern`), 28 for the newspaper-column fix
+(14 documents, both HTML cells), 19 for the Modern bullet gap (`pdf.modern` +
+`rtf.modern`), 14 for off-sheet furniture (7 documents' `layout` cells), and 8
+for the reverse-video ground (2 documents, all four RTF/HTML cells). The
+`--headers`/`--page-numbers` help wording and the compile-warnings fix moved
+no cells at all.
 
 ## [4.9.0] — 2026-09-16
 
