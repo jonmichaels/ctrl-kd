@@ -1164,6 +1164,20 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     properties of the build, not of the document, and would be dead weight
     repeated in every file.
 
+    version 13 (2026-09-17, M31): a PRINTED PAGE may now carry its own
+    `size` -- `{'width_pt', 'height_pt', 'orientation'}` -- because the
+    sheet stopped being one answer for the whole document. `.pr or=l`/
+    `.pr or=p` used to be read as a single document-wide last-write-wins
+    flag; it is resolved per page now, at the block each page OPENS at
+    (`pdf._or_checkpoints`, whose docstring carries the measured WS7 timing
+    rule). `size` follows the same omit-unless-it-differs convention as
+    every other per-page field here: it is present ONLY on a page whose
+    orientation differs from the document's own, so a document that never
+    changes orientation mid-file -- which is every public corpus document
+    except `ARTICLES/FORMFEED.WS` -- emits byte-identical JSON to version
+    12. A page WITHOUT `size` is the document's sheet: the top-level
+    `page` object's own `pw_in`/`height_in`, exactly as before.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -1305,6 +1319,22 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
             # column's vertical cursor RESTARTS -- see the version note.
             pg['column_top_offset_pt'] = round(
                 float(getattr(page, 'column_top_offset_pt', None) or 0.0), 1)
+        # `size` (version 13, M31): THIS PAGE'S OWN SHEET, in points, and its
+        # orientation -- present ONLY on a page whose `.pr or=` differs from
+        # the document's own (the same omit-unless-set convention every field
+        # above uses, and the one version 12's quirks note states outright).
+        # A page without it is the document's sheet, `page.pw_in`/`height_in`
+        # at the top of this file, which is every page of every document that
+        # never changes orientation mid-file.
+        pg_or = getattr(page, 'orientation', None)
+        if pg_or is not None:
+            pg_sheet = _pdf._page_dict_for_orientation(doc.meta.get('page') or {},
+                                                       pg_or)
+            pg['size'] = {
+                'width_pt': int(round(float(pg_sheet.get('pw_in', 8.5)) * 72)),
+                'height_pt': _pdf._page_height_pt_for(pg_sheet),
+                'orientation': pg_or,
+            }
         printed_pages.append(pg)
 
     # planning #264 running list (the batch-23 finding): Modern's own Show
@@ -1359,7 +1389,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 12,
+        'version': 13,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],

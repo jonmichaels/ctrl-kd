@@ -128,6 +128,28 @@ def _landscape_page(page):
     return eff
 
 
+def _page_dict_for_orientation(page, orientation):
+    """`page` as THIS SHEET's orientation wants it (M31).
+
+    `_landscape_page` is idempotent by construction -- it recomputes the
+    height/width pair fresh from the page's own `.pl` rather than swapping
+    whatever pair it is handed -- so 'landscape' can be applied to a dict
+    that has already been swapped, or to one that has not, with the same
+    answer. 'portrait' is the other direction and needs the same treatment:
+    core.py's own PORTRAIT-convention resolution of this page's `.pl`,
+    recomputed fresh, so a page that must be put BACK from a
+    document-wide landscape swap lands exactly where a portrait document's
+    own page dict would have."""
+    if orientation == 'landscape':
+        return _landscape_page(page)
+    from .core import _resolve_page_size, DEFAULT_PL_LINES
+    pl_lines = page.get('pl_lines', DEFAULT_PL_LINES)
+    height_in, _name, pw_in = _resolve_page_size(pl_lines)
+    eff = dict(page)
+    eff['height_in'], eff['pw_in'] = height_in, pw_in
+    return eff
+
+
 def _resolved_page_height(doc, printed):
     """Page height in points for THIS document, PRINTED. It honours the
     file's own .pl-derived geometry (core.py's doc.meta['page']['height_in']
@@ -143,7 +165,15 @@ def _resolved_page_height(doc, printed):
     for landscape sheets in M17 and for every other sheet in M18."""
     if not printed:
         return PAGE_H
-    height_in = doc.meta.get('page', {}).get('height_in', 11.0)
+    return _page_height_pt_for(doc.meta.get('page', {}))
+
+
+def _page_height_pt_for(page):
+    """One PAGE DICT's own printed height in points -- the arithmetic
+    `_resolved_page_height` has always done, split out so a caller holding a
+    single page's resolved sheet (M31's per-page orientation, the layout
+    JSON's `size`) gets the same answer without a whole Document."""
+    height_in = page.get('height_in', 11.0)
     if height_in == 0:
         # `.pl 0` = page breaks off (bug 12284; see core._text_lines_per_page).
         # The text model already never breaks; the PDF page box itself falls
@@ -436,6 +466,97 @@ def _pl_at(checkpoints, bi):
             break
         pl = cp_pl
     return pl
+
+
+_PR_OR_CMD_RE = _re.compile(r'^\.PR\s*OR\s*=\s*([LP])', _re.IGNORECASE)
+
+
+def _or_checkpoints(doc):
+    """[(block_index, line_index, 'portrait'|'landscape'), ...] in ascending
+    order -- the `.pr or=` orientation IN FORCE from that position onward.
+    Same `dot_positions` anchor and the same "block 0 is WordStar's own
+    hardcoded default, never core.py's whole-document reading" contract as
+    `_pl_checkpoints` -- see that function's docstring for why -- but with
+    the LINE index kept, which `.pl`/`.po`/`.mt` discard.
+
+    M31 (planning; research 2026-09-17). Orientation used to exist ONLY as
+    `doc.meta['formatting']['orientation']`, a single document-wide value
+    that is whatever `.pr or=` the file happened to set LAST. That is the
+    same defect class core.py already names and excludes for `po_cols` and
+    `lead_48` ("a third copy here would be the LAST value the file happened
+    to set, which means nothing") -- it just never reached `.pr`.
+    sawyer/ARTICLES/FORMFEED.WS is the corpus's only document with more than
+    one column-1 `.pr or=`: `.pr or=l` opens its ruler-diagram page and
+    `.pr or=p` opens the sample pages after it, so last-write-wins resolved
+    the WHOLE file to portrait and the one page that asked for landscape got
+    a 612x792 portrait MediaBox. Real WS7 printed that page on an 11x8.5in
+    landscape sheet (the capture's own un-rotated pixels are 3300x2550 at
+    300dpi) and every documentation line fits; this engine clipped two of
+    them mid-word at the 612pt edge.
+
+    THE TIMING RULE IS MEASURED, not assumed (real WS7 under dosbox-x,
+    LASERJET driver -> PCL5, 2026-09-17):
+
+      * A `.pr or=` at the TOP of a page -- immediately after `.pa`, before
+        any of that page's text -- applies to THAT page. Probe TOPPAGE.WS:
+        WS7 wrote `ESC&l1O` immediately after the form feed that ended page
+        1 and before page 2's text, then `ESC&l0O` immediately after page
+        2's form feed.
+      * A `.pr or=` in the MIDDLE of a page -- after text has already
+        printed on it -- does NOT touch that page; it takes effect at the
+        NEXT page. Probe MIDPAGE.WS (`.pr or=l` between page 1's second and
+        third lines): all three of page 1's lines printed under the portrait
+        `ESC&l0O` written at its top, and the landscape escape appears one
+        byte AFTER page 1's form feed. WS7 never emits an orientation escape
+        mid-page at all -- it queues the change to the next page boundary.
+
+    WHY THE LINE INDEX IS KEPT, when every sibling here throws it away. The
+    block-granular question -- "is this command at or before the block the
+    page opens at" -- cannot tell the two probes apart: a `.pr` typed between
+    two lines of a paragraph sits at `(bi, 2)` of the SAME block the page
+    opened at, and a block-only comparison reads it a page early, giving page
+    1 the landscape sheet real WS7 gave page 2. The paginator already keeps
+    exactly the number that settles it: `read_tally[bi]`, how many lines of
+    that block earlier pages consumed, is the page's own opening position
+    within the block, and it is known at the moment the geometry recompute
+    runs (the tally is advanced AFTER, per line). So a checkpoint is in force
+    for a page opening at `(bi, consumed)` when it sits at or before that
+    position -- which makes a command in the page's own opening dot run
+    (`li == 0`, `consumed == 0`) its own, and a command further into the page
+    the NEXT page's.
+
+    `.pl`/`.po`/`.mt` keep their block granularity untouched: their own
+    oracles were measured against it, and none of them reaches the MediaBox."""
+    checkpoints = [(0, 0, 'portrait')]
+    for bi, li, cmd in doc.meta.get('dot_positions', ()):
+        m = _PR_OR_CMD_RE.match(cmd)
+        if not m:
+            continue
+        resolved = 'landscape' if m.group(1).upper() == 'L' else 'portrait'
+        if resolved != checkpoints[-1][2]:
+            checkpoints.append((bi, li, resolved))
+    return checkpoints
+
+
+def _or_at(checkpoints, bi, consumed=None):
+    """The orientation in force for a page opening at block `bi`, per
+    `checkpoints` (ascending, from `_or_checkpoints`).
+
+    `consumed` is how many lines of block `bi` EARLIER pages already took --
+    the paginator's own `read_tally[bi]`. With it, a checkpoint counts when
+    it sits at or before this page's opening position, so a `.pr` further
+    into the block than this page reached belongs to a later page. Without
+    it (`None`) the comparison is block-granular: every checkpoint in block
+    `bi` counts. RTF's section spine uses that form, having already resolved
+    each change to the paragraph boundary it can actually break at."""
+    orient = checkpoints[0][2]
+    for cp_bi, cp_li, cp_or in checkpoints:
+        if cp_bi > bi:
+            break
+        if cp_bi == bi and consumed is not None and cp_li > consumed:
+            break
+        orient = cp_or
+    return orient
 
 
 def _hm_fm_checkpoints(doc):
@@ -4452,6 +4573,7 @@ class Page(list):
                 'column_top_offset_pt', 'header_pcl', 'footer_pcl',
                 'header_lines', 'footer_lines', 'auto_pageno',
                 'head_hf_override', 'foot_hf_override', 'footer_in_use',
+                'orientation',
                 'read_pos')
 
     def __init__(self, seq=()):
@@ -4576,6 +4698,11 @@ class Page(list):
         # already carries a per-LINE `.po` override (core.Line.po_cols),
         # this is the page-granularity twin that mechanism was missing.
         self.po_cols = None
+        # M31: `.pr or=` in force when this page's own pagination started --
+        # same None/"the document's own orientation" contract again
+        # (`_or_checkpoints`). This is the page's SHEET, so unlike every
+        # other value here it reaches the MediaBox itself.
+        self.orientation = None
         # planning #231/#241 follow-up (2026-09-08):
         # whether `po_cols` above came from an ACTIVE `.poe`/`.poo` parity
         # override, as opposed to a plain mid-document `.po` reset. #241's
@@ -4894,6 +5021,7 @@ def _apply_columns(doc, pages, size):
         merged.hm_lines = getattr(pg, 'hm_lines', None)
         merged.fm_lines = getattr(pg, 'fm_lines', None)
         merged.po_cols = getattr(pg, 'po_cols', None)
+        merged.orientation = getattr(pg, 'orientation', None)
         merged.po_parity = getattr(pg, 'po_parity', False)
         merged.auto_pageno_po = getattr(pg, 'auto_pageno_po', None)
         merged.explicit_break = getattr(pg, 'explicit_break', False)
@@ -6029,6 +6157,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     po_checkpoints = _po_checkpoints(doc) if printed else None
     global_po = _po_at(po_checkpoints, 0) if po_checkpoints else None
     cur_po = global_po
+    # M31: `.pr or=` -- the page's own SHEET, resolved at the same
+    # per-page-start recompute as everything else here so `Page.orientation`
+    # is known by the time a page closes. See `_or_checkpoints` for the
+    # measured WS7 timing rule this resolution point reproduces.
+    or_checkpoints = _or_checkpoints(doc) if printed else None
+    global_or = _or_at(or_checkpoints, 0, 0) if or_checkpoints else None
+    cur_or = global_or
     # planning #231: `.poe`/`.poo` -- see `_poe_poo_checkpoints`. No
     # block-0 seed (unlike `po_checkpoints` above): "never used" is a real,
     # different answer from "used at the document default," and
@@ -6067,6 +6202,14 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     doc_hm = _pg0.get('hm_lines', DEFAULT_HM_LINES)
     doc_fm = _pg0.get('fm_lines', DEFAULT_FM_LINES)
     doc_po = _pg0.get('po_cols', DEFAULT_PO_COLS)
+    # M31: what the render side will use for a page that stamps NOTHING --
+    # `doc.meta['formatting']['orientation']`, the document-wide
+    # last-write-wins value `emit_pdf` has always read. Deliberately NOT
+    # changed here: it is a published field (layout JSON, `--diagnose`), and
+    # Modern PDF/RTF still compose on ONE sheet. A page stamps its own
+    # orientation exactly when its resolved value differs from that, which
+    # for every corpus document but FORMFEED.WS is never.
+    doc_or = (doc.meta.get('formatting') or {}).get('orientation', 'portrait')
     cur_hm, cur_fm = global_hm, global_fm
     cap = _printed_cap(doc) if printed else LINES_MODERN
     # Printed pagination is by ACCUMULATED POINTS, not line count. Paper is
@@ -6178,6 +6321,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
         if cur_pl != doc_pl:
             pg.pl_lines = cur_pl
+        # M31: this page's own sheet, stamped only when it differs from the
+        # document's -- same None/"document global" contract as everything
+        # else here, so every page of every document with at most one
+        # column-1 `.pr or=` is byte-identical to before.
+        if cur_or is not None and cur_or != doc_or:
+            pg.orientation = cur_or
         if (cur_hm, cur_fm) != (doc_hm, doc_fm):
             pg.hm_lines, pg.fm_lines = cur_hm, cur_fm
         # planning #231: this page's own PARITY -- `len(pages)` is exactly
@@ -6353,7 +6502,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         po = _po_at(po_checkpoints, bi) if po_checkpoints else global_po
         poe = _po_at(poe_checkpoints, bi) if poe_checkpoints else None
         poo = _po_at(poo_checkpoints, bi) if poo_checkpoints else None
-        return mt, mb, pl, hm, fm, po, poe, poo
+        # M31: the line-exact form -- `read_tally[bi]` is how many lines of
+        # this block earlier pages consumed, i.e. where this page opens
+        # INSIDE the block, and it is still the pre-line value here (the
+        # tally advances at the bottom of the loop body). See `_or_at`.
+        orient = (_or_at(or_checkpoints, bi, read_tally.get(bi, 0))
+                  if or_checkpoints else global_or)
+        return mt, mb, pl, hm, fm, po, poe, poo, orient
     # #228: True only in the gap between processing a forced pagebreak
     # (`l is None`) and either the next real line or the end of `lines`
     # -- set True right where the loop `continue`s on `l is None`, set
@@ -6532,7 +6687,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # page whose geometry never changes never recomputes to a
         # different number (see `_printed_cap_for`'s docstring).
         if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
+            cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo, cur_or = _recompute_geom(l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
             budget = _printed_budget_pt(doc, cap, default_lead,
                                         cur_mt, cur_mb, cur_pl)
@@ -6579,7 +6734,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # never reaches the top-of-loop `not page` gate, since it
                 # is already mid-iteration by the time `page` empties.
                 if printed and full and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
-                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo = _recompute_geom(l.bi)
+                    cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo, cur_or = _recompute_geom(l.bi)
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
                     budget = _printed_budget_pt(doc, cap, default_lead,
                                                 cur_mt, cur_mb, cur_pl)
@@ -11632,6 +11787,14 @@ def _emit_pdf_inner(doc, printed, options):
     # on both paths) must see "nothing to build" -- the real answer is
     # resolved inside the printed branch below.
     dq = _DriverQuirks(False, False, False, False)
+    # M31: (width_pt, height_pt) per page, in stream order -- the MediaBox
+    # stopped being one number for the whole document when `.pr or=` became
+    # per-page. Every page of every document that never changes orientation
+    # mid-file appends the SAME pair the single `page_w`/`page_h` used to
+    # supply, so this is byte-identical everywhere else.
+    page_boxes = []
+    page_w_doc = int(round(float((doc.meta.get('page') or {})
+                                 .get('pw_in', 8.5)) * 72))
     if printed:
         pages = _doc_to_pagelines(doc, printed, pix_results=pix_results, pictures=pictures,
                                   sentence_spacing=ss_on)
@@ -11772,9 +11935,24 @@ def _emit_pdf_inner(doc, printed, options):
             # at the page's CLOSE. Twin of the one in
             # `_attach_head_foot_lines_printed`; see `_auto_pageno_x_pt`.
             running_po = getattr(pl, 'auto_pageno_po', None)
+            # M31: this page's own sheet. `Page.orientation` is set only
+            # when the `.pr or=` in force at the block this page OPENED at
+            # differs from `doc.meta['formatting']['orientation']` -- the
+            # document-wide value `emit_pdf` has already applied (or not
+            # applied) to `doc.meta['page']` above. So a stamped page is
+            # always a page that must be corrected the OTHER way from the
+            # whole document: landscape here means the global swap did not
+            # happen and this page needs one; portrait here means it did and
+            # this page must be put back. `_landscape_page` recomputes the
+            # pair fresh from `.pl` rather than swapping what it is handed
+            # (its own docstring: idempotent), so the un-swap is simply
+            # "don't swap" -- rebuild from core.py's own portrait-convention
+            # resolution of this page's `.pl`.
+            page_or = getattr(pl, 'orientation', None)
             saved_pg = None
             if (page_mt is not None or page_mb is not None or page_pl is not None
-                    or page_hm is not None or page_fm is not None):
+                    or page_hm is not None or page_fm is not None
+                    or page_or is not None):
                 eff = dict(doc.meta['page'])
                 if page_mt is not None:
                     eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
@@ -11798,10 +11976,24 @@ def _emit_pdf_inner(doc, printed, options):
                     eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
                 if page_fm is not None:
                     eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
+                if page_or is not None:
+                    eff = _page_dict_for_orientation(eff, page_or)
                 saved_pg, doc.meta['page'] = doc.meta['page'], eff
                 page_top = _printed_top(doc)
             else:
                 page_top = top
+            # M31: THE SHEET ITSELF, per page. `page_h` feeds the y-flip every
+            # content-stream op is drawn through and the running head/foot's
+            # own row; `page_w_this` is the MediaBox width. Both are the
+            # document's single answer for every page that stamped nothing --
+            # byte-identical to before for every document but FORMFEED.WS.
+            if page_or is not None:
+                page_h_this = _resolved_page_height(doc, True)
+                page_w_this = int(round(float(
+                    (doc.meta.get('page') or {}).get('pw_in', 8.5)) * 72))
+            else:
+                page_h_this, page_w_this = page_h, page_w_doc
+            page_boxes.append((page_w_this, page_h_this))
             # E3 item 2: resolve THIS page's own automatic-number state.
             # The two flags are SEPARATE (planning #264 R7, ruled
             # 2026-09-14): `--headers` governs running heads and feet --
@@ -11834,7 +12026,7 @@ def _emit_pdf_inner(doc, printed, options):
             pl_footer_in_use = getattr(pl, 'footer_in_use', None)
             if pl_footer_in_use is None:
                 pl_footer_in_use = bool(getattr(pl, 'footers', None))
-            running = _running_ops(doc, page_numbers[page_index], page_h, lead,
+            running = _running_ops(doc, page_numbers[page_index], page_h_this, lead,
                                    size, running_left, printed,
                                    headers=(getattr(pl, 'headers', None) if show_headers else {}),
                                    footers=(getattr(pl, 'footers', None) if show_headers else {}),
@@ -11851,7 +12043,7 @@ def _emit_pdf_inner(doc, printed, options):
                                    po_cols=running_po)
             if saved_pg is not None:
                 doc.meta['page'] = saved_pg
-            streams.append(_page_stream(pl, page_top, page_h, lead, size, left,
+            streams.append(_page_stream(pl, page_top, page_h_this, lead, size, left,
                                         running, fonts, res, colour_map, roll_pt,
                                         ul_continuous, line_no_checkpoints,
                                         doc.pcl_programs,
@@ -11883,6 +12075,12 @@ def _emit_pdf_inner(doc, printed, options):
                                             lj_typo=dq.typography,
                                             lj_corners=dq.corners,
                                             hp_patterns=dq.patterns))
+                # M31: compiled TOC/Index sheets are the DOCUMENT's own
+                # sheet (`page_h`/`page_w_doc`), not any body page's -- they
+                # are not part of the document's own flow and carry no
+                # running head or foot either, the same documented
+                # simplification.
+                page_boxes.append((page_w_doc, page_h))
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,
@@ -11898,12 +12096,24 @@ def _emit_pdf_inner(doc, printed, options):
         page_h = _modern_sheet_h(doc)
         res = FontRes()
         streams = _modern_streams(doc, options, res)
-    # Width joined the page model 2026-08-06 ("the 3 main page sizes"):
-    # inferred from the height -- A4-tall pages are 210mm wide, everything
-    # else is the 8.5in sheet -- so a default document stays exactly 612.
-    page_w = int(round(float((doc.meta.get('page') or {})
-                             .get('pw_in', 8.5)) * 72))
+        # M31: Modern composes on ONE sheet, the document's own declared
+        # size with the document-wide `.pr or=` swap applied
+        # (`_modern_page_dict`). Per-page orientation is deliberately NOT
+        # carried here: Modern reflows, so "the orientation in force when
+        # this page starts" is not a property of the document at all but of
+        # a flow this engine invented, and no real WS7 capture can adjudicate
+        # what Modern OUGHT to show -- the same reasoning core.py already
+        # records for why `_resolve_page_size` is not told about orientation
+        # on the Modern path. Printed is the facsimile; it is the surface the
+        # measurement exists for.
+        page_boxes = [(page_w_doc, page_h)] * len(streams)
     n_pages = len(streams)
+    # M31: every stream must have a box. A printed path that appended one
+    # per page satisfies this by construction; the guard catches any future
+    # page-producing branch that forgets, rather than writing a silently
+    # wrong MediaBox.
+    if len(page_boxes) != n_pages:
+        page_boxes = (page_boxes + [(page_w_doc, page_h)] * n_pages)[:n_pages]
     objs = []                                             # (obj_number, bytes)
 
     font_objs = {}                                        # F1..Fn -> obj num
@@ -12013,11 +12223,12 @@ def _emit_pdf_inner(doc, printed, options):
     objs.insert(0, (1, b'<< /Type /Catalog /Pages 2 0 R >>'))
     objs.insert(1, (2, b'<< /Type /Pages /Kids [%s] /Count %d >>' % (kids, n_pages)))
 
-    for pnum, cnum, stream in zip(page_nums, content_nums, streams):
+    for pnum, cnum, stream, (box_w, box_h) in zip(page_nums, content_nums,
+                                                  streams, page_boxes):
         objs.append((pnum,
                      b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
                      b'/Resources << /Font << %s >>%s%s%s >> /Contents %d 0 R >>'
-                     % (page_w, page_h, font_dict, xobject_dict, pattern_dict,
+                     % (box_w, box_h, font_dict, xobject_dict, pattern_dict,
                         extgstate_dict, cnum)))
         objs.append((cnum, b'<< /Length %d >>\nstream\n%s\nendstream'
                      % (len(stream), stream)))

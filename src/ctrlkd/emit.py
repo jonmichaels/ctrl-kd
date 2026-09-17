@@ -3085,6 +3085,42 @@ def _rtf_cols_control(cols, gutter):
     return r'\cols%d\colsx%d' % (cols, gap)
 
 
+def _rtf_section_page_size(doc, sect_or):
+    r"""`\pgwsxn\pghsxn[\lndscpsxn]` for a section whose `.pr or=` differs
+    from the document's own, or '' when it agrees (M31).
+
+    Read straight off the document rather than from `emit_rtf`'s own `page`/
+    `landscape` locals, which are resolved BELOW the body loop this is
+    called from. `.pl` is the only field needed and neither the landscape
+    swap nor `--page-settings` touches it, so the two readings are the same
+    number. The pair is recomputed fresh from it, orientation-aware, exactly
+    as `pdf._page_dict_for_orientation` does for the MediaBox, so the two
+    surfaces answer the same sheet for the same section.
+
+    `\lndscpsxn` is written on a landscape section and deliberately NOT
+    "unwritten" on a portrait one -- `\sectd` has already reset it, since
+    it is a section property, so a portrait section needs only its own
+    width and height."""
+    doc_landscape = (doc.meta.get('formatting', {})
+                     .get('orientation') == 'landscape')
+    sect_landscape = sect_or == 'landscape'
+    if sect_landscape == doc_landscape:
+        return ''
+    from .core import _resolve_page_size, DEFAULT_PL_LINES
+    pl_lines = (doc.meta.get('page') or {}).get('pl_lines', DEFAULT_PL_LINES)
+    if sect_landscape:
+        height_in, _name, pw_in = _resolve_page_size(pl_lines,
+                                                    orientation='landscape')
+        height_in, pw_in = pw_in, height_in
+    else:
+        height_in, _name, pw_in = _resolve_page_size(pl_lines)
+    out = r'\pgwsxn%d\pghsxn%d' % (int(round(pw_in * 1440)),
+                                   int(round(height_in * 1440)))
+    if sect_landscape:
+        out += r'\lndscpsxn'
+    return out
+
+
 def _rtf_keep_plan(doc):
     r"""`{block_index: (keep, keepn)}` -- the paragraphs `.cp n`/`.cc n`
     asked to be kept together (planning #264 R2, packet row A8, ruled
@@ -3143,9 +3179,9 @@ def _rtf_keep_plan(doc):
     return plan
 
 
-def _rtf_section_breaks(doc):
-    r"""`{block_index: (cols, gutter, hdr_slots, ftr_slots)}` -- THE SECTION
-    SPINE (planning #264 R1, ruled 2026-09-14; packet section 3's
+def _rtf_section_breaks(doc, printed=True):
+    r"""`{block_index: (cols, gutter, hdr_slots, ftr_slots, orientation)}` --
+    THE SECTION SPINE (planning #264 R1, ruled 2026-09-14; packet section 3's
     recommendation and rows A7/A9/A13).
 
     One entry per section AFTER the first; the first is the one the
@@ -3170,6 +3206,27 @@ def _rtf_section_breaks(doc):
       A13 a running head or foot REDEFINED mid-document -- a second
           definition of the same slot with different text. The new section
           carries its own `\header`/`\footer` groups.
+      M31 a change of SHEET ORIENTATION (`.pr or=l`/`.pr or=p`), PRINTED
+          ONLY. RTF's page size really is a section property as well as a
+          document one (`\pgwsxn`/`\pghsxn`/`\lndscpsxn`), so this is the
+          one place RTF can say what the Printed PDF's per-page MediaBox
+          now says. It is the only one of the three openers that also
+          FORCES a page break in the reader -- `\sect` always does -- but
+          that costs nothing here: real WS7 defers a mid-page `.pr or=` to
+          the next page anyway (measured, see `pdf._or_checkpoints`), and
+          every column-1 `.pr or=` in the corpus sits immediately after a
+          `.pa`.
+
+          PRINTED ONLY, unlike A7 and A13, because Modern PDF is the
+          printed form of the Modern RTF (ruled 2026-08-05) and Modern PDF
+          composes every page on ONE sheet -- the document's own, with the
+          document-wide swap applied (`pdf._modern_page_dict`). A Modern
+          RTF carrying a landscape section would be a Modern RTF its own
+          PDF does not print, which is the exact failure mode M17b's note
+          above describes in the other direction. Whether MODERN should
+          follow orientation per section as well is a real open question
+          and a separate ruling: Modern reflows, so its pages are this
+          engine's own, and no WS7 capture can adjudicate them.
 
     `.cb` (row A9) is NOT a section break: it is `\column`, a break to the
     next column INSIDE a section, written by the body loop.
@@ -3177,6 +3234,7 @@ def _rtf_section_breaks(doc):
     Deliberately not here, and not ruled here: a mid-document `.pn`
     re-anchor (`\pgnrestart\pgnstarts`), and a mid-document `.po`/margin
     change. R1 names A7, A9 and A13; those are the three built."""
+    from .pdf import _or_checkpoints, _or_at
     anchors = set(_rtf_hf_redefinitions(doc))
     state = _rtf_columns_state(doc)
     for bi, b in enumerate(doc.blocks):
@@ -3186,12 +3244,29 @@ def _rtf_section_breaks(doc):
             continue
         if state[bi] != state[bi - 1]:
             anchors.add(bi)
+    # M31: every block where the orientation in force CHANGES. The
+    # checkpoint list already holds exactly those block indices (it only
+    # ever appends when the resolved value differs from the one before),
+    # minus its own block-0 seed, which is section 1's business.
+    or_checkpoints = _or_checkpoints(doc)
+    if printed:
+        for cp_bi, cp_li, _cp_or in or_checkpoints[1:]:
+            # A command that OPENS its block (`li == 0`) starts the section
+            # at that block. One typed further in has text before it in the
+            # same paragraph -- real WS7 defers such a command to the next
+            # page, and RTF can only break at a paragraph boundary anyway --
+            # so its section starts at the block AFTER. Every column-1
+            # `.pr or=` in the corpus is the first kind.
+            anchor = cp_bi if cp_li == 0 else cp_bi + 1
+            if anchor > 0:
+                anchors.add(anchor)
     out = {}
     for bi in sorted(a for a in anchors if 0 < a < len(doc.blocks)):
         cols, gutter = state[bi]
         out[bi] = (cols, gutter,
                    _rtf_hf_slots_at(doc, 'H', bi),
-                   _rtf_hf_slots_at(doc, 'F', bi))
+                   _rtf_hf_slots_at(doc, 'F', bi),
+                   _or_at(or_checkpoints, bi) if printed else None)
     return out
 
 
@@ -4060,14 +4135,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # `_rtf_section_breaks` for what opens a section and what deliberately
     # does not. A document whose geometry never changes gets an empty dict
     # here and emits exactly the bytes it always did.
-    section_breaks = _rtf_section_breaks(doc)
+    section_breaks = _rtf_section_breaks(doc, printed)
     columns_state = _rtf_columns_state(doc)
     # planning #264 R2 (packet row A8): `.cp n`/`.cc n` -> `\keep`/`\keepn`
     # on the paragraphs they asked to hold together. See `_rtf_keep_plan`.
     keep_plan = _rtf_keep_plan(doc)
     for bi, b in enumerate(doc.blocks):
         if bi in section_breaks:
-            cols, gutter, hdr_slots, ftr_slots = section_breaks[bi]
+            cols, gutter, hdr_slots, ftr_slots, sect_or = section_breaks[bi]
             sect_running, _sect_facing, sect_headery, sect_footery = (
                 _rtf_running_heads(
                     doc, headers=headers,
@@ -4077,11 +4152,20 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
             # defaults, so this section restates the ones it needs:
             # `\headery`/`\footery` (section properties in the RTF spec,
             # written into the page setup above for section 1) and its own
-            # column regime. `\facingp`, `\margmirror` and the paper size
-            # are DOCUMENT properties and survive untouched.
+            # column regime. `\facingp` and `\margmirror` are DOCUMENT
+            # properties and survive untouched.
+            #
+            # M31: the paper size is NOT purely a document property -- RTF
+            # has `\pgwsxn`/`\pghsxn`/`\lndscpsxn` for exactly this -- and
+            # is written whenever this section's own `.pr or=` differs from
+            # the document's. A section whose orientation matches the
+            # document's writes nothing, so every existing file's bytes
+            # stay where they were.
             sect = r'\sect\sectd'
             if sect_headery is not None:
                 sect += r'\headery%d\footery%d' % (sect_headery, sect_footery)
+            if sect_or is not None:
+                sect += _rtf_section_page_size(doc, sect_or)
             sect += _rtf_cols_control(cols, gutter)
             parts.append(sect + ' ' + sect_running + '\n')
             # section properties reset the paragraph state the running text

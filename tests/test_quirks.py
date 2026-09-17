@@ -394,7 +394,7 @@ def test_a_document_that_trips_nothing_says_nothing():
     field uses, so a document with no quirk available emits byte-identical
     JSON to version 11."""
     out = json.loads(emit_layout(quirks.apply_quirks(plain_doc()), 'modern'))
-    assert out['version'] == 12
+    assert out['version'] == 13
     assert 'quirks_applicable' not in out and 'quirks_applied' not in out
 
 
