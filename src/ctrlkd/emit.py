@@ -1558,6 +1558,67 @@ def _style_slug(entry):
     return f"ws-{entry['slot']}-{slug}"
 
 
+# E9 H2 (Jon's ruling 2026-09-17, audit section E): NEWSPAPER COLUMNS ARE A
+# SECTION, NOT A PARAGRAPH. Modern HTML used to wrap EVERY paragraph of a
+# `.co n` region in its own `column-count` box, so each paragraph balanced
+# itself across the columns and a fresh pair started underneath -- half-empty
+# right-hand columns all the way down a document the RTF emitter gets right
+# with one `\cols2` section. Printed HTML dropped the columns entirely.
+#
+# Both now open ONE container per columnar section: the wrapper is written
+# per block exactly as before (it is the only place `b.columns` is in scope)
+# and `_html_merge_column_sections` then welds each run of ADJACENT, identical
+# wrappers into one. Adjacency is the section: `_rtf_columns_state`'s own
+# reading -- a block with no columns opinion inherits the regime around it --
+# falls out of it for free, and anything that genuinely interrupts the run (a
+# heading, a page rule, a note section) correctly closes the container.
+#
+# The class is what the phone rule below hangs on; the count and gutter stay
+# inline because they are per-document numbers, not a stylesheet's business.
+_HTML_COLS_CLASS = 'ws-cols'
+# A two-column measure on a 400px phone is about twenty characters a line
+# (measured in the audit), which is not a column, it is a stack of fragments.
+# `!important` is not decoration: it is beating this element's OWN inline
+# `column-count`, which no ordinary selector can outrank.
+_HTML_COLS_CSS = ('\n@media(max-width:600px){div.%s{column-count:1!important}}'
+                  % _HTML_COLS_CLASS)
+_HTML_COLS_OPEN_RE = re.compile(
+    r'^<div class="%s" style="[^"]*">' % _HTML_COLS_CLASS)
+
+
+def _html_column_wrapper(b):
+    """The opening `<div>` for a block inside a `.co n` region, or None.
+
+    A gutter is print columns at 10 CPI -> tenths of an inch."""
+    if not (b.columns and b.columns > 1):
+        return None
+    gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
+           if b.column_gutter else '')
+    return ('<div class="%s" style="column-count:%d%s">'
+            % (_HTML_COLS_CLASS, b.columns, gap))
+
+
+def _html_merge_column_sections(parts):
+    """Weld each run of adjacent, identically-opened column wrappers in
+    `parts` into one container, in place."""
+    i = 0
+    while i < len(parts):
+        m = _HTML_COLS_OPEN_RE.match(parts[i])
+        if not m or not parts[i].endswith('</div>'):
+            i += 1
+            continue
+        open_tag = m.group(0)
+        j = i + 1
+        while (j < len(parts) and parts[j].startswith(open_tag)
+               and parts[j].endswith('</div>')):
+            j += 1
+        if j > i + 1:
+            inner = '\n'.join(parts[k][len(open_tag):-len('</div>')]
+                              for k in range(i, j))
+            parts[i:j] = [open_tag + inner + '</div>']
+        i += 1
+
+
 def _add_html_class(cls_attr, extra):
     """Merge an extra CSS class into an already-built `' class="..."'`
     attribute string (or start a fresh one if `cls_attr` is empty) --
@@ -2223,7 +2284,14 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             body = '\n'.join(lines)
             if body.strip():
                 native_cls = _add_html_class(cls, 'ws-native')
-                parts.append(f'<p{native_cls}>{body}</p>')
+                p_html = f'<p{native_cls}>{body}</p>'
+                # E9 H2: Printed HTML used to be the ONE surface that threw
+                # `.co n` away -- 0 of 511 Printed HTML documents carried
+                # columns, where the Printed RTF of the same file composes
+                # them properly. The facsimile lines go down one column and
+                # on into the next, which is what WordStar printed.
+                col_open = _html_column_wrapper(b)
+                parts.append(f'{col_open}{p_html}</div>' if col_open else p_html)
         else:
             # Modern: structure rules pull bullet/def-list/spaces-centered
             # rows out of the flow first (unconditionally, as always);
@@ -2376,11 +2444,9 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                     # `_classify_modern_blocks`) -- a multi-column block's own lines
                     # arrive here as ONE plain run (below), unaffected either way.
                     p_html = f'<p{cls}{style}>{para}</p>'
-                    if b.columns and b.columns > 1:
-                        gap = ('; column-gap:%.2fin' % (b.column_gutter / 10.0)
-                               if b.column_gutter else '')
-                        col = f' style="column-count:{b.columns}{gap}"'
-                        p_html = f'<div{col}>{p_html}</div>'
+                    col_open = _html_column_wrapper(b)
+                    if col_open:
+                        p_html = f'{col_open}{p_html}</div>'
                     if quote:
                         # rule 1 (round 3/4, 2026-08-17): quote-classified
                         # styles become a real <blockquote> -- the style's own
@@ -2460,6 +2526,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             _flush_plain_run()
     builder.flush(parts)
     _flush_quote()
+    _html_merge_column_sections(parts)
     linked = (_REF_KINDS if shown_map is not None
               else tuple(k for k in _REF_KINDS if k != 'comment'))
     sections = _html_notes_sections(pairs, keep, linked, ss_on)
@@ -2501,6 +2568,11 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     if any('ws-nowrap' in p for p in parts):
         css += ('\nspan.ws-nowrap{white-space:nowrap}'
                 '\np.ws-native span.ws-nowrap{white-space:pre}')
+    # E9 H2: the phone rule, appended only when the document actually opened
+    # a columnar section -- the same "no CSS-byte delta for a feature this
+    # document never used" discipline as the three rules above.
+    if any(_HTML_COLS_CLASS in p for p in parts):
+        css += _HTML_COLS_CSS
     # planning #264 R5 (packet row C6, ruled 2026-09-14 "Fine. Add it."):
     # the print stylesheet. Printed only, appended last so everything
     # above it is the SCREEN stylesheet and stays byte-for-byte what it

@@ -3812,7 +3812,13 @@ def test_pe_and_cv_are_recorded_rather_than_silently_dropped():
 def test_columns_are_per_block_and_render_in_html():
     """C5. The archive writes `.co2, 0.3"`, `.CO3,  .20"` and `.co1` (one column =
     off). CSS does columns properly, so HTML is the one format that can honour
-    `.co` rather than merely record it."""
+    `.co` rather than merely record it.
+
+    E9 H2 (2026-09-17): the container is per SECTION, not per paragraph, and
+    carries a `ws-cols` class so a phone can collapse it to one column -- so
+    `column-count` now appears twice in a columnar document, once in the
+    section's own div and once in the phone rule. See
+    tests/test_html_column_sections.py."""
     from ctrlkd.emit import emit_html
     doc = core.parse_ws(b'.co2, 0.3"\r\nTwo columns.\r\n.co1\r\nBack to one.\r\n')
     assert [(b.columns, b.column_gutter) for b in doc.blocks] == [(2, 3.0), (1, 3.0)]
@@ -3820,8 +3826,10 @@ def test_columns_are_per_block_and_render_in_html():
     html = emit_html(doc, mode='modern')
     assert 'column-count:2' in html
     assert 'column-gap:0.30in' in html
-    # one column is not a column layout
-    assert html.count('column-count') == 1
+    # one column is not a column layout: one real container, plus the
+    # phone rule that collapses it
+    assert html.count('<div class="ws-cols"') == 1
+    assert html.count('column-count') == 2
 
 
 def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
