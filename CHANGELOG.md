@@ -7,6 +7,17 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ### Fixed
 
+- **Modern: a list bullet and its text no longer read as one crowded word.**
+  The square bullet was drawn on the same fixed-pitch cell Printed uses, but
+  the space after it was measured in the reading face — 3.5pt against the
+  cell's 7.2 — so the item's first word sat about half as far from the bullet
+  as it does in the Printed and Native views. It is now one cell, as it is
+  there: the first word starts two cells past the bullet in all three views.
+  Also fixed in the Modern RTF's hanging indent, which had computed a third
+  number again. Only bullets whose marker is a cp437 block glyph are
+  affected; a `*` or `-` marker is a real letter in the reading face and
+  keeps the spacing it had.
+
 - **Markdown: text that used to vanish now survives.** A document that
   literally says `<SP>`, `<Enter>` or `<B>` had that read as an HTML tag by
   every Markdown renderer, which showed NOTHING — the word disappeared.

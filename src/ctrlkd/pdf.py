@@ -10543,6 +10543,64 @@ def _modern_structure_indent_hang(structure, col_pt, toks, printed_pt):
     return indent, hang
 
 
+def _modern_bullet_gap_toks(toks, structure, col_pt):
+    """`toks` with the SPACE AFTER A LIST BULLET widened to one fixed-pitch
+    cell (M27/E8, Jon's ruling 2026-09-17).
+
+    THE DEFECT. In Printed and in the app's Native view a bullet row's marker
+    and the single space after it each occupy one monospace CELL, so the item's
+    first word starts two cells past the marker's own left edge. Modern draws
+    the marker itself pinned to that same cell (it is drawn as vector art, not
+    a glyph -- see `_GRAPHIC_CELL_RECTS`), but then measured the following
+    space in the READING FACE, where a Times-14 space is 3.5pt rather than the
+    cell's 7.2. Measured on `sawyer/-README.WS`: the next word landed 4.76pt
+    past the square's ink where Native puts it 8.46pt past. The bullet and its
+    text read as one crowded word.
+
+    THE FIX. Give that one space the cell's own width. Nothing else changes:
+    the marker keeps its pinned cell, the reading face keeps every other
+    space, and the row's HANG -- the advance of its first two characters,
+    which is what a wrapped continuation lines up against -- picks the new
+    width up by construction, because it is measured from these same tokens
+    after this runs.
+
+    SCOPED TWICE OVER, and both halves matter.
+
+    FIRST, to a real list bullet: the gate is the structure classifier's own
+    `kind == 'bullet'` plus its recorded `marker`, the same detection the
+    hanging indent already uses -- so a `■` inside running prose, or one in a
+    cp437 box-drawing figure, is untouched. `classify_rows` only ever calls a
+    glyph a marker when the row is exactly "glyph, one space, text", which is
+    why a single-space token is the only shape accepted here.
+
+    SECOND, to a marker that is itself drawn ON THE CELL -- a `GRAPHIC_CHARS`
+    glyph. That is the whole premise: `■` already advances one fixed-pitch
+    cell (`_modern_w`'s own graphic branch), so giving its gap a cell makes
+    the pair exactly the two cells Printed and Native lay down. An ORDINARY
+    marker (`*`, `-`, `o`) is a real glyph in the reading face, advancing its
+    own natural width, and pairing that with a cell-wide gap would produce a
+    third measurement matching nothing -- so those keep the reading face's own
+    space, exactly as before.
+    """
+    if structure.get('kind') != 'bullet':
+        return toks
+    marker = structure.get('marker')
+    if not marker or marker not in GRAPHIC_CHARS:
+        return toks
+    for i, (text, styles, family, pt, entry, w) in enumerate(toks):
+        if not text.strip():
+            continue                      # leading padding, already dropped
+        if text != marker:
+            return toks                   # the row does not open with its own marker
+        if i + 1 >= len(toks):
+            return toks
+        gap = toks[i + 1]
+        if gap[0] != ' ':
+            return toks                   # not the "glyph, one space" shape
+        return (toks[:i + 1] + [gap[:5] + (col_pt,)] + toks[i + 2:])
+    return toks
+
+
 def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                  pictures='off', text_width_pt=0.0, sentence_spacing=False,
                  record_sem_index=None, sem_cached=None,
@@ -10840,6 +10898,11 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
                 # its marker and gap only once the padding is gone.
                 while toks and not toks[0][0].strip():
                     toks.pop(0)
+                # M27/E8: widen the bullet's own gap BEFORE the hang is
+                # measured -- the hang is the advance of the row's first two
+                # characters, so it has to see the corrected width or a
+                # wrapped continuation would line up against the old one.
+                toks = _modern_bullet_gap_toks(toks, structure, col_pt)
                 indent, hang = _modern_structure_indent_hang(
                     structure, col_pt, toks, printed_pt)
             else:

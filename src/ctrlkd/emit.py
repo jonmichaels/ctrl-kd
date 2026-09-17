@@ -3972,15 +3972,27 @@ def _rtf_structure_indent_hang(s, doc, marker_text):
     THE HANG, where a wrapped continuation lands:
       def     a fixed `MODERN_DEF_HANG_PT` past the margin, shared by
               every row of the list.
-      bullet  the marker's own advance. The PDF measures it in the face
-              that draws it; RTF cannot know the reader's face, so it
-              measures the same two characters in the same base-14
-              Times at the same Modern body size the PDF's own fontless
-              Modern token uses -- one number both engines compute
-              identically, and far closer than a whole-column count (the
-              PDF rejected a column-count hang precisely because a marker
-              and its gap never land on a whole monospace cell in a
-              proportional face).
+      bullet  TWO FIXED-PITCH CELLS when the marker is a graphic-cell glyph
+              (`■`, the shape every real corpus list uses) -- its own cell
+              and the cell of the single space after it (M27/E8, Jon's
+              ruling 2026-09-17: "Modern's bullets and the gap after them
+              must match Native/Printed"). An ORDINARY marker (`*`, `-`,
+              `o`) is a real glyph in the reading face and keeps the
+              measured advance it always had: pairing a natural glyph
+              width with a cell-wide gap would be a third measurement
+              matching nothing.
+
+              This used to measure the two characters in Times at the
+              Modern body size (9.72pt for `■ `), which disagreed with the
+              PDF's own answer in two ways at once. The PDF does not draw
+              the marker as a Times glyph at all: `■` is vector art PINNED
+              to one monospace cell (`pdf._GRAPHIC_CELL_RECTS`), and since
+              E8 the space after it is one cell too. So the PDF's hang is
+              exactly two cells, 14.4pt at the default `.cw 12`, and RTF
+              says the same number rather than a third one.
+
+              A def row's hang stays a measured points figure: it has a
+              real proportional LABEL in front of it, not a pinned cell.
 
     RTF expresses a hanging indent as `\li` (where the wrapped lines sit)
     with a NEGATIVE `\fi` of the same size (pulling the first line, which
@@ -3988,7 +4000,7 @@ def _rtf_structure_indent_hang(s, doc, marker_text):
 
     Lazy imports, same reason `_rtf_toc_index` imports `pdf` lazily."""
     from .pdf import (MODERN_LEVEL_STEP_COLS, MODERN_DEF_HANG_PT,
-                      MODERN_BODY_PT)
+                      MODERN_BODY_PT, GRAPHIC_CHARS)
     from .afm import string_width_pt
     # `cw_120` is 1/120in units; 0.6pt each (the PDF's own `col_pt`), and
     # 20 twips to the point -- 12 twips per unit, 144 for the default 12.
@@ -3996,6 +4008,8 @@ def _rtf_structure_indent_hang(s, doc, marker_text):
     indent = max(s.get('level', 0) - 1, 0) * MODERN_LEVEL_STEP_COLS * col_twips
     if s['kind'] == 'def':
         hang = MODERN_DEF_HANG_PT * 20.0
+    elif (s.get('marker') or (marker_text or ' ')[0]) in GRAPHIC_CHARS:
+        hang = 2 * col_twips
     else:
         hang = string_width_pt(marker_text, 'Times-Roman', MODERN_BODY_PT) * 20.0
     return int(round(indent + hang)), -int(round(hang))
