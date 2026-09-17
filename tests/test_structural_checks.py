@@ -88,7 +88,7 @@ rtf ansi deff fonttbl f falt colortbl red green blue stylesheet s
 paperw paperh margl margr margt margb facingp margmirror headery footery
 pgnstart landscape cols colsx sect sectd column page par line tab titlepg
 header headerl headerr headerf footer footerl footerr footerf chpgn
-pard plain qc qr ql qj fs cf b i ul ulnone strike super sub nosupersub
+pard plain qc qr ql qj fs cf chcbpat highlight b i ul ulnone strike super sub nosupersub
 fi li ri sl slmult sb sa keep keepn up dn
 chftn footnote ftnalt chatn annotation atnid atnauthor
 u uc bkmkstart bkmkend field fldinst fldrslt pict pngblip jpegblip

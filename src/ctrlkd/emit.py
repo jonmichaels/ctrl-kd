@@ -1714,8 +1714,14 @@ def _style_css(doc, printed=True, inline_styling=True):
             rules.append(f'.ws-font-{idx} {{ {"; ".join(props)} }}')
     if inline_styling:
         for n in _html_colour_used(doc):
-            rules.append('.ws-colour-%d { color:#%02x%02x%02x }'
-                         % ((n,) + _CGA_PALETTE[n % 16]))
+            # E9 R2: colour 15 is WordStar's knockout, not a colour -- the
+            # same reverse-video fact RTF answers with `\chcbpat` (see
+            # `_rtf_span`). Without a ground it is white text on a white
+            # page and the words disappear.
+            ground = ('; background:#000000'
+                      if 'colour%d' % n == _RTF_REVERSE_VIDEO_TAG else '')
+            rules.append('.ws-colour-%d { color:#%02x%02x%02x%s }'
+                         % ((n,) + _CGA_PALETTE[n % 16] + (ground,)))
     # One rule per attribute some block actually inherited -- never a fixed
     # six, so a document with no running attribute gets no extra CSS at all.
     own = _style_own_attrs(doc)
@@ -2545,6 +2551,10 @@ _RTF_COLOURTBL = ('{\\colortbl;' + ''.join(
     '\\red%d\\green%d\\blue%d;' % rgb for rgb in _CGA_PALETTE) + '}')
 
 
+# WordStar's own knockout index in `_CGA_PALETTE` -- see `_rtf_span`.
+_RTF_REVERSE_VIDEO_TAG = 'colour15'
+
+
 def _rtf_colour_num(tag):
     """`'colour4'` -> 4, matching `_CGA_PALETTE`'s own 0-based index --
     `\\colortbl`'s FIRST real entry (index 0, "Black") is `\\cf1` (RTF
@@ -2853,6 +2863,19 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
             colour_tag = next((st for st in these_styles if st.startswith('colour')), None)
             if colour_tag:
                 c += r'\cf%d ' % _rtf_colour_num(colour_tag)
+                # E9 R2 (Jon's ruling 2026-09-17, audit section C): WHITE
+                # IS REVERSE VIDEO, NOT A COLOUR. WordStar's colour 15 is
+                # the knockout -- the banner WS7 printed as white type in a
+                # dark bar (`pdf._COLOUR_GRAY_LJ6DTP` calls index 15 "the
+                # knockout" for the same reason) -- and a `\cf16` with no
+                # ground is white ink on white paper: the words are simply
+                # gone. 19 runs in 3 documents (`LJ6DTP.WS` twice and
+                # `PSPRINT.TST`, whose own text reads "White Text on a
+                # Black Background"). `\chcbpat` is RTF's own character
+                # shading and `\highlight` is the same fact in the
+                # vocabulary Word reads; `\cf1` is the table's Black.
+                if _RTF_REVERSE_VIDEO_TAG == colour_tag:
+                    c += r'\chcbpat1 \highlight1 '
         if _is_graphic_text(sp.text):
             # \f1 (Courier New) is ALWAYS in the font table (see the
             # \fonttbl literal in `emit_rtf`) regardless of the document's
