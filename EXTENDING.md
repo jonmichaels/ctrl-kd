@@ -257,7 +257,7 @@ def apply_shouty_headings(doc):
 $ ctrl-kd --list-quirks                     # every quirk this build knows
 $ ctrl-kd --list-quirks ESSAY.WS            # ... and which apply to this file, and why
 $ ctrl-kd --quirk shouty-headings ESSAY.WS  # turn one on (repeatable)
-$ ctrl-kd --no-quirk driver-euro-sign X.WS  # turn one off (repeatable)
+$ ctrl-kd --no-quirk euro-swap X.WS  # turn one off (repeatable)
 $ ctrl-kd --quirks off X.WS                 # nothing at all: the literal bytes
 $ ctrl-kd --quirks all X.WS                 # everything this document trips
 ```

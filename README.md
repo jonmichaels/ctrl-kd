@@ -28,7 +28,7 @@ $ ctrl-kd --comments MEMO.WS            # include the author's hidden comments
 $ ctrl-kd --no-notes PAPER.WS           # body text only, no notes
 $ ctrl-kd --samples DIR                 # write 4 bundled public-domain sample .WS files into DIR
 $ ctrl-kd --list-quirks ESSAY.WS        # which known quirks this file has, and why
-$ ctrl-kd --quirk stray-style-strikeout NOVEL.WS   # turn one on
+$ ctrl-kd --quirk sawyer-strikeout NOVEL.WS   # turn one on
 ```
 
 ## Modes

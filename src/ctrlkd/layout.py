@@ -534,13 +534,13 @@ def peseta_euro_table(doc):
     is stated case-insensitively anyway so the rule does not silently
     depend on that one parser detail.
 
-    Quirks mode (2026-09-16) names this rule `driver-euro-sign` and lets a
+    Quirks mode (2026-09-16) names this rule `euro-swap` and lets a
     reader switch it off to see the literal peseta even on a patched-driver
     document. It is an AUTO quirk -- on unless a caller says otherwise -- so
     a document that names one of the three drivers AND actually types a
     peseta gets exactly the same table it always did."""
     from .quirks import enabled as _quirk_enabled
-    if not _quirk_enabled(doc, 'driver-euro-sign'):
+    if not _quirk_enabled(doc, 'euro-swap'):
         return None
     name = (doc.meta.get('printer_driver') or '').strip().upper()
     return PESETA_TO_EURO if name in EURO_PATCHED_DRIVERS else None
@@ -663,12 +663,12 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
                           'origin': getattr(n, 'origin', 'block')})
 
     # planning #266 / quirks mode: the LJ6DTP driver's own two substitution
-    # families are separately named quirks (`lj6dtp-typography`,
-    # `lj6dtp-box-corners`), each switchable on its own; both are AUTO, so a
+    # families are separately named quirks (`smart-punctuation`,
+    # `box-corners`), each switchable on its own; both are AUTO, so a
     # document declaring that driver behaves exactly as it always did.
     from .quirks import enabled as _quirk_enabled
-    lj_typo = _quirk_enabled(doc, 'lj6dtp-typography')
-    lj_corners = _quirk_enabled(doc, 'lj6dtp-box-corners')
+    lj_typo = _quirk_enabled(doc, 'smart-punctuation')
+    lj_corners = _quirk_enabled(doc, 'box-corners')
     lj = lj_typo or lj_corners
     fonts = getattr(doc, 'fonts', ()) or ()
     hf_by_block = {}
@@ -1486,8 +1486,8 @@ def driver_substituter(doc):
     to it (the overwhelmingly common case -- callers skip the whole pass
     and nothing is copied)."""
     from .quirks import enabled as _quirk_enabled
-    lj_typo = _quirk_enabled(doc, 'lj6dtp-typography')
-    lj_corners = _quirk_enabled(doc, 'lj6dtp-box-corners')
+    lj_typo = _quirk_enabled(doc, 'smart-punctuation')
+    lj_corners = _quirk_enabled(doc, 'box-corners')
     lj = lj_typo or lj_corners
     euro = peseta_euro_table(doc)
     if not lj and euro is None:

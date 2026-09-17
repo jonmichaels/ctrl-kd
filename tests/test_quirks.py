@@ -193,13 +193,13 @@ def test_descriptions_carry_no_codenames():
 
 def test_registering_the_same_name_replaces_it():
     """Matches `emitter()`'s own documented plain-assignment behaviour."""
-    before = quirks.get_quirk('stray-style-strikeout')
+    before = quirks.get_quirk('sawyer-strikeout')
     try:
-        quirks.register(Quirk(name='stray-style-strikeout',
+        quirks.register(Quirk(name='sawyer-strikeout',
                               description='Replaced.', quirk_class=OPT_IN,
                               detect=lambda doc: None, apply=lambda doc: doc))
-        assert quirks.get_quirk('stray-style-strikeout').description == 'Replaced.'
-        assert quirks.quirk_names().count('stray-style-strikeout') == 1
+        assert quirks.get_quirk('sawyer-strikeout').description == 'Replaced.'
+        assert quirks.quirk_names().count('sawyer-strikeout') == 1
     finally:
         quirks.register(before)
 
@@ -208,7 +208,7 @@ def test_a_name_this_build_does_not_know_is_an_error_not_a_shrug():
     with pytest.raises(UnknownQuirk) as e:
         quirks.apply_quirks(plain_doc(), enable=['no-such-quirk'])
     assert 'no-such-quirk' in str(e.value)
-    assert 'stray-style-strikeout' in str(e.value)     # says what IS available
+    assert 'sawyer-strikeout' in str(e.value)     # says what IS available
 
 
 def test_naming_a_quirk_this_document_does_not_trip_is_a_no_op():
@@ -217,7 +217,7 @@ def test_naming_a_quirk_this_document_does_not_trip_is_a_no_op():
     convert exactly as it would with no flags at all."""
     plain = emit.emit_rtf(quirks.apply_quirks(plain_doc()), 'modern')
     asked = emit.emit_rtf(quirks.apply_quirks(
-        plain_doc(), enable=['stray-style-strikeout', 'driver-euro-sign']), 'modern')
+        plain_doc(), enable=['sawyer-strikeout', 'euro-swap']), 'modern')
     assert plain == asked
 
 
@@ -225,7 +225,7 @@ def test_a_caller_that_never_mentions_quirks_gets_the_defaults():
     """The compatibility promise: every emitter still works on a bare parsed
     document, and resolves the same decision `apply_quirks` would."""
     doc = stray_strike_doc()
-    assert quirks.enabled(doc, 'stray-style-strikeout') is False
+    assert quirks.enabled(doc, 'sawyer-strikeout') is False
     assert emit.emit_rtf(doc, 'modern') == emit.emit_rtf(
         quirks.apply_quirks(doc), 'modern')
 
@@ -235,15 +235,15 @@ def test_a_caller_that_never_mentions_quirks_gets_the_defaults():
 def test_auto_quirks_are_on_and_opt_in_ones_are_off():
     doc = core.parse_ws(driver_header(b'LJ6DTP') + b'text' + HARD)
     applicable = dict(quirks.applicable(doc))
-    assert set(applicable) == {'driver-euro-sign', 'lj6dtp-typography',
-                               'lj6dtp-box-corners', 'lj6dtp-colour-as-gray',
-                               'lj6dtp-fill-patterns'}
+    assert set(applicable) == {'euro-swap', 'smart-punctuation',
+                               'box-corners', 'colors-as-gray',
+                               'fill-patterns'}
     _, applied = quirks.report(quirks.apply_quirks(doc))
     assert applied == sorted(applied, key=quirks.quirk_names().index)
     assert set(applied) == set(applicable)
 
     struck = quirks.apply_quirks(stray_strike_doc())
-    assert quirks.report(struck) == (['stray-style-strikeout'], [])
+    assert quirks.report(struck) == (['sawyer-strikeout'], [])
 
 
 def test_every_auto_quirk_states_the_documents_own_evidence_as_its_reason():
@@ -264,12 +264,12 @@ def test_quirks_off_turns_off_even_the_automatic_ones():
 
 def test_quirks_all_turns_on_the_opt_in_one_too():
     doc = quirks.apply_quirks(stray_strike_doc(), mode='all')
-    assert quirks.report(doc)[1] == ['stray-style-strikeout']
+    assert quirks.report(doc)[1] == ['sawyer-strikeout']
 
 
-@pytest.mark.parametrize('name', ['driver-euro-sign', 'lj6dtp-typography',
-                                  'lj6dtp-box-corners', 'lj6dtp-colour-as-gray',
-                                  'lj6dtp-fill-patterns'])
+@pytest.mark.parametrize('name', ['euro-swap', 'smart-punctuation',
+                                  'box-corners', 'colors-as-gray',
+                                  'fill-patterns'])
 def test_no_quirk_switches_one_automatic_quirk_off_and_leaves_its_siblings(name):
     doc = core.parse_ws(driver_header(b'LJ6DTP') + b'text' + HARD)
     _, applied = quirks.report(quirks.apply_quirks(doc, disable=[name]))
@@ -280,7 +280,7 @@ def test_no_quirk_switches_one_automatic_quirk_off_and_leaves_its_siblings(name)
 def test_switching_the_euro_off_shows_the_peseta_the_bytes_actually_carry():
     src = driver_header(b'LASERJET') + b'Costs ' + PESETA + b' 100.' + HARD
     off = emit.emit_text(
-        quirks.apply_quirks(core.parse_ws(src), disable=['driver-euro-sign']),
+        quirks.apply_quirks(core.parse_ws(src), disable=['euro-swap']),
         'modern')
     assert '₧' in off and '€' not in off
 
@@ -312,9 +312,9 @@ def test_the_semantic_substitution_pass_disappears_when_both_are_off():
     src = driver_header(b'LJ6DTP') + b'a_b' + HARD
     doc = core.parse_ws(src)
     assert layout.driver_substituter(quirks.apply_quirks(doc)) is not None
-    all_off = quirks.apply_quirks(doc, disable=['lj6dtp-typography',
-                                                'lj6dtp-box-corners',
-                                                'driver-euro-sign'])
+    all_off = quirks.apply_quirks(doc, disable=['smart-punctuation',
+                                                'box-corners',
+                                                'euro-swap'])
     assert layout.driver_substituter(all_off) is None
 
 
@@ -322,19 +322,19 @@ def test_the_semantic_substitution_pass_disappears_when_both_are_off():
 
 def test_it_applies_when_a_style_strikes_and_the_writer_never_did():
     reasons = dict(quirks.applicable(stray_strike_doc()))
-    assert 'stray-style-strikeout' in reasons
-    assert "'Editing Defaults'" in reasons['stray-style-strikeout']
+    assert 'sawyer-strikeout' in reasons
+    assert "'Editing Defaults'" in reasons['sawyer-strikeout']
 
 
 def test_it_does_not_apply_when_the_writer_typed_a_real_cross_out():
     """The case this quirk must never touch. A document that types `^PX` has
     made a deliberate cross-out; the style's own bit can no longer be read as
     an accident, so the quirk is not offered at all."""
-    assert 'stray-style-strikeout' not in dict(quirks.applicable(typed_strike_doc()))
+    assert 'sawyer-strikeout' not in dict(quirks.applicable(typed_strike_doc()))
 
 
 def test_applying_it_drops_the_strike_and_keeps_every_other_attribute():
-    doc = quirks.apply_quirks(stray_strike_doc(), enable=['stray-style-strikeout'])
+    doc = quirks.apply_quirks(stray_strike_doc(), enable=['sawyer-strikeout'])
     for text in (STRUCK_TEXT, AFTER_TEXT):
         assert 'strike' not in block_for(doc, text).style_attrs
     assert 'b' in block_for(doc, STRUCK_TEXT).style_attrs, \
@@ -344,14 +344,14 @@ def test_applying_it_drops_the_strike_and_keeps_every_other_attribute():
 def test_applying_it_never_mutates_the_document_it_was_given():
     """One `convert()` hands the same Document to several emitters."""
     original = stray_strike_doc()
-    quirks.apply_quirks(original, enable=['stray-style-strikeout'])
+    quirks.apply_quirks(original, enable=['sawyer-strikeout'])
     assert 'strike' in block_for(original, STRUCK_TEXT).style_attrs
 
 
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
 def test_the_strike_disappears_from_every_format_that_can_show_one(mode):
     faithful = stray_strike_doc()
-    quirked = quirks.apply_quirks(faithful, enable=['stray-style-strikeout'])
+    quirked = quirks.apply_quirks(faithful, enable=['sawyer-strikeout'])
 
     rtf = emit.emit_rtf(quirked, mode)
     rtf = rtf.decode('cp1252', 'replace') if isinstance(rtf, bytes) else rtf
@@ -373,17 +373,17 @@ def test_plain_text_is_unaffected_and_still_carries_the_words():
     """Named rather than left out: plain text has no way to show a strikeout
     in either direction, so this quirk changes nothing there."""
     quirked = quirks.apply_quirks(stray_strike_doc(),
-                                  enable=['stray-style-strikeout'])
+                                  enable=['sawyer-strikeout'])
     body = emit.emit_text(quirked, 'printed')
     for sample in (STRUCK_TEXT, AFTER_TEXT):
         assert sample.decode('cp437')[:20] in body
 
 
 def test_a_document_that_types_its_own_cross_out_is_untouched_even_when_asked():
-    """`--quirk stray-style-strikeout` on a document `detect` did not flag is
+    """`--quirk sawyer-strikeout` on a document `detect` did not flag is
     a no-op, not an override."""
     doc = typed_strike_doc()
-    asked = quirks.apply_quirks(doc, enable=['stray-style-strikeout'])
+    asked = quirks.apply_quirks(doc, enable=['sawyer-strikeout'])
     assert emit.emit_rtf(asked, 'modern') == emit.emit_rtf(doc, 'modern')
 
 
@@ -402,22 +402,22 @@ def test_applicable_is_reported_even_on_a_plain_faithful_run():
     """The whole point: a reader must be able to be OFFERED the quirk without
     having had to turn it on to find out it exists."""
     out = json.loads(emit_layout(quirks.apply_quirks(stray_strike_doc()), 'modern'))
-    assert out['quirks_applicable'] == ['stray-style-strikeout']
+    assert out['quirks_applicable'] == ['sawyer-strikeout']
     assert out['quirks_applied'] == []
 
 
 def test_applied_names_the_subset_actually_in_force():
-    doc = quirks.apply_quirks(stray_strike_doc(), enable=['stray-style-strikeout'])
+    doc = quirks.apply_quirks(stray_strike_doc(), enable=['sawyer-strikeout'])
     out = json.loads(emit_layout(doc, 'modern'))
-    assert out['quirks_applicable'] == ['stray-style-strikeout']
-    assert out['quirks_applied'] == ['stray-style-strikeout']
+    assert out['quirks_applicable'] == ['sawyer-strikeout']
+    assert out['quirks_applied'] == ['sawyer-strikeout']
 
 
 def test_an_automatic_quirk_reports_itself_as_applied():
     doc = quirks.apply_quirks(core.parse_ws(driver_header(b'LJ6DTP') + b'x' + HARD))
     out = json.loads(emit_layout(doc, 'printed'))
     assert out['quirks_applied'] == out['quirks_applicable']
-    assert 'lj6dtp-typography' in out['quirks_applied']
+    assert 'smart-punctuation' in out['quirks_applied']
 
 
 # ------------------------------------------------------------- the listing
@@ -430,11 +430,11 @@ def test_the_listing_without_a_document_is_the_build_s_own_catalogue():
 
 def test_the_listing_with_a_document_says_applicable_why_and_on():
     rows = {r['name']: r for r in quirks.list_quirks(stray_strike_doc())}
-    stray = rows['stray-style-strikeout']
+    stray = rows['sawyer-strikeout']
     assert stray['applicable'] is True and stray['enabled'] is False
     assert stray['reason']
-    assert rows['driver-euro-sign']['applicable'] is False
-    assert rows['driver-euro-sign']['reason'] is None
+    assert rows['euro-swap']['applicable'] is False
+    assert rows['euro-swap']['reason'] is None
 
 
 # ------------------------------------------------------------------- CLI
@@ -472,7 +472,7 @@ def test_cli_quirk_flag_reaches_the_conversion(tmp_path):
 
     faithful, quirked = tmp_path / 'a.rtf', tmp_path / 'b.rtf'
     assert cli.main(['-t', 'rtf', '-o', str(faithful), str(src)]) == 0
-    assert cli.main(['--quirk', 'stray-style-strikeout', '-t', 'rtf',
+    assert cli.main(['--quirk', 'sawyer-strikeout', '-t', 'rtf',
                      '-o', str(quirked), str(src)]) == 0
     assert '\\strike' in faithful.read_text(encoding='cp1252', errors='replace')
     assert '\\strike' not in quirked.read_text(encoding='cp1252', errors='replace')
@@ -502,15 +502,15 @@ STRAY_STRIKE_DOCS = [
 def test_the_seven_archive_documents_offer_the_quirk(require_sawyer_doc, name):
     doc = core.parse(open(require_sawyer_doc(name), 'rb').read())
     reasons = dict(quirks.applicable(doc))
-    assert 'stray-style-strikeout' in reasons, name
-    assert 'never types a cross-out' in reasons['stray-style-strikeout']
+    assert 'sawyer-strikeout' in reasons, name
+    assert 'never types a cross-out' in reasons['sawyer-strikeout']
 
 
 @pytest.mark.sawyer
 @pytest.mark.parametrize('name', STRAY_STRIKE_DOCS)
 def test_turning_it_on_removes_the_strike_from_those_documents(require_sawyer_doc, name):
     faithful = core.parse(open(require_sawyer_doc(name), 'rb').read())
-    quirked = quirks.apply_quirks(faithful, enable=['stray-style-strikeout'])
+    quirked = quirks.apply_quirks(faithful, enable=['sawyer-strikeout'])
     on = emit.emit_html(faithful, 'modern')
     off = emit.emit_html(quirked, 'modern')
     assert 'line-through' in on, f'{name}: nothing struck in the faithful render'
@@ -529,24 +529,24 @@ def test_print_tst_types_a_real_cross_out_and_is_never_offered_the_quirk(
     assert any('strike' in sp.styles
                for b in doc.blocks for ln in b.lines for sp in ln.spans), \
         'PRINT.TST no longer parses an inline cross-out -- the contrast case is gone'
-    assert 'stray-style-strikeout' not in dict(quirks.applicable(doc))
+    assert 'sawyer-strikeout' not in dict(quirks.applicable(doc))
 
 
 @pytest.mark.sawyer
 def test_lj6dtp_ws_offers_the_five_driver_quirks_and_no_others(require_sawyer_doc):
     doc = core.parse(open(require_sawyer_doc('LJ6DTP.WS'), 'rb').read())
     names = [n for n, _ in quirks.applicable(doc)]
-    assert names == ['driver-euro-sign', 'lj6dtp-typography',
-                     'lj6dtp-box-corners', 'lj6dtp-colour-as-gray',
-                     'lj6dtp-fill-patterns']
+    assert names == ['euro-swap', 'smart-punctuation',
+                     'box-corners', 'colors-as-gray',
+                     'fill-patterns']
     assert quirks.report(quirks.apply_quirks(doc))[1] == names
 
 
 @pytest.mark.sawyer
 @pytest.mark.parametrize('name,disable,gone', [
-    ('LJ6DTP.WS', 'lj6dtp-typography', '\u2014'),      # em dash
-    ('LJ6DTP.WS', 'lj6dtp-box-corners', '\u250c'),     # box corner
-    ('DISPLAY.WS', 'driver-euro-sign', '\u20ac'),      # euro sign
+    ('LJ6DTP.WS', 'smart-punctuation', '\u2014'),      # em dash
+    ('LJ6DTP.WS', 'box-corners', '\u250c'),     # box corner
+    ('DISPLAY.WS', 'euro-swap', '\u20ac'),      # euro sign
 ])
 def test_switching_an_automatic_quirk_off_changes_a_real_document(
         require_sawyer_doc, name, disable, gone):
@@ -561,8 +561,8 @@ def test_switching_an_automatic_quirk_off_changes_a_real_document(
 
 @pytest.mark.sawyer
 @pytest.mark.parametrize('disable,marker', [
-    ('lj6dtp-colour-as-gray', b'/ExtGState'),
-    ('lj6dtp-fill-patterns', b'/PatternType 1'),
+    ('colors-as-gray', b'/ExtGState'),
+    ('fill-patterns', b'/PatternType 1'),
 ])
 def test_switching_a_colour_quirk_off_changes_the_printed_pdf(
         require_sawyer_doc, disable, marker):
@@ -573,3 +573,68 @@ def test_switching_a_colour_quirk_off_changes_the_printed_pdf(
     off = pdf.emit_pdf(quirks.apply_quirks(doc, disable=[disable]), mode='printed')
     assert marker in on
     assert marker not in off
+
+
+# ------------------------------------------------ the 4.4.0 names (aliases)
+#
+# Jon's ruling 2026-09-17: a quirk's identifier is shipped text like any other --
+# a reader types it, `--list-quirks` prints it, the layout JSON publishes it --
+# so all six were renamed into plain English. The names that shipped in 4.4.0
+# are still ACCEPTED AS INPUT and never PRODUCED, because an app released before
+# the rename has them written into every user's stored per-document overrides.
+
+RETIRED_NAMES = {
+    'driver-euro-sign': 'euro-swap',
+    'lj6dtp-typography': 'smart-punctuation',
+    'lj6dtp-box-corners': 'box-corners',
+    'lj6dtp-colour-as-gray': 'colors-as-gray',
+    'lj6dtp-fill-patterns': 'fill-patterns',
+    'stray-style-strikeout': 'sawyer-strikeout',
+}
+
+
+@pytest.mark.parametrize('old,new', sorted(RETIRED_NAMES.items()))
+def test_every_retired_name_still_selects_its_quirk(old, new):
+    """Each 4.4.0 name resolves to the quirk that replaced it, rather than
+    raising UnknownQuirk at a reader who upgraded."""
+    assert quirks.canonical_name(old) == new
+    assert quirks.get_quirk(old).name == new
+
+
+def test_the_alias_table_covers_exactly_the_names_that_shipped():
+    """A rename table, not a junk drawer: every entry maps to a name this build
+    really registers, and every registered name is reachable."""
+    assert set(quirks.quirk_names()) == set(RETIRED_NAMES.values())
+    for new in RETIRED_NAMES.values():
+        assert quirks.get_quirk(new).name == new
+
+
+def test_a_name_that_was_never_a_quirk_is_still_an_error():
+    """An actual typo still raises, which is the whole point of UnknownQuirk."""
+    assert quirks.canonical_name('lj6dtp-colour-as-grey') == 'lj6dtp-colour-as-grey'
+    with pytest.raises(quirks.UnknownQuirk):
+        quirks.get_quirk('lj6dtp-colour-as-grey')
+
+
+def test_no_retired_name_is_ever_produced(require_sawyer_doc):
+    """ONE DIRECTION. Naming old names on the way in must not put them back into
+    anything this engine writes -- the decision, the report, the listing and the
+    layout JSON say the new names only, so the two spellings can never both
+    appear in one output."""
+    doc = core.parse(open(require_sawyer_doc('LJ6DTP.WS'), 'rb').read())
+    doc = quirks.apply_quirks(doc, enable=list(RETIRED_NAMES))
+    applic, applied = quirks.report(doc)
+    assert 'colors-as-gray' in applied and 'smart-punctuation' in applied
+    produced = set(applic) | set(applied) | {r['name'] for r in quirks.list_quirks(doc)}
+    assert produced.isdisjoint(RETIRED_NAMES)
+    out = json.loads(emit_layout(doc))
+    assert set(out['quirks_applicable']).isdisjoint(RETIRED_NAMES)
+    assert set(out['quirks_applied']).isdisjoint(RETIRED_NAMES)
+
+
+def test_a_retired_name_turns_its_quirk_off_too(require_sawyer_doc):
+    """`--no-quirk` takes an alias by the same route -- `resolve` maps both
+    lists, not just the enable one."""
+    doc = core.parse(open(require_sawyer_doc('LJ6DTP.WS'), 'rb').read())
+    doc = quirks.apply_quirks(doc, disable=['lj6dtp-colour-as-gray'])
+    assert 'colors-as-gray' not in quirks.report(doc)[1]

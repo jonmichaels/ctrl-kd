@@ -43,7 +43,8 @@ from typing import Callable
 
 __all__ = ['Quirk', 'AUTO', 'OPT_IN', 'quirk', 'register', 'get_quirk',
            'quirk_names', 'applicable', 'resolve', 'apply_quirks', 'enabled',
-           'report', 'list_quirks', 'load_plugins', 'UnknownQuirk']
+           'report', 'list_quirks', 'load_plugins', 'canonical_name',
+           'UnknownQuirk']
 
 AUTO = 'auto'
 OPT_IN = 'opt-in'
@@ -127,7 +128,41 @@ def quirk(name, description, quirk_class=AUTO, detect=None):
     return deco
 
 
+# THE NAMES THAT SHIPPED IN 4.4.0, still ACCEPTED AS INPUT. Jon's ruling
+# 2026-09-17: a quirk's identifier is shipped text like any other -- it is what a
+# reader types on the command line, what `--list-quirks` prints, and what the
+# layout JSON publishes -- so it gets the same plain-English, US-spelling
+# treatment the descriptions got. Five of the six old names also said something
+# untrue or unhelpful: three began `lj6dtp-`, naming ONE printer driver for a
+# behaviour a reader sees as a property of their document, and two (`driver-`,
+# `stray-style-`) described the engine's own plumbing rather than the effect.
+#
+# The old names cannot simply vanish: an app released before the rename has them
+# written into every user's stored per-document overrides. So they are mapped on
+# the way IN and never produced on the way OUT -- `--quirk`/`--no-quirk`, a name
+# read back from stored settings, and `get_quirk` all resolve them, while the
+# registry, `--list-quirks`, the layout JSON's `quirks_applicable`/
+# `quirks_applied` and every report say only the new name. ONE DIRECTION, so the
+# two spellings can never both appear in one output.
+_ALIASES = {
+    'driver-euro-sign': 'euro-swap',
+    'lj6dtp-typography': 'smart-punctuation',
+    'lj6dtp-box-corners': 'box-corners',
+    'lj6dtp-colour-as-gray': 'colors-as-gray',
+    'lj6dtp-fill-patterns': 'fill-patterns',
+    'stray-style-strikeout': 'sawyer-strikeout',
+}
+
+
+def canonical_name(name):
+    """The name this build knows a quirk by, mapping a retired name to its
+    replacement. Anything else is handed back untouched -- an unknown name is
+    `get_quirk`'s error to raise, not this function's."""
+    return _ALIASES.get(name, name)
+
+
 def get_quirk(name):
+    name = canonical_name(name)
     try:
         return _QUIRK_REGISTRY[name]
     except KeyError:
@@ -191,7 +226,12 @@ def resolve(doc, enable=(), disable=(), mode='auto'):
     Returns `(applicable, applied)` -- the first `[(name, reason), ...]`, the
     second a list of names in registration order.
     """
-    enable, disable = list(enable), list(disable)
+    # Canonicalised FIRST, so a caller naming a retired spelling (an app's
+    # stored overrides from before a rename) selects the same quirk the
+    # registry, the report and the layout JSON all name the new way. See
+    # `_ALIASES`.
+    enable = [canonical_name(n) for n in enable]
+    disable = [canonical_name(n) for n in disable]
     for name in enable + disable:
         get_quirk(name)                       # raises UnknownQuirk on a typo
     if mode not in ('auto', 'off', 'all'):
@@ -328,7 +368,7 @@ def _detect_euro(doc):
             f'patched to print a euro in the peseta character\u2019s slot')
 
 
-@quirk('driver-euro-sign',
+@quirk('euro-swap',
        description='Euro instead of peseta',
        quirk_class=AUTO, detect=_detect_euro)
 def _apply_euro(doc):
@@ -344,7 +384,7 @@ def _detect_lj(doc):
             if _driver(doc) == 'LJ6DTP' else None)
 
 
-@quirk('lj6dtp-typography',
+@quirk('smart-punctuation',
        description='Real dashes, curly quotes, ellipsis, ©',
        quirk_class=AUTO,
        detect=_detect_lj)
@@ -354,7 +394,7 @@ def _apply_lj_typography(doc):
     return doc
 
 
-@quirk('lj6dtp-box-corners',
+@quirk('box-corners',
        description='Card suits as box corners (Univers)',
        quirk_class=AUTO,
        detect=_detect_lj)
@@ -364,7 +404,7 @@ def _apply_lj_corners(doc):
     return doc
 
 
-@quirk('lj6dtp-colour-as-gray',
+@quirk('colors-as-gray',
        description='Screen colors as gray',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_colour(doc):
@@ -373,7 +413,7 @@ def _apply_lj_colour(doc):
     return doc
 
 
-@quirk('lj6dtp-fill-patterns',
+@quirk('fill-patterns',
        description='Colors 9–14 as hatch patterns',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_patterns(doc):
@@ -417,7 +457,7 @@ def _detect_stray_style_strikeout(doc):
     return (f'{where} and the writing never types a cross-out of its own')
 
 
-@quirk('stray-style-strikeout',
+@quirk('sawyer-strikeout',
        description='Ignore a strikeout set only by a style',
        quirk_class=OPT_IN, detect=_detect_stray_style_strikeout)
 def _apply_stray_style_strikeout(doc):

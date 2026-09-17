@@ -5,6 +5,30 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Changed
+
+- **Every quirk was renamed**, and the names that shipped in 4.9.0 still work.
+  A quirk's name is text a reader reads and types — `--list-quirks` prints it,
+  `--quirk`/`--no-quirk` take it, the `layout` format publishes it — so the six
+  now say what they do in plain words instead of naming the printer driver or
+  the code behind them:
+
+  | 4.9.0 | now |
+  |---|---|
+  | `driver-euro-sign` | `euro-swap` |
+  | `lj6dtp-typography` | `smart-punctuation` |
+  | `lj6dtp-box-corners` | `box-corners` |
+  | `lj6dtp-colour-as-gray` | `colors-as-gray` |
+  | `lj6dtp-fill-patterns` | `fill-patterns` |
+  | `stray-style-strikeout` | `sawyer-strikeout` |
+
+  The old names are still ACCEPTED wherever one can be typed or stored, so
+  nothing anyone has scripted or saved stops working. They are never PRINTED:
+  `--list-quirks`, `quirks_applicable`/`quirks_applied` and every report say the
+  new name only, so one output can never show both spellings for one quirk.
+- Descriptions and the quirk window's own row titles use US spelling: "Screen
+  colors as gray", "Colors 9–14 as hatch patterns".
+
 ## [4.9.0] — 2026-09-16
 
 ### Added

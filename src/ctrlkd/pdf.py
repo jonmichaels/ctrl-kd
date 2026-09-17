@@ -2294,10 +2294,10 @@ _DriverQuirks = _collections.namedtuple(
 def _driver_quirks(doc):
     from .quirks import enabled as _quirk_enabled
     return _DriverQuirks(
-        typography=_quirk_enabled(doc, 'lj6dtp-typography'),
-        corners=_quirk_enabled(doc, 'lj6dtp-box-corners'),
-        colour=_quirk_enabled(doc, 'lj6dtp-colour-as-gray'),
-        patterns=_quirk_enabled(doc, 'lj6dtp-fill-patterns'))
+        typography=_quirk_enabled(doc, 'smart-punctuation'),
+        corners=_quirk_enabled(doc, 'box-corners'),
+        colour=_quirk_enabled(doc, 'colors-as-gray'),
+        patterns=_quirk_enabled(doc, 'fill-patterns'))
 
 
 def _lj_substitute(segs, kerning=True, typography=True, corners=True):
@@ -9128,8 +9128,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # planning #251 audit item (d).
     segs = _expand_bare_tabs_for_printed_layout(segs)
     if lj_typo or lj_corners:
-        # Quirks mode: the two character families (`lj6dtp-typography`,
-        # `lj6dtp-box-corners`) switch independently of the colour ones,
+        # Quirks mode: the two character families (`smart-punctuation`,
+        # `box-corners`) switch independently of the colour ones,
         # which is why this no longer rides on `colour_map` being non-empty.
         segs = _lj_substitute(segs, kerning, lj_typo, lj_corners)
     segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
