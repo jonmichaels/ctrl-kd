@@ -7361,17 +7361,20 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             # are part of WHAT THE LINE IS, not of how one emitter happens
             # to draw it.
             pg.header_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx,
-                                'style': sorted(attrs)}
+                                'style': sorted(attrs),
+                                'off_sheet': hf_off_sheet(y)}
                                for _n, text, y, font_idx, x, attrs
                                in resolved['headers']]
         if resolved['footers']:
             pg.footer_lines = [{'text': text, 'x': x, 'y': y, 'font': font_idx,
-                                'style': sorted(attrs)}
+                                'style': sorted(attrs),
+                                'off_sheet': hf_off_sheet(y)}
                                for _n, text, y, font_idx, x, attrs
                                in resolved['footers']]
         if resolved['auto'] is not None:
             text, x, y = resolved['auto']
-            pg.auto_pageno = {'text': text, 'x': x, 'y': y}
+            pg.auto_pageno = {'text': text, 'x': x, 'y': y,
+                              'off_sheet': hf_off_sheet(y)}
 
 
 def _toc_page_numbers(doc, pix_results=None, pictures='off'):
@@ -7455,6 +7458,38 @@ def _coalesce(line):
         else:
             out.append([text, styles])
     return out
+
+def hf_off_sheet(y):
+    """Is this resolved head/foot/page-number row OFF THE PAPER?
+
+    E11 (Jon's ruling 2026-09-17, option C -- research/2026-09-17_
+    furniture-font-rules.md's own appendix). WordStar commands a row
+    wherever `pl - mb + fm` puts it and lets the printer clip it: real WS7
+    captures put the automatic number 14.4pt past the bottom edge of a
+    792pt sheet (`sawyer/REF/PS-FONTS.REF`, `FONTS.REF`, `-LASERJE.FNT`,
+    `.mb 1.8 .fm 2`) and 21.6pt past it on `LSRBOX/PAGE.RND` -- so the PDF
+    keeps drawing at the resolved y and the page clips it exactly as the
+    printer does. That ruling stands and no PDF byte moves.
+
+    What could not stand is a CONSUMER of the layout model drawing such a
+    row as if it were on the page: the apps draw the Printed head, foot
+    and page number themselves from that JSON, so on
+    `sawyer/ARTICLES/FORMFEED.WS` page 5 -- landscape, a 612pt sheet whose
+    `.pl` still counts a portrait 66 lines, row y = -144 -- the app drew a
+    number the PDF shows nowhere and its own pagination oracle counted one
+    line more than the library.
+
+    THE CONTRACT: a row this returns True for is published with
+    `off_sheet: true` in the `layout` JSON (`header_lines`/`footer_lines`/
+    `auto_page_number`, version 12) and A CONSUMER DOES NOT DRAW IT. The
+    PDF ignores the flag by design -- the paper is its clip.
+
+    Below the bottom edge only: a row above the top of the sheet has never
+    been observed and is not claimed about here (the head block's own
+    arithmetic is anchored on `.mt`, which cannot exceed the sheet).
+    """
+    return y < 0
+
 
 def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
     """Natural width, in points, of an already-resolved header/footer LINE

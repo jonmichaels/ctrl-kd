@@ -977,6 +977,26 @@ def _printed_segment_text(text, styles):
     return ' ' * round(int(pctl[4:]) / _HMI_PER_PRINT_COLUMN)
 
 
+def _hf_line_json(e):
+    """One resolved running head/foot line, as this JSON publishes it.
+
+    version 12 (E11, Jon's ruling 2026-09-17): `off_sheet` joins the five
+    fields it had -- present, and true, ONLY on a row whose own resolved y
+    is off the paper (`pdf.hf_off_sheet`, which carries the whole rule and
+    the WS7 captures behind it). OMITTED, not false, everywhere else, so
+    every document with no off-sheet furniture emits byte-identical JSON to
+    version 11. A consumer MUST NOT DRAW a flagged row: the PDF draws it at
+    the resolved y and the paper clips it, which is what real WS7 does, and
+    an app drawing from this model has no paper to do the clipping.
+    """
+    out = {'text': e['text'], 'x': round(float(e['x']), 1),
+           'y': round(float(e['y']), 1), 'font': e['font'],
+           'style': list(e.get('style') or ())}
+    if e.get('off_sheet'):
+        out['off_sheet'] = True
+    return out
+
+
 @emitter('layout', ext='.json')
 def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 note_refs='word', **_options):
@@ -1103,6 +1123,22 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     modern`'s own docstring for that one documented scope cut) — a
     document with no Modern graphic content anywhere emits byte-
     identical JSON to version 6.
+
+    version 12 (E11, Jon's ruling 2026-09-17): a `header_lines`/
+    `footer_lines` entry, and `auto_page_number`, MAY carry
+    `off_sheet: true` -- this row's own resolved y is off the bottom of
+    the sheet, and **a consumer must not draw it**. WordStar commands such
+    a row anyway and lets the printer clip it (real WS7 captures put the
+    automatic number 14.4pt past the bottom edge on `REF/PS-FONTS.REF`,
+    `FONTS.REF` and `-LASERJE.FNT`, 21.6pt on `LSRBOX/PAGE.RND`), so the
+    PDF is unchanged and still draws at that y -- the paper is its clip.
+    An app drawing from THIS model has no paper, which is how
+    `sawyer/ARTICLES/FORMFEED.WS` page 5 (landscape 612pt sheet, portrait
+    `.pl`, row y = -144) came to show a page number the PDF does not and
+    to count one line more than the library. The flag is OMITTED, not
+    false, on every row that is on the sheet: a document with no off-sheet
+    furniture emits byte-identical JSON to version 11. See
+    `pdf.hf_off_sheet` for the predicate and the captures.
 
     version 11 (2026-09-15): every `header_lines`/`footer_lines` entry
     gains `style` -- the SELECTED STYLE's own baseline span attrs for that
@@ -1288,24 +1324,22 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
         pg_header_lines = getattr(page, 'header_lines', None)
         if pg_header_lines is not None:
             pg['header_lines'] = [
-                {'text': e['text'], 'x': round(float(e['x']), 1),
-                 'y': round(float(e['y']), 1), 'font': e['font'],
-                 'style': list(e.get('style') or ())}
-                for e in pg_header_lines]
+                _hf_line_json(e) for e in pg_header_lines]
         pg_footer_lines = getattr(page, 'footer_lines', None)
         if pg_footer_lines is not None:
             pg['footer_lines'] = [
-                {'text': e['text'], 'x': round(float(e['x']), 1),
-                 'y': round(float(e['y']), 1), 'font': e['font'],
-                 'style': list(e.get('style') or ())}
-                for e in pg_footer_lines]
+                _hf_line_json(e) for e in pg_footer_lines]
         pg_auto_pageno = getattr(page, 'auto_pageno', None)
         if pg_auto_pageno is not None:
-            pg['auto_page_number'] = {
+            auto = {
                 'text': pg_auto_pageno['text'],
                 'x': round(float(pg_auto_pageno['x']), 1),
                 'y': round(float(pg_auto_pageno['y']), 1),
             }
+            # version 12: same omit-unless-true rule as the head/foot lines.
+            if pg_auto_pageno.get('off_sheet'):
+                auto['off_sheet'] = True
+            pg['auto_page_number'] = auto
         # `columns`/`column_gutter_pt`/`column_width_pt` (version 2): same
         # omit-unless-set convention as `left`/`col` above -- present only
         # on a page `_apply_columns` actually merged from a `.co n>1`

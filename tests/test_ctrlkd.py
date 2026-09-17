@@ -6733,18 +6733,53 @@ def test_head_foot_lines_land_on_the_model_matching_the_writer():
     pages = _doc_to_pagelines(doc, True)
     assert len(pages) == 2
     p1, p2 = pages
+    # `off_sheet` (E11, 2026-09-17): every row this document has is ON the
+    # sheet, so it is False throughout -- the flag's own off-sheet cases are
+    # `test_off_sheet_rows_are_flagged_and_still_drawn` below.
     assert p1.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0,
-                                'font': None, 'style': []}]
+                                'font': None, 'style': [], 'off_sheet': False}]
     assert p1.footer_lines == [{'text': 'Footer Text', 'x': 57.6, 'y': 60.0,
-                                'font': None, 'style': []}]
+                                'font': None, 'style': [], 'off_sheet': False}]
     assert p1.auto_pageno is None            # a real footer is in force -> no auto number
     assert p2.header_lines == [{'text': 'Header Text', 'x': 57.6, 'y': 780.0,
-                                'font': None, 'style': []}]
+                                'font': None, 'style': [], 'off_sheet': False}]
 
     pdf = emit_pdf(doc, 'printed')
     ops = _td_ops6(pdf)
     assert (57.6, 780.0, b'Header Text') in ops
     assert (57.6, 60.0, b'Footer Text') in ops
+
+
+def test_off_sheet_rows_are_flagged_and_still_drawn():
+    """E11 (Jon's ruling 2026-09-17, option C): a head/foot/page-number row
+    whose own resolved y is off the paper is STILL COMMANDED -- real WS7
+    does that and lets the printer clip it (`_auto_pageno_row_y`'s own
+    captures) -- and the layout model says so, for the consumers that have
+    no paper to clip with.
+
+    `.mb 1.8` with the default `.fm 2` is the captured shape
+    (`sawyer/REF/PS-FONTS.REF`, `FONTS.REF`, `-LASERJE.FNT`): the row lands
+    14.4pt below the bottom edge. Both halves are asserted here -- the op
+    is in the PDF at that y, and the model's row carries `off_sheet`.
+    """
+    import json
+    from ctrlkd.pdf import emit_pdf, _doc_to_pagelines
+    from ctrlkd.layout import emit_layout
+    body = b''.join(b'FLINE-%03d\r\n' % i for i in range(1, 40))
+    doc = core.parse_ws(b'.mb 1.8\r\n' + body)
+    page = _doc_to_pagelines(doc, True)[0]
+    assert round(page.auto_pageno['y'], 1) == -14.4
+    assert page.auto_pageno['off_sheet'] is True
+    # still drawn: the paper is the clip, exactly as the printer is
+    assert b'-14.4 Td' in emit_pdf(doc, 'printed')
+    published = json.loads(emit_layout(doc))['printed']['pages'][0]
+    assert published['auto_page_number']['off_sheet'] is True
+    # and a row that IS on the sheet omits the key entirely (version 12's
+    # own rule: byte-identical JSON for every document without one)
+    on_sheet = core.parse_ws(b'.h1 Head\r\n' + body)
+    p0 = json.loads(emit_layout(on_sheet))['printed']['pages'][0]
+    assert 'off_sheet' not in p0['header_lines'][0]
+    assert 'off_sheet' not in p0['auto_page_number']
 
 
 def test_head_foot_lines_carry_the_selected_styles_own_attrs():

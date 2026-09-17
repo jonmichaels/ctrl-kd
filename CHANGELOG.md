@@ -5,6 +5,17 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Added
+
+- **The `layout` JSON says when a running head, foot or page number is off the
+  paper** (version 12). WordStar commands such a row anyway and lets the printer
+  clip it — real WordStar 7 prints put the automatic number 14.4pt below the
+  bottom edge of a Letter sheet when `.mb` is smaller than `.fm` — so the PDF is
+  unchanged and still draws it there, with the page as its clip. A program
+  drawing pages from this JSON has no paper to clip with, so such a row now
+  carries `off_sheet: true` and must not be drawn. The key is absent, not false,
+  on every row that is on the sheet.
+
 ### Fixed
 
 - **Page furniture is set in the document's own face, not in Times.** Running
