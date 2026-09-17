@@ -598,6 +598,36 @@ _MD = {'b': '**', 'i': '*', 'strike': '~~'}
 _MD_HTML = {'u': 'u', 'sup': 'sup', 'sub': 'sub'}
 _MD_NOTE_PREFIX = {'footnote': '', 'endnote': 'e', 'annotation': 'a', 'comment': 'c'}
 
+# ONE definition of what Markdown text has to escape, for the two places that
+# render document text: `_md_span_parts` (every span) and the note-definition
+# block at the end of `emit_markdown` (a note's raw text, which bypasses the
+# span path entirely). They escaped different sets until E7 -- the note path
+# handled only the backslash -- so `<-Repeated` in a TAGS annotation still
+# vanished into an unknown HTML element after every span had been fixed.
+# Backslash FIRST: it is the escape character, so escaping it after the others
+# would double the backslashes this function just added.
+_MD_ESCAPE = '*_#`[]<&'
+
+
+def _md_escape(text):
+    r"""`text` with every Markdown-significant character backslash-escaped.
+
+    `<` and `&` joined the set in E7 (Jon 2026-09-17): unescaped, a `<` in the
+    SOURCE is read as the start of an HTML tag and the word DISAPPEARS from
+    every renderer -- `<SP>`, `<Enter>`, `<B>` in Sawyer's macro and patch
+    documentation, thousands of times. `<B>` is worse than invisible: it is a
+    real tag, so it switches bold on with nothing to switch it off.
+
+    The emitter's OWN `<u>`/`<sub>`/`<sup>` tags never pass through here --
+    they are wrapped around text this function has already returned -- so
+    there is nothing to exempt.
+    """
+    out = text.replace('\\', '\\\\')
+    for ch in _MD_ESCAPE:
+        out = out.replace(ch, '\\' + ch)
+    return out
+
+
 def _md_note_id(kind, label):
     """Pandoc/GFM footnote label for one note. Footnotes stay bare (`[^1]`,
     real pandoc numbering, unchanged from before this rework) so existing
@@ -621,10 +651,60 @@ def _resolve_ref(refs, text):
     return None, None
 
 
-def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
+def _md_span(*args, **kwargs):
+    """One span's Markdown text. The thin form: `_md_span_parts` also
+    reports the delimiter it wrapped with, which only `_md_join` needs."""
+    return _md_span_parts(*args, **kwargs)[0]
+
+
+def _md_join(pieces):
+    r"""Concatenate `(text, outer_delimiter)` pairs, MERGING a run that the
+    span split in two (E7 item A, Jon 2026-09-17; audit 2026-09-17 §6.A
+    option 3).
+
+    THE BUG. A bold or italic word inside a strikeout run is a separate span
+    with its own styles, so the emitter closed the strikeout at the end of one
+    span and reopened it at the start of the next with NOTHING in between:
+    `~~struck ~~**bold**~~ more~~`. A four-tilde run is not strikethrough in
+    any flavour -- the strikeout is lost AND the tildes become visible text.
+    146 collisions in the corpus, 292 literal `~~` reaching a reader, in
+    NOVEL.WS (both copies), RJS.WS, -HOW-TO.RJS and BOOKLET.RJS.
+
+    THE GUARD. When the previous piece CLOSES with the same delimiter the next
+    piece OPENS with, drop both: the run simply continues. Compared on the
+    OUTERMOST delimiter each span actually emitted, never on a string suffix,
+    because a suffix test cannot tell `**bold**` followed by `*italic*` (which
+    ends in `*` and starts with `*`, and must NOT merge) from two halves of
+    one italic run. `strike` sorts last of the three delimiter styles, so it
+    is always the outermost one, which is exactly where the reported
+    collisions are. An HTML-tag style (`u`/`sub`/`sup`) reports no delimiter:
+    `</u><u>` is harmless to a renderer and merging it would change no
+    rendering.
+
+    Deliberately the SMALLEST fix that stops literal `~~` reaching a reader
+    (audit option 3). The cosmetic splits option 1 would also close -- 4383 of
+    them -- are left alone: they render correctly today, and re-baselining
+    every Markdown cell in both engines to tidy bytes nobody sees is a
+    separate decision."""
+    out = ''
+    prev = ''
+    for text, outer in pieces:
+        if (outer and outer == prev
+                and out.endswith(outer) and text.startswith(outer)):
+            out = out[:-len(outer)] + text[len(outer):]
+        else:
+            out += text
+        # A piece that emitted no delimiter of its own (plain text, an HTML
+        # tag, an empty span) breaks the chain: whatever ran before it has
+        # real content after its close and is genuinely finished.
+        prev = outer if text else prev
+    return out
+
+
+def _md_span_parts(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
             pix_map=None, pictures='off', image_links=None):
     if any(t.startswith('pctl') for t in s.styles):
-        return ''                  # screen-only print-control display string
+        return '', ''              # screen-only print-control display string
     # Round 19 (PIX images RULED IN, ledger PIX row): MD has NO true embed
     # (ruled) -- both 'embed' and 'export' render the same relative link
     # here; the CLI ALWAYS writes the PNG for MD regardless of which mode
@@ -640,20 +720,18 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
         r = (pix_map or {}).get(int(pix_tag[3:]))
         if r is not None and r.ok and image_links and r.index in image_links:
             alt = _pix_alt(r.raw_path).replace('[', '\\[').replace(']', '\\]')
-            return f'![{alt}]({image_links[r.index]})'
+            return f'![{alt}]({image_links[r.index]})', ''
     text = s.text
     if 'fnref' in s.styles:
         note, label = _resolve_ref(refs, text)
         if note is not None:
             if note.kind not in keep:
-                return ''
-            return f'[^{_md_note_id(note.kind, label)}]'
+                return '', ''
+            return f'[^{_md_note_id(note.kind, label)}]', ''
         # stray sentinel byte, not a real reference -- fall through as text
     if not text.strip():
-        return text
-    esc = text.replace('\\', '\\\\')
-    for ch in '*_#`[]':
-        esc = esc.replace(ch, '\\' + ch)
+        return text, ''
+    esc = _md_escape(text)
     lead = esc[:len(esc) - len(esc.lstrip())]
     trail = esc[len(esc.rstrip()):]
     core = esc.strip()
@@ -670,19 +748,54 @@ def _md_span(s, refs=(), keep=DEFAULT_NOTE_KINDS, plain=False,
         # Markdown heading otherwise -- only the `*emphasis*`/`<tag>`
         # wrapping is skipped, so the result is the plain escaped
         # character and nothing else.
-        return lead + core + trail
+        return lead + core + trail, ''
     # sorted: frozenset iteration order varies with hash seed, which made multi-style
     # nesting order (e.g. bold+strike) nondeterministic BETWEEN RUNS. Alphabetical
     # order happens to nest delimiter styles (b, i, strike) inside tag styles
     # (sub, sup, u), which is also what the Swift port documents. Found by the
     # ctrlkd-swift port's pre-vector determinism check (2026-07-29).
+    outer = ''
     for st in sorted(s.styles):
         if st in _MD:
             core = f'{_MD[st]}{core}{_MD[st]}'
+            outer = _MD[st]
         elif st in _MD_HTML:
             t = _MD_HTML[st]
             core = f'<{t}>{core}</{t}>'
-    return lead + core + trail
+            outer = ''            # an HTML tag cannot collide; see `_md_join`
+    return lead + core + trail, outer
+
+def _md_hard_break_paragraphs(lines):
+    r"""A verse/stanza unit's lines as one or more real Markdown paragraphs
+    (E7 item C, Jon 2026-09-17; audit 2026-09-17 §6.C option 2).
+
+    THE BUG. A hard break in Markdown is two TRAILING SPACES before the
+    newline, so joining a unit that contains a BLANK line produced a line
+    holding nothing but those two spaces. CommonMark reads a whitespace-only
+    line as a blank line, so the paragraph the join was trying to hold
+    together split anyway -- and split into pieces whose raw text claimed
+    otherwise. 148 such lines across 30 corpus documents.
+
+    THE FIX. Say what it already renders as: a blank line ENDS the unit, and
+    what follows is a new paragraph. The rendered result is unchanged (a
+    reader already saw separate paragraphs); the file now agrees with it, and
+    carries no line whose entire content is invisible whitespace.
+
+    Also drops the dangling trailing `  ` a unit ending in a blank line used
+    to leave on its last real line -- inert, since nothing follows it to break
+    ONTO, but non-conforming: 168 of them in the corpus.
+    """
+    out, group = [], []
+    for line in lines:
+        if line.strip():
+            group.append(line)
+        elif group:
+            out.append('  \n'.join(group))
+            group = []
+    if group:
+        out.append('  \n'.join(group))
+    return out
+
 
 # A real scene-break marker ('#', '* * *', '...') is a handful of
 # characters at most; see `_md_unit_lines`'s own docstring for why this
@@ -731,9 +844,9 @@ def _md_unit_lines(unit, refs, keep, b, pix_map=None, pictures='off', image_link
         spans = [Span(s.text, effective_span_styles(s, b)) for s in line.spans]
         if sentence_spacing:
             spans = sentence_spacing_spans(spans)
-        text = ''.join(_md_span(s, refs, keep, plain=plain, pix_map=pix_map,
-                                pictures=pictures, image_links=image_links)
-                      for s in spans)
+        text = _md_join(_md_span_parts(s, refs, keep, plain=plain, pix_map=pix_map,
+                                       pictures=pictures, image_links=image_links)
+                       for s in spans)
         # N9 MD guard: never leave a line ending in 2+ spaces baked into
         # its OWN text -- CommonMark reads that as a hard break, and the
         # only place this emitter ever WANTS one is the explicit '  \n'
@@ -824,11 +937,14 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
                 spans = [Span(s.text, effective_span_styles(s, b)) for s in line.spans]
                 if ss_on:
                     spans = sentence_spacing_spans(spans)
-                return ''.join(_md_span(s, refs, keep, pix_map=pix_map,
-                                        pictures=pictures, image_links=image_links)
-                              for s in spans).lstrip(' ')
+                return _md_join(_md_span_parts(s, refs, keep, pix_map=pix_map,
+                                               pictures=pictures,
+                                               image_links=image_links)
+                               for s in spans).lstrip(' ')
             lines = [_heading_line_md(line) for line in merged_lines(b)]
-            para = '  \n'.join(lines)
+            # E7 item C: a heading is ONE paragraph, so an empty line inside it
+            # would leave a line of nothing but the two hard-break spaces.
+            para = '  \n'.join(l for l in lines if l.strip())
             if para.strip():
                 out.append('#' * b.heading + ' ' + para.strip())
             continue
@@ -864,7 +980,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
                 # renderers show the backslash literally, and it's text
                 # that never existed in the WordStar source either way.
                 # Invisible in the raw text, which a backslash is not.
-                out.append('  \n'.join(lines))
+                out.extend(_md_hard_break_paragraphs(lines))
     md = '\n\n'.join(out)
     # A note's own raw text is embedded verbatim below -- never routed
     # through `_md_unit_lines`, so a multi-line WordStar comment/footnote
@@ -904,7 +1020,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
             # as `_md_unit_lines`, a note's own raw text can carry a
             # trailing double space at an embedded line break that must
             # never be read as an unintended hard break.
-            + '\n'.join(l.strip(' ').replace('\\', '\\\\')
+            + '\n'.join(_md_escape(l.strip(' '))
                        for l in (sentence_spacing_texts([n.text])[0]
                                 if ss_on else n.text).split('\n'))
             for kind in ('footnote', 'endnote', 'annotation', 'comment')

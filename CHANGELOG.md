@@ -7,6 +7,28 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ### Fixed
 
+- **Markdown: text that used to vanish now survives.** A document that
+  literally says `<SP>`, `<Enter>` or `<B>` had that read as an HTML tag by
+  every Markdown renderer, which showed NOTHING — the word disappeared.
+  (`<B>` was worse: a real tag, switching bold on with nothing to switch it
+  off.) `<` and `&` are escaped now. Affects Sawyer's macro and patch
+  documentation heavily; none of the shipped samples.
+- **Markdown: strikeout no longer breaks where a bold or italic word sits
+  inside it.** The emitter closed the strikeout and reopened it with nothing
+  in between (`~~alpha~~~~**beta**~~~~gamma~~`); four tildes are not
+  strikethrough in any flavour, so the strike was lost AND the tildes showed
+  up as text. The run is merged now.
+- **Markdown: a verse or stanza containing a blank line no longer emits a
+  line of invisible whitespace.** The two-trailing-spaces hard break turned
+  such a blank into a line holding just two spaces, which CommonMark reads as
+  a blank line — so the paragraph split anyway, into pieces whose raw text
+  claimed otherwise. A blank line ends the unit now, which is what it always
+  rendered as. The dangling trailing spaces at a unit's end go too.
+
+  All three are Modern-mode Markdown only. A Printed-mode body, and any
+  print-stream or ruler-driven document in either mode, is a fenced code
+  block whose content is literal and is untouched.
+
 - `ctrl-kd --version` no longer prints a Python `SyntaxWarning` ahead of its
   own output. A docstring cited RTF's `\margr` control word inside a plain
   (non-raw) string, so Python read `\m` as an escape sequence it did not
