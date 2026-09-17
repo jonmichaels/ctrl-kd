@@ -29,9 +29,9 @@ change (their PRVIEW driver had to start writing `.pl0` instead; internal bug
 explicit `.pl 0` turns page breaks off in both.
 
 **Impact:** a document written for WordStar 6.0 that relies on bare `.pl` would
-paginate here (7.0 behaviour) instead of flowing unbroken (6.0 behaviour). We have
+paginate here (7.0 behavior) instead of flowing unbroken (6.0 behavior). We have
 never seen such a document — none exists in our reference corpus — and we have no
-WordStar 6.0 installation to verify against, so the 6.0 behaviour is deliberately
+WordStar 6.0 installation to verify against, so the 6.0 behavior is deliberately
 not guessed at. If you have a real document affected by this, please open an
 issue and attach it (or a trimmed sample): that is exactly the evidence needed to
 implement the split properly. Technical details: `ERAS.md`.
@@ -52,7 +52,7 @@ well-marked, modest job. Technical details: `ERAS.md`.
 Three sources of truth, in order: MicroPro's own format specification and
 engineering release notes; known-answer files (MicroPro's demo/test documents,
 whose correct rendering is knowable in advance); and **WordStar itself**, run
-under emulation and measured (`tools/WORDSTAR-HARNESS.md`). Behaviour in this
+under emulation and measured (`tools/WORDSTAR-HARNESS.md`). Behavior in this
 converter is traceable to one of those three — and where none of them settles a
 question, the code says so rather than guessing quietly.
 
@@ -88,7 +88,7 @@ Modern output collapses a typed double space after a sentence ender
 way in every Modern format and view. Printed and Native keep the document
 exactly as typed. `--sentence-spacing {auto,keep,single}` overrides:
 `auto` (the default) means single on Modern and as-typed on Printed;
-`keep` and `single` force one behaviour everywhere.
+`keep` and `single` force one behavior everywhere.
 
 ## Are there sample documents to try?
 
@@ -135,7 +135,7 @@ document lowercase roman as Word's endnote default.
 
 LJ6DTP is Robert J. Sawyer's modified LaserJet driver: it patches the
 printer's character slots (type `_`, print an em dash; type `☻`, print ©)
-and draws page art — title bars, rules, colour knockouts — at print time.
+and draws page art — title bars, rules, color knockouts — at print time.
 That art lives in the *driver*, not the document, so a Modern reflow can't
 carry it: you get the words, correctly substituted (the em dash really is an
 em dash — substitutions are content and Modern applies them), but the boxes,

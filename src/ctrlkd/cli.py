@@ -192,9 +192,9 @@ def main(argv=None):
                          'each entry to a real page number, every other '
                          'format lists entries without one. Default: off')
     ap.add_argument('--inline-styling', choices=('on', 'off'), default='on',
-                    help='inline colour (^A) and font-size (^B... a symmetric '
+                    help='inline color (^A) and font-size (^B... a symmetric '
                          'type-2 font block) changes the author placed mid-'
-                         'text -- RTF gets \\cf from a 16-colour screen '
+                         'text -- RTF gets \\cf from a 16-color screen '
                          'palette and \\fsN; HTML gets a span with color/'
                          'font-size. Default: on')
     ap.add_argument('--pictures', choices=('off', 'embed', 'export'), default='embed',
@@ -388,7 +388,7 @@ def main(argv=None):
         if (a.mode == 'modern'
                 and doc.meta.get('printer_driver') == 'LJ6DTP'):
             print(f'ctrl-kd: {path}: LJ6DTP driver document -- its '
-                  f'print-time page art (boxes, rules, colour) does not '
+                  f'print-time page art (boxes, rules, color) does not '
                   f'reflow; character substitutions applied. '
                   f'--mode printed reproduces the page', file=sys.stderr)
         # --page-settings applies ONCE to the resolved page dict, so every

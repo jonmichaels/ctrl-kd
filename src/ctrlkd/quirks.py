@@ -365,7 +365,7 @@ def _apply_lj_corners(doc):
 
 
 @quirk('lj6dtp-colour-as-gray',
-       description='Screen colours as grey',
+       description='Screen colors as gray',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_colour(doc):
     """No IR transform: the PDF writer's own colour state (`pdf.py`'s
@@ -374,7 +374,7 @@ def _apply_lj_colour(doc):
 
 
 @quirk('lj6dtp-fill-patterns',
-       description='Colours 9–14 as hatch patterns',
+       description='Colors 9–14 as hatch patterns',
        quirk_class=AUTO, detect=_detect_lj)
 def _apply_lj_patterns(doc):
     """No IR transform: the PDF writer's own pattern resources (`pdf.py`'s
