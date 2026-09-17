@@ -5,6 +5,8 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+## [4.9.0] — 2026-09-16
+
 ### Added
 
 - **Quirks**: named, individually switchable departures from a literal reading
@@ -38,6 +40,25 @@ https://github.com/jonmichaels/ctrl-kd/releases
   document that trips no quirk emits byte-identical JSON to version 11 apart
   from the version number itself. Every `layout` answer-key cell was
   re-recorded for the version number; no other cell in the key moved.
+
+### Fixed
+
+- A paragraph-style selection written at the end of a line was lost when the
+  next line was a dot command; a manuscript's book list printed in the
+  heading's face and spilled to an extra page, and the whole body came out
+  right-aligned in text, Markdown and HTML. Both fixed; a numeric `.lh` now
+  outranks the active style's line height, as WordStar does.
+- Strikethrough is drawn as one rule across each struck run, spaces
+  included, the way WordStar prints it (previously per word).
+- NOVEL.WS (a reference manuscript) rejoins the print-fidelity tier; it had
+  been mis-tagged as PostScript.
+
+824 answer-key cells were re-recorded for the above: 792 `layout` cells
+(389 documents' `layout.printed` + `layout.modern`, plus the 7
+picture-bearing documents' `cells_pictures_off` pair) for the version bump,
+16 cells across two documents (RTF-RJS/NOVEL.WS and OLDTIMES.WS) for the
+end-of-line-selection/`.lh` fix, and 16 `pdf.printed` cells across 14
+documents for the strikethrough fix.
 
 ## [4.8.1] — 2026-09-16
 
