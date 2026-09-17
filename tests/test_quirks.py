@@ -616,6 +616,7 @@ def test_a_name_that_was_never_a_quirk_is_still_an_error():
         quirks.get_quirk('lj6dtp-colour-as-grey')
 
 
+@pytest.mark.sawyer
 def test_no_retired_name_is_ever_produced(require_sawyer_doc):
     """ONE DIRECTION. Naming old names on the way in must not put them back into
     anything this engine writes -- the decision, the report, the listing and the
@@ -632,6 +633,7 @@ def test_no_retired_name_is_ever_produced(require_sawyer_doc):
     assert set(out['quirks_applied']).isdisjoint(RETIRED_NAMES)
 
 
+@pytest.mark.sawyer
 def test_a_retired_name_turns_its_quirk_off_too(require_sawyer_doc):
     """`--no-quirk` takes an alias by the same route -- `resolve` maps both
     lists, not just the enable one."""
