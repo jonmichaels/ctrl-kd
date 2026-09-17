@@ -143,17 +143,23 @@ def main(argv=None):
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')
     ap.add_argument('--headers', choices=('on', 'off'), default='on',
-                    help="the document's own running heads and feet (.he/.fo) "
-                         'in the paged surfaces -- Printed PDF, Modern PDF and '
-                         "both RTF modes. WordStar's own automatic page number "
-                         'is --page-numbers\' business alone. Default: on')
+                    help="the document's own running heads and feet (.he/.fo). "
+                         'PDF AND RTF ONLY -- those are the page formats; '
+                         'text, Markdown and HTML are unpaged by design and '
+                         'carry no running heads, feet or page numbers at '
+                         'all, so this flag is accepted and ignored for them '
+                         "(no error). WordStar's own automatic page number is "
+                         "--page-numbers' business alone. Default: on")
     ap.add_argument('--page-numbers', choices=('auto', 'on', 'off'),
                     default='auto',
                     help="WordStar's own AUTOMATIC page number -- the one "
                          '.pc positions, a separate mechanism from a # the '
                          'author placed inside a real .he/.fo (that goes '
                          'with its head, under --headers, never this flag). '
-                         'Every paged surface. auto (DEFAULT): the '
+                         'PDF AND RTF ONLY, for the same reason --headers is: '
+                         'text, Markdown and HTML are unpaged by design, so '
+                         'the flag is accepted and ignored for them (no '
+                         'error). auto (DEFAULT): the '
                          'document\'s own dot '
                          'commands decide -- .pn/.pg turn it on, .op turns '
                          'it off, exactly like real WordStar; a document '
