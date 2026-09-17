@@ -911,13 +911,29 @@ def _html_bad_geometry(h):
     emitter was never declaring one; only the gate's own pattern was
     matching outside where CSS actually lives. No emitter change needed
     or made -- this is the SAME rule, just checked in the region it was
-    always meant to describe."""
+    always meant to describe.
+
+    E9 H4 (Jon's ruling 2026-09-17, the human-eye export audit section G)
+    SUPERSEDES the round-3 addendum's own half of this for Modern: with no
+    measure at all a 1400px window gave 150 characters to the line and 60
+    of 509 Modern documents scrolled sideways at 400px. The TWO ruled
+    declarations (`emit._MODERN_MEASURE_CSS`, a relative `38em` plus
+    `overflow-wrap` and a paragraph scroll, and
+    `emit._MODERN_NOWRAP_SCROLL_CSS`, the `max-width:100%` that keeps an
+    unfoldable row scrolling inside itself) are lifted out before the
+    check, verbatim and as whole strings -- so each is exempt only as
+    itself, and a max-width, a bare width or an inch-scale margin anywhere
+    else in the stylesheet still fails exactly as before. The ORIGINAL defect this gate
+    was built for -- WS-absolute geometry, a quote paragraph's own
+    `margin-right:5.8in` -- is untouched by the exemption."""
     css = []
     m = re.search(r'<style>(.*?)</style>', h, re.S)
     if m:
         css.append(m.group(1))
     css.extend(re.findall(r'style="([^"]*)"', h))
     css_text = '\n'.join(css)
+    for ruled in (emit._MODERN_MEASURE_CSS, emit._MODERN_NOWRAP_SCROLL_CSS):
+        css_text = css_text.replace(ruled.strip('\n'), '')
     bad = []
     if re.search(r'(?<![-\w])max-width\s*:', css_text):
         bad.append('max-width declared')

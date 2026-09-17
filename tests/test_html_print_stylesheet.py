@@ -158,9 +158,15 @@ def test_a_document_with_no_cp_gets_no_keep_rules():
 def test_the_screen_stylesheet_is_byte_identical_to_the_base(mode):
     """The proof the ruling asked for: strip `@media print` and what is
     left is exactly the stylesheet that was there before -- so nothing a
-    browser renders can have moved."""
+    browser renders can have moved.
+
+    E9 H4 (2026-09-17) added ONE thing to the screen side, and only in
+    Modern: the reading measure (`emit._MODERN_MEASURE_CSS`). Printed's
+    screen stylesheet is still the base, byte for byte, which is the half
+    of this claim the print round actually made."""
     html = emit.emit_html(_ws7(BODY), mode=mode)
-    assert _screen_css(html) == emit._CSS
+    base = emit._CSS + ('' if mode == 'printed' else emit._MODERN_MEASURE_CSS)
+    assert _screen_css(html) == base
 
 
 def test_no_screen_rule_ever_names_the_new_classes():

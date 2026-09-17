@@ -1043,15 +1043,26 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
 # Body font: the sophisticated body ruling (2026-08-05) -- Georgia 14, the
 # stack carrying the no-Georgia case by HTML's own nature.
 #
-# NO WIDTH/MEASURE DECLARATION ANYWHERE (Jon's ruling, round 3 addendum,
+# NO WIDTH/MEASURE DECLARATION HERE (Jon's ruling, round 3 addendum,
 # 2026-08-17): an earlier version of this stylesheet capped the body at
 # `max-width:42rem` as a READING-MEASURE nicety -- reasonable on its own,
 # but it's still OUR OWN page-width opinion, the same category of thing as
 # the WS-absolute geometry this whole round exists to strip. HTML has no
-# page; width belongs entirely to the renderer/reader (the browser window),
-# in both Modern AND Native output. `padding` below is a fixed breathing-
-# room gutter, not a measure -- it doesn't cap anything, it just keeps text
-# off the viewport edge.
+# page; width belongs entirely to the renderer/reader (the browser window).
+# `padding` below is a fixed breathing-room gutter, not a measure -- it
+# doesn't cap anything, it just keeps text off the viewport edge.
+#
+# SUPERSEDED FOR MODERN by E9 H4 (Jon's ruling 2026-09-17, audit section G):
+# with no measure at all a 1400px window gave about 150 characters to the
+# line, roughly twice a comfortable one, and with no `overflow-wrap` a single
+# long DOS path or a wide row of block graphics dragged the whole page
+# sideways -- 60 of 509 Modern documents scrolled horizontally at 400px, four
+# of them more than four times the viewport. `_MODERN_MEASURE_CSS` below
+# carries the measure, and it is appended for MODERN ONLY: the Printed
+# facsimile is already clean at 400px (its `p.ws-native` blocks scroll
+# inside themselves, which is the right behaviour for a facsimile) and a
+# measure imposed on a line-for-line page would be exactly the page-width
+# opinion the ruling above rejects.
 _CSS = """body{margin:0;padding:2rem 1rem;
 font:14pt/1.6 Georgia,'Times New Roman',P052,serif;color:#222}p{margin:0 0 1em}
 .ws-native{white-space:pre;overflow-x:auto;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
@@ -1063,6 +1074,52 @@ section[role=doc-endnotes]{margin-top:2rem}
 section[role=doc-endnotes] h2{font-size:1.1rem}
 @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}
 hr.pb{border-top-color:#444}blockquote{border-left-color:#555}}"""
+
+# E9 H4: the Modern measure -- see the supersession note above `_CSS`.
+#
+#   max-width  38em at the 14pt Georgia body is about 70 characters to the
+#              line on a desktop, inside the 65-75 a reader wants; `margin:
+#              0 auto` centres it in a wide window instead of leaving it
+#              pinned to the left edge.
+#   overflow-wrap  `anywhere` rather than `break-word` on purpose: only
+#              `anywhere` also shrinks the element's MIN-CONTENT width, and
+#              min-content is exactly what a 400px viewport hands a long
+#              unbroken path -- `break-word` leaves the page wide and only
+#              breaks the line once it is already too late.
+#
+#   overflow-x  on the PARAGRAPH, which is this emitter's own answer to the
+#              audit's "`overflow-x: auto` on pre/tables": there are no
+#              `<pre>` or `<table>` elements here, but there IS content a
+#              paragraph is forbidden to fold -- a picture row
+#              (`span.ws-nowrap`, planning #264 item 3, packet row B4) and a
+#              run of box-drawing characters. `LSRBOX/LSRBOX.WS` was 5,095 px
+#              wide at a 400 px viewport through one such span and
+#              `-HOLYMAC.WS` 1,097 px. The paragraph scrolls inside itself
+#              instead, exactly as `p.ws-native` already does, and the row
+#              stays unfolded. It only ever engages on a paragraph that
+#              really is too wide.
+#   ws-nowrap  the same guard one level in, because the paragraph's own
+#              scroll is not always the container that ends up holding the
+#              overflow (`LJ6DTP.WS`'s banner row escaped it, 602 px).
+#              Making the non-folding span itself a `max-width:100%`
+#              inline-block pins it either way. Modern only, like the rest
+#              of this rule set -- inside a Printed facsimile block an
+#              inline-block would be a layout opinion about a page that is
+#              already line-for-line.
+#
+# `p.ws-native` needs nothing here: it already carries `overflow-x:auto`, so
+# a wide facsimile line scrolls inside its own block, and `overflow-wrap`
+# has no effect under `white-space:pre` anyway. There are no `<pre>` or
+# `<table>` elements in this emitter's output for the same rule to reach.
+_MODERN_MEASURE_CSS = ("\nbody{max-width:38em;margin:0 auto;overflow-wrap:anywhere}"
+                       "\np{overflow-x:auto}")
+# Appended only when a `ws-nowrap` span is actually on the page (see the
+# `ws-nowrap` note above) -- same "no CSS-byte delta for a feature this
+# document never used" discipline the three conditional rules in `emit_html`
+# already follow.
+_MODERN_NOWRAP_SCROLL_CSS = ("\nspan.ws-nowrap{display:inline-block;max-width:100%;"
+                             "overflow-x:auto;vertical-align:top}")
+
 
 def _print_css(doc, has_break, has_keep, printed=True):
     r"""The PRINT stylesheet (planning #264 R5, Jon's ruling 2026-09-14
@@ -2534,6 +2591,8 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
         parts.append('<hr>')
         parts.extend(sections)
     css = _CSS
+    if not printed:
+        css += _MODERN_MEASURE_CSS          # E9 H4, Modern only
     if styles:
         extra = _style_css(doc, printed, inline_styling)
         if extra:
@@ -2568,6 +2627,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     if any('ws-nowrap' in p for p in parts):
         css += ('\nspan.ws-nowrap{white-space:nowrap}'
                 '\np.ws-native span.ws-nowrap{white-space:pre}')
+        # E9 H4: and, in Modern, the scroll that keeps an unfoldable row from
+        # dragging the whole page sideways.
+        if not printed:
+            css += _MODERN_NOWRAP_SCROLL_CSS
     # E9 H2: the phone rule, appended only when the document actually opened
     # a columnar section -- the same "no CSS-byte delta for a feature this
     # document never used" discipline as the three rules above.
