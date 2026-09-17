@@ -163,15 +163,18 @@ def test_emit_html_poem_breaks():
 def test_emit_html_printed_native_flow():
     """Round 3 addendum (2026-08-17): Native/printed HTML retired <pre> --
     a boxed, non-wrapping element implies a width opinion this project no
-    longer states in HTML at all. Line-for-line structure is now explicit
-    <br> in normal flow, with the monospace identity carried by the
-    `ws-native` CSS class (white-space:pre-wrap keeps literal column
-    spacing intact while still allowing the browser to wrap a long line)."""
+    longer states in HTML at all. The monospace identity is carried by the
+    `ws-native` CSS class instead.
+
+    E9 H1 (2026-09-17) retired the `<br>` half of that: `ws-native` is
+    `white-space:pre`, where the newline IS the break, so the `<br>` the
+    emitter also wrote made a SECOND one and every line came out followed
+    by a blank line. See tests/test_printed_html_single_break.py."""
     data = b'A    B    C\r\nD    E    F\r\n'
     h = emit.emit_html(core.parse_printstream(data), 'printed')
     assert '<pre' not in h
     assert 'class="ws-native"' in h
-    assert 'A    B    C' in h and '<br>' in h
+    assert 'A    B    C\nD    E    F' in h and '<br>' not in h
 
 def test_emit_rtf_valid_shape():
     r = emit.emit_rtf(core.parse_ws(make_prose()))

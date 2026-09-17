@@ -2193,12 +2193,18 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
             # implies a WIDTH-CONSTRAINING monospace grid, which is exactly
             # the page-geometry opinion this round strips everywhere else.
             # Native's own identity is the FONT (kept via the `ws-native`
-            # class: monospace, `white-space:pre-wrap` so literal column
-            # spacing still lines up) -- not a boxed, non-wrapping element.
-            # Every physical line break is now an explicit <br> rather than
-            # a literal newline relying on <pre>'s own whitespace handling,
-            # so a long physical line still wraps at the READER's window
-            # (the fixed 65-column look stays Printed/PDF's own domain).
+            # class: monospace) -- not a boxed, non-wrapping element.
+            #
+            # E9 H1 (Jon's ruling 2026-09-17, audit section D): ONE NEWLINE
+            # PER LINE, NO `<br>`. `p.ws-native` settled on `white-space:
+            # pre` (its `overflow-x:auto` is what lets a wide facsimile
+            # line scroll inside itself instead of dragging the page) and
+            # under `pre` the newline IS the break -- the `<br>` this
+            # branch also wrote was a SECOND one, so every line of the
+            # facsimile was followed by a blank line and a 57-page novel
+            # arrived twice as tall as the document. 481 of 511 Printed
+            # HTML documents. Put the `<br>` back only if a `ws-native`
+            # block is ever emitted without `pre`.
             # planning #264 item 1 (packet row B3): a bare 0x09 lands on
             # WordStar's own modulus-8 stop here, where the face is
             # fixed-pitch (`p.ws-native`) and a column IS a character --
@@ -2214,7 +2220,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
                                 image_links=image_links,
                                 sentence_spacing=ss_on)
                      for line in pf_rewrapped_lines(doc, b)]
-            body = '<br>\n'.join(lines)
+            body = '\n'.join(lines)
             if body.strip():
                 native_cls = _add_html_class(cls, 'ws-native')
                 parts.append(f'<p{native_cls}>{body}</p>')
