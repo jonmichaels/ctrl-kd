@@ -5,6 +5,18 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Fixed
+
+- `ctrl-kd --version` no longer prints a Python `SyntaxWarning` ahead of its
+  own output. A docstring cited RTF's `\margr` control word inside a plain
+  (non-raw) string, so Python read `\m` as an escape sequence it did not
+  recognise and warned about it. Nothing was broken, but the warning named a
+  file inside the package and was the first thing a new Homebrew or PyPI user
+  saw, which reads like a crash. It appeared only on a COLD bytecode cache —
+  the first run after an install — which is why no development machine ever
+  showed it. Every module is now compiled with warnings as errors by both the
+  test suite and `tools/run-full-suite.sh`, so it cannot come back.
+
 ### Changed
 
 - **Every quirk was renamed**, and the names that shipped in 4.9.0 still work.

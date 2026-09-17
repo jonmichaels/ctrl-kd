@@ -73,6 +73,25 @@ echo "== privacy audit =="
 tools/audit_private.sh
 echo
 
+# Compile every shipped module with warnings as errors. tests/
+# test_no_syntax_warnings.py does the same thing in-process and is the real
+# gate; this runs the literal command, so the recipe written down in that
+# file's own docstring is itself guarded and cannot rot.
+#
+# WHY IT IS NOT ENOUGH TO IMPORT THE PACKAGE. A SyntaxWarning fires when a
+# module is COMPILED, not imported: once __pycache__ holds a current .pyc,
+# every later import is silent. A developer's checkout compiled each module
+# once, long ago; only a user meets a cold cache -- a fresh pip or brew
+# install, byte-compiled at install time. ctrl-kd 4.9.0 therefore greeted
+# every new Homebrew user with an invalid-escape warning naming a path inside
+# our own package, ahead of `ctrl-kd --version`'s own output, while every
+# suite here ran clean. `-f` forces recompilation regardless of the cache,
+# which is the whole point.
+echo "== compile with warnings as errors =="
+python3 -W error::SyntaxWarning -m compileall -q -f src/ctrlkd
+echo "all modules compile silently"
+echo
+
 SAWYER="${CTRLKD_SAWYER_ARCHIVE:-}"
 
 sawyer_status="not armed"

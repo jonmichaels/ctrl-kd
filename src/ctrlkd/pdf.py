@@ -10162,7 +10162,7 @@ def _modern_column_width(width, cols, gutter):
 
 
 def _modern_geometry(doc):
-    """(left, top_margin, bottom_margin, text_width) in points. The
+    r"""(left, top_margin, bottom_margin, text_width) in points. The
     document's declared geometry wins (governing principle); silence is the
     modern page: 1in margins on Letter.
 
