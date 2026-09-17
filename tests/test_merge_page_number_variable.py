@@ -179,9 +179,13 @@ def test_every_other_merge_variable_survives_a_non_paged_export():
         for mode in ('printed', 'modern'):
             out = _export(doc, fmt, mode)
             # HTML escapes the ampersand and Markdown backslash-escapes
-            # the hash -- neither is this rule's business, so compare
-            # against each format's own rendering of the same characters.
-            plain = out.replace('&amp;', '&').replace('\\#', '#')
+            # both the hash and (since 8f25e33) the ampersand -- neither is
+            # this rule's business, so compare against what a READER of
+            # each format actually shows. A Markdown reader renders `\\&`
+            # as `&` and `\\#` as `#`; the rule here is "the variable
+            # survives", not "the bytes are unescaped".
+            plain = out.replace('&amp;', '&')
+            plain = re.sub(r'\\([&#])', r'\1', plain)
             for var in ('&NAME&', '&COMPANY&', '&REF#&', '&#COUNT&'):
                 assert var in plain, (fmt, mode, var)
 
