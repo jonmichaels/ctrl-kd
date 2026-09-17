@@ -3783,6 +3783,192 @@ _RTF_LEAD_TWIPS_PER_48 = 30
 # already uses inline; named here too since `.pm` shares the unit.
 _RTF_TWIPS_PER_COL = 144
 
+# --- Printed RTF: the text column is the document's own ruler -----------
+# planning #270 E9 R1 (Jon's ruling 2026-09-17, the human-eye export audit
+# section A). Printed RTF used to mirror `.po` into `\margr`, which made the
+# text column *paper width - 2 x `.po`* -- an arithmetic that has nothing to
+# do with the ruler the author typed on. At the ordinary default (`.po 0.8in`
+# on Letter) it yields exactly 69 columns, one short of the 69-character
+# lines real documents carry, so 6,488 facsimile lines in 216 documents were
+# re-wrapped by the reader -- the one thing Printed mode exists to prevent --
+# and `MAILLIST/ENVELOPE.LST` (`.poo/.poe 4.20"` on an 8.5in sheet) got a
+# text column ONE TENTH OF AN INCH wide.
+#
+# The column now comes from WordStar's own measure:
+#
+#   ruler  `.rm`, in print columns, measured from the SAME `.po` origin the
+#          Printed PDF measures its right edge from (`pdf._line_ops_printed`'s
+#          own `justify_right_x = po_origin_pt + rm_cols * 7.2`, confirmed
+#          there against two real WS7 captures). The widest `.rm` in force
+#          anywhere in the document wins, document-opening value included --
+#          a section that widens the ruler must not re-wrap the rest.
+#
+#   lines  widened to hold the document's own longest printed line when that
+#          line runs PAST its ruler (box art, print streams, display type,
+#          and every plain-text source whose paragraphs are single lines).
+#          A facsimile that re-wraps is not a facsimile, so the measure
+#          follows the ink, not just the ruler.
+#
+# One cell of slack is added on top: a reader breaks a line whose width
+# EQUALS the measure exactly (measured, LibreOffice 24.2.7.2 -- 68 characters
+# fit a 69-column column, 69 do not), and `pd-samples/authored/OCAPTAIN.WS`
+# is exactly that boundary case. Trailing spaces are NOT measured: the same
+# check shows a trailing space never forces a break.
+#
+# `\paperw` follows the column when the sheet cannot hold it (the audit's
+# question 6, ruled yes) -- an envelope template gets an envelope-shaped
+# sheet instead of a one-tenth-inch ribbon. It stops at 22in, which is Word's
+# own maximum page dimension and comfortably inside LibreOffice's (measured:
+# a 41.6in page still lays one line, a 51.6in page collapses its text frame).
+# A document whose own lines are longer than that page keeps the reader's
+# re-wrap; there is no page any reader will accept that would hold them.
+_RTF_MAX_PAPERW_TWIPS = 22 * 1440
+
+
+def _rtf_printed_widest_line_twips(body):
+    r"""The widest physical line in an already-emitted Printed RTF `body`,
+    in twips.
+
+    THE BODY IS MEASURED, NOT THE DOCUMENT. Every fact that decides how wide
+    a printed line draws -- `.pf` re-wrap, expanded tabs, `.l#` line-number
+    labels, heading `\fs28`, a font block's own `\fsN`, an embedded picture's
+    `\picwgoal` -- is already resolved in the bytes this emitter just built,
+    and re-deriving any of it from `doc` would be a second opinion that could
+    disagree. It also makes the two engines agree structurally: the identical
+    scan over an identical string cannot produce a different number.
+
+    THE WIDTH MODEL IS WORDSTAR'S OWN GRID: one character is one cell of the
+    document's pitch, scaled by its own run's declared size (`\fs24` = 12pt =
+    144 twips, WordStar's 10 CPI). That is exactly what the Printed PDF draws
+    -- `pdf._face_tz` scales a proportional face so its AVERAGE character
+    lands on the grid pitch -- and for the Courier the overwhelming majority
+    of Printed RTF is set in it is not a model at all but the true advance.
+    For a proportional face a reader draws it slightly narrower than this
+    (Times averages ~0.5em against Courier's 0.6em), which errs toward a
+    column that is wide enough rather than one that is not.
+
+    Only the controls this emitter writes are understood; anything else
+    contributes nothing, which is the correct answer for every one of them
+    (`\b`, `\cf3`, `\super`, ...)."""
+    fs, stack = 24, []
+    width = trail = widest = 0
+    i, n = 0, len(body)
+    while i < n:
+        c = body[i]
+        if c == '{':
+            stack.append(fs)
+            i += 1
+            continue
+        if c == '}':
+            if stack:
+                fs = stack.pop()
+            i += 1
+            continue
+        if c == '\\':
+            m = _RTF_CTRL_RE.match(body, i)
+            if m:
+                word, arg = m.group(1), m.group(2)
+                i = m.end()
+                if word == 'fs' and arg:
+                    fs = int(arg)
+                elif word == 'f' and arg:
+                    pass
+                elif word in ('par', 'line'):
+                    widest = max(widest, width - trail)
+                    width = trail = 0
+                elif word == 'tab':
+                    # a reader's own default tab interval, 0.5in
+                    width = (width // 720 + 1) * 720
+                    trail = 0
+                elif word == 'u' and arg:
+                    width += fs * 6
+                    trail = 0
+                    if i < n and body[i] == '?':
+                        i += 1
+                elif word == 'pict':
+                    goal = _RTF_PICWGOAL_RE.search(body, i)
+                    j = _rtf_group_end(body, i)
+                    if goal and goal.end() <= j:
+                        width += int(goal.group(1))
+                        trail = 0
+                    i = j
+                elif word in _RTF_ONE_CHAR_CTRL:
+                    width += fs * 6
+                    trail = 0
+                continue
+            m = _RTF_HEX_RE.match(body, i)
+            if m:
+                width += fs * 6
+                trail = 0
+                i = m.end()
+                continue
+            if i + 1 < n and body[i + 1] in '\\{}':
+                width += fs * 6
+                trail = 0
+                i = i + 2
+                continue
+            i += 1
+            continue
+        if c == '\n' or c == '\r':
+            i += 1
+            continue
+        j = i
+        while j < n and body[j] not in '\\{}\n\r':
+            j += 1
+        text = body[i:j]
+        width += len(text) * fs * 6
+        stripped = text.rstrip(' ')
+        trail = (trail + len(text) * fs * 6 if not stripped
+                 else (len(text) - len(stripped)) * fs * 6)
+        i = j
+    widest = max(widest, width - trail)
+    return widest
+
+
+_RTF_CTRL_RE = re.compile(r"\\([a-zA-Z]+)(-?\d+)?[ ]?")
+_RTF_HEX_RE = re.compile(r"\\'[0-9a-fA-F]{2}")
+_RTF_PICWGOAL_RE = re.compile(r"\\picwgoal(\d+)")
+# every control word this emitter writes that PUTS ONE CHARACTER on the line
+_RTF_ONE_CHAR_CTRL = frozenset((
+    'bullet', 'emdash', 'endash', 'lquote', 'rquote', 'ldblquote',
+    'rdblquote', 'chftn', 'chpgn', 'tilde', 'zwnj', 'zwj'))
+
+
+def _rtf_group_end(body, i):
+    """The index just past the `}` closing the group already open at `i`."""
+    depth = 1
+    n = len(body)
+    while i < n:
+        c = body[i]
+        if c == '\\':
+            i += 2
+            continue
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return n
+
+
+def _rtf_printed_ruler_twips(doc):
+    """The widest `.rm` in force anywhere in `doc`, in twips.
+
+    Document-opening `.rm` (`doc.meta['page']['rm_cols']`, 65 when the file
+    is silent -- WSFORMAT.TXT's own documented default) plus every block's
+    own resolved `.rm`, because a document that widens its ruler part way
+    down is still one text column to an RTF reader."""
+    page = doc.meta.get('page') or {}
+    cols = float(page.get('rm_cols', 65.0))
+    for b in doc.blocks:
+        rm = getattr(b, 'right_margin', None)
+        if rm is not None:
+            cols = max(cols, float(rm))
+    return int(round(cols * _RTF_TWIPS_PER_COL))
+
+
 
 def _rtf_block_lead_48(doc, b, resolved=None):
     """The 1/48in leading in force for block `b`'s own printed lines.
@@ -4773,6 +4959,28 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
         outside = poe_cols if poe_cols is not None else page.get('po_cols', 8.0)
         margl = int(round(float(inside) * 144))
         margr = int(round(float(outside) * 144))
+    if printed:
+        # E9 R1: the text column is the document's own ruler, widened to the
+        # document's own longest printed line -- see the block comment above
+        # `_rtf_printed_widest_line_twips`. `\margl` stays `.po` (and stays
+        # the `.poo`/`.poe` pair when the document declares one); only the
+        # RIGHT edge moves, because only the right edge was ever guesswork.
+        # `running` is measured beside `body`: a running head or foot draws
+        # in the same text column the body does, so a long `.h1` name block
+        # would be re-wrapped by exactly the same arithmetic.
+        column = (max(_rtf_printed_ruler_twips(doc),
+                      _rtf_printed_widest_line_twips(body),
+                      _rtf_printed_widest_line_twips(running))
+                  + _RTF_TWIPS_PER_COL)
+        # the least right margin the sheet may keep: one cell normally, and
+        # the declared outside offset under `\margmirror`, where the right
+        # margin is a real page-parity fact and not just leftover paper.
+        min_right = margr if mirror_margins else _RTF_TWIPS_PER_COL
+        if margl + column + min_right <= paperw:
+            margr = paperw - margl - column
+        else:
+            paperw = min(_RTF_MAX_PAPERW_TWIPS, margl + column + min_right)
+            margr = max(_RTF_TWIPS_PER_COL, paperw - margl - column)
     pagesetup = (r'\paperw%d\paperh%d\margl%d\margr%d\margt%d\margb%d'
                  % (paperw, paperh, margl, margr, margt, margb))
     if facingp or mirror_margins:

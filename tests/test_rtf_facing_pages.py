@@ -185,7 +185,13 @@ def test_galleys_geometry(require_sawyer_doc):
         doc = core.parse(fh.read())
     out = emit.emit_rtf(doc, mode='printed')
     assert r'\headery1272' in out and r'\footery1646' in out
-    assert r'\margl8370\margr1944' in out
+    # E9 R1 (2026-09-17): `\margr` is the document's own ruler now, not a
+    # mirror of `\margl`. `.rm 3.3125i` = 33.125 columns, plus one cell of
+    # reader slack = 4914 twips of text column on the 11in landscape sheet,
+    # so the right margin is 15840 - 8370 - 4914. That 3.3125in measure IS
+    # the paperback trim this template exists to make -- before the fix the
+    # column came out 3.84in, a width the file never asked for.
+    assert r'\margl8370\margr2556' in out
     assert r'\margmirror' in out
 
 
