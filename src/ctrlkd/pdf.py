@@ -468,7 +468,10 @@ def _pl_at(checkpoints, bi):
     return pl
 
 
-_PR_OR_CMD_RE = _re.compile(r'^\.PR\s*OR\s*=\s*([LP])', _re.IGNORECASE)
+# The SAME acceptance `core._apply_format_dot`'s own `.PR` branch applies: the
+# argument must literally begin `or=` and its fourth character decides. Anything
+# looser would invent a checkpoint for a command the parser itself ignored.
+_PR_OR_CMD_RE = _re.compile(r'^\.PR\s*OR=([LP])', _re.IGNORECASE)
 
 
 def _or_checkpoints(doc):
@@ -7252,9 +7255,17 @@ def _attach_head_foot_lines_printed(doc, pages, size):
         # column is past that clamp), and never the head/foot's own
         # page-OPEN `.po`. See `_auto_pageno_x_pt`.
         running_po = getattr(pg, 'auto_pageno_po', None)
+        # M31: this page's own SHEET. The running head's row is measured DOWN
+        # from the top of the paper, so a page the writer draws on a landscape
+        # sheet and this model measures on the document's portrait one put the
+        # head 180pt apart -- off the top of the page entirely, in the one
+        # direction nothing else here can catch (the automatic number is
+        # measured UP from the foot and is right either way).
+        page_or = getattr(pg, 'orientation', None)
         saved_pg = None
         if (page_mt is not None or page_mb is not None or page_pl is not None
-                or page_hm is not None or page_fm is not None):
+                or page_hm is not None or page_fm is not None
+                or page_or is not None):
             eff = dict(doc.meta['page'])
             if page_mt is not None:
                 eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
@@ -7267,7 +7278,10 @@ def _attach_head_foot_lines_printed(doc, pages, size):
                 eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
             if page_fm is not None:
                 eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
+            if page_or is not None:
+                eff = _page_dict_for_orientation(eff, page_or)
             saved_pg, doc.meta['page'] = doc.meta['page'], eff
+        page_h_this = _resolved_page_height(doc, True) if page_or is not None else page_h
         bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pg) if bi is not None]
         if bis:
             auto_page_number = pgnum_on_page[page_index]
@@ -7276,7 +7290,7 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             auto_page_number = _pgnum_for_bodiless_page(
                 pgnum_checkpoints, fallback_bi, bodiless_doc)
         resolved = _resolve_head_foot_lines(
-            doc, page_numbers[page_index], page_h, lead, size, running_left,
+            doc, page_numbers[page_index], page_h_this, lead, size, running_left,
             True, headers=getattr(pg, 'headers', None),
             footers=getattr(pg, 'footers', None),
             auto_page_number=auto_page_number,
