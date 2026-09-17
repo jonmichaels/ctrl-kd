@@ -7,6 +7,20 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ### Fixed
 
+- **Page furniture is set in the document's own face, not in Times.** Running
+  heads, running feet, the automatic page number and footnote/endnote text were
+  written in a hardcoded face and size in the RTF exports and in the Modern PDF
+  — Times New Roman 11 on a Printed page whose body is Courier 12, on every page
+  of a running-head document. They resolve through the same font chain body text
+  does now: a `.h#`/`.f#` that opens a font block prints in THAT face and size
+  (22 documents in the public test corpus, which the Printed PDF has always
+  honoured and the other three surfaces threw away); a head that declares
+  nothing takes the mode's body face — Courier in Printed, the reading face in
+  Modern, Courier in a document that declares itself non-proportional. Sizes
+  follow the same rule: Printed furniture is the body's size, Modern furniture
+  is the body size less 2pt (12pt against Modern's 14pt body, where the RTF and
+  the Modern PDF both used 11). Printed PDF is unchanged — it was already right.
+
 - **Modern: a list bullet and its text no longer read as one crowded word.**
   The square bullet was drawn on the same fixed-pitch cell Printed uses, but
   the space after it was measured in the reading face — 3.5pt against the

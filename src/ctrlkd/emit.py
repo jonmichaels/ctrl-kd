@@ -2636,7 +2636,8 @@ def note_ref_labels(pairs, scheme):
     return shown
 
 
-def _rtf_note_dest(note, label, mark_override=None, sentence_spacing=False):
+def _rtf_note_dest(note, label, mark_override=None, sentence_spacing=False,
+                   face=''):
     """The genuine `{\\footnote ...}` destination for one footnote,
     endnote, or annotation, plus the inline mark that anchors it (a
     footnote is anchored to the character(s) immediately preceding its
@@ -2675,6 +2676,16 @@ def _rtf_note_dest(note, label, mark_override=None, sentence_spacing=False):
     never page-bottom footnotes in WordStar either, and endnote-style
     end-of-section collection is the closer honest fit of the two RTF has.
 
+    `face` (E10, Jon's ruling 2026-09-17) is the note's own FACE control,
+    resolved by the caller through the same chain a body run takes: `\\f1`
+    (Courier New) in Printed, where the body is Courier and `\\plain`'s own
+    `\\f0` was printing note text in Times New Roman; `\\f1` in Modern too
+    when the document declares fonts and declares itself non-proportional
+    (`nonprop_fallback`, ledger 2026-09-09); empty otherwise, because
+    `\\plain` already selects `\\f0`, which IS Modern's body face. The size
+    stays `\\fs24` = 12pt: the Printed body size, and Modern's body-less-2
+    (E10b).
+
     A TAGGED footnote/endnote (ruling 2026-08-24 item 4 -- `note.tag` set)
     is the same honesty case as an annotation: \\chftn is Word's AUTOMATIC
     counter, and a note carrying its own user MARK is not automatically
@@ -2698,11 +2709,11 @@ def _rtf_note_dest(note, label, mark_override=None, sentence_spacing=False):
         echo = r'\super\chftn '
     note_text = (sentence_spacing_texts([note.text])[0]
                 if sentence_spacing else note.text)
-    dest = ('{' + r'\footnote' + flag + r' \pard\plain\fs24 {' + echo + '}'
-            + _rtf_escape(note_text) + '}')
+    dest = ('{' + r'\footnote' + flag + r' \pard\plain' + face + r'\fs24 {'
+            + echo + '}' + _rtf_escape(note_text) + '}')
     return mark + dest
 
-def _rtf_comment_dest(note, sentence_spacing=False):
+def _rtf_comment_dest(note, sentence_spacing=False, face=''):
     """A real RTF `{\\*\\annotation ...}` -- Word's actual margin-comment
     feature (\\chatn / \\atnid / \\annotation), not a footnote repurposed.
     This is the closest honest match for a WordStar comment: Word comments
@@ -2721,7 +2732,8 @@ def _rtf_comment_dest(note, sentence_spacing=False):
     note_text = (sentence_spacing_texts([note.text])[0]
                 if sentence_spacing else note.text)
     return ('{' + r'\chatn}{\*\atnid ' + _RTF_COMMENT_AUTHOR + '}{'
-            + r'\*\annotation \pard\plain\fs24 ' + _rtf_escape(note_text) + '}')
+            + r'\*\annotation \pard\plain' + face + r'\fs24 '
+            + _rtf_escape(note_text) + '}')
 
 def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
               roll_half_pt=None, ul_continuous=True, inline_styling=True,
@@ -2732,6 +2744,10 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
         if note is not None:
             if note.kind not in keep:
                 return ''
+            # E10 (Jon 2026-09-17): note text and its echoed label are page
+            # furniture and take the body's own face -- see
+            # `_rtf_note_dest`'s `face` parameter.
+            note_face = r'\f1' if printed or nonprop_fallback else ''
             if note.kind == 'comment':
                 # printed is a facsimile: WordStar printed nothing for a
                 # comment, so neither do we (the CLI explains on stderr).
@@ -2744,11 +2760,13 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
                     return ''
                 mark = ('{' + r'\super ' + _rtf_escape(shown_map[id(note)])
                         + '}' if shown_map is not None else '')
-                return mark + _rtf_comment_dest(note, sentence_spacing)
+                return mark + _rtf_comment_dest(note, sentence_spacing,
+                                                note_face)
             override = (shown_map[id(note)]
                         if shown_map is not None
                         and note.kind in ('endnote', 'annotation') else None)
-            return _rtf_note_dest(note, label, override, sentence_spacing)
+            return _rtf_note_dest(note, label, override, sentence_spacing,
+                                  note_face)
     pctl = next((t for t in sp.styles if t.startswith('pctl')), None)
     if pctl is not None:
         # A 0x0F print control's display string is SCREEN-ONLY: on paper
@@ -3464,11 +3482,32 @@ def _rtf_po_parity(doc):
 
 
 def _rtf_running_heads(doc, headers=True, auto_page_number=False,
-                       printed=True, slots=None, title_page=True):
+                       printed=True, slots=None, title_page=True,
+                       fontctl=None, nonprop_fallback=False):
     """RTF `\\header`/`\\footer` groups from the document's own running
     heads (ruling 2026-08-06: Modern keeps headers), plus the
     `(needs_facing_pages, headery, footery)` the page setup has to carry
     for them. Returns `(groups, facingp, headery, footery)`.
+
+    E10 (Jon's ruling 2026-09-17, research/2026-09-17_furniture-font-
+    rules.md): page furniture resolves its FACE through the SAME chain as
+    body text, and no longer through a hardcoded `\\f0` -- which was Times
+    New Roman in Printed while the body was Courier, on every page of 450
+    documents. `fontctl` is `emit_rtf`'s own `_font_ctl_rtf` map, so a
+    `.h#`/`.f#` that opens a font block (`doc.header_fonts`/`footer_fonts`,
+    register C6 -- 22 documents in the public corpus) draws in THAT
+    record's resolved face and size, exactly as Printed PDF has always
+    drawn it. A line that declares nothing takes the mode's own body face:
+    Printed `\\f1` Courier New, Modern `\\f0` (the MODERN_BODY face) --
+    or `\\f1` Courier New under `nonprop_fallback`, the same document-level
+    `.ps off` predicate `_rtf_span` applies to an uncovered body run
+    (ledger 2026-09-09).
+
+    SIZE (E10b, Jon 2026-09-17): Printed furniture is the body's own size
+    (`\\fs24`; WordStar has no separate header size), Modern furniture is
+    the body size less 2pt -- 12pt against Modern's 14pt body, `\\fs24`
+    again, which is why both modes write the same token. It was `\\fs22`
+    (11pt) in both, matching neither body nor Printed PDF's own furniture.
 
     Planning #264 item 3 (packet row A1): a document that declares no
     footer of its own still gets WordStar's automatic page number, centred
@@ -3579,6 +3618,14 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
     # proportional-only/Univers-only face rules apply.
     from .layout import driver_substituter
     subst = driver_substituter(doc)
+    fontctl = fontctl or {}
+    # E10: the mode's own body face, the fallback every line that declares
+    # no face of its own takes -- `\f1` is always Courier New in this
+    # emitter's `\fonttbl`, `\f0` the MODERN_BODY face (Printed's own `\f0`
+    # is Times New Roman, which is exactly what furniture must stop
+    # reaching for). `\fs24` = 12pt: the Printed body size, and Modern's
+    # own body-less-2 (E10b).
+    base_ctl = (r'\f1' if printed or nonprop_fallback else r'\f0') + r'\fs24'
 
     def group(name, lines, faces, aligns, attrs):
         if not lines:
@@ -3586,10 +3633,15 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
         rendered, line_aligns = [], []
         for n in sorted(lines):
             txt = lines[n]
+            idx = faces.get(n)
             if subst is not None:
-                idx = faces.get(n)
                 txt = subst(txt, frozenset() if idx is None
                             else frozenset({'font%d' % idx}))
+            # E10: this LINE's own declared face/size (register C6), applied
+            # per line rather than per group -- a group can join lines that
+            # declare different faces (`\line` inside one paragraph), and
+            # the paragraph prefix can only carry one.
+            line_ctl = '' if idx is None else fontctl.get('font%d' % idx, '')
             runs = hf_runs(txt)
             if not runs:
                 continue                     # control-bytes-only head
@@ -3607,8 +3659,8 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
             # a bold style and carry no toggle byte at all.
             line_attrs = attrs.get(n) or frozenset()
             rendered.append(''.join(
-                '{' + ''.join(_RTF_ON.get(st, '')
-                              for st in sorted(styles | line_attrs))
+                '{' + line_ctl + ''.join(_RTF_ON.get(st, '')
+                                         for st in sorted(styles | line_attrs))
                 + _rtf_escape(text).replace('#', r'{\chpgn }') + '}'
                 for text, styles in runs))
         if not rendered:
@@ -3627,12 +3679,13 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
         # reader lays them out exactly as Modern PDF now draws them
         # (2026-08-05: Modern PDF is the printed form of the Modern RTF).
         if len(set(line_aligns)) <= 1:
-            return (r'{\%s \pard\plain %s\f0\fs22 %s\par}'
-                    % (name, line_aligns[0], r'\line '.join(rendered)))
+            return (r'{\%s \pard\plain %s%s %s\par}'
+                    % (name, line_aligns[0], base_ctl,
+                       r'\line '.join(rendered)))
         return (r'{\%s %s}'
-                % (name, ''.join(r'\pard\plain %s\f0\fs22 %s\par'
-                                % (a, r) for a, r in zip(line_aligns,
-                                                         rendered))))
+                % (name, ''.join(r'\pard\plain %s%s %s\par'
+                                % (a, base_ctl, r) for a, r in zip(line_aligns,
+                                                                   rendered))))
 
     def sided(which, name, slots):
         """One head/foot family, as `\\headerl`/`\\headerr` when the
@@ -3661,7 +3714,11 @@ def _rtf_running_heads(doc, headers=True, auto_page_number=False,
         # the PDF draws for a document that never sets `.pc`. Centred is
         # the same on both sides of a sheet, so this stays the plain
         # `\footer` group even under `\facingp`.
-        foot_group = r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}'
+        # E10: WordStar's own automatic number is furniture like any other
+        # -- the same face and size as this document's running feet (it
+        # only ever shows when no `.fo` is in use, so there is never a
+        # declared foot face for it to inherit).
+        foot_group = (r'{\footer \pard\plain \qc%s {\chpgn }\par}' % base_ctl)
     out = head_group + foot_group
     if first_anchor and first_anchor > 0:
         out = r'\titlepg{\headerf \pard\plain\par}' + out
@@ -4277,7 +4334,8 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
                 _rtf_running_heads(
                     doc, headers=headers,
                     auto_page_number=_rtf_auto_page_number(doc, page_numbers),
-                    printed=printed, slots=(hdr_slots, ftr_slots)))
+                    printed=printed, slots=(hdr_slots, ftr_slots),
+                    fontctl=fontctl, nonprop_fallback=nonprop_fallback))
             # `\sectd` resets EVERY section property to the document's own
             # defaults, so this section restates the ones it needs:
             # `\headery`/`\footery` (section properties in the RTF spec,
@@ -4696,7 +4754,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     running, facingp, headery, footery = _rtf_running_heads(
         doc, headers=headers,
         auto_page_number=_rtf_auto_page_number(doc, page_numbers),
-        printed=printed)
+        printed=printed, fontctl=fontctl, nonprop_fallback=nonprop_fallback)
     # planning #264 item 4 (packet row A6): `.poe`/`.poo` -- a wider margin
     # on the binding side -- become `\margmirror` under `\facingp`, which
     # is RTF's own inside/outside reading of `\margl`/`\margr`: on an odd

@@ -9901,7 +9901,15 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
 # base-14 seat; "the PDF needs to work no matter what").
 
 MODERN_BODY_PT = 14           # the sophisticated size (Jon's specimen ruling)
-MODERN_NOTE_PT = 11
+# Modern PAGE FURNITURE -- running heads, running feet, the automatic page
+# number, footnote/endnote text and the note separator rule. E10b (Jon's
+# ruling 2026-09-17, research/2026-09-17_furniture-font-rules.md): "Modern
+# furniture = the body's face by the same chain, size = body size - 2pt."
+# Written as that subtraction, not as a bare 11 (its value before the
+# ruling), so the relationship survives any future change to the body size.
+# The 1.2x note leading below is derived from it, so the furniture rows and
+# the note block step by their own size, as they always have.
+MODERN_NOTE_PT = MODERN_BODY_PT - 2
 MODERN_LINE = 1.2             # single-spacing: baseline advance = 1.2 x size
 
 # ------------------------------------------- verse/centre tightening (#263)
@@ -10735,21 +10743,27 @@ def _modern_flow(doc, keep, note_refs='word', pix_results=None,
         elif k == 'tabs':
             continue          # editor-time state: no rendered consequence
         elif k == 'note-separator':
-            sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR, 'Times-Roman',
-                                      MODERN_NOTE_PT)
+            # E10: the separator rule sits at the head of the note block
+            # and takes the note block's own face (the same chain), so a
+            # `.ps off` document's Courier notes are not introduced by a
+            # Times rule.
+            sep_family = 'Courier' if nonprop_fallback else 'Times'
+            sep_w = _natural_width_pt(FOOTNOTE_SEPARATOR,
+                                      BASE14[sep_family][0], MODERN_NOTE_PT)
             # `end_notes_start=True`: this is the ONE item that opens the
             # end-matter appendix (layout.py's `modern_flow` emits exactly
             # one 'note-separator', always immediately before the first
             # 'note' item, when `end_rows` is non-empty) -- Jon's ruling
             # 2026-09-07 fires here, in `_modern_streams`.
-            _emit(('para', [(FOOTNOTE_SEPARATOR, frozenset(), 'Times',
+            _emit(('para', [(FOOTNOTE_SEPARATOR, frozenset(), sep_family,
                             MODERN_NOTE_PT, None, sep_w)],
                   'left', [], 0.0, 0.0, False, False, True, False, 0.0), sem_i)
         elif k == 'note':
             note_text = (_sentence_spacing_texts([it['text']])[0]
                         if sentence_spacing else it['text'])
             _emit(('para', _modern_note_toks(it['label'], note_text,
-                                             it['note_kind']),
+                                             it['note_kind'],
+                                             nonprop_fallback),
                   'left', [], 0.0, 0.0, False, False, False, False, 0.0), sem_i)
         else:                                                   # para
             if embed_images and not any('ref' in r for r in it['runs']):
@@ -10967,8 +10981,17 @@ def _modern_wrap(toks, width, hang=0.0):
     return lines
 
 
-def _modern_note_toks(label, text, kind='footnote'):
-    """One note as its Modern entry tokens, Times MODERN_NOTE_PT.
+def _modern_note_toks(label, text, kind='footnote', nonprop_fallback=False):
+    """One note as its Modern entry tokens, in Modern's own body face at
+    MODERN_NOTE_PT.
+
+    `nonprop_fallback` (E10, Jon's ruling 2026-09-17): note text is page
+    furniture and resolves its face through the SAME chain as a body run
+    (`_modern_tok_font`). A note carries no font block of its own, so the
+    chain lands on Modern's fontless answer -- Times, or Courier in a
+    document that declares fonts elsewhere AND declares itself
+    non-proportional (`.ps off`, ledger 2026-09-09, the identical
+    predicate the body's own uncovered runs take).
 
     Footnote/endnote entries (ruling 2026-08-23/24, Jon verbatim: "1.
     Footnoote. and i. Endnote. No brackets. No superscript"): `LABEL. text`
@@ -10983,16 +11006,21 @@ def _modern_note_toks(label, text, kind='footnote'):
     """
     text = ('%s. %s' % (label, text) if kind in ('footnote', 'endnote')
             else '[%s] %s' % (label, text))
+    family = 'Courier' if nonprop_fallback else 'Times'
+    basefont = BASE14[family][0]
     toks = []
     for m in _re.finditer(r' +|[^ ]+', text):
-        w = _natural_width_pt(m.group(0), 'Times-Roman', MODERN_NOTE_PT)
-        toks.append((m.group(0), frozenset(), 'Times', MODERN_NOTE_PT, None, w))
+        w = _natural_width_pt(m.group(0), basefont, MODERN_NOTE_PT)
+        toks.append((m.group(0), frozenset(), family, MODERN_NOTE_PT, None, w))
     return toks
 
 
-def _modern_note_lines(label, text, width, kind='footnote'):
-    """A page-bottom note as wrapped visual lines of Times MODERN_NOTE_PT."""
-    return _modern_wrap(_modern_note_toks(label, text, kind), width)
+def _modern_note_lines(label, text, width, kind='footnote',
+                       nonprop_fallback=False):
+    """A page-bottom note as wrapped visual lines at MODERN_NOTE_PT, in the
+    face `_modern_note_toks` resolves."""
+    return _modern_wrap(_modern_note_toks(label, text, kind, nonprop_fallback),
+                        width)
 
 
 def _modern_hf_align(doc, which, lno):
@@ -11027,10 +11055,30 @@ def _modern_hf_align(doc, which, lno):
     return align if align in ('center', 'right') else 'left'
 
 
+def _hf_font_entry(doc, which, lno):
+    """One running head/foot line's own declared font RECORD, or None.
+
+    E10 (Jon's ruling 2026-09-17): "if fonts are declared for headers and
+    footers, use them." `doc.header_fonts`/`footer_fonts` (register C6) is
+    where a `.h#`/`.f#` that opens a font block records its `doc.fonts`
+    index -- 22 documents in the public corpus, LJ6DTP's Antique Olive head
+    the loudest. Printed PDF has read it since planning #202
+    (`_hf_line_ops`); this is the same read for Modern, which drew
+    everything in Times. The FLAT dict, deliberately, not the parity table:
+    Modern already draws the flat head text on both sides of a sheet
+    (`_modern_hf_align`'s own note), and reading a parity face beside flat
+    text would dress one side's words in the other side's face."""
+    fonts = doc.header_fonts if which == 'H' else doc.footer_fonts
+    idx = (fonts or {}).get(lno)
+    if idx is None or not (0 <= idx < len(doc.fonts)):
+        return None
+    return doc.fonts[idx]
+
+
 def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt,
-                   align='left'):
-    """One modern running-head/foot line: Times MODERN_NOTE_PT in the margin
-    zone, WordStar's `#` token as the page number (same rule as printed:
+                   align='left', entry=None, nonprop_fallback=False):
+    """One modern running-head/foot line in the margin zone, WordStar's `#`
+    token as the page number (same rule as printed:
     `.op` never suppresses an explicit `#`). The header keeps its own baked
     spaces -- that is how a 1990 head positioned its parts, and a running
     head is a page fixture, not reflowing text. Raw toggle bytes in the
@@ -11053,14 +11101,32 @@ def _modern_hf_ops(txt, page_no, left, y, width, res, tz_state, printed_pt,
     WordStar's own AUTOMATIC page number passes 'center' directly (M15):
     it has no typed spaces to honour, and Modern's own reading of "bottom
     centre" is a real centring in Modern's measure, not Printed's `.pc`
-    column."""
+    column.
+
+    `entry`/`nonprop_fallback` (E10, Jon's ruling 2026-09-17): the FACE and
+    SIZE, resolved through the same chain a body run takes instead of the
+    hardcoded Times this function used to draw everything in. `entry` is
+    this line's own `doc.header_fonts`/`footer_fonts` record (register C6 --
+    the same index Printed PDF's `_hf_line_ops` has always honoured, and
+    which Modern alone threw away), or None when the line declares no font:
+    then Modern's own fontless answer, Times, or Courier under
+    `nonprop_fallback` (`.ps off` in a font-bearing document, ledger
+    2026-09-09). A declared record brings its own point size; an undeclared
+    line takes MODERN_NOTE_PT, which E10b defines as the body size less
+    2pt. The automatic page number declares nothing by construction (it
+    only shows when no `.fo` is in use), so it takes the same answer its
+    document's running feet take."""
+    family = (_pdf_family(entry) if entry is not None
+              else ('Courier' if nonprop_fallback else 'Times'))
+    pt = (max(1, round(entry['points']))
+          if entry is not None and entry.get('points') else MODERN_NOTE_PT)
     toks = []
     for run_text, styles in _hf_runs(txt):
         run_text = run_text.replace('#', str(page_no))
         for m in _re.finditer(r' +|[^ ]+', run_text):
-            basefont = BASE14['Times'][('b' in styles) + 2 * ('i' in styles)]
-            w = _natural_width_pt(m.group(0), basefont, MODERN_NOTE_PT)
-            toks.append((m.group(0), styles, 'Times', MODERN_NOTE_PT, None, w))
+            basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+            w = _natural_width_pt(m.group(0), basefont, pt)
+            toks.append((m.group(0), styles, family, pt, None, w))
     if not toks:
         return []
     return _modern_line_ops(toks, left, y, width, align, res, tz_state,
@@ -11248,6 +11314,13 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                         record_block_index=block_of_item)
     note_lead = MODERN_LINE * MODERN_NOTE_PT
     sep_h = note_lead
+    # E10 (Jon 2026-09-17): page furniture takes the body's own font chain,
+    # so this function needs the same document-level `.ps off` predicate
+    # `_modern_flow`/`_modern_tok_font` resolve for body runs (ledger
+    # 2026-09-09). Same expression, resolved once per render.
+    nonprop_fallback = (bool(doc.fonts)
+                        and doc.meta.get('formatting', {})
+                               .get('proportional') is False)
 
     pages = []            # each: (body, [note lines], headers, footers)
     body, notes_lines, seen_notes = [], [], set()
@@ -11571,7 +11644,8 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             if record_merge_pages is not None:
                 new_note_merges += len(_MERGE_PAGENO_RE.findall(note_text))
             new_note_lines += _modern_note_lines(label, note_text, width,
-                                                  note['kind'])
+                                                  note['kind'],
+                                                  nonprop_fallback)
         for vi, vline in enumerate(vis):
             face, face_pt = _modern_line_face(vline)
             h = (_modern_tight_h(face, face_pt) if tight
@@ -11704,14 +11778,18 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
             hy = sheet_h - 44.0 - (lno - 1) * note_lead
             ops += _modern_hf_ops(_euro_texts([hdrs[lno]], euro)[0], page_no,
                                   margl, hy, width, res, tz_state, printed_pt,
-                                  align=_modern_hf_align(doc, 'H', lno))
+                                  align=_modern_hf_align(doc, 'H', lno),
+                                  entry=_hf_font_entry(doc, 'H', lno),
+                                  nonprop_fallback=nonprop_fallback)
         for lno in (sorted(ftrs) if show_headers else ()):
             if not ftrs[lno]:
                 continue
             fy = max(8.0, 44.0 - (lno - 1) * note_lead)
             ops += _modern_hf_ops(_euro_texts([ftrs[lno]], euro)[0], page_no,
                                   margl, fy, width, res, tz_state, printed_pt,
-                                  align=_modern_hf_align(doc, 'F', lno))
+                                  align=_modern_hf_align(doc, 'F', lno),
+                                  entry=_hf_font_entry(doc, 'F', lno),
+                                  nonprop_fallback=nonprop_fallback)
         # M15 (Jon's ruling 2026-09-15): WordStar's own AUTOMATIC page
         # number -- the one `.pc` positions, never a `#` an author typed
         # into a real `.he`/`.fo`, which `_modern_hf_ops` has always
@@ -11733,7 +11811,8 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
                 and _modern_auto_pageno_shows(doc, pbi, page_numbers_mode,
                                               pgnum_checkpoints, footer_in_use)):
             ops += _modern_hf_ops(str(page_no), page_no, margl, 44.0, width,
-                                  res, tz_state, printed_pt, align='center')
+                                  res, tz_state, printed_pt, align='center',
+                                  nonprop_fallback=nonprop_fallback)
         for y, toks, align, indent, cut, sem_i in body:
             if isinstance(toks, tuple) and toks and toks[0] == 'image':
                 _, pix_idx, w_pt, h_pt = toks

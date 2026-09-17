@@ -13,8 +13,8 @@ style printed light.
 The archive's galley template is the worked example, and it carries no
 toggle byte at all -- both its `.h1o` and its `.h1e` declare a bold style:
 
-  before  {\\headerr \\pard\\plain \\qr\\f0\\fs22 {TITLE \\u8226? {\\chpgn }}\\par}
-  after   {\\headerr \\pard\\plain \\qr\\f0\\fs22 {\\b TITLE \\u8226? {\\chpgn }}\\par}
+  before  {\\headerr \\pard\\plain \\qr\\f1\\fs24 {TITLE \\u8226? {\\chpgn }}\\par}
+  after   {\\headerr \\pard\\plain \\qr\\f1\\fs24 {\\b TITLE \\u8226? {\\chpgn }}\\par}
 
 Per LINE and per PARITY, the same "parity wins, plain is the fallback" rule
 `_hf_attr` already applies to the head's face and its alignment.
@@ -109,7 +109,7 @@ def test_the_automatic_page_number_footer_carries_no_style():
     has no style sheet behind it, so nothing here reaches it."""
     out = emit.emit_rtf(_doc([('H', 1, 'TITLE', 0)], [None],
                              attrs={('header', 1, None): frozenset({'b'})}))
-    assert r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}' in out
+    assert r'{\footer \pard\plain \qc\f1\fs24 {\chpgn }\par}' in out
 
 
 # --------------------------------------------------- the real corpus (tier 2)
@@ -124,6 +124,10 @@ def test_galleys_heads_are_bold_on_both_sides(require_sawyer_doc, mode):
     assert doc.header_style_attrs_parity[1] == {'O': frozenset({'b'}),
                                                 'E': frozenset({'b'})}
     out = emit.emit_rtf(doc, mode=mode)
-    assert r'{\b TITLE ' in out
+    # E10 (2026-09-17): this document's `.h1o`/`.h1e` also DECLARE a face
+    # (`header_fonts` -> Micro 11pt, register C6), so each run now opens with
+    # that line's own font control before the style's `\b`. The weight is
+    # what this test is about and it is still there, stated per run.
+    assert r'\fs22 \b TITLE ' in out
     assert '\\u8226? ROBERT J. SAWYER}' in out
-    assert r'{\b {\chpgn } ' in out
+    assert r'\b {\chpgn } ' in out

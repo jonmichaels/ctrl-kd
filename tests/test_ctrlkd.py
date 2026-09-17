@@ -1456,16 +1456,30 @@ def test_emit_rtf_comments_use_real_annotation_destination(four_kind_doc):
     assert r.index('Comment text.') < r.index('five')
     assert r.count('{') == r.count('}')
 
-def test_emit_rtf_no_extra_font_codes_in_note_destinations(four_kind_doc):
-    # house rule: never write font attributes onto every paragraph/note --
-    # \fs (size) inside a note destination is fine (matches the existing
-    # heading-size precedent), but \f0/\f1 (an actual FONT change) must only
-    # ever appear where the document declares its one-time default.
+def test_note_destinations_carry_the_bodys_own_face(four_kind_doc):
+    """E10 (Jon's ruling 2026-09-17) REPLACES the old house rule here.
+
+    The rule this test used to enforce -- "\\f0/\\f1 must only ever appear
+    where the document declares its one-time default" -- is exactly what put
+    note text in Times New Roman on a Courier Printed page (audit collage
+    04): `\\pard\\plain` inside a note destination resets to `\\f0`, which
+    is Times in Printed. Jon: page furniture "needs to follow the general
+    font rules." So a note destination now states the body's own face, and
+    ONE `\\fN` per destination is the expected shape -- not a leak.
+    """
     from ctrlkd.emit import ALL_NOTE_KINDS
-    bare = emit.emit_rtf(core.parse_ws(make_prose()))
-    baseline = bare.count(r'\f0') + bare.count(r'\f1')
     with_notes = emit.emit_rtf(four_kind_doc, notes=ALL_NOTE_KINDS)
-    assert with_notes.count(r'\f0') + with_notes.count(r'\f1') == baseline
+    dests = [d for d in with_notes.split('{') if d.startswith(('\\footnote',
+                                                              '\\*\\annotation'))]
+    assert dests                                   # the fixture has all four
+    for d in dests:
+        # Printed (this emitter's default mode): Courier New, the body face
+        assert d.count(r'\f1') == 1 and r'\f0' not in d
+    # and Modern's own body face needs no token at all -- `\plain` IS `\f0`
+    modern = emit.emit_rtf(four_kind_doc, mode='modern', notes=ALL_NOTE_KINDS)
+    for d in [d for d in modern.split('{') if d.startswith(('\\footnote',
+                                                            '\\*\\annotation'))]:
+        assert r'\f0' not in d and r'\f1' not in d
 
 # -- fonts/HTML CSS untouched by this rework ------------------------------
 
@@ -4913,7 +4927,16 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     is a numbering document and its Modern PDF gains one drawn op per page
     -- a centred number on Modern's own footer row. Nothing else about it
     moves: the body ladder, every x and every page break are unchanged.
-    The PRINTED hashes cannot move, because Printed already drew it."""
+    The PRINTED hashes cannot move, because Printed already drew it.
+
+    Re-pinned an EIGHTH time 2026-09-17 (the `make_prose` MODERN hash ONLY --
+    the three PRINTED hashes are untouched again): E10/E10b, Jon's ruling that
+    page furniture takes the body's own font chain and that Modern furniture
+    sets at the body size less 2pt. This fixture's one piece of furniture is
+    the automatic page number M15 added above, so its single drawn op goes
+    from 11pt to 12pt and re-centres at the new width. Printed's furniture was
+    already the body's own Courier at the body size, which is why those hashes
+    cannot move."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4927,7 +4950,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     assert digest(core.parse_ws(make_prose()), 'printed') == \
         '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
-        'fbb4a53b849f6fd06036c7b7ff9f5aa551b981f62444374d7f6ce66219959e08'
+        'e766708c4040a5e50e8663fc5730fc6c8bbf9fb5be226a1abdeab16b150ca90d'
     assert digest(core.parse_ws(styled), 'printed') == \
         '0f0797c238b8e8e347baa2eca89c3cfb363c8b1a38dc73a65acac2cb8df30472'
     assert digest(core.parse_printstream(stream), 'printed') == \
@@ -6396,7 +6419,9 @@ def test_modern_rtf_carries_running_heads_and_strips_align_spaces():
                         b'.oc off' + HARD +
                         b'Plain closing prose, quite ordinary and long.' + HARD)
     rtf = emit.emit_rtf(doc, 'modern')
-    assert r'{\header \pard\plain \f0\fs22 {Chapter / {\chpgn }}\par}' in rtf
+    # E10/E10b (2026-09-17): Modern furniture is the MODERN_BODY face at the
+    # body size less 2pt -- `\f0\fs24`, where it used to be `\f0\fs22`.
+    assert r'{\header \pard\plain \f0\fs24 {Chapter / {\chpgn }}\par}' in rtf
     assert 'A Centered Title' in rtf
     assert '  A Centered Title' not in rtf            # the tag does the work
 

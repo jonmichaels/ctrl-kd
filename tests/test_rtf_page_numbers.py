@@ -32,7 +32,16 @@ import pytest
 
 from ctrlkd import core, emit
 
-FOOTER_NUM = r'{\footer \pard\plain \qc\f0\fs22 {\chpgn }\par}'
+def FOOTER_NUM(mode='printed'):
+    """WordStar's automatic number as this mode writes it.
+
+    E10/E10b (Jon 2026-09-17): page furniture takes the body's own face and
+    size -- Printed `\\f1` Courier New, Modern `\\f0` (the MODERN_BODY
+    face), both at `\\fs24` (Printed's body size; Modern's body less 2pt).
+    It was a hardcoded `\\f0\\fs22` in both modes, i.e. Times New Roman 11
+    on a Courier page."""
+    face = r'\f1' if mode == 'printed' else r'\f0'
+    return r'{\footer \pard\plain \qc%s\fs24 {\chpgn }\par}' % face
 
 
 def _doc(dots=(), pn_start=1, footers=None):
@@ -52,23 +61,23 @@ def _doc(dots=(), pn_start=1, footers=None):
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
 def test_a_silent_document_gets_a_centred_page_number(mode):
     """Stock WordStar 7 numbers a document that says nothing at all."""
-    assert FOOTER_NUM in emit.emit_rtf(_doc(), mode=mode)
+    assert FOOTER_NUM(mode) in emit.emit_rtf(_doc(), mode=mode)
 
 
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
 def test_op_turns_the_number_off(mode):
-    assert FOOTER_NUM not in emit.emit_rtf(_doc(['.op']), mode=mode)
+    assert FOOTER_NUM(mode) not in emit.emit_rtf(_doc(['.op']), mode=mode)
 
 
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
 def test_pg_turns_it_back_on(mode):
-    assert FOOTER_NUM in emit.emit_rtf(_doc(['.op', '.pg']), mode=mode)
+    assert FOOTER_NUM(mode) in emit.emit_rtf(_doc(['.op', '.pg']), mode=mode)
 
 
 def test_the_flag_reaches_the_emitter_at_all():
     """The named defect: `--page-numbers` used to land in `**_options`."""
-    assert FOOTER_NUM not in emit.emit_rtf(_doc(), page_numbers='off')
-    assert FOOTER_NUM in emit.emit_rtf(_doc(['.op']), page_numbers='on')
+    assert FOOTER_NUM() not in emit.emit_rtf(_doc(), page_numbers='off')
+    assert FOOTER_NUM() in emit.emit_rtf(_doc(['.op']), page_numbers='on')
 
 
 # ------------------------------------------- the two flags (#264 R7, 2026-09-14)
@@ -96,7 +105,7 @@ def test_the_four_flag_combinations(mode, headers, page_numbers, expected):
     RTF modes, whichever way `--headers` is set."""
     out = emit.emit_rtf(_doc(['.op']), mode=mode, headers=headers,
                         page_numbers=page_numbers)
-    assert (FOOTER_NUM in out) is expected
+    assert (FOOTER_NUM(mode) in out) is expected
 
 
 @pytest.mark.parametrize('mode', ['printed', 'modern'])
@@ -104,8 +113,8 @@ def test_auto_is_the_documents_own_state_under_either_headers_flag(mode):
     """`auto` reads `.pn`/`.pg`/`.op`, and `--headers` does not enter into
     it -- the same answer with heads drawn and with heads suppressed."""
     for headers in (True, False):
-        assert FOOTER_NUM in emit.emit_rtf(_doc(), mode=mode, headers=headers)
-        assert FOOTER_NUM not in emit.emit_rtf(_doc(['.op']), mode=mode,
+        assert FOOTER_NUM(mode) in emit.emit_rtf(_doc(), mode=mode, headers=headers)
+        assert FOOTER_NUM(mode) not in emit.emit_rtf(_doc(['.op']), mode=mode,
                                                headers=headers)
 
 
@@ -124,7 +133,7 @@ def test_a_hash_inside_a_head_goes_with_its_head(mode):
 
 def test_a_declared_footer_pre_empts_the_automatic_number():
     out = emit.emit_rtf(_doc(footers={1: 'Chapter One'}))
-    assert FOOTER_NUM not in out
+    assert FOOTER_NUM() not in out
     assert r'{\footer ' in out                       # the real footer is there
 
 
@@ -132,7 +141,7 @@ def test_a_footer_that_renders_nothing_still_pre_empts_it():
     """LJ6DTP.WS's own `.f1` is two 0x0F bytes: declared, invisible, and
     enough to keep WordStar's automatic number off."""
     out = emit.emit_rtf(_doc(footers={1: '\x0f\x0f'}))
-    assert FOOTER_NUM not in out
+    assert FOOTER_NUM() not in out
     assert r'{\footer ' not in out                   # nothing visible to draw
 
 
@@ -156,7 +165,7 @@ def test_strength_gets_the_number_it_prints(require_sawyer_doc, mode):
     own A1 example."""
     with open(require_sawyer_doc('STRENGTH.WS'), 'rb') as fh:
         doc = core.parse(fh.read())
-    assert FOOTER_NUM in emit.emit_rtf(doc, mode=mode)
+    assert FOOTER_NUM(mode) in emit.emit_rtf(doc, mode=mode)
 
 
 @pytest.mark.sawyer
@@ -164,7 +173,7 @@ def test_strength_gets_the_number_it_prints(require_sawyer_doc, mode):
 def test_lj6dtp_keeps_its_own_empty_footer_rule(require_sawyer_doc, mode):
     with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
         doc = core.parse(fh.read())
-    assert FOOTER_NUM not in emit.emit_rtf(doc, mode=mode)
+    assert FOOTER_NUM(mode) not in emit.emit_rtf(doc, mode=mode)
 
 
 @pytest.mark.sawyer

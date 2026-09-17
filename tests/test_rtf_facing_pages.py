@@ -92,19 +92,21 @@ def test_footers_take_the_same_treatment():
 def test_the_heads_own_alignment_reaches_the_group(align, ctl):
     out = emit.emit_rtf(_doc([('H', 1, 'TITLE', 0)], [None],
                              aligns={('header', 1, None): align}))
-    assert (r'{\header \pard\plain %s\f0\fs22 ' % ctl) in out
+    # E10/E10b: Printed furniture is the body's own Courier at the body
+    # size (`\f1\fs24`), not the `\f0\fs22` Times 11 this used to pin.
+    assert (r'{\header \pard\plain %s\f1\fs24 ' % ctl) in out
 
 
 def test_alignment_is_per_parity():
     out = emit.emit_rtf(_doc([('H', 1, 'ODD', 0), ('H', 1, 'EVEN', 0)], ['O', 'E'],
                              aligns={('header', 1, 'O'): 'right'}))
     assert r'{\headerr \pard\plain \qr' in out
-    assert r'{\headerl \pard\plain \f0' in out          # left, as declared
+    assert r'{\headerl \pard\plain \f1' in out          # left, as declared
 
 
 def test_an_undeclared_alignment_writes_nothing():
     out = emit.emit_rtf(_doc([('H', 1, 'TITLE', 0)], [None]))
-    assert r'{\header \pard\plain \f0\fs22 ' in out
+    assert r'{\header \pard\plain \f1\fs24 ' in out
 
 
 # ------------------------------------------------- A5: head and foot distance
