@@ -5,28 +5,38 @@ set -uo pipefail
 root="$(git rev-parse --show-toplevel)"
 . "$root/tools/private_patterns.sh"
 
+remote="$1"
+zero="0000000000000000000000000000000000000000"
 fail=0
 while read -r local_ref local_sha remote_ref remote_sha; do
-  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    range="$local_sha"
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" = "$zero" ]; then
+    # A new branch or tag: scan only the commits the remote does not already
+    # have. Scanning the ref's whole history re-judged commits pushed long
+    # ago, so any history that predates a pattern blocked every new ref.
+    range=("$local_sha" --not --remotes="$remote")
+    shown="new ref, commits not on $remote"
+    if [ -z "$(git rev-list -1 "${range[@]}")" ]; then
+      continue   # nothing outgoing; the whole-tree audit below still runs
+    fi
   else
-    range="$remote_sha..$local_sha"
+    range=("$remote_sha..$local_sha")
+    shown="$remote_sha..$local_sha"
   fi
 
-  if git log "$range" --format='%B' | grep -qE "$PAT"; then
-    echo "BLOCKED pre-push: private material in outgoing commit MESSAGES ($range)" >&2
-    git log "$range" --format='%h %s' | head -5 >&2
+  if git log "${range[@]}" --format='%B' | grep -qE "$PAT"; then
+    echo "BLOCKED pre-push: private material in outgoing commit MESSAGES ($shown)" >&2
+    git log "${range[@]}" --format='%h %s' | head -5 >&2
     fail=1
   fi
 
   # Content, excluding the two files that carry the patterns by definition.
-  if git log "$range" -p -- . \
+  if git log "${range[@]}" -p -- . \
         ':(exclude)tools/private_patterns.sh' \
         ':(exclude)tools/audit_private.sh' \
      | grep -E '^\+' | grep -qE "$PAT"; then
-    echo "BLOCKED pre-push: private material in outgoing commit CONTENT ($range)" >&2
-    git log "$range" -p -- . \
+    echo "BLOCKED pre-push: private material in outgoing commit CONTENT ($shown)" >&2
+    git log "${range[@]}" -p -- . \
         ':(exclude)tools/private_patterns.sh' \
         ':(exclude)tools/audit_private.sh' \
       | grep -E '^\+' | grep -nE "$PAT" | head -5 >&2
@@ -35,9 +45,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   # Metadata. A hostname in an author field is as public as one in a file --
   # this check was added 2026-08-22 after `worker@<host>` reached 319 commits.
-  if git log "$range" --format='%an|%ae|%cn|%ce' | grep -qE "$PAT"; then
-    echo "BLOCKED pre-push: private material in AUTHOR/COMMITTER metadata ($range)" >&2
-    git log "$range" --format='%h %ae %ce' | grep -E "$PAT" | head -5 >&2
+  if git log "${range[@]}" --format='%an|%ae|%cn|%ce' | grep -qE "$PAT"; then
+    echo "BLOCKED pre-push: private material in AUTHOR/COMMITTER metadata ($shown)" >&2
+    git log "${range[@]}" --format='%h %ae %ce' | grep -E "$PAT" | head -5 >&2
     fail=1
   fi
 done
