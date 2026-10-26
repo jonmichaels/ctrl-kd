@@ -5,6 +5,24 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Printed document with footnotes, endnotes or annotations now lays out
+  exactly like one without, apart from the note area itself.** The two had
+  separate paginators, and the one for notes had drifted: it ignored `.psb`/
+  `.psa`, the `.pm` first-line indent and the per-line `.sr` roll, dropped a
+  print control's declared width when a heading restyled it, kept columns
+  only until the first wrap, never resolved the even/odd page offset
+  (`.poe`/`.poo`), stamped no per-page margin, length or orientation, and
+  gave every page the document's last running head instead of the one in
+  force on it. There is one paginator now; the note area (growth, the
+  three-line floor, continuation, endnotes at the end) is a feature it runs
+  when the document has notes. A note-bearing document's `layout` JSON now
+  carries each page's own running head and foot, and its trailing blank lines
+  are stripped like any other page's. A block that opens on a blank line
+  enters its first text line at the style's own leading, notes or not
+  (measured against real WordStar 7 on LYING.WS).
+
 ## [4.10.0] — 2026-09-17
 
 ### Added

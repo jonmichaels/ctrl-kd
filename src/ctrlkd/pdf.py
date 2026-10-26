@@ -128,6 +128,60 @@ def _landscape_page(page):
     return eff
 
 
+def _page_geometry_dict(doc, pg):
+    """`doc.meta['page']` with one page's own stamped geometry (`Page.
+    mt_lines`/`mb_lines`/`pl_lines`/`hm_lines`/`fm_lines`/`orientation`, set
+    by the paginator only where it differs from the document's) applied --
+    the replacement-geometry copy every per-page consumer (the PDF writer,
+    the head/foot model, the notes area's bottom anchor) reads
+    `_printed_top`/`_running_ops`/`_resolved_page_height` through, by
+    swapping it into `doc.meta['page']` for the call. None when the page
+    stamped nothing: the document's own geometry already is the page's.
+
+    M31: `Page.orientation` is set only when the `.pr or=` in force where
+    the page OPENED differs from `doc.meta['formatting']['orientation']`,
+    the document-wide value `emit_pdf` has already applied (or not applied)
+    to `doc.meta['page']`. So a stamped page is always one that must be
+    corrected the OTHER way from the whole document: landscape here means
+    the global swap did not happen and this page needs one; portrait means
+    it did and this page must be put back. `_page_dict_for_orientation`
+    recomputes the pair fresh from `.pl` rather than swapping what it is
+    handed, so both directions are exact."""
+    page_mt = getattr(pg, 'mt_lines', None)
+    page_mb = getattr(pg, 'mb_lines', None)
+    page_pl = getattr(pg, 'pl_lines', None)
+    page_hm = getattr(pg, 'hm_lines', None)
+    page_fm = getattr(pg, 'fm_lines', None)
+    page_or = getattr(pg, 'orientation', None)
+    if (page_mt is None and page_mb is None and page_pl is None
+            and page_hm is None and page_fm is None and page_or is None):
+        return None
+    eff = dict(doc.meta['page'])
+    if page_mt is not None:
+        eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
+    if page_mb is not None:
+        eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
+    if page_pl is not None:
+        eff['pl_lines'] = page_pl
+    if page_hm is not None:
+        # 'file' only if THIS page's own resolved hm is a real override of
+        # WordStar's hardcoded default, not merely different from the
+        # document's (possibly WRONG, in the degenerate mid-document-only-
+        # occurrence case) global reading -- `_running_ops`'s OR-gate treats
+        # hm_source == 'file' as "the author touched .hm", which must stay
+        # false for a page that sits BEFORE a document's only `.hm` ever
+        # fires, even though it still needs its own override (back to the
+        # true default) to correct core.py's global reading.
+        from .core import DEFAULT_HM_LINES as _DEF_HM
+        eff['hm_lines'] = page_hm
+        eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
+    if page_fm is not None:
+        eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
+    if page_or is not None:
+        eff = _page_dict_for_orientation(eff, page_or)
+    return eff
+
+
 def _page_dict_for_orientation(page, orientation):
     """`page` as THIS SHEET's orientation wants it (M31).
 
@@ -183,8 +237,8 @@ def _page_height_pt_for(page):
 
 def _printed_cap(doc):
     """Lines of vertical room on a printed page for THIS document -- the
-    cap used both for plain pagination and as the footnote layout's page
-    budget (see _paginate_printed_notes).
+    cap used both for pagination and as the note area's page budget (see
+    `_NoteArea`).
 
     WS documents carry doc.meta['page'] and get WordStar's own vertical
     model (core._text_lines_per_page: .pl - .mt - .mb at the .lh line
@@ -1308,11 +1362,11 @@ def _printed_top(doc):
 
 
 def _printed_notes_reserve_pt(doc):
-    """Bottom-of-page reserve for `_paginate_printed_notes`'s FOOTNOTE
-    area (never the endnote continuation -- see that function's own
-    docstring: endnotes are never queued here, `_endnote_pages` appends
-    them afterward and inherits this area's position for free by
-    continuing its sequential flow), in points -- Finding 2
+    """Bottom-of-page reserve for the FOOTNOTE area (`_NoteArea.
+    anchored_area`; never the endnote continuation -- endnotes are never
+    queued there, `_doc_to_pagelines` appends them afterward and they
+    inherit this area's position for free by continuing its sequential
+    flow), in points -- Finding 2
     (b26-print-fidelity-2). The area used to be flow-appended right after
     the body (whatever y the body happened to end at), correct only when
     the body already fills the page (LYING.WS, every page) -- on a short
@@ -1324,8 +1378,8 @@ def _printed_notes_reserve_pt(doc):
     every page-geometry default (.mb 8 lines): -SCREEN.pcl's footnote line
     "1. Footnote" at y=708pt (dash rule at 684pt) and LYING.pcl's "1.Did
     not take the prize." also at y=708pt (dash rule also 684pt -- LYING's
-    page is full, so its flow-appended position and this anchor coincide,
-    per `_paginate_printed_notes`'s own docstring). Both landed on
+    page is full, so its flow-appended position and this anchor coincide).
+    Both landed on
     84pt = (.mb - 1) * 12 = 7 lines, alongside a (since-fixed) 3-line
     header model (`_area_size`/`_render_area`) that inserted an extra
     leading blank neither real capture ever printed.
@@ -1881,9 +1935,8 @@ def resolved_printed_leads_48(doc):
     same per-line order and under the same gates they already use.
 
     `DEFAULT_LH_48` (used below) needed importing at true module scope
-    (this file's other consumers of the same name -- `_doc_to_pagelines`/
-    `_body_stream_printed` -- reference it too, but bare, with no import
-    anywhere in either function's own body): a PRE-EXISTING NameError,
+    (this file's other consumer of the same name -- `_doc_to_pagelines` --
+    references it too, but bare, with no import anywhere in its own body): a PRE-EXISTING NameError,
     unrelated to this fix, that this function's own first corpus sweep
     exposed (-HOW-TO.RJS/BOOKLET.RJS, a style+notes combination neither
     existing function's own test coverage had hit). Fixed at the import
@@ -3216,9 +3269,9 @@ _ESC_FALLBACK = str.maketrans({'∙': '·', '‼': '!', '│': '|',
 # module's own private names because everything below reads as though the
 # rule were local, and because `layout.modern_flow` already applies it to
 # the SEMANTIC flow: what is left for this module is the PRINTED model
-# (`_doc_to_pagelines`/`_body_stream_printed`, which read `doc` spans
-# directly and never pass through `modern_flow`), the printed notes
-# paginators, and running heads/feet at render time.
+# (`_doc_to_pagelines`, which reads `doc` spans directly and never passes
+# through `modern_flow`), the printed note area and endnote listing, and
+# running heads/feet at render time.
 _EURO_PATCHED_DRIVERS = _layout.EURO_PATCHED_DRIVERS
 _PESETA_TO_EURO = _layout.PESETA_TO_EURO
 _peseta_euro_table = _layout.peseta_euro_table
@@ -3425,10 +3478,10 @@ def _notes_marker_pad_cols(doc):
 
     Computed DOCUMENT-WIDE, not per page or per note-kind: a short
     document's footnotes and endnotes can land on the very SAME
-    rendered page (`_endnote_pages` continuing `_paginate_printed_notes`'s
-    last page when there's room -- exactly -SCREEN's own shape), built
-    by two functions that don't otherwise share state, so one
-    document-global number is what lets both agree without new
+    rendered page (the endnote listing continuing the last body page when
+    there's room -- exactly -SCREEN's own shape), built by two pieces
+    that don't otherwise share state, so one document-global number is
+    what lets both agree without new
     cross-function plumbing. A comment's reference has no note-area
     entry of its own (see `_keep_span`) and never reaches here.
 
@@ -3566,10 +3619,9 @@ def _pix_reserved_advance(blk_lines, start_idx, own_lead_pt):
     Using the raster's raw height instead (73.9pt, from the print-options
     record) under-reserves by >20pt here and cascades into every
     following line's position. The SAME `ceil(h_pt/lead)` raw-height cost
-    also feeds `_paginate_printed_notes`'s page-capacity budget, so this
-    same fix is the leading candidate for -SCREEN's spurious page-2
-    overflow (fidelity_gate.py Finding C) -- see `_body_stream_printed`'s
-    matching substitution site, which this helper also serves."""
+    also fed the page-capacity budget, so this same fix was the leading
+    candidate for -SCREEN's spurious page-2 overflow (fidelity_gate.py
+    Finding C)."""
     n = 0
     while (start_idx + n < len(blk_lines)
            and not blk_lines[start_idx + n].text().strip()):
@@ -3616,269 +3668,6 @@ def _printed_text_width_pt(doc):
     page_w_pt = float((doc.meta.get('page') or {}).get('pw_in', 8.5)) * 72.0
     return max(72.0, page_w_pt - 2 * left)
 
-
-def _body_stream_printed(doc, pix_results=None, pictures='off'):
-    """Printed-mode body content as a flat stream for the layout loop below:
-    each item is either None (a forced page break -- .pa/.cp or WordStar's
-    own softpage) or (spans, refs), spans being one verbatim IR line (printed
-    mode never wraps body text) and refs the ordered list of (label, Note)
-    footnote/annotation references newly appearing on it. Endnote references
-    are recognised (so a fnref span's index into `refs_all` stays intact)
-    but never queued here -- they don't participate in the per-page footnote
-    area, they collect at the document's end instead (_endnote_pages).
-
-    The displayed body reference is `label`, NOT the fnref span's raw
-    `.text` (core.py's shared fn_counter position across ALL non-comment
-    kinds) -- footnotes and endnotes are numbered INDEPENDENTLY per kind
-    (WordStar has separate `.f#`/`.e#` starting-value commands, which only
-    make sense for two independent sequences), matching what emit.py's
-    text/markdown/html output already does via _annotated_notes/
-    _display_number. A bare superscript '1' can therefore legitimately mean
-    footnote 1 OR endnote 1 in the body text -- WordStar resolved that
-    ambiguity in the NOTE AREA via mark style ('1.' vs '(1)'), not by
-    inventing a combined number, so the same label is used in both places.
-
-    `pix_results`/`pictures` (round 22, closing round 19's documented
-    scope cut): the same single-pix-placeholder substitution
-    `_doc_to_pagelines` performs on the plain path -- a physical line
-    whose only real content is one resolved, decoded pix tag becomes an
-    image PageLine (empty segments, `.image` set, `.lead` = the image's
-    height so the drawing loop's y-advance covers it exactly)."""
-    refs_all = _ref_pairs(_annotated_notes(doc))
-    embed_images = pictures in ('embed', 'export') and pix_results
-    pix_map = {r.index: r for r in (pix_results or [])} if embed_images else {}
-    size = _printed_size(doc)
-    text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
-    default_lead_pt = _printed_lead(doc)
-    # round 26 wave 3 (fidelity_gate.py Finding B): same carried-governing-
-    # size mechanism as `_doc_to_pagelines` -- see `_font_lead_pt`.
-    font_lead_state = [None]
-    font_lead_ok = (any(getattr(b, 'lh_auto', False) for b in doc.blocks)
-                    and doc.meta.get('page', {}).get('lh_source') != 'file')
-    font_lead_base = _printed_size(doc) if font_lead_ok else None
-    # planning #266: this document's own driver-keyed cp437-158 rule
-    # (`_peseta_euro_table`), resolved once.
-    euro = _peseta_euro_table(doc)
-    stream = []
-    # Planning #245 (columns-rule research §7, closing the scope gap named
-    # at planning #227): same region-boundary forced break AND the same
-    # `.cb`/`.cc`/`.cp` sentinel mechanism `_doc_to_pagelines`'s own
-    # plain-path block loop already uses -- see its comment for the full
-    # evidence (WINGDING.CHT's absorbed `.pa`, PRINT.TST's own live `.cb`/
-    # `.cc`). This function used to leave 'colbreak'/'condcolumn' (and
-    # 'condpage', `.cp` -- a pre-existing gap of its own, not new here)
-    # falling through as ordinary no-lines blocks, so a document routed
-    # through the notes-aware paginator (`_paginate_printed_notes`, the
-    # only caller) never saw them at all. `None` (unconditional break) and
-    # `('cond', n)` (conditional -- resolved by `_paginate_printed_notes`'s
-    # own fill loop, the only thing that knows how full the current
-    # column/page actually is, exactly mirroring the plain path's identical
-    # sentinel) now travel through `stream` the same way a real body line
-    # does. Only sawyer/DEFAULT/PRINT.TST (the one `.co`-bearing corpus
-    # document with placeable notes) exercises this in the current corpus.
-    prev_cols = 1
-    for bi, b in enumerate(doc.blocks):
-        if b.kind == 'pagebreak' and prev_cols > 1:
-            # Planning #227 (columns-rule research §7): a bare `.pa` inside
-            # an active `.co n>1` region is absorbed, not honoured -- same
-            # gate as `_doc_to_pagelines`'s own, see its comment for the
-            # WINGDING.CHT evidence. `.cb` never gets this absorption
-            # (handled unconditionally just below, same as the plain path).
-            continue
-        if b.kind in ('pagebreak', 'colbreak'):
-            # `.cb` maps onto the same forced-break sentinel `.pa` uses
-            # outside a columnar region (or always, for `.cb` itself) --
-            # see `_doc_to_pagelines`'s identical comment. The column-
-            # grouping post-pass (`_apply_columns`) turns every Nth forced
-            # break into a real page break and the others into a column
-            # advance once this stream reaches it, same as the plain path.
-            stream.append(None)
-            continue
-        if b.kind in ('condpage', 'condcolumn'):
-            # `.cp n`/`.cc n` -- a break ONLY if fewer than n lines remain
-            # in the current column/page. Emitted as a sentinel so
-            # `_paginate_printed_notes`'s own fill loop, the only thing
-            # that knows how full the page/column actually is, can decide
-            # -- identical contract to `_doc_to_pagelines`'s own `('cond',
-            # n)` sentinel (see its comment).
-            stream.append(('cond', b.heading or 1))
-            continue
-        if b.kind == 'para':
-            cur_cols = b.columns or 1
-            if prev_cols > 1 and cur_cols != prev_cols and stream and stream[-1] is not None:
-                stream.append(None)
-            prev_cols = cur_cols
-        # Fix C (b26-print-fidelity-2): same per-block lookup as
-        # _doc_to_pagelines -- see its own comment and `_entering_lead_pt`.
-        prev_para_block = next((doc.blocks[k] for k in range(bi - 1, -1, -1)
-                                if doc.blocks[k].kind == 'para'), None)
-        first_line_of_block = True
-        # Indexed (not a plain `for`) so an embedded pix substitution below
-        # can look ahead and CONSUME the blank placeholder lines WordStar
-        # reserved for it -- see `_pix_reserved_advance`.
-        # Planning #270 item 37: the same `.pf on` print-time re-wrap
-        # `_doc_to_pagelines` applies -- this function is its sibling for a
-        # document with placeable notes, and the two must not disagree about
-        # what the physical lines of a realigning paragraph are.
-        blk_lines = pf_rewrapped_lines(doc, b)
-        _li = 0
-        while _li < len(blk_lines):
-            _idx = _li                          # planning #238 scope gap: same
-                                                 # pre-increment index _doc_to_pagelines
-                                                 # uses to spot a block's own last line
-            line = blk_lines[_li]
-            _li += 1
-            spans = []
-            refs = []
-            for s in line.spans:
-                # a ^ONI index ENTRY is the index file's text, not the
-                # page's -- see `_keep_span`, which applies the same rule
-                # on the plain (note-free) printed path
-                if 'ixentry' in s.styles:
-                    continue
-                styles = _effective_span_styles(s, b, heading_bold=True)
-                if 'fnref' in s.styles and s.text.isdigit():
-                    k = int(s.text)
-                    if 0 < k <= len(refs_all):
-                        note, label = refs_all[k - 1]
-                        if note.kind == 'comment':
-                            continue           # never printed: no ink, no ref
-                        spans.append((label, styles))          # per-kind number, not the
-                                                                # raw shared fn_counter index
-                        if note.kind in ('footnote', 'annotation'):
-                            refs.append((label, note))
-                        continue
-                spans.append((_euro_texts([s.text], euro)[0], styles))
-            # Planning #251 (2026-09-09): same model-build-time bare-tab
-            # expansion as `_doc_to_pagelines`'s own plain path -- see its
-            # identical comment for why. This function is Printed-only by
-            # construction (`_paginate_printed_notes`'s only caller), so no
-            # `if printed:` guard is needed here the way the plain path
-            # needs one.
-            spans = _expand_bare_tabs_for_printed_layout(spans)
-            # Same style-over-default precedence as the plain path
-            # (_doc_to_pagelines) -- see _style_lead_pt. Computed BEFORE the
-            # pix check (round 26, fidelity_gate.py Finding A) since the
-            # image's own reserved-placeholder advance now needs it too.
-            own_lead = _lead_pt(line.lead_48)
-            # register b31: this line's own `.po` override, same "absolute
-            # here, None means agrees with the document default" contract
-            # `line.lead_48` above already has (core.py's back-dating pass).
-            own_left = (_resolve_left_pt(line.po_cols, size)
-                       if getattr(line, 'po_cols', None) is not None else None)
-            # Planning #231 (.poe/.poo even/odd page offset): see
-            # `_doc_to_pagelines`'s own identical comment -- duplicated here
-            # for the same reason every other quantity in this sibling loop
-            # is (different local names for the same thing).
-            own_parity_left = None
-            poe_c = getattr(line, 'poe_cols', None)
-            poo_c = getattr(line, 'poo_cols', None)
-            if poe_c is not None or poo_c is not None:
-                fallback_pt = own_left if own_left is not None else _printed_left(doc, size)
-                own_parity_left = (
-                    _resolve_left_pt(poe_c, size) if poe_c is not None else fallback_pt,
-                    _resolve_left_pt(poo_c, size) if poo_c is not None else fallback_pt)
-            # Fix C (b26-print-fidelity-2): same blank/entering-line split
-            # as _doc_to_pagelines -- see its own comment, `_style_lead_pt`'s
-            # `raw` note, and `_entering_lead_pt`.
-            is_blank = not any(t.strip() for t, _ in spans)
-            if is_blank:
-                style_lead = _style_lead_pt(b, doc, raw=True)
-            elif first_line_of_block:
-                style_lead = _entering_lead_pt(b, doc, prev_para_block)
-            else:
-                style_lead = _style_lead_pt(b, doc)
-            if not is_blank:
-                first_line_of_block = False
-            # planning #256: a block's own paragraph-style leading, when it
-            # has one, governs OUTRIGHT -- no longer gated on whether this
-            # line's own carried `.lh` happens to be unset/default (see
-            # _style_lead_pt's own docstring for the -HOW-TO.RJS evidence: a
-            # stale, document-wide `.lh` must never outrank the style its own
-            # block actually carries).
-            if style_lead is not None:
-                own_lead = style_lead
-            if own_lead is None and font_lead_ok and b.lh_auto:
-                own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
-                                         font_lead_state)
-            # Round 22: exactly one resolved pix tag, no other real text on
-            # this physical line -> an image PageLine (same substitution,
-            # sizing and never-drop-text rule as `_doc_to_pagelines`).
-            # `refs` still travels: a comment reference sharing the line
-            # contributes no text and queues nothing, so nothing is lost.
-            # `.lead` is the RESERVED PLACEHOLDER block's height (round 26,
-            # fidelity_gate.py Finding A/C -- `_pix_reserved_advance`), not
-            # the raster's own continuous pixel height.
-            if embed_images:
-                sub = _spans_pix_substitution(spans, pix_map, text_width_pt)
-                if sub is not None:
-                    reserved, n_blank = _pix_reserved_advance(
-                        blk_lines, _li,
-                        own_lead if own_lead is not None else default_lead_pt)
-                    _li += n_blank
-                    stream.append((PageLine([], soft=line.soft, lead=reserved,
-                                            overprint=line.overprint,
-                                            image=sub, bi=bi, left=own_left,
-                                            po_cols=getattr(line, 'po_cols', None)),
-                                   refs))
-                    continue
-            # A PageLine, not a bare list, so the line's own `.lh` survives the
-            # footnote paginator too -- body lines keep their lead whether or
-            # not the document has notes.
-            #
-            # `bi=bi` (2026-09-07): this constructor call was the ONE PageLine
-            # site in this module that never threaded the block index through
-            # (`_doc_to_pagelines`'s own two PageLine calls, the plain-path
-            # equivalent, both pass `bi=bi`) -- every line a document with
-            # placeable footnotes/endnotes/annotations produces came out
-            # `bi=None`. Invisible while `_pgnum_checkpoints`' default was
-            # seeded OFF (a page with no `bi` at all falls back to `auto_page_
-            # number=False`, the SAME value the old default always resolved
-            # to anyway -- see `_emit_pdf_inner`'s `bis = [...]; ... if bis
-            # else False`), but seeding it ON (ws7-prints/v3 finding #2)
-            # exposed it: ANY notes-bearing document silently lost its stock
-            # automatic page number under `auto`, regardless of what its own
-            # `.pn`/`.pg`/`.op` said, purely because this one call site
-            # dropped `bi`. Found via sr/ctrl-kd cross-engine parity
-            # (AnswerKeyParityPrivateTests, fixtures-ws5/NOTES.TST -- sr's
-            # Swift port threads its own block index through the equivalent
-            # call correctly, so only ctrl-kd's own Printed PDF was missing
-            # the number and the two engines' answer-key cells diverged).
-            #
-            # Planning #238 scope gap: this function is `_doc_to_pagelines`'s
-            # own sibling for a document with placeable footnotes/endnotes
-            # (`_paginate_printed_notes` calls it, never `_doc_to_pagelines`),
-            # but it never set `justify_right_x` -- a `.oj on` paragraph that
-            # happens to carry a footnote reference (sawyer/REF/CTRL-K.H1)
-            # printed unjustified even though the SAME paragraph text through
-            # a notes-free document justified correctly. Same rule, same
-            # measured exception (a block's own last physical line stays
-            # ragged) -- see `_doc_to_pagelines`'s own comment for the
-            # captures this was measured against; duplicated rather than
-            # shared because the two functions' loops read from different
-            # local names (`b.lines`/`size` here, `blk_lines`/`size_for_left`
-            # there) for otherwise-identical quantities.
-            justify_right_x = None
-            # planning #270 item 37: under `.pf on` the paragraph, not the
-            # block, is the unit -- `line.soft` after the re-wrap. Same rule
-            # as `_doc_to_pagelines`; see its comment.
-            _last_in_unit = (not line.soft
-                             if getattr(b, 'print_reformat', None) == 'on'
-                             else _idx >= len(blk_lines) - 1)
-            if b.align == 'justify' and not _last_in_unit:
-                po_origin_pt = (own_left if own_left is not None
-                                else _printed_left(doc, size))
-                rm_cols = (b.right_margin if b.right_margin is not None
-                          else 65.0)
-                justify_right_x = po_origin_pt + rm_cols * _PDF_PT_PER_COL
-            stream.append((PageLine(spans, soft=line.soft,
-                                    lead=own_lead,
-                                    overprint=line.overprint,
-                                    bi=bi, left=own_left,
-                                    justify_right_x=justify_right_x,
-                                    parity_left=own_parity_left,
-                                    po_cols=getattr(line, 'po_cols', None)), refs))
-    return stream
 
 def _area_size(entries):
     """Total lines the footnote area occupies FOR PAGE-CAPACITY PURPOSES
@@ -3954,337 +3743,162 @@ def _admit_footnotes(entries, queue, ceiling):
             queue.pop(0)
         break
 
-def _footnote_ceiling(cap, body_len, is_terminal):
-    """Max lines the footnote area may occupy on a page where `body_len`
-    lines are already committed. Always bounded by the room actually left
-    on the page (cap - body_len) -- entries can never push the total past
-    cap. Additionally bounded by cap - FOOTNOTE_FLOOR on every page EXCEPT
-    the one holding the document's last line of regular text, where the
-    floor's protection lifts (the WS5 manual's stated exception).
+def _footnote_ceiling(room, capacity, is_terminal):
+    """Max lines the footnote area may occupy on a page with `room` whole
+    default-lead lines left under the body already placed (the
+    paginator's `_room_lines`, which floors, never rounds, so a
+    fractional line of room already spent by a styled body line is never
+    credited as a whole line the area can use). Always bounded by that
+    room -- entries can never push the total past the page. Additionally
+    bounded by capacity - FOOTNOTE_FLOOR on every page EXCEPT the one
+    holding the document's last line of regular text, where the floor's
+    protection lifts (the WS5 manual's stated exception)."""
+    return room if is_terminal else min(room, capacity - FOOTNOTE_FLOOR)
 
-    `body_len` (round 26 wave 3, Unit A) can now be FRACTIONAL -- a styled
-    body line costs its own lead as a fraction of the document default,
-    see `_paginate_printed_notes`'s `_line_cost` -- but the footnote AREA
-    itself is still whole LINES (its own text carries no per-style
-    leading; `_area_size`/`_admit_footnotes` count it that way). Floored,
-    never rounded, so a fractional line of room already spent by the body
-    never gets credited as a whole line the footnote area can use. The
-    tiny epsilon guards against float accumulation (many fractional
-    per-line costs summed) landing just under a whole number that should
-    round up, not down."""
-    room = int(cap - body_len + 1e-9)
-    return room if is_terminal else min(room, cap - FOOTNOTE_FLOOR)
+def _pagelines(lines):
+    """The note area's own lines as PageLines, like every other line of a
+    page: the emitter's own furniture (no `bi`, no `lead`), but a line the
+    column pass (`_apply_columns`) and the layout model treat the same as
+    any other."""
+    return [ln if isinstance(ln, PageLine) else PageLine(ln) for ln in lines]
 
-def _paginate_printed_notes(doc, cap, width, pix_results=None, pictures='off',
-                            sentence_spacing=False):
-    """The WS5-manual algorithm: paginate the body verbatim (references never
-    move), growing each page's footnote area to hold whatever was referenced
-    on it, splitting overflow into the next page's area (marked continued),
-    floored at FOOTNOTE_FLOOR lines of body -- except on the page holding the
-    last line of regular text, where the floor lifts and any leftover prints
-    at the top of a fresh page instead of continuing to a bottom area that
-    doesn't exist.
 
-    `pix_results`/`pictures` (round 22, closing round 19's documented
-    scope cut): an embedded image PageLine (built by `_body_stream_printed`)
-    costs its own height in default-lead-sized lines against this
-    paginator's line-count budget -- the image's vertical footprint enters
-    the page-capacity model the same way `.lh` does in `_doc_to_pagelines`'s
-    points model, just quantised to this algorithm's own line unit."""
-    stream = _body_stream_printed(doc, pix_results=pix_results,
-                                  pictures=pictures)
-    default_lead = _printed_lead(doc)
-    pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
-    # planning #266: this document's own driver-keyed cp437-158 rule
-    # (`_peseta_euro_table`), resolved once.
-    euro = _peseta_euro_table(doc)
-    # Finding 2 bottom-anchor geometry (see _printed_notes_reserve_pt):
-    # constant for the whole document, computed once.
-    _notes_top = _printed_top(doc)
-    _notes_page_h = _resolved_page_height(doc, True)
-    _notes_reserve = _printed_notes_reserve_pt(doc)
+class _NoteArea:
+    """The note area of the page being filled, and the notes still waiting
+    for one: the whole footnote/annotation half of the printed paginator,
+    as one object `_doc_to_pagelines` consults at a handful of points. A
+    document with no footnote/annotation reference never queues anything,
+    so every hook is then a no-op and the page is exactly the plain page.
 
-    def _line_cost(pl):
-        """This algorithm's whole budget (`cap`, `_area_size`, the footnote
-        ceiling) is denominated in LINE units at the document's DEFAULT
-        lead -- correct for the footnote area itself (its own text carries
-        no per-style leading), wrong for BODY text once a WS7 paragraph
-        STYLE governs a line's real leading (round 26 wave 3,
-        fidelity_gate.py Unit A). A body line now costs its OWN lead as a
-        FRACTION of the default lead -- 1.0 for a line at the document
-        default (byte-identical pagination for every document that never
-        varies leading, which is every document this algorithm's fixed-`1`
-        cost was ever measured against), more or less than 1.0 for a line
-        whose style set a bigger or smaller lead -- the same
-        `own_lead / default_lead` conversion `_doc_to_pagelines`'s already
-        point-based main loop uses (its `budget = (cap - 1) * default_lead`
-        is the identical quantity in points; this keeps that page's true
-        physical capacity while staying in this function's existing line
-        unit, so `_area_size`/`_admit_footnotes`/`_footnote_ceiling` need
-        no change of their own). MEASURED against LYING.pcl: this document
-        undercounted every page (55 nominal lines actually spending 777.6pt
-        of a 648pt budget -- 129.6pt, 10.8 default-lead lines, of real
-        overflow per page) before this fix; the gate went from 3 engine
-        pages (WS7: 4) to matching, see the round 26 wave 3 report.
+    The area is whole LINES at the document's default lead (`_area_size`)
+    -- its own text carries no per-style leading -- while the body it sits
+    under is spent in points; the paginator converts at that one boundary
+    (`height_pt`, `_room_lines`).
 
-        An image PageLine's `.lead` (round 26 wave 3, fidelity_gate.py
-        Finding A/C) is ALREADY the RESERVED PLACEHOLDER block's height in
-        points -- `_pix_reserved_advance`, computed once at
-        `_body_stream_printed` build time -- not the raster's own
-        continuous pixel height, so it takes the identical `own_lead /
-        default_lead` conversion every other line here does; a prior
-        version of this branch re-derived a cost from the raster's raw
-        height directly (`ceil(h_pt / lead)`), double-guessing a number
-        `_body_stream_printed` had already resolved correctly and, for a
-        pix tag with few or no reserved blank lines, wildly OVER-costing
-        the page-capacity budget relative to what `_page_stream` actually
-        spends drawing it -- the leading suspect behind -SCREEN's spurious
-        page-2 overflow before this fix."""
-        own_lead = getattr(pl, 'lead', None) or default_lead
-        return own_lead / default_lead
+    `queue`: notes whose reference has been read but whose text has not yet
+    been admitted to a page's area, in document order. `entries`: the
+    chunks admitted to the OPEN page's area. `is_terminal`: the open page
+    holds the document's last line of regular text, so the three-line floor
+    lifts and the area may grow to the whole remaining page (rule 5).
+    `last_ink_index`: index (in the body items) of the last item carrying
+    real ink -- an image, or any non-blank text; the page that admits it is
+    the terminal page. `pad_cols`: Finding 4 (b26 visual pass), see
+    `_notes_marker_pad_cols` -- computed ONCE, shared by the
+    footnote/annotation area and the endnote section, so a document whose
+    footnotes and endnotes land on the same page agree on one column."""
 
-    # planning #227 follow-up (2026-09-12): A COLUMN GROUP SHARES ONE TOP,
-    # and this paginator has to know it too. `_doc_to_pagelines`'s own
-    # main loop already charges a columnar group's shared non-columnar
-    # PREFIX against every column of the group except the first (its
-    # `_col_cut`); this function -- the paginator every NOTE-BEARING
-    # document takes instead -- had no such notion, and its own comment
-    # below ("a column's own height always equals the page's") was true
-    # only before that finding. The result: a later column kept a whole
-    # page's worth of capacity while starting `column_top_offset_pt`
-    # BELOW the page top, so it ran off the bottom of the sheet.
-    #
-    # MEASURED against real WS7 (ws7-prints/v4, PRISTINE.EXE) on
-    # `sawyer/PRINT.TST` page 2 -- `.co3, .20"`, a 3-column region under a
-    # 17.8-line "Paragraph Styles" prefix. WS7 opens all three columns at
-    # 288.0pt and, with a text bottom of 720.0pt (`.mt 1"`/`.mb 1"`/
-    # `.pl 11"`) and a 12pt lead, gives each 36 rows: column 1 holds 15
-    # and ends on its own `.cb`, column 2 holds 24 and ends on `.cc 19`
-    # (36 - 24 = 12 rows left, fewer than the 19 asked for), column 3
-    # holds 26. This engine gave column 2 the full 54-row page and so
-    # never reached the `.cc` break at all: it placed 51 lines from
-    # y 286 down to y 884 -- past the text bottom, past the sheet itself
-    # (792), straight through the page number at 756 -- and drew nothing
-    # in column 3.
-    #
-    # `_col_cap()` is this function's own capacity in its own LINE units:
-    # the page's `cap` for column 0 (which pays the prefix line by line
-    # out of the same budget) and `cap - prefix` for every column after
-    # it, which starts below that prefix. That is exactly
-    # `(text bottom - column top) / lead`, per column.
-    col_group_cols = 1                # `.co n` of the region the open page is in
-    col_group_index = 0               # which column of the group the open page is
-    col_offset = 0.0                  # the group's shared prefix, in line units
+    def __init__(self, doc, items, default_lead, sentence_spacing):
+        self.default_lead = default_lead
+        self.sentence_spacing = sentence_spacing
+        self.pad_cols = _notes_marker_pad_cols(doc)
+        # planning #266: this document's own driver-keyed cp437-158 rule
+        # (`_peseta_euro_table`), resolved once.
+        self.euro = _peseta_euro_table(doc)
+        self.queue = []
+        self.entries = []
+        self.is_terminal = False
+        self.last_ink_index = -1
+        for i, item in enumerate(items):
+            if isinstance(item, PageLine) and (
+                    item.image is not None or any(t.strip() for t, _ in item)):
+                self.last_ink_index = i
 
-    def _item_cols(pl):
-        bi = getattr(pl, 'bi', None)
-        if bi is None or not (0 <= bi < len(doc.blocks)):
-            return None
-        return doc.blocks[bi].columns or 1
+    @property
+    def height_pt(self):
+        """The open page's area, in points."""
+        return _area_size(self.entries) * self.default_lead
 
-    def _col_cap():
-        return cap - (col_offset if col_group_index else 0.0)
+    def begin_page(self):
+        """A page opens with an empty area; whatever an earlier page could
+        not hold is admitted by `admit` before any new reference queues
+        behind it."""
+        self.entries = []
+        self.is_terminal = False
 
-    def _advance_column():
-        nonlocal col_group_index, col_offset, col_group_cols
-        if col_group_cols <= 1:
-            return
-        col_group_index += 1
-        if col_group_index >= col_group_cols:
-            col_group_cols, col_group_index, col_offset = 1, 0, 0.0
+    def enqueue(self, refs, width):
+        """The notes referenced on a body line just placed, in order."""
+        for label, note in refs:
+            self.queue.append(_note_wrap(
+                _note_marker(note, label, self.pad_cols),
+                _note_texts(note, self.sentence_spacing, self.euro),
+                width, getattr(note, 'tag_line', 0),
+                getattr(note, 'text_indents', ())))
 
-    last_idx = -1
-    for i, item in enumerate(stream):
-        # planning #245: a `('cond', n)` sentinel (`.cp`/`.cc`, see
-        # `_body_stream_printed`) carries no real content of its own --
-        # `item[0]` is the literal string `'cond'`, not a PageLine, so it
-        # must be skipped here the same way `None` (a `.pa`/`.cb` forced
-        # break) already is, or `.image` below raises.
-        if item is None or (isinstance(item, tuple) and item[0] == 'cond'):
-            continue
-        if item[0].image is not None or any(t.strip() for t, _ in item[0]):
-            last_idx = i
+    def admit(self, room_lines, capacity):
+        """Admit queued notes while the area fits `room_lines` of the open
+        page (`capacity` is that page's own line capacity, the floor's
+        reference) -- see `_footnote_ceiling`."""
+        _admit_footnotes(self.entries, self.queue,
+                         _footnote_ceiling(room_lines, capacity, self.is_terminal))
 
-    pages = []
-    queue = []                                  # list[list[line]]: rendered note
-                                                 # chunks awaiting a footnote area,
-                                                 # in document order
-    last_page_cost = cap                        # see docstring's return-value note
-    # round 27 (b28 note 6): whether the LAST page built here ends with a
-    # footnote AREA or with plain BODY text -- `_endnote_pages` needs the
-    # distinction to decide whether a blank line precedes the first endnote.
-    last_page_has_area = False
-    # The same running per-block line tally `_doc_to_pagelines`' paginator
-    # keeps, for the same consumer: `_checkpoints_by_page` asks each page
-    # HOW FAR INTO THE DOCUMENT it had read when it closed, and a page built
-    # here never answered -- so a document with footnotes lost its own
-    # `.op`/`.pn`/`.pg` and took the seeded "numbering ON" default.
-    # `samples/LYING.WS` numbered all three pages where real WS7 numbers
-    # none (research: "Why real WS7 prints no page number on some
-    # documents", 2026-09-15). Counted off the BODY only: a footnote area's
-    # lines are the emitter's own, and the reference that pulled them down
-    # here was already counted on the body line carrying it.
-    read_tally = {}
-    read_pos = None
-    i, n = 0, len(stream)
-    while i < n:
-        body, entries, is_terminal = [], [], False
-        body_len = 0                             # in line units, images > 1
-        _admit_footnotes(entries, queue,
-                         _footnote_ceiling(cap, body_len, is_terminal))   # carry-over first
-        while i < n:
-            item = stream[i]
-            if item is None:
-                i += 1
-                break                            # forced break: page ends here
-            if isinstance(item, tuple) and item[0] == 'cond':
-                # planning #245: `.cp`/`.cc` -- break only if STRICTLY
-                # FEWER than n lines remain in the current column/page
-                # (same strict-less-than test `.cp`'s own docstring and
-                # `_doc_to_pagelines`'s identical `('cond', n)` handling
-                # use). `body_len`/`cap`/`_area_size(entries)` are already
-                # the same "line units" quantities the natural-overflow
-                # check just below uses, so no column-aware variant of
-                # this room computation is needed (research §4: a
-                # column's own height always equals the page's).
-                room = _col_cap() - body_len - _area_size(entries)
-                i += 1
-                if room < item[1] and body:
-                    break                        # forced break: page ends here
-                continue
-            spans, refs = item
-            lc = _item_cols(spans)
-            if lc is not None and lc > 1 and col_group_cols == 1:
-                # the group starts HERE: whatever this page has already
-                # spent is the prefix every column of it shares
-                col_group_cols, col_group_index, col_offset = lc, 0, body_len
-            elif lc == 1 and col_group_cols > 1:
-                # a line LEAVING the region releases the shared prefix
-                col_group_cols, col_group_index, col_offset = 1, 0, 0.0
-            cost = _line_cost(spans)
-            # `body` non-empty guard: an image taller than the whole page
-            # must still be admitted somewhere or this loop would never
-            # advance -- a slightly overflowing page beats a hang or lost
-            # content (the same doctrine _admit_footnotes documents).
-            if body and body_len + cost + _area_size(entries) > _col_cap():
-                break                            # natural page-full: line moves on
-            body.append(spans)
-            bi_here = getattr(spans, 'bi', None)
-            if bi_here is not None:
-                read_tally[bi_here] = read_tally.get(bi_here, 0) + 1
-                read_pos = (bi_here, read_tally[bi_here])
-            body_len += cost
-            if i == last_idx:
-                is_terminal = True
-            i += 1
-            for label, note in refs:
-                queue.append(_note_wrap(_note_marker(note, label, pad_cols),
-                                        _note_texts(note, sentence_spacing, euro),
-                                        width, getattr(note, 'tag_line', 0),
-                                        getattr(note, 'text_indents', ())))
-            _admit_footnotes(entries, queue, _footnote_ceiling(cap, body_len, is_terminal))
-        area = _render_area(entries)
-        if entries:
-            # Bottom-anchor (Finding 2): the area's FIRST line (the
-            # 3-line header's leading blank) gets an overridden `.lead`
-            # that lands it exactly `_notes_reserve` above the page
-            # bottom, counting up through the area's own remaining
-            # lines -- rather than wherever the body's sequential flow
-            # happened to leave off. `body_y` is the body's own last
-            # baseline (top-down points): `_line_cost` makes `own_lead /
-            # default_lead` exact, so `body_len * default_lead` is the
-            # TRUE point advance the body already spent, not an
-            # approximation. APPLIED whenever it pushes the area DOWN AT
-            # ALL (`override > 0`) -- NOT gated on exceeding one whole
-            # default-lead gap (planning #202 residuals round: that
-            # gate's own rationale -- "a full page (LYING.WS) already
-            # lands within a line of the target on its own, so this is a
-            # no-op there, byte-identical" -- assumed the flow path's own
-            # ordinary single-blank-line gap could only ever UNDERSHOOT
-            # the target when `override` came out under one lead. LYING
-            # is a full page and its own real WS7 capture (LYING.pcl)
-            # measures its footnote line at y=708pt, but the flow path's
-            # plain `default_lead` gap OVERSHOOTS the anchor by 4.8pt
-            # (natural 676.8pt vs the anchor's own 672.0pt target,
-            # `override` a genuine 7.2pt -- less than one 12pt lead, so
-            # the old `> default_lead` gate skipped it and left the
-            # 4.8pt overshoot standing) -- the assumption held for every
-            # oracle it was checked against, but was never actually
-            # correct for a SMALL positive override, only ever
-            # coincidentally close enough not to be caught. A negative
-            # or zero override (the body's own flow already reached or
-            # passed the target) is still left alone -- "never move
-            # backward into the body" is unchanged.
-            body_y = _notes_top + body_len * default_lead
-            target_first = (_notes_page_h - _notes_reserve
-                            - (len(area) - 1) * default_lead)
-            override = target_first - body_y
-            if override > 0:
-                area = [PageLine(area[0], lead=override)] + area[1:]
-        closed = NotesPage(body + area)
-        closed.read_pos = read_pos
-        pages.append(closed)
-        _advance_column()
-        last_page_cost = body_len + _area_size(entries)
-        last_page_has_area = bool(entries)
-    # Whatever's STILL queued once the document is exhausted prints at the
-    # TOP of its own page(s) -- "except after the last page of regular text,
-    # where footnotes are printed at the top of the page."
-    while queue:
-        entries = []
-        _admit_footnotes(entries, queue, _footnote_ceiling(cap, 0, True))
-        pages.append(_render_area(entries))
-        last_page_cost = _area_size(entries)
-        last_page_has_area = True
-    return pages, last_page_cost, last_page_has_area
+    def anchored_area(self, geometry_doc, body_y):
+        """The area as page lines, bottom-anchored on its page.
 
-def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
-                   last_page_has_area=False, sentence_spacing=False):
-    """Endnotes collect at the true end of the document with NO heading
-    (WordStar never printed one -- any "Notes"/"Sources" heading in a period
-    document was typed by the author). No .pe support: this always renders
-    them at document end, never at an earlier .pe point (see report).
+        Finding 2 bottom-anchor geometry (see `_printed_notes_reserve_pt`):
+        the area's FIRST line (the header's leading blank) gets an
+        overridden `.lead` that lands it exactly `reserve` above the page
+        bottom, counting up through the area's own remaining lines --
+        rather than wherever the body's sequential flow happened to leave
+        off. `body_y` is the body's own last baseline (top-down points):
+        the points the body already spent below the page's text top.
+        `geometry_doc` is the document as THIS page is drawn (its own
+        stamped `.mt`/`.mb`/`.pl`, see `_page_geometry_dict`), so the
+        anchor lands where the writer will put the page's bottom, not
+        where the document's first page has it.
+
+        APPLIED whenever it pushes the area DOWN AT ALL (`override > 0`) --
+        NOT gated on exceeding one whole default-lead gap (planning #202
+        residuals round): that gate's own rationale -- "a full page
+        (LYING.WS) already lands within a line of the target on its own,
+        so this is a no-op there, byte-identical" -- assumed the flow
+        path's own ordinary single-blank-line gap could only ever
+        UNDERSHOOT the target when `override` came out under one lead.
+        LYING is a full page and its own real WS7 capture (LYING.pcl)
+        measures its footnote line at y=708pt, but the flow path's plain
+        `default_lead` gap OVERSHOOTS the anchor by 4.8pt (natural 676.8pt
+        vs the anchor's own 672.0pt target, `override` a genuine 7.2pt --
+        less than one 12pt lead, so the old `> default_lead` gate skipped
+        it and left the 4.8pt overshoot standing) -- the assumption held
+        for every oracle it was checked against, but was never actually
+        correct for a SMALL positive override, only ever coincidentally
+        close enough not to be caught. A negative or zero override (the
+        body's own flow already reached or passed the target) is still
+        left alone -- "never move backward into the body" is unchanged."""
+        area = _pagelines(_render_area(self.entries))
+        if not area:
+            return area
+        page_h = _resolved_page_height(geometry_doc, True)
+        reserve = _printed_notes_reserve_pt(geometry_doc)
+        target_first = page_h - reserve - (len(area) - 1) * self.default_lead
+        override = target_first - body_y
+        if override > 0:
+            area[0].lead = override
+        return area
+
+    @property
+    def queued_line_count(self):
+        """Lines still queued, for the post-loop progress guard."""
+        return sum(len(chunk) for chunk in self.queue)
+
+
+def _endnote_lines(doc, pad_cols, width, sentence_spacing):
+    """The true-end-of-document endnote listing, no heading, no separator:
+    one blank line between entries (the same vertical rhythm as the
+    footnote area), nothing before the first. `_doc_to_pagelines` places
+    it after the last page. [] for a document with no endnotes.
+
+    WordStar never printed a heading for endnotes (any "Notes"/"Sources"
+    heading in a period document was typed by the author). No .pe support:
+    this always renders them at document end, never at an earlier .pe
+    point.
 
     Numbered from endnotes' OWN independent sequence (via emit.py's
     _annotated_notes/_display_number, doc.meta['endnote_number_start']) --
     NOT the shared fn_counter position -- so a document with 2 footnotes
     then 2 endnotes shows endnotes (1)/(2), matching the same labels their
-    body references now display (see _body_stream_printed), not (3)/(4).
-
-    `last_page`/`last_page_cost` (round 26 wave 3, fidelity_gate.py
-    Finding C): the LAST page `_paginate_printed_notes` built, and how
-    many `cap`-units of it are already spent. When there's room
-    (`last_page_cost < cap`), endnotes CONTINUE that page instead of
-    always forcing a fresh one, not a fresh 3-line area header, since
-    this is one more entry in the SAME note area, not a new section. A
-    page with NO room left (`last_page_cost >= cap`, the overwhelmingly
-    common multi-page case) is untouched: endnotes start fresh exactly
-    as before.
-
-    `last_page_has_area` (round 27, b28 note 6) decides whether a blank
-    line precedes the first endnote, and it is NOT unconditional. WS7's
-    note face is 12-point, so ONE note line advances 120 decipoints --
-    the 2026-08-20 measurement that put a blank line here read the
-    natural 240dp two-line advance as "24pt, one blank line" and applied
-    it to both cases. Re-measured 2026-08-23 against the WS7 captures:
-
-      -SCREEN.pcl  "1. Footnote" V=7080 -> "(1) Endnote" V=7320 = 240dp
-                   = ONE BLANK LINE after a FOOTNOTE AREA.
-      TESTING.pcl  last body line V=3765 -> "(1)This is our test
-                   endnote." V=3885 = 120dp = NO BLANK LINE after BODY
-                   TEXT.
-      TESTING.pcl  endnote (1) V=3885 -> (2) V=4125 = 240dp = one blank
-                   line BETWEEN entries (the `if k` gap below, correct).
-
-    So the leading gap belongs only when the last page ends with a
-    footnote area -- it is one more entry joining that area. When the
-    endnotes follow plain body text they butt straight up against it,
-    which is what Jon reported in the b27 review: the endnotes go
-    IMMEDIATELY after the text."""
-    endnotes = [(note, label) for note, label in _annotated_notes(doc) if note.kind == 'endnote']
-    if not endnotes:
-        return []
-    pad_cols = _notes_marker_pad_cols(doc)          # Finding 4: see docstring
+    body references display, not (3)/(4)."""
+    endnotes = [(note, label) for note, label in _annotated_notes(doc)
+                if note.kind == 'endnote']
     # planning #266: this document's own driver-keyed cp437-158 rule
     # (`_peseta_euro_table`), resolved once.
     euro = _peseta_euro_table(doc)
@@ -4296,48 +3910,7 @@ def _endnote_pages(doc, cap, width, last_page=None, last_page_cost=0.0,
                                 _note_texts(note, sentence_spacing, euro), width,
                                 getattr(note, 'tag_line', 0),
                                 getattr(note, 'text_indents', ())))
-    pages = []
-    continuing = bool(last_page and last_page_cost < cap)
-    if continuing:
-        page = list(last_page)
-        room = cap - last_page_cost
-        if last_page_has_area:                  # see docstring: WS7 measurements
-            lines = [[]] + lines
-    else:
-        page = []
-        room = cap
-    # #228 (research/2026-09-08_trailing-pa-rule.md): a FRESH endnote page
-    # (not a continuation of the body's own last page) has no `.bi`-
-    # carrying line of its own -- every line here is a bare
-    # `_note_wrap`/`_render_area` tuple, never a PageLine -- so the auto-
-    # page-number lookup at render time has nothing to resolve against.
-    # `explicit_break_bi` (the document's own highest block index --
-    # "wherever the document's own state was by its own end") stands in,
-    # the same fallback the trailing-`.pa` blank page (_doc_to_pagelines,
-    # the plain path) already uses. Confirmed against sawyer/DISPLAY.WS:
-    # WS7's own page 2 (the endnote, on its own page once the trailing-
-    # `.pa` continuation fix above stops it merging with page 1) carries
-    # the automatic page number "2".
-    last_bi = len(doc.blocks) - 1
-    first_flushed = True
-    def _flush(pg):
-        nonlocal first_flushed
-        if first_flushed and continuing:
-            pages.append(pg)
-        else:
-            wrapped = Page(pg)
-            wrapped.explicit_break_bi = last_bi
-            pages.append(wrapped)
-        first_flushed = False
-    for l in lines:
-        if room < 1:
-            _flush(page)
-            page, room = [], cap
-        page.append(l)
-        room -= 1
-    if page:
-        _flush(page)
-    return pages
+    return lines
 
 def _has_placeable_notes(doc):
     return any(n.kind in ('footnote', 'endnote', 'annotation') for n in doc.notes)
@@ -4432,7 +4005,7 @@ class PageLine(list):
     # `parity_left` (planning #231, `.poe`/`.poo` even/odd page offset):
     # `(even_pt, odd_pt)` -- this line's own resolved left origin for EACH
     # page parity, or None for a line no `.poe`/`.poo` ever governs.
-    # `_doc_to_pagelines`/`_body_stream_printed` cannot resolve which of
+    # `_doc_to_pagelines` cannot resolve which of
     # the two applies at BUILD time (that depends on which page this line
     # lands on, a pagination question); `left` stays None until the
     # page-filling loop's own `_close_page` -- the one place that actually
@@ -4487,12 +4060,13 @@ class PageLine(list):
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
                 'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
-                'po_cols')
+                'po_cols', 'refs')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
-                justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None):
+                justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None,
+                refs=()):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -4530,26 +4104,11 @@ class PageLine(list):
         # lists it like any other. None for a line built outside the body
         # path (TOC/index, wrapped overflow) -- "no opinion".
         self.po_cols = po_cols
-
-
-class NotesPage(list):
-    """A page built by `_paginate_printed_notes`, carrying ONE thing beyond
-    a plain list: the `read_pos` `_checkpoints_by_page` needs.
-
-    Deliberately NOT a `Page`. `Page.__init__` seeds `headers`/`footers` to
-    `{}`, and `_emit_pdf_inner` reads an empty dict as an authoritative "this
-    page has no running head" rather than "no opinion, use the document's"
-    (see `_apply_columns`' own `merged.headers` comment) -- so promoting the
-    notes paginator's plain lists to `Page` would drop a real running head
-    from every footnote-bearing document. This subclass leaves every other
-    attribute undefined, so each `getattr(pg, ..., default)` in the emitters
-    still lands on exactly the default a bare list did."""
-
-    __slots__ = ('read_pos',)
-
-    def __init__(self, seq=()):
-        super().__init__(seq)
-        self.read_pos = None
+        # Pagination-time only, never read once the pages are built: the
+        # (label, Note) footnote/annotation references that fall on this
+        # line, for the note area (`_NoteArea.enqueue`). Endnote references
+        # never queue -- they collect at the document's end.
+        self.refs = refs
 
 
 class Page(list):
@@ -4616,10 +4175,9 @@ class Page(list):
         # `_resolve_head_foot_lines` (the SAME function `_running_ops`,
         # the PDF writer, calls to render). None (not `[]`/`{}`) for
         # "not yet resolved" -- every page of every document until that
-        # attach function runs, and every page `_paginate_printed_notes`
-        # builds as a bare list rather than a `Page` (see `_apply_
-        # columns`'s own `merged.headers` comment for why `None` is the
-        # deliberate "no opinion" default throughout this class)."""
+        # attach function runs (see `_apply_columns`'s own `merged.headers`
+        # comment for why `None` is the deliberate "no opinion" default
+        # throughout this class)."""
         self.header_lines = None
         self.footer_lines = None
         self.auto_pageno = None
@@ -4981,26 +4539,19 @@ def _apply_columns(doc, pages, size):
         merged = Page([])
         # Group metadata (headers/footers/margins/geometry) comes from the
         # FIRST sub-page in the group -- "page just started" state, exactly
-        # what an ordinary page's own metadata already means. `getattr`
-        # with a default throughout: the notes-aware paginator
-        # (`_paginate_printed_notes`) builds some of ITS OWN pages as plain
-        # lists rather than `Page` instances (its footnote-area pages in
-        # particular) -- pre-existing, not something this pass changes --
-        # so a source page here is not guaranteed to carry these attributes.
+        # what an ordinary page's own metadata already means.
         # planning #245: the default here MUST be `None`, not `{}` --
         # `_emit_pdf_inner`'s per-page loop (`getattr(pl, 'headers', None)`)
         # treats `None` as "this page has no opinion, fall back to
         # `doc.headers`" (`_running_ops`'s own `headers = doc.headers if
         # headers is None else headers`) and treats a real (even empty)
-        # dict as an authoritative answer. A plain-list source page from
-        # `_paginate_printed_notes` was ALWAYS meant to fall back that way
-        # -- every non-columnar notes-path page already does, invisibly,
-        # because `getattr(pl, ...)` on a bare list hits ITS OWN default
-        # of `None` directly in `_emit_pdf_inner`. This merge function
-        # short-circuited that for any page a `.co` column group happened
-        # to land on: defaulting to `{}` here manufactures an explicit
-        # "no header" answer that skips `_running_ops`'s fallback,
-        # dropping a real running head from that one physical page.
+        # dict as an authoritative answer. A page that carries no `headers`
+        # attribute of its own (the synthesized fallback page) was ALWAYS
+        # meant to fall back that way. This merge function short-circuited
+        # that for any page a `.co` column group happened to land on:
+        # defaulting to `{}` here manufactures an explicit "no header"
+        # answer that skips `_running_ops`'s fallback, dropping a real
+        # running head from that one physical page.
         # Measured on sawyer/DEFAULT/PRINT.TST (WS7 v4 capture): `.h1
         # WordStar and Your Printer` (defined once, at the very top of the
         # file, in force for the whole document) prints on all 4 real
@@ -5060,9 +4611,7 @@ def _apply_columns(doc, pages, size):
         # Summed from the prefix lines' OWN leads, the same quantity
         # `_doc_to_pagelines`'s pagination loop charged against each
         # column's budget (`col_offset_pt`) -- derived twice from the same
-        # leads rather than threaded, so a page this pass merges from a
-        # plain-list source page (the notes paginator's own shape, which
-        # carries no such state) still gets the right answer.
+        # leads rather than threaded.
         prefix_pt = 0.0
         for pl0 in pages[i]:
             pl0_bi = getattr(pl0, 'bi', None)
@@ -5093,14 +4642,6 @@ def _apply_columns(doc, pages, size):
             if sub_cols != cols or sub_gutter != gutter_cols:
                 break
             for pl in sub:
-                if not hasattr(pl, 'left'):
-                    # A non-PageLine row (this notes-aware paginator's
-                    # footnote-area lines are sometimes plain lists/tuples,
-                    # never participants in a `.co` region in this corpus) --
-                    # pass through unshifted rather than guess at a shape it
-                    # doesn't have.
-                    merged.append(pl)
-                    continue
                 base_left = pl.left if pl.left is not None else _printed_left(doc, size)
                 # `.rm` IS the column's own width. WordStar measures `.rm`
                 # from the `.po` origin, not from the paper's left edge --
@@ -5540,7 +5081,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     to pass the resolved value through.
 
     `pix_results`/`pictures` (round 19, PIX images RULED IN; round 22
-    closed the round-19 scope cuts -- `_paginate_printed_notes` above and
+    closed the round-19 scope cuts -- the note area's pages and
     Modern's `_modern_streams` now substitute too): when embedding is
     live on the printed path here and a
     physical line's ONLY real content is a single resolved, decoded pix
@@ -5555,64 +5096,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # planning #266: this document's own driver-keyed cp437-158 rule
     # (`_peseta_euro_table`), resolved once.
     euro = _peseta_euro_table(doc)
-    if printed and _has_placeable_notes(doc):
-        cap = _printed_cap(doc)
-        pages, last_page_cost, last_page_has_area = _paginate_printed_notes(
-            doc, cap, MAX_COLS, pix_results=pix_results, pictures=pictures,
-            sentence_spacing=sentence_spacing)
-        # #228 (research/2026-09-08_trailing-pa-rule.md): a trailing `.pa`
-        # -- the document's own LAST block -- closes the current page
-        # (WordStar's own "force a new page" signal) even when nothing
-        # real follows it before EOF and no visible extra page ever
-        # opens (`doc.meta['pa_eof_blank_after']` False, the ordinary
-        # case). Forcing `last_page_cost` to `cap` here makes the
-        # continuation guard below correctly refuse to merge the
-        # document's endnotes onto page 1's remaining room, matching
-        # WordStar's own documented default endnote placement
-        # (WSFORMAT.TXT: no `.PE` -> "endnotes will be printed at the
-        # very end of the document ... starting a new page if they don't
-        # fit what's left"). Confirmed against sawyer/DISPLAY.WS and
-        # sawyer/REF/NOTES.TST: both end in a bare `.pa` (nothing after)
-        # and both need their real endnote content on ITS OWN fresh
-        # page, not merged with the footnote already on page 1 -- their
-        # "extra page" was misclassified by the original triage as this
-        # same trailing-`.pa`-opens-a-blank-page cause; it is not (see
-        # the research doc's "Corrections" section) -- it is this
-        # continuation-guard fix instead, one level removed from `.pa`
-        # itself but still gated on the document ending in one.
-        if doc.blocks and doc.blocks[-1].kind == 'pagebreak':
-            last_page_cost = cap
-        last_page = pages[-1] if pages else None
-        # round 26 wave 3 (fidelity_gate.py Finding C): endnotes CONTINUE
-        # the last body/footnote page when it has room, rather than
-        # always starting fresh -- see _endnote_pages's docstring. The
-        # `last_page and last_page_cost < cap` test decides which of
-        # _endnote_pages' OWN returned pages is a continuation of
-        # `last_page` (replace it) vs a genuinely new one (append it);
-        # it's the identical guard _endnote_pages applies internally.
-        end_pages = _endnote_pages(doc, cap, MAX_COLS, last_page=last_page,
-                                   last_page_cost=last_page_cost,
-                                   last_page_has_area=last_page_has_area,
-                                   sentence_spacing=sentence_spacing)
-        if end_pages and last_page and last_page_cost < cap:
-            pages = pages[:-1] + end_pages
-        else:
-            pages = pages + end_pages
-        while (len(pages) > 1 and not pages[-1]
-               and not getattr(pages[-1], 'explicit_break', False)):
-            pages.pop()
-        pages = _apply_columns(doc, pages, _printed_size(doc))
-        _substitute_merge_page_numbers_printed(doc, pages)
-        _attach_justify_word_x_printed(doc, pages, _printed_size(doc))
-        _attach_line_numbers_printed(doc, pages, _printed_size(doc))
-        _attach_graphic_cells_printed(doc, pages, _printed_size(doc))
-        # Same fallback-page ordering as the plain path -- see its own
-        # comment (planning #274 follow-up, 2026-09-15).
-        pages = pages or [[]]
-        _attach_head_foot_lines_printed(doc, pages, _printed_size(doc))
-        return pages
-
     refs_all = _ref_pairs(_annotated_notes(doc))
+
+    def _note_ref(s):
+        """The (note, label) a footnote/endnote/annotation reference span
+        stands for, else None."""
+        if 'fnref' in s.styles and s.text.isdigit():
+            k = int(s.text)
+            if 0 < k <= len(refs_all):
+                return refs_all[k - 1]
+        return None
 
     def _keep_span(s):
         # a ^ONI index ENTRY is the index file's text, not the page's --
@@ -5839,7 +5332,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # too far right doing exactly the WARPRAYR math with no `.pm` to
         # justify it).
         pm_active = bool(printed and b.para_margin)
+        # The block's first physical line, blank or not: `.pm`'s first-line
+        # indent and `.psb`'s space before belong to it.
         first_line_of_block = True
+        # The block's first REAL (non-blank) line: the one `_entering_lead_pt`
+        # may floor against the preceding block's own lead (Fix C). A blank
+        # line ahead of it governs its own lead (`_style_lead_pt(raw=True)`)
+        # and does not use the entry up -- measured against real WS7 on
+        # LYING (a block opening on a blank line, its first text line
+        # entering at the style's own 16pt, not the 12pt default).
+        entering_line_pending = True
         # Fix C (b26-print-fidelity-2): the nearest earlier REAL ('para')
         # block, skipping pagebreak/condpage sentinels -- `_entering_lead_pt`'s
         # own "outgoing" reference for this block's first line, computed
@@ -5871,14 +5373,36 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # the docstring's "headings bold" promise: heading blocks render in
             # Courier-Bold (found unimplemented by the Swift port, job-011)
             kept = [s for s in line.spans if _keep_span(s)]
+            # The displayed body reference is the note's `label`, NOT the
+            # fnref span's raw `.text` (core.py's shared fn_counter position
+            # across ALL non-comment kinds) -- footnotes and endnotes are
+            # numbered INDEPENDENTLY per kind (WordStar has separate `.f#`/
+            # `.e#` starting-value commands, which only make sense for two
+            # independent sequences), matching what emit.py's text/markdown/
+            # html output already does via _annotated_notes/
+            # _display_number. A bare superscript '1' can therefore
+            # legitimately mean footnote 1 OR endnote 1 in the body text --
+            # WordStar resolved that ambiguity in the NOTE AREA via mark
+            # style ('1.' vs '(1)'), not by inventing a combined number, so
+            # the same label is used in both places. A comment never gets
+            # here (`_keep_span`). Endnote references are resolved (so a
+            # fnref span's index into `refs_all` stays intact) but never
+            # queued -- they don't participate in the per-page footnote
+            # area, they collect at the document's end instead.
+            marks = [_note_ref(s) if printed else None for s in kept]
+            refs = [(label, note) for note, label in filter(None, marks)
+                    if note.kind in ('footnote', 'annotation')]
             # N9 (b33 field notes): applied to the KEPT spans' text, in
             # order -- state carries across them the same as every other
             # emitter's own choke point (a span filtered out by
             # `_keep_span` above never renders, so it never counts as
-            # "the last character seen" either).
-            texts = _euro_texts(
-                _sentence_spacing_texts([s.text for s in kept])
-                if sentence_spacing else [s.text for s in kept], euro)
+            # "the last character seen" either). A reference mark's label
+            # is text on the line like any other for it, but never passes
+            # the cp437-158 rule.
+            raw_texts = [m[1] if m else s.text for s, m in zip(kept, marks)]
+            texts = _sentence_spacing_texts(raw_texts) if sentence_spacing else raw_texts
+            texts = [t if m else _euro_texts([t], euro)[0]
+                     for t, m in zip(texts, marks)]
             spans = [(t, _effective_span_styles(s, b, heading_bold=True))
                      for s, t in zip(kept, texts)]
             if printed:
@@ -5961,10 +5485,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 is_blank = not any(t.strip() for t, _ in spans)
                 if is_blank:
                     style_lead = _style_lead_pt(b, doc, raw=True)
-                elif first_line_of_block:
+                elif entering_line_pending:
                     style_lead = _entering_lead_pt(b, doc, prev_para_block)
                 else:
                     style_lead = _style_lead_pt(b, doc)
+                if not is_blank:
+                    entering_line_pending = False
                 # planning #256: a block's own paragraph-style leading, when it
                 # has one, governs OUTRIGHT -- no longer gated on whether this
                 # line's own carried `.lh` happens to be unset/default (see
@@ -6025,9 +5551,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                                      lead=reserved + extra, overprint=line.overprint,
                                      bi=bi, image=(pix_idx, w_pt, h_pt),
                                      left=own_left,
-                                     po_cols=getattr(line, 'po_cols', None))
+                                     po_cols=getattr(line, 'po_cols', None),
+                                     refs=refs)
                         lines.append(pl)
                         first_line_of_block = False
+                        entering_line_pending = False
                         continue
                 # Planning #238 (.oj on full justification, research/
                 # 2026-09-08_justification-rule.md): every line of a
@@ -6076,7 +5604,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              left=own_left, roll=own_roll,
                              justify_right_x=justify_right_x,
                              parity_left=own_parity_left,
-                             po_cols=getattr(line, 'po_cols', None))
+                             po_cols=getattr(line, 'po_cols', None),
+                             refs=refs)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -6246,6 +5775,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # doc.meta['formatting'] for free, same as every other item this round.
     suppress_blanks = printed and bool(doc.meta.get('formatting', {}).get('suppress_blanks', False))
     pages, page, spent = [], [], 0.0
+    # The note area (planning #577): `None` outside Printed. For a document
+    # with no footnote/annotation reference every hook below is a no-op.
+    notes = _NoteArea(doc, lines, default_lead, sentence_spacing) if printed else None
+    carry_open = True            # the open page's note-area carry-over is not yet admitted
+    last_room_lines = 0          # whole lines free on the page closed last, under its area
+    last_has_area = False        # ...and whether that page ends with a note area
     cur_hdrs, cur_ftrs = {}, {}
     page_hdrs, page_ftrs = {}, {}      # state at the OPEN page's start
     # cause 10: the 0x0F print-control siblings of `cur_hdrs`/`page_hdrs`,
@@ -6301,6 +5836,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     def _close_page(explicit=False, break_bi=None):
         pg = Page(page)
         # triage Q12 -- see `read_pos`'s own comment at the append site.
+        # Counted off the BODY only: a note area's lines are the emitter's
+        # own, and the reference that pulled them down here was already
+        # counted on the body line carrying it.
         pg.read_pos = read_pos[0]
         pg.headers = {k: v for k, v in page_hdrs.items() if v}
         pg.footers = {k: v for k, v in page_ftrs.items() if v}
@@ -6465,10 +6003,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             else:
                 pg.footers.pop(1, None)
             pg.foot_hf_override = {1: (font_idx, tab_rec, align, style_attrs)}
-        # Body text: `_doc_to_pagelines`/`_body_stream_printed` could not
+        # Body text: `_doc_to_pagelines` could not
         # resolve a `.poe`/`.poo`-governed line's own left origin at BUILD
         # time (which page, and therefore which parity, a line lands on is
-        # a pagination question, not a parse-order one) -- they left a
+        # a pagination question, not a parse-order one) -- it left a
         # `(even_pt, odd_pt)` candidate pair on `.parity_left` instead.
         # Resolved now, in place, the one moment this loop actually knows
         # this page's parity.
@@ -6476,6 +6014,26 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             parity_left = getattr(pl, 'parity_left', None)
             if parity_left is not None:
                 pl.left = parity_left[0 if is_even_page else 1]
+        # The note area closes with its page: every page of a document with
+        # notes carries the stamps, parity and head/foot state above like
+        # any other, the area is the only thing added. Its lines carry no
+        # `bi`, so none of the per-line passes above (`.po`, parity, the
+        # automatic number) read them.
+        if printed:
+            nonlocal last_room_lines, last_has_area
+            _open_area()
+            last_room_lines = _room_lines() - _area_size(notes.entries)
+            last_has_area = bool(notes.entries)
+            if last_has_area:
+                eff = _page_geometry_dict(doc, pg)
+                saved = doc.meta['page']
+                if eff is not None:
+                    doc.meta['page'] = eff
+                try:
+                    body_y = _printed_top(doc) + _col_cut() + spent
+                    pg.extend(notes.anchored_area(doc, body_y))
+                finally:
+                    doc.meta['page'] = saved
         pages.append(pg)
     def _recompute_geom(bi):
         """(mt, mb, pl, hm, fm, po) in force at block `bi`, for the page about
@@ -6594,8 +6152,47 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 return False
             if isinstance(peek, tuple):
                 continue                      # another sentinel, not a line
-            return spent + _cost(peek) > budget - _col_cut() + 1e-6
+            return spent + _cost(peek) + notes.height_pt > budget - _col_cut() + 1e-6
         return False
+
+    def _open_new_page():
+        """Open the page after the one `_close_page` just closed: the next
+        column of the open group (see `_advance_column`), with the running
+        head/foot state in force now."""
+        nonlocal page, spent, carry_open
+        nonlocal page_hdrs, page_ftrs, page_hdrs_pcl, page_ftrs_pcl
+        nonlocal page_hdrs_e, page_hdrs_o, page_ftrs_e, page_ftrs_o
+        _advance_column()
+        page, spent = [], 0.0
+        page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
+        page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
+        page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
+        page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
+        if printed:
+            notes.begin_page()
+        carry_open = True
+
+    # The note area's hooks into this page. Whole default-lead lines of the
+    # open page still free under the body placed so far (floored: a
+    # fractional line already spent by a styled line is never credited
+    # back), and the carry-over -- whatever an earlier page's area could not
+    # hold -- admitted before any new reference queues behind it. It waits
+    # until the new page's own geometry is known (`_recompute_geom`), or the
+    # page closes. A document with no notes queues nothing, so both are
+    # no-ops. A column after the first starts BELOW the group's shared
+    # prefix (`_col_cut`) and ends at the same page bottom -- measured
+    # against real WS7 on sawyer/PRINT.TST page 2 (`.co3`, `.20"`, under a
+    # "Paragraph Styles" prefix: WS7 opens all three columns at 288.0pt and
+    # gives each 36 rows of a 54-row page).
+    def _room_lines():
+        return int(_math.floor((budget - _col_cut() - spent) / default_lead + 1e-9))
+
+    def _open_area():
+        nonlocal carry_open
+        if not carry_open:
+            return
+        carry_open = False
+        notes.admit(_room_lines(), cap)
 
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
@@ -6673,15 +6270,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     seen += 1
                     if seen >= l[1]:
                         break
-                short = (budget - _col_cut() - spent) < needed - 1e-6
+                short = (budget - _col_cut() - spent - notes.height_pt) < needed - 1e-6
             else:
                 short = (cap - len(page)) < l[1]
             if short and page:
-                _close_page(); _advance_column(); page, spent = [], 0.0
-                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
-                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
-                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
-                page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
+                _close_page(); _open_new_page()
             continue
         # Finding 3: a line about to start a FRESH page (whether the page
         # was just closed above, by the `cond` branch, or this is simply
@@ -6694,6 +6287,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
             budget = _printed_budget_pt(doc, cap, default_lead,
                                         cur_mt, cur_mb, cur_pl)
+        if printed:
+            _open_area()
         # A line LEAVING the columnar region releases the group's shared
         # prefix before this page's own room is judged -- the break that
         # carried us here was forced by that same state change
@@ -6701,8 +6296,20 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # opens is an ordinary whole one again.
         if printed and col_group_cols > 1 and _line_cols(l) == 1:
             col_group_cols, col_group_index, col_offset_pt = 1, 0, 0.0
-        overflow = (spent + _cost(l) > budget - _col_cut() + 1e-6) if printed \
-                  else len(page) >= cap
+        # A body line is admitted while it fits ABOVE the note area already
+        # committed (`notes.height_pt`, 0 for a page with none), which
+        # `notes.admit` grew incrementally, splitting notes when they
+        # couldn't finish -- so a reference line whose notes only PARTLY fit
+        # is still admitted and its overflow continues on the next page's
+        # area (rule 4). The three-line body floor needs no arm of its own:
+        # the non-terminal ceiling caps the area at `cap - FOOTNOTE_FLOOR`,
+        # so the first three line units always fit. A page's first line is
+        # admitted whatever it costs (`if page` below), so an image taller
+        # than the whole page still lands somewhere: a slightly overflowing
+        # page beats a hang or lost content (the same doctrine
+        # `_admit_footnotes` documents).
+        overflow = (spent + _cost(l) + notes.height_pt > budget - _col_cut() + 1e-6) \
+                  if printed else len(page) >= cap
         # Finding 1 (round 26 visual pass): the FIRST `ws4_spacing`
         # blank (see `_ws4_spacing_blank_indices`) to overflow a page's
         # budget never triggers the break by itself -- a physical
@@ -6722,16 +6329,12 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # own 2-3 blank run): forgiving every blank in a run over-admits
         # a whole extra real line one measured source's own WS7 capture
         # didn't have.
-        already_over = printed and spent > budget - _col_cut() + 1e-6
+        already_over = printed and spent + notes.height_pt > budget - _col_cut() + 1e-6
         full = overflow and not (printed and getattr(l, 'ws4_spacing', False)
                                  and not already_over)
         if l is None or full:
             if page or l is None:
-                _close_page(); _advance_column(); page, spent = [], 0.0
-                page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
-                page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
-                page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
-                page_ftrs_e, page_ftrs_o = dict(cur_ftrs_e), dict(cur_ftrs_o)
+                _close_page(); _open_new_page()
                 # organic overflow (see `_recompute_geom`'s docstring,
                 # path 2): `l` itself is the new page's first line and
                 # never reaches the top-of-loop `not page` gate, since it
@@ -6741,6 +6344,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
                     budget = _printed_budget_pt(doc, cap, default_lead,
                                                 cur_mt, cur_mb, cur_pl)
+                if printed and full and l is not None:
+                    _open_area()
             if l is None:
                 trailing_pagebreak = True
                 continue
@@ -6767,6 +6372,14 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             read_tally[bi_here] = read_tally.get(bi_here, 0) + 1
             read_pos[0] = (bi_here, read_tally[bi_here])
         page.append(l)
+        if printed:
+            # The page that admits the document's last line of regular text
+            # is the terminal page: the floor lifts there (rule 5). Then this
+            # line's notes queue, and as many as fit join the area.
+            if _li == notes.last_ink_index:
+                notes.is_terminal = True
+            notes.enqueue(l.refs, MAX_COLS)
+            notes.admit(_room_lines(), cap)
     if page:
         _close_page()
     elif trailing_pagebreak and printed and doc.meta.get('pa_eof_blank_after'):
@@ -6788,6 +6401,111 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # `_modern_streams`), but the gate is here in case a future
         # caller does -- "drop in Modern" per the ruling.
         _close_page(explicit=True, break_bi=last_pagebreak_bi)
+    if printed:
+        # What follows is the note area's own end of the document --
+        # nothing below runs for a document without notes. The pages it
+        # adds take the head/foot and geometry state in force at the end,
+        # like any page opened there (`_close_tail_page`).
+        carry_open = False
+
+        def _close_tail_page(tail_lines, explicit_bi=None):
+            """A page of the note area's tail: `tail_lines` as the whole
+            page, on a page opened after everything read so far."""
+            nonlocal page, carry_open
+            _open_new_page()
+            carry_open = False
+            page = _pagelines(tail_lines)
+            _close_page()
+            if explicit_bi is not None:
+                pages[-1].explicit_break_bi = explicit_bi
+
+        # Rule 5: whatever the last body page's bottom footer couldn't hold
+        # prints at the TOP of its own fresh page(s) instead of waiting for
+        # a "next page" that doesn't exist. "Except after the last page of
+        # regular text, where footnotes are printed at the top of the
+        # page." Rendered through the SAME `_admit_footnotes`/`_render_area`
+        # pair as the in-page area. The ceiling is the whole page: these
+        # pages ARE the manual's stated exception.
+        while notes.queue:
+            entries = []
+            _admit_footnotes(entries, notes.queue,
+                             _footnote_ceiling(cap, cap, True))
+            _close_tail_page(_render_area(entries))
+            last_room_lines = cap - _area_size(entries)
+            last_has_area = True
+
+        # Endnotes: the true end of the document, no heading, no separator.
+        #
+        # CONTINUES the last body/footnote page when it has room (round 26
+        # wave 3, fidelity_gate.py Finding C), instead of always forcing a
+        # fresh one -- not a fresh 3-line area header, since this is one
+        # more entry in the SAME note area, not a new section. A page with
+        # NO room left (the overwhelmingly common multi-page case) is
+        # untouched: endnotes start fresh exactly as before.
+        #
+        # `last_has_area` (round 27, b28 note 6) decides whether a blank
+        # line precedes the FIRST endnote, and it is NOT unconditional.
+        # WS7's note face is 12-point, so ONE note line advances 120
+        # decipoints -- the 2026-08-20 measurement that put a blank line
+        # here read the natural 240dp two-line advance as "24pt, one blank
+        # line" and generalised it. Re-measured 2026-08-23 against both WS7
+        # captures:
+        #
+        #   -SCREEN.pcl  "1. Footnote" V=7080 -> "(1) Endnote"  V=7320 =
+        #                240dp = ONE BLANK LINE after a FOOTNOTE AREA.
+        #   TESTING.pcl  last body line V=3765 -> "(1)This is our test
+        #                endnote." V=3885 = 120dp = NO BLANK LINE after
+        #                BODY TEXT.
+        #   TESTING.pcl  endnote (1) V=3885 -> (2) V=4125 = 240dp = one
+        #                blank line BETWEEN entries (the blank
+        #                `_endnote_lines` puts between them).
+        #
+        # So the leading gap belongs only when the last page ends with a
+        # footnote area -- it is one more entry joining that area. When the
+        # endnotes follow plain body text they butt straight up against it,
+        # which is what Jon reported in the b27 review: the endnotes go
+        # IMMEDIATELY after the text.
+        #
+        # #228 (research/2026-09-08_trailing-pa-rule.md): a trailing `.pa`
+        # -- the document's own LAST block -- closes the current page
+        # (WordStar's own "force a new page" signal) even when nothing real
+        # follows it before EOF and no visible extra page ever opens
+        # (`doc.meta['pa_eof_blank_after']` False, the ordinary case).
+        # Giving that page no room makes the continuation below refuse to
+        # merge the document's endnotes onto page 1's remaining room,
+        # matching WordStar's own documented default endnote placement
+        # (WSFORMAT.TXT: no `.PE` -> "endnotes will be printed at the very
+        # end of the document ... starting a new page if they don't fit
+        # what's left"). Confirmed against sawyer/DISPLAY.WS and
+        # sawyer/REF/NOTES.TST: both end in a bare `.pa` (nothing after) and
+        # both need their real endnote content on ITS OWN fresh page, not
+        # merged with the footnote already on page 1.
+        if doc.blocks and doc.blocks[-1].kind == 'pagebreak':
+            last_room_lines = 0
+        endnotes = _endnote_lines(doc, notes.pad_cols, MAX_COLS, sentence_spacing)
+        if endnotes:
+            if last_room_lines > 0 and pages and pages[-1]:
+                if last_has_area:               # see the WS7 measurements above
+                    endnotes.insert(0, [])
+                room = last_room_lines
+                while room >= 1 and endnotes:
+                    pages[-1].extend(_pagelines([endnotes.pop(0)]))
+                    room -= 1
+            # #228: a FRESH endnote page (not a continuation of the body's
+            # own last page) has no `.bi`-carrying line of its own -- every
+            # line here comes from `_note_wrap`, never a `.bi`-tagged
+            # PageLine -- so the auto-page-number lookup at render time has
+            # nothing to resolve against. `explicit_break_bi` (the
+            # document's own highest block index -- "wherever the
+            # document's own state was by its own end") stands in, the same
+            # fallback the trailing-`.pa` blank page uses. Confirmed against
+            # sawyer/DISPLAY.WS: WS7's own page 2 (the endnote, on its own
+            # page once the trailing-`.pa` continuation fix above stops it
+            # merging with page 1) carries the automatic page number "2".
+            while endnotes:
+                chunk = endnotes[:cap]
+                del endnotes[:cap]
+                _close_tail_page(chunk, len(doc.blocks) - 1)
     # We supply the paper margins, so WordStar's own margin blanks in a print
     # stream would double up. But deliberate spacing (a chapter-drop on page 1)
     # must survive: the MACHINE margin is uniform on every page, so strip only
@@ -6858,12 +6576,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # JSON) carried no running head, no footer and no automatic
         # number for it. The PDF WRITER paginates and resolves its own and
         # draws all three (`TITLE . 1` at 666.2, the number at 637.2), so
-        # the two disagreed -- the same two-sources-of-truth fault
-        # `_attach_head_foot_lines_printed`'s own bare-list promotion
-        # exists to close, one step earlier. No other document changes:
-        # `pages` is non-empty for every one of them, and `or` returns it
-        # untouched.
-        pages = pages or [[]]
+        # the two disagreed -- two sources of truth, closed here by making
+        # the page exist before the pass. No other document changes: `pages` is non-empty for every one of
+        # them, and `or` returns it untouched. The fallback page has no
+        # opinion on its running head/foot (`None`, not `Page.__init__`'s
+        # authoritative `{}`): the document's own are the answer.
+        if not pages:
+            fallback = Page([])
+            fallback.headers = None
+            fallback.footers = None
+            pages = [fallback]
         _attach_head_foot_lines_printed(doc, pages, size_for_left)
     return pages or [[]]
 
@@ -7237,7 +6959,6 @@ def _attach_head_foot_lines_printed(doc, pages, size):
     for page_index, pg in enumerate(pages):
         page_mt = getattr(pg, 'mt_lines', None)
         page_mb = getattr(pg, 'mb_lines', None)
-        page_pl = getattr(pg, 'pl_lines', None)
         page_hm = getattr(pg, 'hm_lines', None)
         page_fm = getattr(pg, 'fm_lines', None)
         page_po = getattr(pg, 'po_cols', None)
@@ -7262,24 +6983,9 @@ def _attach_head_foot_lines_printed(doc, pages, size):
         # direction nothing else here can catch (the automatic number is
         # measured UP from the foot and is right either way).
         page_or = getattr(pg, 'orientation', None)
+        eff = _page_geometry_dict(doc, pg)
         saved_pg = None
-        if (page_mt is not None or page_mb is not None or page_pl is not None
-                or page_hm is not None or page_fm is not None
-                or page_or is not None):
-            eff = dict(doc.meta['page'])
-            if page_mt is not None:
-                eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
-            if page_mb is not None:
-                eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
-            if page_pl is not None:
-                eff['pl_lines'] = page_pl
-            if page_hm is not None:
-                eff['hm_lines'] = page_hm
-                eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
-            if page_fm is not None:
-                eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
-            if page_or is not None:
-                eff = _page_dict_for_orientation(eff, page_or)
+        if eff is not None:
             saved_pg, doc.meta['page'] = doc.meta['page'], eff
         page_h_this = _resolved_page_height(doc, True) if page_or is not None else page_h
         bis = [bi for bi in (getattr(ln, 'bi', None) for ln in pg) if bi is not None]
@@ -7302,48 +7008,6 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             doc.meta['page'] = saved_pg
         if resolved is None:
             continue
-        if not isinstance(pg, Page):
-            # planning #251 part d fix (found by the app coder, job 348
-            # follow-up: sawyer/-SCREEN.WS page 1, the app's own
-            # BOTHNOTE.WS page 1): `_paginate_printed_notes`'s own
-            # footnote-area pages are sometimes plain lists, not `Page`
-            # instances (see `_apply_columns`'s own `merged.headers`
-            # comment) -- an attribute ASSIGNMENT (unlike every other
-            # consumer's read-only `getattr(pl, ..., None)`) raises on a
-            # bare list. This USED TO `continue` here, leaving the
-            # model's own copy unresolved for every such page even
-            # though `_running_ops` (the writer) draws their header/
-            # footer/auto-page-number correctly from this SAME `resolved`
-            # answer, via its own `getattr(pl, 'headers', None)` fallback
-            # a few lines above -- two sources of truth that could (and
-            # did) disagree: the writer put "1" at 291.6/732.0 on
-            # -SCREEN.WS page 1 while the model said `None`.
-            #
-            # Promoting the bare list to a real `Page` here instead
-            # closes the gap -- `headers`/`footers` set explicitly to
-            # `None` (not `Page.__init__`'s own `{}` default, which would
-            # instead SUPPRESS the doc-global running-head fallback these
-            # pages have always relied on; every other `Page.__init__`
-            # field default already matches what `getattr(bare_list,
-            # attr, None)` returned, so nothing else about this page's
-            # resolved behaviour changes). `pages[page_index]` is
-            # reassigned so `_emit_pdf_inner`'s own render loop -- which
-            # reads this SAME `pages` list a few lines later -- keeps
-            # seeing byte-identical `getattr(pl, 'headers', None)`
-            # answers; PDF bytes do not move.
-            # `read_pos` carried across too (2026-09-15): the notes
-            # paginator now records one, and `_checkpoints_by_page` is
-            # asked the automatic-number question a SECOND time by
-            # `_emit_pdf_inner`'s own render loop, off this very list.
-            # Dropping the position here would let the two answers
-            # disagree about where a `.op`/`.pn` was read -- the same
-            # two-sources-of-truth fault this promotion exists to close.
-            was = getattr(pg, 'read_pos', None)
-            pg = Page(pg)
-            pg.headers = None
-            pg.footers = None
-            pg.read_pos = was
-            pages[page_index] = pg
         if resolved['headers']:
             # `style_attrs` (planning #255) IS IN THE MODEL (2026-09-15). It
             # used to be a PDF-render-time concern only -- `_running_ops`
@@ -9144,9 +8808,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # Planning #244 (the round-trip gauntlet fix) moved this expansion out
     # of `_decode_spans` (parse time) into render time, here. Planning #251
     # (2026-09-09) moved it AGAIN, one step earlier still: body text now
-    # arrives already expanded -- `_doc_to_pagelines`'s plain path and its
-    # notes-aware sibling `_body_stream_printed` both call
-    # `_expand_bare_tabs_for_printed_layout` themselves when they build each
+    # arrives already expanded -- `_doc_to_pagelines` calls
+    # `_expand_bare_tabs_for_printed_layout` itself when it builds each
     # PageLine's segments, so the MODEL carries the expansion (consumers
     # other than this writer -- `emit_layout`'s 'printed' pagelines chief
     # among them -- stopped seeing a raw 0x09 byte). The call below is now a
@@ -11960,8 +11623,8 @@ def _emit_pdf_inner(doc, printed, options):
         doc = _merge_pageno_modern(doc, options)
     # Round 19 (PIX images RULED IN, ledger PIX row) wired the Printed
     # path; round 22 closed the two documented scope cuts (Modern PDF via
-    # `_modern_streams`, the notes-pagination path via
-    # `_paginate_printed_notes`). `pictures` off (or no results) costs
+    # `_modern_streams`, the note area's pages via `_doc_to_pagelines`).
+    # `pictures` off (or no results) costs
     # nothing on any path: every substitution site skips itself when
     # embedding is not live, byte-identical to before.
     pictures = options.get('pictures', 'off')
@@ -12063,7 +11726,6 @@ def _emit_pdf_inner(doc, printed, options):
             # pl-.mb+.fm" footer geometry), so a page whose `.pl` changed
             # but whose `.mt`/`.mb` did not would otherwise render its
             # footer at the WRONG row (the document's stale global `.pl`).
-            page_pl = getattr(pl, 'pl_lines', None)
             # register b31-dot-command-sweep: `.hm`/`.fm` -- read by
             # `_printed_top` (the body's own top offset, gated on
             # mt_source) and by `_running_ops` (the header/footer ROW
@@ -12140,35 +11802,9 @@ def _emit_pdf_inner(doc, printed, options):
             # "don't swap" -- rebuild from core.py's own portrait-convention
             # resolution of this page's `.pl`.
             page_or = getattr(pl, 'orientation', None)
+            eff = _page_geometry_dict(doc, pl)
             saved_pg = None
-            if (page_mt is not None or page_mb is not None or page_pl is not None
-                    or page_hm is not None or page_fm is not None
-                    or page_or is not None):
-                eff = dict(doc.meta['page'])
-                if page_mt is not None:
-                    eff['mt_lines'], eff['mt_source'] = page_mt, 'file'
-                if page_mb is not None:
-                    eff['mb_lines'], eff['mb_source'] = page_mb, 'file'
-                if page_pl is not None:
-                    eff['pl_lines'] = page_pl
-                if page_hm is not None:
-                    # 'file' only if THIS page's own resolved hm is a real
-                    # override of WordStar's hardcoded default, not merely
-                    # different from the document's (possibly WRONG, in
-                    # the degenerate mid-document-only-occurrence case)
-                    # global reading -- `_running_ops`'s OR-gate treats
-                    # hm_source == 'file' as "the author touched .hm",
-                    # which must stay false for a page that sits BEFORE
-                    # a document's only `.hm` ever fires, even though it
-                    # still needs its own override (back to the true
-                    # default) to correct core.py's global reading.
-                    from .core import DEFAULT_HM_LINES as _DEF_HM
-                    eff['hm_lines'] = page_hm
-                    eff['hm_source'] = 'file' if page_hm != _DEF_HM else 'default'
-                if page_fm is not None:
-                    eff['fm_lines'], eff['fm_source'] = page_fm, 'file'
-                if page_or is not None:
-                    eff = _page_dict_for_orientation(eff, page_or)
+            if eff is not None:
                 saved_pg, doc.meta['page'] = doc.meta['page'], eff
                 page_top = _printed_top(doc)
             else:
