@@ -930,3 +930,29 @@ def test_cli_pictures_md_embed_exports_and_notes_only_in_modern_mode(tmp_path, c
     assert 'no true image embedding' in captured.err
     md = (tmp_path / 'DOC2.md').read_text()
     assert '![WORDSTAR.PIX](DOC-images/WORDSTAR.png)' in md
+
+
+def test_cli_markdown_and_md_names_behave_identically_with_pictures_embed(tmp_path, capsys):
+    # 'md' is an alias of the canonical 'markdown'; the CLI must not branch
+    # on the raw -t value (planning #555).
+    from ctrlkd.cli import main
+    results = {}
+    for name in ('md', 'markdown'):
+        work = tmp_path / name
+        img_dir = work / 'INSET' / 'PIX'
+        img_dir.mkdir(parents=True)
+        (img_dir / 'WORDSTAR.PIX').write_bytes(_tiny_pix_bytes())
+        docpath = work / 'DOC.WS'
+        block = _ws_pix_block(br'C:\WS\INSET\PIX\WORDSTAR.PIX')
+        docpath.write_bytes(b'Before.\r\n\r\n' + block + b'\r\n\r\nAfter.\r\n')
+        capsys.readouterr()
+        rc = main(['--mode', 'modern', '-t', name, '--pictures', 'embed', str(docpath)])
+        assert rc == 0
+        err = capsys.readouterr().err.replace(str(work), '<dir>')
+        pngs = {p.name: p.read_bytes() for p in (work / 'DOC-images').glob('*.png')}
+        results[name] = ((work / 'DOC.md').read_bytes(), pngs, err)
+    assert results['markdown'] == results['md']
+    md, pngs, err = results['markdown']
+    assert pngs, 'PNG should be exported'
+    assert b'![WORDSTAR.PIX](DOC-images/WORDSTAR.png)' in md
+    assert 'no true image embedding' in err

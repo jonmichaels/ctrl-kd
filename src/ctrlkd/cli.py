@@ -418,6 +418,9 @@ def main(argv=None):
             pictures.report_misses(pix_results, path, path)
         for fmt in formats:
             reg = emit.get_emitter(fmt)
+            # Branch on the canonical name, never the raw -t value: 'md' is
+            # only an alias of 'markdown'.
+            is_markdown = emit.canonical_name(fmt) == 'markdown'
             if a.output:
                 dest = a.output
             else:
@@ -439,7 +442,7 @@ def main(argv=None):
             # and printing the degradation note for it would be pure
             # waste, not a correctness issue but a confusing one.
             need_export = (a.pictures == 'export'
-                          or (fmt == 'md' and a.pictures == 'embed'
+                          or (is_markdown and a.pictures == 'embed'
                               and a.mode == 'modern'))
             if need_export and any(r.ok for r in pix_results):
                 images_dir = os.path.join(os.path.dirname(dest) or '.',
@@ -447,7 +450,7 @@ def main(argv=None):
                 written = pictures.write_export_images(pix_results, images_dir)
                 image_links = {i: f'{base}-images/{name}'
                                for i, name in written.items()}
-                if fmt == 'md' and a.pictures == 'embed' and written:
+                if is_markdown and a.pictures == 'embed' and written:
                     print(f'ctrl-kd: {path}: Markdown has no true image '
                           f'embedding -- exporting {len(written)} PNG '
                           f"file(s) to {os.path.basename(images_dir)}/ "

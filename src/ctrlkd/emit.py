@@ -65,8 +65,12 @@ def emitter(name, ext=None, aliases=()):
         return fn
     return deco
 
+def canonical_name(name):
+    """The registered (canonical) name for a format name or alias."""
+    return _ALIASES.get(name, name)
+
 def get_emitter(name):
-    return _REGISTRY[_ALIASES.get(name, name)]
+    return _REGISTRY[canonical_name(name)]
 
 def formats():
     """All registered format names (canonical + aliases), for CLI choices."""
