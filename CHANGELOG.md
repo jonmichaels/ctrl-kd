@@ -5,7 +5,14 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+## [4.10.1] — 2026-10-26
+
 ### Fixed
+
+- **`-t markdown --pictures embed` now exports and links the pictures, as
+  `-t md` always did.** The command line checked the format name as typed, so
+  the long name skipped the picture export and the degradation note that the
+  short one gave. It now checks the format itself, whichever name was typed.
 
 - **A Printed document with footnotes, endnotes or annotations now lays out
   exactly like one without, apart from the note area itself.** The two had

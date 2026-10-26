@@ -33,10 +33,10 @@
   "total_convertible_docs": 389,
   "total_grid_cells": 4668
  },
- "engine_version": "4.10.0",
+ "engine_version": "4.10.1",
  "generator": {
-  "date": "2026-10-25T22:03:37-04:00",
-  "git_sha": "4dc2d7b972f9f0f39631a3e6aaf767e9acae8b5b",
+  "date": "2026-10-26T09:39:41-04:00",
+  "git_sha": "4c33893442a8326d3237c613aa9ab5f30f4f0463",
   "tool": "tools/answer_key.py"
  },
  "groups": {
