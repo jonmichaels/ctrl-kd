@@ -35,8 +35,8 @@
  },
  "engine_version": "4.10.1",
  "generator": {
-  "date": "2026-10-26T21:07:59-04:00",
-  "git_sha": "5f67381300d13a4f4816c41b83a0055d7517299c",
+  "date": "2026-10-27T06:21:09-04:00",
+  "git_sha": "71d7027b264763973c79557e26b41211b179f4e1",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -3796,12 +3796,12 @@
        "sha256": "e446c4155b26571bfcc58ec85425ad2bbc66982db1584dbdf3a72bc6dedbba1b"
       },
       "layout.modern": {
-       "bytes": 236628,
-       "sha256": "322c0b4c1b843fd7916d962cd6aac79416bc6bb41ae85a45da787725f8c254d8"
+       "bytes": 236834,
+       "sha256": "a79db5c588cb2e20368033a5840abf1b745a8d9ad2480e5e34e6159cf906a7cd"
       },
       "layout.printed": {
-       "bytes": 236628,
-       "sha256": "322c0b4c1b843fd7916d962cd6aac79416bc6bb41ae85a45da787725f8c254d8"
+       "bytes": 236834,
+       "sha256": "a79db5c588cb2e20368033a5840abf1b745a8d9ad2480e5e34e6159cf906a7cd"
       },
       "markdown.modern": {
        "bytes": 6903,
@@ -3819,7 +3819,7 @@
       "pdf.printed": {
        "bytes": 34527,
        "pages": 4,
-       "sha256": "4815097b9fcc2851f60433a5ce95a3361f659bd42f59954532184faa507582bd"
+       "sha256": "6863c5e6b15021784d02e9737a0c6e7ad3091b830335464ad44c03c9b7ec9ee5"
       },
       "rtf.modern": {
        "bytes": 16016,
@@ -5616,11 +5616,11 @@
       },
       "layout.modern": {
        "bytes": 767761,
-       "sha256": "e12281c419968ab2673199396be0c9f6c3cf55e6aec367693196012ce2988387"
+       "sha256": "32951f2ec677d79df4fa571bf8b7ee358ce7e39143510ee2a8a98a6bfaa9e19f"
       },
       "layout.printed": {
        "bytes": 767761,
-       "sha256": "e12281c419968ab2673199396be0c9f6c3cf55e6aec367693196012ce2988387"
+       "sha256": "32951f2ec677d79df4fa571bf8b7ee358ce7e39143510ee2a8a98a6bfaa9e19f"
       },
       "markdown.modern": {
        "bytes": 21992,
@@ -9885,12 +9885,12 @@
        "sha256": "26d0a3b5b95d622e2788a6723e6cd2f59c8d738ed55fa1a9b06595bf8d7c8e5d"
       },
       "layout.modern": {
-       "bytes": 236542,
-       "sha256": "597370ee151905df7e891612e7600884b68cd1a65e55838e0283c46230867dfd"
+       "bytes": 236748,
+       "sha256": "41d88b2769ff5cb0d7b240dd93fb1935e0b0944ace90d903b85149abf1fca39f"
       },
       "layout.printed": {
-       "bytes": 236542,
-       "sha256": "597370ee151905df7e891612e7600884b68cd1a65e55838e0283c46230867dfd"
+       "bytes": 236748,
+       "sha256": "41d88b2769ff5cb0d7b240dd93fb1935e0b0944ace90d903b85149abf1fca39f"
       },
       "markdown.modern": {
        "bytes": 6903,
@@ -9908,7 +9908,7 @@
       "pdf.printed": {
        "bytes": 34093,
        "pages": 4,
-       "sha256": "4f193fcf92b2dfa8dc4d824ee79e75bf33b5dcc85da87f99a8b575eac2ada87f"
+       "sha256": "481d26aab95143e91376a5c98c8f6d4cde65ac1cb10ee686d6ad2a0bf0d297a3"
       },
       "rtf.modern": {
        "bytes": 16016,
@@ -10513,11 +10513,11 @@
       },
       "layout.modern": {
        "bytes": 956101,
-       "sha256": "eabb6e8440f5c9ae432c399117cd556015023ed7488a083846794fffdbcbbd60"
+       "sha256": "2a2e6f52d0b3b768208b0b8c5db75982dc6c50de6a6ffd6b42f50f7b4d6a6eba"
       },
       "layout.printed": {
        "bytes": 956101,
-       "sha256": "eabb6e8440f5c9ae432c399117cd556015023ed7488a083846794fffdbcbbd60"
+       "sha256": "2a2e6f52d0b3b768208b0b8c5db75982dc6c50de6a6ffd6b42f50f7b4d6a6eba"
       },
       "markdown.modern": {
        "bytes": 12517,
@@ -10535,15 +10535,15 @@
       "pdf.printed": {
        "bytes": 87116,
        "pages": 6,
-       "sha256": "0c845f2a99f621414e58e4d0548cbd598fbc320d4233588bafe956f122707d42"
+       "sha256": "86dad3805131e7ab88bcac08a7199176ac3e7a82a6a0e97de43edc0fb1214f84"
       },
       "rtf.modern": {
        "bytes": 41957,
        "sha256": "7c74c1d2c529184dbaba93c70a41a5e5f04632e38c9e8d99cb5008877747aba9"
       },
       "rtf.printed": {
-       "bytes": 44949,
-       "sha256": "3ea275f4696b87adc112637cce01f324bebd64215b48e95a7af526aecc0c26f8"
+       "bytes": 45017,
+       "sha256": "11cdad61a1e2d7af97b9e8c93a45c1a5cf08b78f9c40799c3b72b9313c806f56"
       },
       "text.modern": {
        "bytes": 12497,
