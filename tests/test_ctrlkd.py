@@ -7990,3 +7990,19 @@ def test_printed_page_sits_on_the_laserjet_logical_page():
     # the page's own x is untouched: the default .po 8 is still 57.6 in the frame
     spans = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(letter, 'printed'))}
     assert spans[b'text'] == 57.6
+
+
+def test_printed_by_chooses_which_wordstar_prints_a_ws4_file():
+    """Printing behaviour belongs to the program that prints: WS4 prints a WS4
+    file with its page number at `.PC` 28 (WS4 teardown 3.2, runs x41-*), and
+    WS7 prints the same file with the number centred on 33.5, as the PCL
+    captures of WS7 printing WS4 files show. `own` is the default; a WS5+
+    file is printed by WS7 either way."""
+    from ctrlkd.pdf import emit_pdf
+    body = b'text\r\n'
+    def number_x(doc):
+        return {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc, 'printed'))}[b'1']
+    assert number_x(core.parse(body, variant='ws4')) == (8 + 28 - 1) * 7.2
+    assert number_x(core.parse(body, variant='ws4', printed_by='ws7')) == round((8 + 33.5 - 1) * 7.2, 6)
+    ws7 = ws7_block(0x00) + body
+    assert number_x(core.parse(ws7, variant='ws5+')) == number_x(core.parse(ws7, variant='ws5+', printed_by='ws7'))

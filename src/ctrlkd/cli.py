@@ -98,6 +98,12 @@ def main(argv=None):
                          'modern).')
     ap.add_argument('--variant', choices=('ws4', 'ws5+', 'printstream', 'text'),
                     help='override detection')
+    ap.add_argument('--printed-by', choices=core.PRINTED_BY, default='own',
+                    help='which WordStar prints a WS4 file in printed mode: '
+                         'own (WordStar 4: page number at column 28, its own '
+                         'page breaks; the default) or ws7 (as WordStar 7 '
+                         'prints the same file). A WS5+ file is always '
+                         'printed as WordStar 7 prints it')
     ap.add_argument('--encoding', choices=('cp437',), default='cp437',
                     help='byte encoding of the source. Only cp437 is '
                          'accepted: every known WordStar file uses the IBM '
@@ -268,7 +274,8 @@ def main(argv=None):
         for path in a.files:
             try:
                 data = open(path, 'rb').read()
-                doc = core.parse(data, encoding=a.encoding, variant=a.variant)
+                doc = core.parse(data, encoding=a.encoding, variant=a.variant,
+                                 printed_by=a.printed_by)
             except (OSError, ValueError) as e:
                 print(f'ctrl-kd: {path}: {e}', file=sys.stderr)
                 status = 1
@@ -348,7 +355,8 @@ def main(argv=None):
             print(json.dumps(diagnose(path, data), indent=2))
             continue
         try:
-            doc = core.parse(data, encoding=a.encoding, variant=a.variant)
+            doc = core.parse(data, encoding=a.encoding, variant=a.variant,
+                             printed_by=a.printed_by)
         except ValueError as e:
             print(f'ctrl-kd: {path}: {e} (use --diagnose to inspect, '
                   f'--variant to force)', file=sys.stderr)
