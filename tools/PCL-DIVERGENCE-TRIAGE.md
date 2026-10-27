@@ -2883,5 +2883,13 @@ rule was not known. WS7's own code now gives it; none is implemented yet.
   (`11-print-engine.md` 11.7.3; see pdf.py `_justify_pieces_printed`).
 - **The PCL logical page** starts 1/4" in from the paper's left edge, which is
   why the frame offset this gate measures is the x origin of the PCL frame,
-  not the paper's (`7-configuration.md` 7.7). Whether Printed should add it is
-  open (planning #549).
+  not the paper's (`7-configuration.md` 7.7). Printed now places each page on
+  the sheet there (one `cm`, `pdf.logical_page_x`); the page's own ops stay in
+  the PCL frame, so this gate's frame offset is still 0.
+- **WS4 documents printed by WS7.** Four corpus files are WS4 documents that
+  the v4 captures show WS7 printing (`INSET/CHART.WS`, `MACROS/HOLYMAC/WOMBAT`,
+  `MAILING.DOC`, the keyboard scancode `.doc`). Printed now follows WS4 for a
+  WS4 file, whose automatic page number sits at its `.PC` default 28, not WS7's
+  centred 33.5 (WS4 teardown `4-formatting-printing.md` 3.2, runs x41-*). Each
+  records one `page-number-mismatch` per numbered page against WS7's print of
+  it; nothing else on those pages moved.
