@@ -997,17 +997,16 @@
   },
   "wordstar-dos/lnum-courier": {
    "kinds": {
-    "x-logical-page": 16,
-    "missing-word": 160
+    "x-logical-page": 66,
+    "missing-word": 110
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E27 .l#: WS7 numbers every row of the page, empty ones too, and draws bars at 504 and 5328; the engine numbers text lines only, no bars"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E27b the .l# bars are drawn as vectors (cp437 graphics), so the comparison sees no word where WS7 prints BAh and B3h; the numbers on every row match"
   },
   "wordstar-dos/raw01-lj": {
    "kinds": {
-    "x-logical-page": 9,
-    "x": 3
+    "x-logical-page": 12
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E20 raw 01h (^PA) selects the printer's alternate font; the engine ignores it"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   }
  }
 }

@@ -64,11 +64,16 @@ LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
 # one. WSFORMAT.TXT's own internal-format section (the 0Ch "Page offset"
 # printer-driver record) calls this field an "Absolute HMI spot for line
 # number", which is the same reading. WS7's code agrees and adds what this
-# engine does not draw yet: the number is right-aligned to 288 decipoints in
+# engine now draws too: the number is right-aligned to 288 decipoints in
 # Courier 10 cpi on EVERY row of the page, empty ones included, with a double
 # bar at 504 and a single bar at 5328 (WS7 teardown,
 # `wordstar-dos/reference/drivera-map.txt`; run lnum-courier).
 LINE_NO_RIGHT_PT = 28.8
+# ...and the two bars: a double bar (cp437 BAh) at 504 decipoints and a single
+# bar (B3h) at 5328 -- 0.7" and 7.4" in the same frame as the text, one cell
+# wide each (Courier 10 cpi), on every row that carries a number.
+LINE_NO_BARS = (('║', 50.4), ('│', 532.8))
+LINE_NO_BAR_WIDTH_PT = 7.2
 # Printed capacity is per-document: _printed_cap() -- WordStar's own model
 # (.pl - .mt - .mb at the .lh line height; 55 for WordStar's defaults). The
 # old hardcoded (PAGE_H - 2*36)//LEAD = 60 was a naive Letter computation
@@ -3180,6 +3185,39 @@ def _span_font(styles, fonts):
     return fonts[idx]
 
 
+# ^PA / 01h selects the printer's ALTERNATE font and ^PN / 0Eh the normal one
+# (WS7 teardown, `wordstar-dos/reference/drivera-map.txt`). A document does
+# not carry either face: they are the installation's (nrmfid / altfid, 7.4,
+# 7.7), and WordStar asks the driver for the closest match to the installed
+# width 150, height 200, typestyle 0 -- on LASERJET that is Gothic PC (the
+# driver's `^[(10U^[(sp%Pv%2phsb4102T` block), sent as 10 point at 14.29
+# cpi, i.e. 126/1800 inch = 21 dots a character (run raw01-lj,
+# `wordstar-dos/14-runs.md`; the normal font prints Courier 12 point,
+# 10 cpi). The Gothic face is drawn in Courier here, as every fixed-pitch
+# face is. Sawyer's installation chose LinePrinter 16.7 cpi instead; a
+# document cannot tell the two apart, so the factory one is used.
+_LASERJET_ALTERNATE_FONT = {
+    'offset': None, 'width_1800': 126, 'height_1440': 200, 'points': 10.0,
+    'cpi': 1800.0 / 126, 'typestyle': 0x4006, 'proportional': False,
+    'letter_quality': True, 'symbol_map': 'cp437', 'generic_style': 'sans',
+    'typestyle_number': 6, 'typestyle_name': 'Gothic',
+}
+
+
+class _RenderFonts(list):
+    """`doc.fonts` plus, as `.alt`, the face a ^PA span with no font run of
+    its own is printed in (None when the driver's is not known)."""
+    alt = None
+
+
+def _render_fonts(doc):
+    fonts = _RenderFonts(doc.fonts or ())
+    if ((doc.meta.get('printer_driver') or '').strip().upper() == 'LASERJET'
+            and _era_for(doc.meta.get('variant')).symmetric_blocks):
+        fonts.alt = _LASERJET_ALTERNATE_FONT
+    return fonts
+
+
 def _span_render(text, styles, fonts, size):
     """(text-as-written, family, size, font-entry) for one span.
 
@@ -3205,6 +3243,8 @@ def _span_render(text, styles, fonts, size):
     everything else in the run still makes the real Symbol/Dingbats byte
     round trip, untouched."""
     entry = _span_font(styles, fonts)
+    if entry is None and 'altfont' in styles:
+        entry = getattr(fonts, 'alt', None)        # ^PA: the printer's alternate font
     family = _pdf_family(entry)
     if family in ('Symbol', 'ZapfDingbats'):
         kind = font_translit_kind(entry)
@@ -5189,6 +5229,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # (`_resolve_left_pt`); Modern never reads it (own_left stays unused
     # there -- see the `else` branch below).
     size_for_left = _printed_size(doc) if printed else None
+    render_fonts = _render_fonts(doc) if printed else None
     # Finding 1 (round 26 visual pass): scoped, per Jon's binding ruling,
     # to a POSITIVELY-DETECTED condition -- `variant == 'ws4'` -- rather
     # than trusting the block-pattern detector alone to stay harmless
@@ -5443,7 +5484,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # (never in the `else:` wrap-for-Modern branch below) so
                 # Modern still sees the bare, un-expanded byte exactly as
                 # every other emitter does -- unaffected.
-                spans = _expand_bare_tabs_for_printed_layout(spans)
+                spans = (_expand_bare_tabs_by_distance(spans, render_fonts,
+                                                        size_for_left)
+                         or _expand_bare_tabs_for_printed_layout(spans))
                 # verbatim, no wrap -- carrying the line's own soft flag and
                 # the `.lh` that was in force where it sat
                 own_lead = _lead_pt(line.lead_48)
@@ -6599,8 +6642,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         pages = _apply_columns(doc, pages, size_for_left)
         _substitute_merge_page_numbers_printed(doc, pages)
         _attach_justify_word_x_printed(doc, pages, size_for_left)
-        _attach_line_numbers_printed(doc, pages, size_for_left)
         _attach_graphic_cells_printed(doc, pages, size_for_left)
+        _attach_line_numbers_printed(doc, pages, size_for_left)
         # planning #274 follow-up (2026-09-15): THE FALLBACK PAGE HAS TO
         # EXIST BEFORE THIS PASS. `pages or [[]]` used to happen at the
         # `return` below, so a document whose pagination produces NO page
@@ -6744,9 +6787,25 @@ def _attach_line_numbers_printed(doc, pages, size):
     first body line, `.l# 0` deactivates on its last). A document that
     never declares `.l#` (`line_numbering_checkpoints` stays at its
     `(0, None)` seed) walks every line and sets nothing -- no behaviour
-    change, just an O(lines) no-op pass."""
+    change, just an O(lines) no-op pass.
+
+    WS7 numbers EVERY row of the page, the empty ones after the text too,
+    and draws a double bar and a single bar beside each number (WS7 report
+    `reference/drivera-map.txt`, run lnum-courier). So when numbering is
+    still on at the document's last line, that last page is filled out with
+    empty rows to the page's capacity, and each numbered row carries the two
+    bars as graphic cells (`LINE_NO_BARS`), in x order with the line's own."""
     checkpoints = _line_numbering_checkpoints(doc)
     _, gutter_family, gutter_size, _ = _span_render('', (), doc.fonts, size)
+    if pages and checkpoints:
+        last = pages[-1]
+        real = [ln for ln in last if isinstance(ln, PageLine)]
+        if (real and len(real) == len(last)
+                and all(ln.lead is None and ln.image is None for ln in real)
+                and getattr(real[-1], 'bi', None) is not None
+                and _line_numbering_at(checkpoints, real[-1].bi)):
+            for _ in range(_printed_cap(doc) - len(real)):
+                last.append(PageLine([], bi=real[-1].bi))
     for page in pages:
         line_no_state = [None, 0]
         for line in page:
@@ -6762,6 +6821,9 @@ def _attach_line_numbers_printed(doc, pages, size):
                 label = str(k // interval + 1)
                 gx = LINE_NO_RIGHT_PT - len(label) * gutter_size * 0.6
                 line.line_no = (label, gx)
+                bars = [(ch, x, LINE_NO_BAR_WIDTH_PT) for ch, x in LINE_NO_BARS]
+                line.graphic_cells = sorted(
+                    bars + list(line.graphic_cells or ()), key=lambda c: c[1])
 
 
 def _attach_justify_word_x_printed(doc, pages, size):
@@ -6775,7 +6837,7 @@ def _attach_justify_word_x_printed(doc, pages, size):
     `.pm` column indent, no run of blanks between two words, or no slack
     (it is too long) leaves `justify_word_x` unset; `_line_ops_printed`
     then draws it at its natural widths, as before this function existed."""
-    fonts = doc.fonts
+    fonts = _render_fonts(doc)
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
     dq = _driver_quirks(doc)
@@ -6843,7 +6905,7 @@ def _attach_graphic_cells_printed(doc, pages, size):
     necessary-condition filter, not an approximation -- it just spares
     the overwhelming majority of ordinary prose lines a throwaway render
     call."""
-    fonts = doc.fonts
+    fonts = _render_fonts(doc)
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
     ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
@@ -8653,6 +8715,54 @@ def _expand_bare_tabs_for_printed_layout(segs):
     return [(t,) + entry[1:] for t, entry in zip(texts, segs)]
 
 
+def _expand_bare_tabs_by_distance(spans, fonts, size):
+    """`spans` (a Printed line's `(text, styles)` pairs) with each bare 09h
+    put at the next tab stop by DISTANCE, or None when that does not apply.
+
+    It applies only to a line that has text in the printer's alternate font
+    (^PA): there a character is not a 10-cpi column wide, and WS7 (run
+    raw01-lj) takes the tab to the next stop of its 10-cpi ruler -- every
+    8 columns, 1440/1800 inch, from the page offset -- measured from where
+    the pen actually is: after ten alternate-font characters (7 columns) the
+    stop is 8 columns out, where the column count of the ordinary rule
+    (`core.expand_bare_tabs_texts`) would say 16. Each tab becomes a span
+    carrying its absolute target (`tabhmi`), the form a type-9 tab record
+    already has, so the writer jumps the pen there. As in the ordinary rule,
+    blanks typed just before the tab are added back after the stop. A line
+    with a proportional span keeps the ordinary rule."""
+    if (fonts is None or fonts.alt is None
+            or not any('\t' in t for t, _ in spans)
+            or not any('altfont' in st for _, st in spans)):
+        return None
+    out = []
+    pen = 0.0                    # 1/1800 inch from the left margin
+    blank_run = 0.0
+    for text, styles in spans:
+        _, _, size_here, entry = _span_render(text, styles, fonts, size)
+        if entry is not None and entry.get('proportional'):
+            return None
+        cell = _span_pitch(entry, size_here) * HMI_PER_POINT
+        buf = ''
+        for ch in text:
+            if ch != '\t':
+                buf += ch
+                pen += cell
+                blank_run = blank_run + cell if ch == ' ' else 0.0
+                continue
+            if buf:
+                out.append((buf, styles))
+                buf = ''
+            base = pen - blank_run
+            target = (int(base // 1440) + 1) * 1440 + blank_run
+            out.append((' ' * max(0, round((target - pen) / 180.0)),
+                        styles | {'tabhmi%d' % round(target), 'tableader32'}))
+            pen = target
+            blank_run = 0.0
+        if buf:
+            out.append((buf, styles))
+    return out
+
+
 def _units_1800(pt):
     """Points -> 1/1800 inch, rounded (the unit a WS7 font block counts in)."""
     return int(_math.floor(pt * 25 + 0.5))
@@ -9711,6 +9821,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
             gutter_font = res.ref(gutter_family)
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET'
                       % (gutter_font.encode(), gutter_size, gx, y, label.encode()))
+            for bar, bar_x in LINE_NO_BARS:
+                ops += _graphic_ops(bar, bar_x, y, LINE_NO_BAR_WIDTH_PT, gutter_size)
         segs = []
         for text, styles in _coalesce(line):
             if not text and not _is_zero_width_tab(styles):
@@ -11823,7 +11935,7 @@ def _emit_pdf_inner(doc, printed, options):
         line_no_checkpoints = (_line_numbering_checkpoints(doc)
                                if options.get('line_numbers', True) else None)
         page_h = _resolved_page_height(doc, printed)
-        fonts = doc.fonts
+        fonts = _render_fonts(doc) if printed else doc.fonts
         dq = _driver_quirks(doc)
         colour_map = _COLOUR_GRAY_LJ6DTP if dq.colour else {}
         start_no = int((doc.meta.get('page') or {}).get('pn_start', 1))
