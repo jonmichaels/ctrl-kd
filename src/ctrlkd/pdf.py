@@ -3602,6 +3602,10 @@ def _wrap_line(spans, width):
 # (WS7 report 14.15, root:1A12). `doc.meta['fnrun']` overrides it.
 FOOTNOTE_RUN_LINES = 8
 
+# A note-only page's area sits 16 decipoints (1.6 pt) below the grid (WS7
+# report 15.1, runs fnlong120, fnch175, fnch250, fnch250mb).
+NOTE_ONLY_DROP_PT = 1.6
+
 def _note_marker(note, label, pad_cols=None):
     """Footnote reference-in-the-note, WSCHANGE factory default: no lead
     character, trailing '.' -> '1.'. Annotations have no documented mark of
@@ -3885,16 +3889,20 @@ def _is_continuation(chunk):
     """True for a note chunk that opens with the `...Continued...` line."""
     return (len(chunk[0]) == 1 and chunk[0][0][0] == CONTINUATION_TEXT)
 
-def _render_area(entries):
+def _render_area(entries, extra_blank=False):
     """The note area's drawn lines: the separator, a blank, the notes with a
     blank between them. A carried-over note puts `...Continued...` directly
     under the separator, then the blank (WS7 report 14.15, runs fnr0, fnbig:
-    separator, Continued, blank, note lines)."""
+    separator, Continued, blank, note lines). `extra_blank`: the page where
+    a chain of note-only pages ends prints one blank row more under
+    `...Continued...` (WS7 report 15.1, runs fnlong120, fnch175, fnch250)."""
     if not entries:
         return []
     sep = [(FOOTNOTE_SEPARATOR, frozenset())]
     if _is_continuation(entries[0]):
         out = [sep, entries[0][0], []]
+        if extra_blank:
+            out.append([])
         out.extend(entries[0][1:])
         rest = entries[1:]
     else:
@@ -3998,11 +4006,35 @@ class _NoteArea:
         self.entries = []
         self.running = False
         self.sealed = False
+        # A note that runs over several pages (WS7 report 15.1): whether the
+        # open page follows a note-only page, or a page whose block had to
+        # print under its text; and what the page being closed was.
+        self.after_note_only = False
+        self.after_under_text = False
+        self._closed_note_only = False
+        self._closed_under_text = False
 
     @property
     def height_pt(self):
         """The open page's area, in points."""
-        return _area_size(self.entries) * self.default_lead
+        return self._capacity_lines() * self.default_lead
+
+    def _chain_page(self):
+        """The open page is where a long note's chain resumes its text: it
+        follows a note-only page (or the page whose block printed under its
+        text), and its area is that note's remainder alone, whole."""
+        return ((self.after_note_only or self.after_under_text)
+                and len(self.entries) == 1 and _is_continuation(self.entries[0])
+                and not (self.queue and _is_continuation(self.queue[0])))
+
+    def _capacity_lines(self):
+        """Lines the open page's area takes from its body. On a chain page
+        the editor keeps one row less than the printed header needs: it
+        leaves 55 - 47 - 3 = 5 rows of text for a 47-line remainder where a
+        two-page split would leave 4 (WS7 report 15.1, run fnch250 p6:
+        text lines 51-55)."""
+        size = _area_size(self.entries)
+        return size - 1 if self._chain_page() else size
 
     def begin_page(self):
         """A page opens with an empty area; whatever an earlier page could
@@ -4011,6 +4043,10 @@ class _NoteArea:
         self.entries = []
         self.running = False
         self.sealed = False
+        self.after_note_only = self._closed_note_only
+        self.after_under_text = self._closed_under_text
+        self._closed_note_only = False
+        self._closed_under_text = False
 
     def enqueue(self, refs, width):
         """The notes referenced on a body line just placed, in order."""
@@ -4049,7 +4085,7 @@ class _NoteArea:
                 saved[0], saved[1], saved[2])
         return split, taken
 
-    def anchored_area(self, geometry_doc, body_y):
+    def anchored_area(self, geometry_doc, body_y, body_empty=False):
         """The area as page lines, bottom-anchored on its page.
 
         Finding 2 bottom-anchor geometry (see `_printed_notes_reserve_pt`):
@@ -4090,10 +4126,54 @@ class _NoteArea:
         if self.running:
             reserve -= self.default_lead      # ends ON the bottom margin line
         target_first = page_h - reserve - (len(area) - 1) * self.default_lead
+        if body_empty:
+            # A note-only page sits NOTE_ONLY_DROP_PT below the grid: the
+            # separator at 616, the last line at BB + 16 decipoints, at
+            # either margin (WS7 report 15.1, runs fnlong120, fnch175,
+            # fnch250, fnch250mb; the cause is not established).
+            target_first += NOTE_ONLY_DROP_PT
+            self._closed_note_only = True
+        elif self._chain_page():
+            area, target_first = self._chain_area(
+                page_h - reserve, body_y, target_first, area)
         override = target_first - body_y
         if override > 0:
             area[0].lead = override
         return area
+
+    def _chain_area(self, bottom_y, body_y, target_first, area):
+        """The remainder of a long note on the page where its chain resumes
+        the text (WS7 report 15.1; runs fnlong120 p4, fnch175 p5, fnch250
+        p6-p7, fnch250mb p7). `bottom_y` is the bottom margin line, BB.
+
+        The block is placed with the header counted twice and one blank row
+        more under `...Continued...`: P = BB - R*LH - 2H, the last note line
+        three rows above BB. Where that would put the separator above the
+        place under the text (the last text baseline + 3 rows), the block
+        prints directly under the text instead, with no extra row, fills to
+        BB, and the rest of the note carries on; the page after that prints
+        its remainder under the text again, with the extra row. Returns the
+        area and the first line's y."""
+        lead = self.default_lead
+        notes = len(self.entries[0]) - 1
+        under = body_y + 3 * lead
+        if not self.after_under_text:
+            first = bottom_y - 3 * lead - (notes + 3) * lead
+            if first >= under:
+                return _pagelines(_render_area(self.entries, True)), first
+        extra = 1 if self.after_under_text else 0
+        first_note = under + (3 + extra) * lead
+        room = int(_math.floor((bottom_y - first_note) / lead + 1e-9)) + 1
+        if room < 1:
+            return area, target_first
+        if room < notes:
+            chunk = self.entries[0]
+            self.queue.insert(0, [[(CONTINUATION_TEXT, frozenset())]]
+                              + chunk[1 + room:])
+            self.entries[0] = chunk[:1 + room]
+            self.running = True
+        self._closed_under_text = True
+        return _pagelines(_render_area(self.entries, bool(extra))), under
 
     @property
     def queued_line_count(self):
@@ -6358,11 +6438,17 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 saved = doc.meta['page']
                 if eff is not None:
                     doc.meta['page'] = eff
+                body_empty = not pg
                 try:
                     body_y = _printed_top(doc) + _col_cut() + spent
-                    pg.extend(notes.anchored_area(doc, body_y))
+                    pg.extend(notes.anchored_area(doc, body_y, body_empty))
                 finally:
                     doc.meta['page'] = saved
+                if body_empty and read_pos[0] is not None:
+                    # a note-only page prints its page number (run fnlong120
+                    # p3): with no body line to look it up from, it takes the
+                    # state of the last block read.
+                    pg.explicit_break_bi = read_pos[0][0]
         pages.append(pg)
     def _recompute_geom(bi):
         """(mt, mb, pl, hm, fm, po) in force at block `bi`, for the page about
