@@ -15,10 +15,21 @@ the programs' own code and real runs, checked by a new test tier
   prints a WordStar 4 file. Printing belongs to the program that prints:
   `own` (the default) prints a WS4 file as WS4 printed it; `ws7` prints it as
   WS7 prints the same file. A WS5+ file is always printed by WS7. See ERAS.md.
-- **The layout JSON is version 14**: each printed page carries
-  `logical_page_x`, where its x = 0 sits on the sheet.
+- **The layout JSON is version 15**: each printed page carries
+  `logical_page_x`, where its x = 0 sits on the sheet; `printed.driver` names
+  the driver the pages model (`hpljet` or `laserjet`); a WS4 `.ps on` line
+  carries its `face` and a line with a doubled character its `overstrike`.
 - **`Span.soft`**: the offsets of a span's WS5+ soft spaces, which a
   justifying driver ignores.
+- **`Line.hibit`**: in a WS4 file, the offsets of the characters stored with
+  bit 7 (word ends and the editor's soft spaces).
+- **WS4's own LaserJet driver.** A WS4 file printed by WS4 (the default) is
+  printed as WS4's HPLJET driver printed it (WS4 teardown, report 4 section
+  15): line 1 1/3" below the top margin and each line a step of the `.lh` above
+  it; justified lines re-spread by the driver, letter spacing included; `.ps
+  on` words placed from WS4's own width tables and drawn in Helvetica Bold or
+  Times; sub/superscripts full size; characters outside ASCII through WS4's
+  COMPOS table to Roman-8, so box drawing prints as `| - / \`. See ERAS.md.
 
 ### Changed
 

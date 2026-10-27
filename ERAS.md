@@ -38,6 +38,33 @@ WS4 cannot open a WS7 file at all (it reads the WS5 header as text). So the
 as WS4 printed it; `'ws7'` prints it as WS7 prints the same file. A WS5+ file is
 always printed by WS7. The CLI's flag is `--printed-by own|ws7`.
 
+### WS4's LaserJet driver, HPLJET
+
+The printing era also names the driver (`hpljet_driver`). WS4 prints through
+HPLJET, a code module in WSPRINT.OVR, not through WS7's LASERJET.PDF, and
+Printed follows it (WS4 teardown, `wordstar4-dos/4-formatting-printing.md` 15;
+`hpljet.py`, with its tables in `hpljet_tables.py`):
+
+- **Vertical.** Line 1's baseline is 1/3" (24pt) below the top margin whatever
+  `.lh` is; each later line is one step of the `.lh` in force on the line
+  above. Headers and the page number keep the same 1/3" below their rows.
+  WS7 puts line 1 one line below the margin, so HPLJET's sits 12pt lower.
+- **Justification.** HPLJET re-spreads a soft-return line itself: the editor's
+  soft spaces (A0h) are slack, measured against `.cw` per cell; it goes to the
+  blanks after the first word with a word-end flag (bit 7, `Line.hibit`), and
+  one 1/120" per letter when the slack per blank is over 8. A hard-return line
+  keeps the editor's cells. WS7's word-gap rule never applies to a WS4 file
+  printed by WS4.
+- **`.ps on`.** Each word is placed from WS4's own proportional tables (PS14B
+  at the factory `.cw`, 1/600"), drawn in the face those tables were measured
+  from: Helvetica Bold 14pt for PS14B, Times for PS10 and PS8 (HP's 92286B
+  cartridge; inferred from the widths, a stand-in for what the printer had).
+- **Sub/superscripts** keep the line's size and cell, moved `.sr` x 1.5pt.
+- **Characters** outside ASCII go through WS4's COMPOS table to the
+  LaserJet's Roman-8: box drawing prints as `|`, `-`, `/` and backslash, Greek
+  and math as ASCII stand-ins, and a pair (`┼` is `-` then `|`) as one
+  character printed over the other.
+
 Documents also *declare* their release: the WS5+ header block carries a BCD
 version byte, surfaced as `doc.meta['ws_header']['release']`. Detection infers;
 the header states. Both are available to key a future split on.

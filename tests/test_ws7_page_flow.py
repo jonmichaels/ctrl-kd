@@ -15,6 +15,7 @@ captures; these keep the rules covered without the teardowns checkout.
   the page bottom when the rise fits the room left (tall24, tall36);
   the automatic number's baseline does not move with `.cw` (w16-cwtab).
 """
+import pytest
 import re
 
 from ctrlkd import core, pdf
@@ -232,6 +233,14 @@ def test_the_automatic_number_does_not_move_with_cw():
 
 
 def test_the_old_era_number_row_still_follows_the_type_size():
+    plain = _pages(core.parse_ws(_lines(3), variant='ws3'))[0].auto_pageno
+    wide = _pages(core.parse_ws(b'.cw 20' + HARD + _lines(3), variant='ws3'))[0].auto_pageno
+    assert plain['y'] != wide['y']
+
+
+def test_ws4s_hpljet_puts_the_number_its_vbias_below_the_foot_row():
+    # V = ((PL - MB + FM)·8 + 16)·15 decipoints, whatever .cw is (WS4
+    # teardown 4 15.2: 7440 at PL 66 / MB 8 / FM 2)
     plain = _pages(core.parse_ws(_lines(3), variant='ws4'))[0].auto_pageno
     wide = _pages(core.parse_ws(b'.cw 20' + HARD + _lines(3), variant='ws4'))[0].auto_pageno
-    assert plain['y'] != wide['y']
+    assert plain['y'] == wide['y'] == pytest.approx(792 - 744.0)

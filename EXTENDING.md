@@ -71,6 +71,10 @@ Line
                              # doc.meta['page']['lh_48'] — the common case.
                              # `.lh` is stateful, so a document that changes
                              # leading around its headings says so here.
+  .hibit      tuple[int]    # WS4 only: offsets, into .text(), of the characters
+                             # stored with bit 7 -- a letter is a word end, a
+                             # blank an editor soft space (A0h). WS4's printer
+                             # driver justifies from them. () everywhere else.
   .text()     -> str        # convenience: all span text joined
 Span
   .text       str

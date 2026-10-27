@@ -3953,7 +3953,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 14
+    assert out['version'] == 15
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -4871,10 +4871,13 @@ def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
     fontless span gets the same 5.52pt the WS7-font-block shape gets.
     'cd.' (3 chars, no font block, no space before the toggle -- matching
     that paper's own equivalent shape exactly) ends its body run at
-    left + 3*7.2; the sup '1' then occupies 5.52pt, not 4.8pt."""
+    left + 3*7.2; the sup '1' then occupies 5.52pt, not 4.8pt. The oracle
+    is WS7's print, so the file is printed by WS7 (`printed_by='ws7'`);
+    WS4's own HPLJET keeps the script full size
+    (`test_hpljet_prints_a_script_full_size_on_its_own_cell`)."""
     from ctrlkd.pdf import emit_pdf
     data = b'cd.' + bytes([0x14]) + b'1' + bytes([0x14 | 0x80]) + b'  ef' + HARD
-    doc = core.parse_ws(data)
+    doc = core.parse_ws(data, printed_by='ws7')
     assert core.detect(data)['variant'] == 'ws4'
     spans = _content_spans(emit_pdf(doc, 'printed'))
     by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
@@ -4884,6 +4887,18 @@ def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
     assert sup_x == pytest.approx(body_x + 3 * 7.2)  # immediately after 'cd.', no gap
     tail_x = by_text[b'  ef'][2]
     assert tail_x == pytest.approx(sup_x + 5.52, abs=0.05)  # NOT sup_x + 4.8 (the old double-narrow)
+
+
+def test_hpljet_prints_a_script_full_size_on_its_own_cell():
+    # WS4's HPLJET moves a sub/superscript .SR x 15 decipoints and prints it
+    # in the line's own font and cell (WS4 teardown 4 15.2, run hj-sr)
+    from ctrlkd.pdf import emit_pdf
+    data = b'cd.' + bytes([0x14]) + b'1' + bytes([0x14 | 0x80]) + b'  ef' + HARD
+    spans = _content_spans(emit_pdf(core.parse_ws(data), 'printed'))
+    by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
+    sup_size, _tz, sup_x = by_text[b'1']
+    assert sup_size == 12
+    assert by_text[b'  ef'][2] == pytest.approx(sup_x + 7.2)
 
 
 def test_printed_sup_sub_size_follows_each_faces_x38():
@@ -7006,7 +7021,7 @@ def test_head_foot_lines_omitted_when_the_document_has_neither():
     assert pages[0].footer_lines is None
     assert pages[0].auto_pageno is None
     out = json.loads(emit_layout(doc))
-    assert out['version'] == 14
+    assert out['version'] == 15
     jp = out['printed']['pages'][0]
     assert 'header_lines' not in jp and 'footer_lines' not in jp
     assert 'auto_page_number' not in jp
@@ -7249,7 +7264,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 14
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 15
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])

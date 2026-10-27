@@ -141,75 +141,83 @@
   },
   "wordstar4-dos/print-hpljet-lines": {
    "kinds": {
-    "variant-plain": 1,
-    "y-driver-origin": 4
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/print-hpljet-po": {
    "kinds": {
-    "variant-plain": 1,
-    "y-driver-origin": 5
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/ps-hpljet": {
    "kinds": {
-    "variant-plain": 1,
-    "y-driver-origin": 14,
-    "x": 10
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON on HPLJET: PS14B proportional widths, each word placed (Printed does not render .ps)"
-  },
-  "wordstar4-dos/ps-hpljet-uj-on": {
-   "kinds": {
-    "y-driver-origin": 26,
-    "x": 11
-   },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification, letter-spaced runs"
-  },
-  "wordstar4-dos/ps-hpljet-uj-off": {
-   "kinds": {
-    "y-driver-origin": 26,
-    "x": 22
-   },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/ps-hpljet-attributes": {
    "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-line1-mt0": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-header": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-lh-first-line": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-lh-advance": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-page2": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-pl33": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-underline": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/hpljet-scripts": {
+   "kinds": {
     "variant-plain": 1,
-    "y-driver-origin": 6,
-    "x": 4
+    "missing-word": 2,
+    "extra-word": 5
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; R1 the word reader keeps a character raised or lowered 9pt (.SR 6) on its own baseline, so E=mc2 and H2O split on the engine's side at .SR 6; the engine's positions match the capture"
   },
-  "wordstar4-dos/mj-no-flag#0": {
+  "wordstar4-dos/hpljet-ps-fonts": {
    "kinds": {
-    "y-driver-origin": 26,
-    "x": 22
+    "variant-plain": 1
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
-  },
-  "wordstar4-dos/mj-no-flag#1": {
-   "kinds": {
-    "y-driver-origin": 26,
-    "x": 22
-   },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
-  },
-  "wordstar4-dos/mj-first-word": {
-   "kinds": {
-    "y-driver-origin": 26,
-    "x": 10
-   },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification"
-  },
-  "wordstar4-dos/mj-two-letters": {
-   "kinds": {
-    "y-driver-origin": 8,
-    "x": 5
-   },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/draft-formfeed-y": {
    "kinds": {
@@ -252,6 +260,24 @@
     "variant-plain": 1
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/sample-sample1": {
+   "kinds": {
+    "x": 8
+   },
+   "reason": "D6 printed with DRAFT, which prints the editor's own cells; Printed models HPLJET, which re-spreads a soft-return line (WS4 teardown 4 15.6), so justified words sit off DRAFT's columns"
+  },
+  "wordstar4-dos/sample-sample2": {
+   "kinds": {
+    "x": 6
+   },
+   "reason": "D6 printed with DRAFT, which prints the editor's own cells; Printed models HPLJET, which re-spreads a soft-return line (WS4 teardown 4 15.6), so justified words sit off DRAFT's columns"
+  },
+  "wordstar4-dos/sample-sample3": {
+   "kinds": {
+    "x": 15
+   },
+   "reason": "D6 printed with DRAFT, which prints the editor's own cells; Printed models HPLJET, which re-spreads a soft-return line (WS4 teardown 4 15.6), so justified words sit off DRAFT's columns"
   },
   "wordstar-dos/page-55-lines": {
    "kinds": {

@@ -2155,9 +2155,13 @@ def render_engine_pdf(ws_path: str) -> bytes:
     and renders with `pictures='embed'` -- the product default, actually
     exercised. For a document with no picture reference this changes
     nothing (`resolve_document_pictures` returns `[]`, and 'embed' with no
-    results to embed behaves identically to 'off')."""
+    results to embed behaves identically to 'off').
+
+    Every capture here is WordStar 7's print, so a WS4 file is printed as
+    WS7 printed it (`printed_by='ws7'`, ERAS.md "Which WordStar prints a
+    WS4 file"), not as WS4's own HPLJET would."""
     data = open(ws_path, 'rb').read()
-    doc = core.parse(data)
+    doc = core.parse(data, printed_by='ws7')
     pix_results = ctrlkd_pictures.resolve_document_pictures(doc, ws_path)
     return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix_results)
 

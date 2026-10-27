@@ -247,6 +247,12 @@ class Line:
     # -- so edited text degrades gracefully (guard fails, no patch) instead
     # of corrupting. See core._rt_line_fixups for the capture rules.
     fixups: tuple = ()
+    # WS4: offsets, in `text()`, of the characters stored with bit 7 -- a
+    # letter is a word end, a blank an editor soft space (A0h), and a control
+    # toggle's flag sits on the character before it (`_decode_spans`). WS4's
+    # HPLJET driver justifies from these (WS4 teardown 4 §15.6). Empty for
+    # every other variant.
+    hibit: tuple = ()
 
     def text(self):
         return ''.join(s.text for s in self.spans)
@@ -2681,13 +2687,22 @@ class Era:
                  'pk_even_keeps_blank',
                  'blank_lines_make_pages', 'pa_ignored_on_empty_page',
                  'soft_blanks_swallowed', 'overhangs_by_font_rise',
-                 'pageno_row_below_page_line', 'forgives_spacing_blank')
+                 'pageno_row_below_page_line', 'forgives_spacing_blank',
+                 'hpljet_driver')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
                  has_sb, column_unit, pc_default, bare_po_zero=False, bad_po_zero=False,
                  line_starts_in_room=False, geometry_acts_at_once=False,
-                 pk_even_keeps_blank=True, ws7_paging=False):
+                 pk_even_keeps_blank=True, ws7_paging=False, hpljet_driver=False):
         self.name = name
+        # The LaserJet driver this WordStar prints with. WS4's is HPLJET, a
+        # code module in WSPRINT.OVR (WS4 teardown, `wordstar4-dos/4-
+        # formatting-printing.md` 15): line 1's baseline 1/3" below the top
+        # margin whatever `.lh`, each line a step of the `.lh` in force on
+        # the line above, every word placed from WS4's own width tables, and
+        # its own microjustification. WS7's is LASERJET.PDF (`wordstar-dos/
+        # 9-printer-drivers.md`, `11-print-engine.md`).
+        self.hpljet_driver = hpljet_driver
         # WS4's page counter (WS4 teardown, `wordstar4-dos/4-formatting-
         # printing.md` 3.1): R starts a page at H - 1 and each line costs LH,
         # so a line STARTS while the height used is under the body height H
@@ -2775,7 +2790,8 @@ ERAS = {
     'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
     'ws4':  Era('ws4',  True,  False, False, False, 'font',       28,
                 line_starts_in_room=True, geometry_acts_at_once=True,
-                pk_even_keeps_blank=False, bare_po_zero=True, bad_po_zero=True),
+                pk_even_keeps_blank=False, bare_po_zero=True, bad_po_zero=True,
+                hpljet_driver=True),
     'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 33.5,
                 bare_po_zero=True, ws7_paging=True),
 }
@@ -4242,8 +4258,13 @@ def _active_font(active) -> int:
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                   unknown: dict, fn_counter: list = None, fnref_at=(),
                   font_at=(), fonts=(), pctl_at=(), colour_at=(),
-                  pix_at=(), tab_target_at=(), ix_at=()) -> list:
-    """One physical line of bytes -> list of Span. `active` persists across lines
+                  pix_at=(), tab_target_at=(), ix_at=(), hibit_out=None) -> list:
+    """One physical line of bytes -> list of Span.
+
+    `hibit_out`, when given (WS4: `strip_hibit`), receives the offset in the
+    line's decoded text of every byte stored with bit 7: a letter, WS4's
+    word-end flag; a blank, an editor soft space (A0h); a control toggle,
+    the flag of the word it closes, recorded on the character before it. `active` persists across lines
     (WordStar styles span line breaks).
 
     `fnref_at` holds the OFFSETS within this line at which a note reference
@@ -4307,6 +4328,17 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     # and every other consumer keeps it.
     pending_ix = sorted(ix_at)
     i = 0
+    hib_at = None                 # decoded position before a bit-7 byte
+
+    def _settle_hibit():
+        # where the last bit-7 byte landed: on the character it produced, or,
+        # when it produced none (a toggle), on the character before it
+        nonlocal hib_at
+        if hib_at is not None:
+            now = sum(len(sp.text) for sp in spans) + len(buf)
+            hibit_out.append(hib_at if now > hib_at else max(hib_at - 1, 0))
+            hib_at = None
+
     while i < len(raw) or pending or pending_fonts or pending_colours:
         # Drain EVERY mark-consuming queue at the CURRENT `i`, re-checking
         # pctl again after tab/pix/fonts/colours fire (and so on) until none
@@ -4418,6 +4450,10 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
         # at a style boundary yields e.g. 0x94 = ^T|0x80) — so mask BEFORE dispatch,
         # or high-bit toggles leak into text and styles never close.
         b = raw[i] & 0x7F if strip_hibit and raw[i] >= 0x80 else raw[i]
+        if hibit_out is not None:
+            _settle_hibit()
+            if strip_hibit and raw[i] >= 0x80:
+                hib_at = sum(len(sp.text) for sp in spans) + len(buf)
         if b == 0x1B and i + 1 < len(raw):        # extended char escape
             # <1B x 1C>: x is a CHARACTER TO DISPLAY, any value 00h-FFh
             # (WSFORMAT). For x in the control range that means the cp437
@@ -4469,6 +4505,8 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             buf.append(b)
         i += 1
     flush()
+    if hibit_out is not None:
+        _settle_hibit()
     return spans
 
 # Sentinels injected into the cleaned stream. They must be bytes that CANNOT
@@ -6981,15 +7019,19 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
                     style_closed_here = True
             # every other mark kind is SPAN-LEVEL and was collected in the
             # pass above this one, before the form-feed branch that needs it
+        hibit_here = [] if strip_hibit else None
         spans = _decode_spans(raw, strip_hibit, encoding, active, unknown,
                               fn_counter, fnref_at, font_at, doc.fonts,
                               pctl_at, colour_at, pix_at, tab_target_at,
-                              ix_at)
+                              ix_at, hibit_out=hibit_here)
         if pending_marks and spans:
             # a content line arrived: deferred dot-comment marks land at
             # its head, the position the comment line occupied
             cur_line.spans.extend(pending_marks)
             pending_marks = []
+        if hibit_here:
+            base = sum(len(sp.text) for sp in cur_line.spans)
+            cur_line.hibit = cur_line.hibit + tuple(base + o for o in hibit_here)
         for s in spans:
             cur_line.spans.append(s)
         cur_line.font_out = _active_font(active)

@@ -75,6 +75,9 @@ LINE_NO_RIGHT_PT = 28.8
 # wide each (Courier 10 cpi), on every row that carries a number.
 LINE_NO_BARS = (('║', 50.4), ('│', 532.8))
 LINE_NO_BAR_WIDTH_PT = 7.2
+# WS4's HPLJET driver sets each line at `(pending y + 16)·15` decipoints, a
+# vbias of 16/48" = 1/3" below the top margin (WS4 teardown 4 §15.2).
+HPLJET_VBIAS_PT = 24.0
 # Printed capacity is per-document: _printed_cap() -- WordStar's own model
 # (.pl - .mt - .mb at the .lh line height; 55 for WordStar's defaults). The
 # old hardcoded (PAGE_H - 2*36)//LEAD = 60 was a naive Letter computation
@@ -4360,14 +4363,31 @@ class PageLine(list):
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
                 'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
-                'po_cols', 'refs', 'font_rise', 'soft_blanks')
+                'po_cols', 'refs', 'font_rise', 'soft_blanks', 'hibit', 'soft_hyphen', 'li', 'face',
+                'overstrike')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
                 justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None,
-                refs=(), font_rise=None, soft_blanks=()):
+                refs=(), font_rise=None, soft_blanks=(), hibit=(), soft_hyphen=False,
+                li=None, face=None, overstrike=()):
         super().__init__(segments)
+        # WS4 under HPLJET: [(offset, char)] of the characters COMPOS prints
+        # as two, the second over the first (`_hpljet_compos_spans`); then,
+        # once placed (`_attach_hpljet_pieces`), [(char, x_pt)].
+        self.overstrike = overstrike
+        self.li = li                    # its index among its block's lines
+        # WS4 `.PS ON` under HPLJET: (family, size, bold) the proportional
+        # text is drawn in, at the positions in `justify_word_x`
+        # (`_hpljet_face`), or None.
+        self.face = face
+        # WS4: (text, offsets) of the characters stored with bit 7
+        # (`core.Line.hibit`), against the line's text as built here; and
+        # whether the line ended in a soft hyphen. WS4's HPLJET justifies
+        # from both (`hpljet.place_line`).
+        self.hibit = hibit
+        self.soft_hyphen = soft_hyphen
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
                                         # at THIS line's baseline
@@ -5968,6 +5988,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                             offs.extend(base + k for k in sp.soft)
                             base += len(sp.text)
                         soft_blanks = (base_text, tuple(offs))
+                hibit = ()
+                if printed and getattr(line, 'hibit', ()):
+                    base_text = ''.join(sp.text for sp in kept)
+                    if ''.join(t for t, _ in spans) == base_text:
+                        hibit = (base_text, tuple(line.hibit))
+                overstrike = ()
+                if printed and era.hpljet_driver:
+                    spans, overstrike = _hpljet_compos_spans(spans)
+                    if hibit:
+                        hibit = (''.join(t for t, _ in spans), hibit[1])
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
                              fi=(fi_pt if first_line_of_block else None),
@@ -5978,7 +6008,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              justify_right_x=justify_right_x,
                              parity_left=own_parity_left,
                              po_cols=getattr(line, 'po_cols', None),
-                             refs=refs, font_rise=font_rise, soft_blanks=soft_blanks)
+                             refs=refs, font_rise=font_rise, soft_blanks=soft_blanks,
+                             hibit=hibit, soft_hyphen=getattr(line, 'soft_hyphen', False),
+                             li=_idx, overstrike=overstrike)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -7277,8 +7309,13 @@ def _attach_justify_word_x_printed(doc, pages, size):
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
     dq = _driver_quirks(doc)
+    hpljet = _printing_era(doc).hpljet_driver
+    settings = _hpljet_checkpoints(doc) if hpljet else None
     for page in pages:
         for line in page:
+            if hpljet:
+                _attach_hpljet_pieces(doc, line, fonts, size, left, dq, settings)
+                continue
             if getattr(line, 'justify_right_x', None) is None:
                 continue
             segs = []
@@ -7306,6 +7343,196 @@ def _attach_justify_word_x_printed(doc, pages, size):
                 _soft_blanks_of(segs, getattr(line, 'soft_blanks', ())))
             if pieces:
                 line.justify_word_x = pieces
+
+
+_HPLJET_DOT_RE = _re.compile(r'^\.(PS|UJ|CW|PO)\b\s*(\S*)', _re.I)
+
+
+def _hpljet_checkpoints(doc):
+    """[((block_index, line_index), settings), ...] ascending: the `.PS`/
+    `.UJ`/`.CW`/`.PO` in force from that line on, as `hpljet.place_line` takes them, with the
+    `.CW` in force when `.PO` was read (WS4 teardown 4 §15.3). A bare or bad
+    `.PO` is 0 (`core.Era.bare_po_zero`); `.UJ` is on, off or "dis" (on for
+    HPLJET), anything but ON/OFF reading as "dis" (WS4 teardown 4 §2)."""
+    from .core import DEFAULT_PO_COLS
+    cur = {'ps': False, 'uj': 'dis', 'cw': 12, 'po': DEFAULT_PO_COLS, 'po_cw': 12}
+    out = [((0, 0), dict(cur))]
+    for bi, li, cmd in doc.meta.get('dot_positions', ()):
+        m = _HPLJET_DOT_RE.match(cmd.strip())
+        if not m:
+            continue
+        name, arg = m.group(1).upper(), m.group(2).upper()
+        if name == 'PS':
+            cur['ps'] = arg == 'ON'
+        elif name == 'UJ':
+            cur['uj'] = {'ON': 'on', 'OFF': 'off'}.get(arg, 'dis')
+        elif name == 'CW':
+            if arg.isdigit():
+                cur['cw'] = int(arg)
+        else:
+            cur['po'] = int(arg) if arg.isdigit() else 0
+            cur['po_cw'] = cur['cw']
+        if out[-1][0] == (bi, li):
+            out[-1] = ((bi, li), dict(cur))
+        else:
+            out.append(((bi, li), dict(cur)))
+    return out
+
+
+def _hpljet_settings_at(checkpoints, bi, li):
+    found = checkpoints[0][1]
+    here = (bi if bi is not None else 0, li if li is not None else 0)
+    for at, st in checkpoints:
+        if at <= here:
+            found = st
+    return found
+
+
+def _attach_hpljet_pieces(doc, line, fonts, size, left, dq, checkpoints):
+    """WS4's HPLJET on one Printed line: `PageLine.justify_word_x` from
+    `hpljet.place_line` (WS4 teardown 4 §15.3-15.6) when the driver does
+    anything but set the line on its cell grid -- a line it justifies, or a
+    `.PS` or `^PA` line -- and no WS7 word-gap justification either way."""
+    from . import hpljet
+    st = _hpljet_settings_at(checkpoints, getattr(line, 'bi', None),
+                             getattr(line, 'li', None))
+    own_left = getattr(line, 'left', None)
+    left_here = left if own_left is None else own_left
+    over = getattr(line, 'overstrike', ())
+    # placed on the cell grid until the driver places the line itself
+    line.overstrike = tuple((ch, left_here + k * st['cw'] * 0.6) for k, ch in over)
+    segs = []
+    for text, styles in _coalesce(line):
+        if not text and not _is_zero_width_tab(styles):
+            continue
+        written, family, size_here, entry = _span_render(text, styles, fonts, size)
+        segs.append((written, styles, family, size_here, entry))
+    line.justify_right_x = None
+    if not segs:
+        return
+    segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
+    if any(t.startswith(('pctl', 'tabhmi', 'pix')) for sg in segs for t in sg[1]) or any(
+            '\t' in sg[0] or set(sg[0]) & GRAPHIC_CHARS for sg in segs):
+        return
+    text = ''.join(sg[0] for sg in segs)
+    hib_text, hib = getattr(line, 'hibit', ()) or ('', ())
+    if hib and hib_text != text:
+        return
+    hib = frozenset(hib)
+    alt = False
+    chars = []
+    for sg in segs:
+        styles = sg[1]
+        alt = 'altfont' in styles
+        for ch in sg[0]:
+            code = _hpljet_printer_code(ch)
+            if code is None:
+                return
+            k = len(chars)
+            if code == 0x20 and k in hib:
+                code = 0xA0
+            chars.append(hpljet.Char(code, hib=(k in hib and code != 0xA0),
+                                     cw=hpljet.ALT_CW if alt else st['cw'],
+                                     bold='b' in styles, italic='i' in styles))
+    if getattr(line, 'soft_hyphen', False) and chars and chars[-1].code == 0x2D:
+        chars[-1].measure_as = 0x1F               # measured as COMPOS[1F], '?'
+    uses_alt = any(c.cw == hpljet.ALT_CW and c.cw != st['cw'] for c in chars)
+    if not (st['ps'] or uses_alt or (line.soft and st['uj'] != 'off')):
+        return
+    placed = hpljet.place_line(chars, st['po'], st['po_cw'], st['ps'], st['uj'],
+                               bool(line.soft))
+    if not placed:
+        return
+    x_line = st['po'] * st['po_cw'] * 6
+    xs = [left_here + (xd - x_line) / 10.0 for xd, _ in placed]
+    if not st['ps'] and not uses_alt and all(
+            abs(x - (left_here + k * st['cw'] * 0.6)) < 0.05 for k, x in enumerate(xs)):
+        return                    # on its cell grid: drawn as one run, as before
+    pieces = []
+    for m in _re.finditer(r' +|[^ ]+', text):
+        a, b = m.start(), m.end()
+        x0 = xs[a]
+        if b < len(text):
+            x1 = xs[b]
+        else:
+            x1 = xs[b - 1] + placed[b - 1][1] / 10.0
+        pieces.append((m.group(0), x0, x1 - x0))
+    line.justify_word_x = pieces
+    line.justify_right_x = pieces[-1][1] + pieces[-1][2]
+    line.overstrike = tuple((ch, xs[k]) for k, ch in over)
+    if st['ps']:
+        line.face = _hpljet_face(st['cw'])
+
+
+# The faces WS4's proportional width tables were made for, inferred from the
+# widths themselves: PS14B matches Helvetica Bold at 14.4pt (median ratio
+# 0.99 over 21h-7Eh) and PS10/PS8 match Times; together they are the fonts of
+# HP's 92286B "Tms Proportional 1" cartridge (Tms Rmn 10pt medium, bold and
+# italic, Tms Rmn 8pt, Helv 14.4pt bold). WS4 teardown 4 §15.4: a bare
+# LaserJet II would have drawn Courier; a stand-in face is the converter's
+# choice. Sized by the `ESC)s<h>V` height HPLJET asks for.
+_HPLJET_PS_FACES = {'PS8': ('Times', False), 'PS10': ('Times', False),
+                    'PS10I': ('Times', False), 'PS10B': ('Times', False),
+                    'PS14B': ('Helvetica', True)}
+_HPLJET_PS_HEIGHT = {7: 6, 8: 8, 9: 10, 10: 10, 11: 10, 12: 12, 13: 12, 14: 12,
+                     15: 14, 16: 18, 17: 24, 18: 30}
+
+
+def _roman8(code):
+    """The Unicode character for a LaserJet Roman-8 code. 7Fh, which COMPOS
+    gives the shading characters, prints as Roman-8's shaded block."""
+    if code == 0x7F:
+        return '\u2592'
+    return bytes([code]).decode('hp_roman8')
+
+
+def _hpljet_compos_spans(spans):
+    """(spans, overstrike): each span's text as WS4's HPLJET prints it. A
+    character outside ASCII goes through COMPOS, CP437 to the LaserJet's
+    Roman-8 (WS4 teardown 4 §15.7): box drawing prints as `|`, `-`, `/` and backslash, Greek
+    and math as ASCII stand-ins, shading as Roman-8's block. A character
+    COMPOS prints as two (┼ is `-` then `|`) keeps the first in the text;
+    the second is returned as (offset, char), printed over it."""
+    from .hpljet_tables import COMPOS
+    out, over, off = [], [], 0
+    for text, styles in spans:
+        chars = []
+        for ch in text:
+            if ch < '\x80' and ch >= ' ':
+                chars.append(ch)
+            else:
+                try:
+                    code = ch.encode('cp437')[0]
+                except UnicodeEncodeError:
+                    chars.append(ch)
+                    off += 1
+                    continue
+                first, second = COMPOS[code]
+                chars.append(_roman8(first) if first >= 0x20 else ch)
+                if second:
+                    over.append((off, _roman8(second)))
+            off += 1
+        out.append((''.join(chars), styles))
+    return out, tuple(over)
+
+
+def _hpljet_printer_code(ch):
+    """The LaserJet code of a character `_hpljet_compos_spans` printed, or
+    None."""
+    if ch == '\u2592':
+        return 0x7F
+    try:
+        return ch.encode('hp_roman8')[0]
+    except UnicodeEncodeError:
+        return None
+
+
+def _hpljet_face(cw):
+    """(family, size, bold) a WS4 `.PS ON` line at `.CW` `cw` is drawn in."""
+    from . import hpljet, hpljet_tables
+    rec, _ = hpljet.font_for(cw, True)
+    family, bold = _HPLJET_PS_FACES[hpljet_tables.FONTS[rec][3]]
+    return family, float(_HPLJET_PS_HEIGHT[rec]), bold
 
 
 def _soft_blanks_of(segs, soft_blanks):
@@ -7376,7 +7603,8 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 pm_active=getattr(line, 'pm_active', False),
                 lj_typo=dq.typography, lj_corners=dq.corners,
                 hp_patterns=dq.patterns,
-                soft_blanks=getattr(line, 'soft_blanks', ()))
+                soft_blanks=getattr(line, 'soft_blanks', ()),
+                full_scripts=_printing_era(doc).hpljet_driver)
             if record:
                 line.graphic_cells = record
 
@@ -8080,7 +8308,10 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # `PL - MB + FM + LH` whatever `.cw` is (WS7 report 15.10, run w16-cwtab:
     # with `.cw 20` the number stays at V=7320); the type size stood in for the
     # last term until then, which is the same 12pt at the default `.cw`.
-    row_drop = (LEAD if _printing_era(doc).pageno_row_below_page_line else size)
+    # WS4's HPLJET: its 1/3" vbias below the foot row (WS4 teardown 4
+    # §15.2: V = ((PL - MB + FM)·8 + 16)·15 decipoints).
+    row_drop = (HPLJET_VBIAS_PT if printed and _printing_era(doc).hpljet_driver
+                else LEAD if _printing_era(doc).pageno_row_below_page_line else size)
 
     def render(txt):
         return txt.replace('#', str(page_no))
@@ -8318,7 +8549,10 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # WordStar uses the `.lh` in force at each line's own command. Identical
     # for every document that leaves `.lh` alone (the default 8/48in IS
     # 12pt), and 0 for the one that asks for 0.
-    last_head_y = page_h - (head_base + top_head - 1) * LEAD - size
+    # WS4's HPLJET adds its 1/3" vbias where WS7 adds a line (WS4 teardown
+    # 4 §15.2: header V = ((MT - HM - 1)·8 + 16)·15 decipoints).
+    last_head_y = page_h - (head_base + top_head - 1) * LEAD - (
+        HPLJET_VBIAS_PT if printed and _printing_era(doc).hpljet_driver else size)
     for n in sorted(set(headers) | set(headers_pcl)):
         txt = headers.get(n) or ''
         if not txt and not headers_pcl.get(n):
@@ -9389,8 +9623,15 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                       kerning=True, justify_right_x=None, justify_word_x=None,
                       record_graphic_cells=None, pm_active=False,
                       lj_typo=False, lj_corners=False, hp_patterns=False,
-                      soft_blanks=()):
+                      soft_blanks=(), full_scripts=False, face=None):
     """One laid-out line, on the document's own horizontal grid.
+
+    `full_scripts`: WS4's HPLJET sets a sub/superscript in the line's own
+    font and cell, only moved `.SR` x 15 decipoints up or down (WS4 teardown
+    4 §15.2, run hj-sr), where WS7 reduces it.
+
+    `face`: (family, size, bold) for a WS4 `.PS ON` line (`PageLine.face`):
+    its words are drawn in that face at their `justify_word_x` places.
 
     `pm_active` (planning #257, PageLine.pm_active): whether this line's own
     BLOCK has a real, nonzero `.pm` in force -- the missing half of
@@ -9639,7 +9880,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
         pt, rise = _sized(styles, size_here, roll_pt, family, entry)
-        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        if full_scripts:
+            pt = size_here
+        if face is not None:
+            family, pt = face[0], face[1]
+            basefont = BASE14[family][(face[2] or 'b' in styles) + 2 * ('i' in styles)]
+        else:
+            basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         # Driver-aware colour: a span tagged colourN under a driver whose
         # palette we know renders at that palette's gray. Emitted only when
@@ -10000,7 +10247,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # A sup/sub run gets mechanism G's own narrower cell instead of
             # the body's (see `_sup_sub_span_pitch`), built from its reduced
             # size the way WS7's driver builds it.
-            pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
+            pitch = ((None if full_scripts else
+                      _sup_sub_span_pitch(entry, styles, family, pt, size_here))
                      or _span_pitch(entry, pt))
             target = len(text) * pitch
             scale, w = _tz_scale(text, basefont, pt, target)
@@ -10059,7 +10307,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                  colour_map=None, roll_pt=None, ul_continuous=False,
                  line_no_checkpoints=None, pcl_programs=(),
                  column_top_offset_pt=0.0,
-                 lj_typo=False, lj_corners=False, hp_patterns=False):
+                 lj_typo=False, lj_corners=False, hp_patterns=False,
+                 hpljet=False):
     """One page's content stream. `fonts` is doc.fonts in PRINTED mode and
     empty everywhere else (Modern is Courier by design), so a span only leaves
     the document's own fixed pitch when the file itself asked for another face,
@@ -10104,7 +10353,12 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
     ops = list(running)
     first_lead = getattr(pagelines[0], 'lead', None) if pagelines else None
     first_lead = first_lead or lead
-    y = page_h - top - first_lead
+    # WS4's HPLJET puts line 1 at its vbias, 1/3" below the top margin,
+    # whatever `.lh` is, and steps each later line by the `.lh` in force on
+    # the line ABOVE it (WS4 teardown 4 §15.2; runs hj-mt0, hj-lh12top,
+    # hj-lhmix).
+    y = page_h - top - (HPLJET_VBIAS_PT if hpljet else first_lead)
+    prev_lead = first_lead
     # Horizontal scaling persists across text objects within a content stream;
     # it starts at PDF's own default on every page. See _line_ops_printed.
     tz_state = [TZ_DEFAULT]
@@ -10157,8 +10411,11 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                 # unconditionally.
                 y = (page_h - top - column_top_offset_pt
                      - (getattr(line, 'lead', None) or lead))
+            elif hpljet:
+                y -= prev_lead
             else:
                 y -= getattr(line, 'lead', None) or lead
+        prev_lead = getattr(line, 'lead', None) or lead
         prev_col = cur_col
         prev_overprint = getattr(line, 'overprint', False)
         # register b31: this line's own `.po` override (already resolved to
@@ -10305,7 +10562,19 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  pm_active=getattr(line, 'pm_active', False),
                                  lj_typo=lj_typo, lj_corners=lj_corners,
                                  hp_patterns=hp_patterns,
-                                 soft_blanks=getattr(line, 'soft_blanks', ()))
+                                 soft_blanks=getattr(line, 'soft_blanks', ()),
+                                 full_scripts=hpljet, face=getattr(line, 'face', None))
+        if hpljet and getattr(line, 'overstrike', ()):
+            # COMPOS's second character, printed over the first (WS4
+            # teardown 4 §15.7), in the line's own face
+            face = getattr(line, 'face', None)
+            basefont = BASE14[face[0]][1 if face[2] else 0] if face else 'Courier'
+            pt = face[1] if face else size
+            fref = res.ref(basefont)
+            for ch, ox in line.overstrike:
+                ops.append(b'BT /%s %s Tf 0 Ts %.2f Tz %.1f %.1f Td (%s) Tj ET'
+                           % (fref.encode(), _tf_size(pt), TZ_DEFAULT, ox, y, _esc(ch)))
+                tz_state[0] = TZ_DEFAULT
     return b'\n'.join(ops)
 
 
@@ -12600,7 +12869,8 @@ def _emit_pdf_inner(doc, printed, options):
                                         getattr(pl, 'column_top_offset_pt', None) or 0.0,
                                         lj_typo=dq.typography,
                                         lj_corners=dq.corners,
-                                        hp_patterns=dq.patterns))
+                                        hp_patterns=dq.patterns,
+                                        hpljet=printed and _printing_era(doc).hpljet_driver))
         # round 18 (RULINGS-LEDGER row 4): TOC/Index compiled as ADDITIONAL
         # pages at the document's own end (Jon: "It should probably export
         # in all formats even though non-paged ones couldn't be
@@ -12624,7 +12894,8 @@ def _emit_pdf_inner(doc, printed, options):
                                             ul_continuous, None,
                                             lj_typo=dq.typography,
                                             lj_corners=dq.corners,
-                                            hp_patterns=dq.patterns))
+                                            hp_patterns=dq.patterns,
+                                            hpljet=printed and _printing_era(doc).hpljet_driver))
                 # M31: compiled TOC/Index sheets are the DOCUMENT's own
                 # sheet (`page_h`/`page_w_doc`), not any body page's -- they
                 # are not part of the document's own flow and carry no

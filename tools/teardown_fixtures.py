@@ -110,9 +110,10 @@ READING_SCHEMA = 'wordstar-reading/1'
 
 # The PCL logical page starts 1/4" in from the paper's left edge.
 PCL_LOGICAL_PAGE_X_PT = 18.0
-# WS4's HPLJET driver starts the first line 12pt lower than WS7 or DRAFT
-# (its own vertical bias; WS4 teardown, evidence/pass3/print-static.md E3).
-HPLJET_Y_ORIGIN_PT = 12.0
+# The engine prints a WS4 file as WS4's HPLJET does: line 1 sits its 1/3"
+# vbias below the top margin, one line lower than DRAFT's row for it (WS4
+# teardown 4 §15.2), and every later line keeps that offset at `.LH 8`.
+DRAFT_TO_HPLJET_PT = 12.0
 DRAFT_ROW_PT = 12.0
 DRAFT_COL_PT = 7.2
 # Position tolerance, in points: a decipoint is 0.1pt and the engine writes
@@ -380,7 +381,35 @@ COURIER_CELL_DP = 72      # 10 cpi
 SUPSUB_CELL_DP = 55.2     # 13.04 cpi (23 dots)
 
 
-def prepare_printed_rows(rows):
+def _glue_hpljet_scripts(rows):
+    """WS4's HPLJET prints a sub/superscript by moving V by `.SR` x 15
+    decipoints, printing the character and moving back, with no H move: so
+    the reading shows the base run, a row with only the script character and
+    the run's own x, then the rest of the run at that x again (WS4 teardown 4
+    §15.2, run hj-sr). A one-item row at the run's x, off the run's V, with
+    the next row back on it, is glued onto the item it continues, and so is
+    that next row when it too sits at the run's x."""
+    out = []
+    last = None                   # (row, item) the next continuation joins
+    for i, row in enumerate(rows):
+        items = [list(it) for it in row['items']]
+        cont = (last is not None and len(items) == 1 and row['page'] == last[0]['page']
+                and items[0][0] is not None and items[0][0] == last[1][0])
+        nxt = rows[i + 1] if i + 1 < len(rows) else None
+        script = (cont and row['v'] != last[0]['v'] and nxt is not None
+                  and nxt['page'] == row['page'] and nxt['v'] == last[0]['v'])
+        if script or (cont and row['v'] == last[0]['v']):
+            last[1][1] += items[0][1]
+            continue
+        if out and out[-1]['page'] == row['page'] and out[-1]['v'] == row['v']:
+            out[-1]['items'].extend(items)
+        else:
+            out.append({**row, 'items': items})
+        last = (out[-1], out[-1]['items'][-1]) if out[-1]['items'] else None
+    return out
+
+
+def prepare_printed_rows(rows, hpljet=False):
     """The LaserJet rows in the form the engine's words are compared with.
 
     - `<XX>` bytes become their CP437 characters (the `.l#` bars).
@@ -388,7 +417,8 @@ def prepare_printed_rows(rows):
       the engine draws a rule instead. An item of nothing but `-` that
       starts at the same x as another item on its row is that pass.
     - A sub/superscript is a separate pass 45 decipoints off its line; the
-      engine's words keep it attached to the word it follows. An item on a
+      engine's words keep it attached to the word it follows. (WS4's HPLJET
+      prints it differently: `_glue_hpljet_scripts`.) An item on a
       row 45 decipoints from a base row on the same page, starting where a
       base item ends (Courier cells), is glued onto that item, and so is a
       base item that starts where it ends (13.04-cpi cells).
@@ -399,6 +429,8 @@ def prepare_printed_rows(rows):
         xs = [x for x, t in items if not re.fullmatch(r'-+', t)]
         items = [[x, t] for x, t in items if not (re.fullmatch(r'-+', t) and x in xs)]
         out.append({**row, 'items': items})
+    if hpljet:
+        return [r for r in _glue_hpljet_scripts(out) if r['items']]
     by_key = {(r['page'], r['v']): r for r in out}
     for row in out:
         for rise in (SUPSUB_RISE_DP, -SUPSUB_RISE_DP):
@@ -559,20 +591,25 @@ def _match_graphic(word, rows):
 
 
 def compare_layout(part, path, variant, hpljet=False):
-    """[mismatch] for one layout part; `path` is the printed document."""
+    """[mismatch] for one layout part; `path` is the printed document.
+    `hpljet`: the engine prints this part as WS4's HPLJET, so DRAFT's rows
+    sit `DRAFT_TO_HPLJET_PT` higher than the engine's lines."""
     with open(path, 'rb') as f:
         found = _variant_check(f.read(), {'ws4': 'ws4', 'ws5+': 'ws5+'}.get(variant, 'nondocument'))
     pdf = render_printed(path, variant)
     printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
     eng, n_pages, sheet_h = _engine_tokens(pdf, on_paper=printed)
     if printed:
-        rows = [r for r in prepare_printed_rows(part['rows'])
+        rows = [r for r in prepare_printed_rows(part['rows'], hpljet)
                 if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
         want = _first_word_tokens(rows, 'page', _printed_pos)
         check_y = True
     else:
         rows = [r for r in part['rows'] if r['row'] * DRAFT_ROW_PT <= sheet_h]
         want = _first_word_tokens(rows, 'page', _draft_pos)
+        if hpljet:
+            for w in want:
+                w['y_top'] += DRAFT_TO_HPLJET_PT
         # DRAFT prints whole rows: a row is a line only at `.LH 8` (6 lpi)
         page = _doc_for(path, variant).meta.get('page') or {}
         check_y = page.get('lh_48', 8) == 8 and not page.get('lh_varies')
@@ -595,10 +632,7 @@ def compare_layout(part, path, variant, hpljet=False):
                           'got': e['page']})
             continue
         dy = round(e['y_top'] - w['y_top'], 2)
-        if hpljet and abs(dy + HPLJET_Y_ORIGIN_PT) <= POSITION_TOL_PT:
-            found.append({'kind': 'y-driver-origin', 'text': w['text'], 'page': w['page'],
-                          'd': dy})
-        elif check_y and abs(dy) > POSITION_TOL_PT:
+        if check_y and abs(dy) > POSITION_TOL_PT:
             found.append({'kind': 'y', 'text': w['text'], 'page': w['page'],
                           'want': round(w['y_top'], 2), 'got': round(e['y_top'], 2), 'd': dy})
         if w['x'] is not None:
@@ -623,7 +657,7 @@ def check_part(set_name, fixture, part, base=None):
         with open(path, 'rb') as f:
             return compare_reader(part, f.read())
     variant = _RELEASE_VARIANT[set_name] if fixture.get('mode') != 'nondocument' else 'text'
-    hpljet = set_name == 'wordstar4-dos' and fixture['use'] == 'layout-printed'
+    hpljet = set_name == 'wordstar4-dos'
     return compare_layout(part, path, variant, hpljet)
 
 

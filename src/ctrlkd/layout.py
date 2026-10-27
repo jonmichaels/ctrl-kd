@@ -1224,6 +1224,16 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     that frame; add `logical_page_x` for a position on the paper, as the
     PDF does. A print stream's is 0.
 
+    version 15 (2026-10-27): `printed.driver` names the printer driver the
+    Printed pages model: 'hpljet' for a WS4 file printed by WS4 (its
+    HPLJET: line 1 24pt below the top margin, each line a step of the
+    `lead` of the line ABOVE it, sub/superscripts full size), 'laserjet'
+    otherwise (WS7's LASERJET.PDF). A WS4 `.ps on` line carries `face`,
+    `{'family', 'size', 'bold'}`, the face its `justify_word_x` words are
+    drawn in, and a line with a character WS4 prints as two carries
+    `overstrike`, `[{'char', 'x'}]`, the second character printed over the
+    first at x. See ERAS.md, "WS4's LaserJet driver, HPLJET".
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -1296,6 +1306,13 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 line['justify_word_x'] = [
                     {'text': t, 'x': round(x, 1), 'width': round(w, 1)}
                     for t, x, w in pl_justify_word_x]
+            pl_face = getattr(pl, 'face', None)
+            if pl_face is not None:
+                line['face'] = {'family': pl_face[0], 'size': pl_face[1],
+                                'bold': pl_face[2]}
+            pl_over = getattr(pl, 'overstrike', ())
+            if pl_over:
+                line['overstrike'] = [{'char': c, 'x': round(x, 1)} for c, x in pl_over]
             pl_line_no = getattr(pl, 'line_no', None)
             if pl_line_no is not None:
                 line['line_no'] = {'text': pl_line_no[0], 'x': round(pl_line_no[1], 1)}
@@ -1439,12 +1456,14 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 14,
+        'version': 15,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],
         'modern': modern_out,
-        'printed': {'pages': printed_pages},
+        'printed': {'pages': printed_pages,
+                    'driver': ('hpljet' if _pdf._printing_era(doc).hpljet_driver
+                               else 'laserjet')},
         'invisibles': {
             # Planning #270 item 36 (version 9): a 0x0F print control's own
             # SCREEN label, the ONE place the contract still publishes it.

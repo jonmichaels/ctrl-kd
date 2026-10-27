@@ -133,7 +133,7 @@ def test_the_layout_json_publishes_the_sheet_only_where_it_differs():
             + b'.pa' + HARD + b'.pr or=l' + HARD + _body(b'TWO')
             + b'.pa' + HARD + b'.pr or=p' + HARD + _body(b'THREE'))
     out = json.loads(emit.get_emitter('layout')['fn'](core.parse_ws(data), 'printed'))
-    assert out['version'] == 14
+    assert out['version'] == 15
     sizes = [pg.get('size') for pg in out['printed']['pages']]
     assert sizes[0] is None and sizes[2] is None
     assert sizes[1] == {'width_pt': 792, 'height_pt': 612,
