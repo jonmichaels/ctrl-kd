@@ -487,12 +487,6 @@
     "x": 5
    },
    "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
-  },
-  "wordstar-dos/lnum-courier": {
-   "kinds": {
-    "missing-word": 110
-   },
-   "reason": "the engine numbers text lines only, no bars; E27b the .l# bars are drawn as vectors (cp437 graphics), so the comparison sees no word where WS7 prints BAh and B3h"
   }
  }
 }

@@ -59,7 +59,9 @@ paper's left edge (HP; WS7 teardown, `wordstar-dos/7-configuration.md` 7.7);
 the engine's side is its page placed on the sheet the same way
 (`pdf.logical_page_x`, read back from the page's leading `cm`). y is the
 row's V, the baseline in decipoints from the page top. Page counts are
-compared too.
+compared too. A word made only of box-drawing characters (the `.l#` bars, box
+art) is drawn by the engine as vector cells, not text, so it is matched against
+the layout JSON's `graphic_cells` on its page at its x (kind `missing-graphic`).
 
 `layout-lines` -- WS4's DRAFT driver: rows of text, 1-based, a row = 1/6",
 the paper's own left edge at column 0, blank rows left out, pages split at
@@ -97,6 +99,7 @@ sys.path.insert(0, _HERE)
 from ctrlkd import core  # noqa: E402
 from ctrlkd import pdf as pdfmod  # noqa: E402
 from ctrlkd import pictures as ctrlkd_pictures  # noqa: E402
+from ctrlkd import layout as layout_mod  # noqa: E402
 import fidelity_gate as fg  # noqa: E402
 
 ENV = 'CTRLKD_TEARDOWNS'
@@ -501,16 +504,58 @@ PATCHED_FNRUN = {'fnr0': 0, 'fnr3': 3, 'fnr4': 4, 'fnr5': 5, 'fnr6': 6,
                  'fnr7': 7, 'fnr99': 99}
 
 
-def render_printed(path, variant):
-    """The Printed PDF the CLI would write for `path` read as `variant`."""
+def _printed_doc(path, variant):
+    """`path` read as `variant`, with the run's patched program settings."""
     with open(path, 'rb') as f:
-        data = f.read()
-    doc = core.parse(data, variant=variant)
+        doc = core.parse(f.read(), variant=variant)
     run = os.path.basename(path).split('-')[0]
     if run in PATCHED_FNRUN:
         doc.meta['fnrun'] = PATCHED_FNRUN[run]
+    return doc
+
+
+def render_printed(path, variant):
+    """The Printed PDF the CLI would write for `path` read as `variant`."""
+    doc = _printed_doc(path, variant)
     pix = ctrlkd_pictures.resolve_document_pictures(doc, path)
     return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix)
+
+
+def _engine_graphic_rows(path, variant, on_paper):
+    """[(page, [(char, x)])], one per printed line: the cp437 box-drawing
+    cells the engine draws as vectors rather than text (the layout JSON's
+    `graphic_cells`, with the page's placement on the sheet when `on_paper`)."""
+    doc = _printed_doc(path, variant)
+    rows = []
+    for n, page in enumerate(json.loads(layout_mod.emit_layout(doc, mode='printed'))
+                             ['printed']['pages'], 1):
+        dx = page.get('logical_page_x', 0.0) if on_paper else 0.0
+        for line in page['lines']:
+            cells = line.get('graphic_cells') or []
+            if cells:
+                rows.append((n, [[c['char'], c['x'] + dx, False] for c in cells]))
+    return rows
+
+
+def _box_only(text):
+    return bool(text) and all(fg._is_box_drawing_char(ch) for ch in text)
+
+
+def _match_graphic(word, rows):
+    """Consume the engine cells that draw `word` (a box-drawing run whose
+    first cell is at word['x']) on its page; True when found."""
+    for page, cells in rows:
+        if page != word['page']:
+            continue
+        for i in range(len(cells) - len(word['text']) + 1):
+            run = cells[i:i + len(word['text'])]
+            if (not any(c[2] for c in run)
+                    and ''.join(c[0] for c in run) == word['text']
+                    and abs(run[0][1] - word['x']) <= POSITION_TOL_PT):
+                for c in run:
+                    c[2] = True
+                return True
+    return False
 
 
 def compare_layout(part, path, variant, hpljet=False):
@@ -533,6 +578,16 @@ def compare_layout(part, path, variant, hpljet=False):
         check_y = page.get('lh_48', 8) == 8 and not page.get('lh_varies')
     if part.get('pages') is not None and part['pages'] != n_pages:
         found.append({'kind': 'pages', 'want': part['pages'], 'got': n_pages})
+    # A run of box-drawing characters is drawn as vector cells, not text: it
+    # is matched against the engine's graphic cells, on its page at its x.
+    graphics = [w for w in want if w['x'] is not None and _box_only(w['text'])]
+    if graphics:
+        want = [w for w in want if not (w['x'] is not None and _box_only(w['text']))]
+        rows_g = _engine_graphic_rows(path, variant, printed)
+        for w in graphics:
+            if not _match_graphic(w, rows_g):
+                found.append({'kind': 'missing-graphic', 'text': w['text'], 'page': w['page'],
+                              'x': round(w['x'], 2)})
     m = fg.match_doc(want, eng)
     for w, e in m['pairs']:
         if w['page'] != e['page']:
