@@ -3222,8 +3222,9 @@ def _is_quote_style(b):
 # TEXT (a `.h1` line carries them raw -- LJ6DTP's is `^B^BLJ6DTP ... ^B`).
 # Interpreted minimally here: toggles flip a style, every other control byte
 # is stripped (0x0F print-control lead-ins included). U+2219 maps to the
-# cp1252-friendly bullet so PDF measurement and drawing agree; one glyph,
-# consistent across formats.
+# cp1252 middle dot, the small dot the printer prints for the document's F9
+# (LJ6DTP's heads, on the LaserJet scan and in WS7's capture), so PDF
+# measurement and drawing agree; one glyph, consistent across formats.
 _HF_TOGGLES = {0x02: 'b', 0x19: 'i', 0x13: 'u',
                0x14: 'sup', 0x16: 'sub', 0x18: 'strike'}
 
@@ -3240,7 +3241,7 @@ def hf_runs(txt):
             runs.append((''.join(buf), frozenset(active)))
             buf.clear()
 
-    for ch in txt.replace('∙', '•'):
+    for ch in txt.replace('∙', '·'):
         code = ord(ch)
         if code in _HF_TOGGLES:
             flush()

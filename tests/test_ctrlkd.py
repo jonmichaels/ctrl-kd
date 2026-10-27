@@ -6116,11 +6116,12 @@ def test_dot_leader_tab_repeats_the_glyph_instead_of_stretching_it():
     count onto it.
 
     Pinned here against the COUNT, not just presence: for a 12pt Helvetica
-    span (period natural width = afm.string_width_pt('.', 'Helvetica', 12)),
-    a tab landing `gap` points past the pen must draw exactly
-    floor(gap / period_width) periods, unscaled (no Tz operator, or one at
-    100.0), and the pen must still land EXACTLY on the tab's own absolute
-    target afterward -- same as every other tab branch."""
+    span the LaserJet driver places, a tab landing `gap` points past the pen
+    must draw exactly floor(gap / period_width) periods, at the PRINTER's own
+    period width -- the driver's (LJ6DTP p5 now draws the capture's 27) --
+    the run scaled only so each period advances by that width, and the pen
+    must still land EXACTLY on the tab's own absolute target afterward --
+    same as every other tab branch."""
     from ctrlkd.pdf import emit_pdf, _printed_left, HMI_PER_POINT
     from ctrlkd.afm import string_width_pt
     helv = _helv_typestyle()
@@ -6140,15 +6141,18 @@ def test_dot_leader_tab_repeats_the_glyph_instead_of_stretching_it():
     dots = next(s for s in spans if set(s[5]) == {ord('.')})
     contents = next(s for s in spans if s[5] == b'Contents')
     target_x = left + target_hmi / HMI_PER_POINT
-    period_w = string_width_pt('.', 'Helvetica', 12)
+    from ctrlkd import laserjet
+    from ctrlkd.pdf import _laserjet_fonts, _lj_block
+    block, tw = _lj_block(_laserjet_fonts(doc)[0], frozenset(), 12)
+    period_w = laserjet.dots_to_pt(block, laserjet.char_dots(block, tw, laserjet.code('.')))
     expected_count = int((target_x - dots[3]) / period_w)
-    assert len(dots[5]) == expected_count == 52    # REPEATED to fill, not a
+    assert len(dots[5]) == expected_count == 42    # REPEATED to fill, not a
                                                     # fixed count stretched
                                                     # (the block's own
                                                     # declared column count)
-    assert dots[2] == 100.0                        # never Tz-STRETCHED --
-                                                    # the only Tz here is the
-                                                    # unrelated 100.0 reset
+    assert dots[2] == round(period_w / string_width_pt('.', 'Helvetica', 12)
+                            * 100, 2)              # each period at the
+                                                    # driver's own advance
     assert contents[3] == round(target_x, 1)       # pen still lands exactly
                                                     # on the tab's own target
 
@@ -6750,14 +6754,15 @@ def test_dot_comment_before_blank_creates_no_phantom_line():
 def test_running_head_toggle_bytes_become_styles_not_glyphs():
     """Round 3 (2026-08-06): LJ6DTP's `.h1` carries raw ^B bold toggles and
     a U+2219 dot; measuring toggles as glyphs made header letters overlap.
-    hf_runs interprets them as styles, maps the dot to the cp1252 bullet,
-    and a control-bytes-only head (LJ6DTP's `.f1` = two 0x0F bytes) empties
+    hf_runs interprets them as styles, maps the dot to the cp1252 middle
+    dot (the small dot the printer prints for F9, on the LaserJet scan of
+    LJ6DTP's heads), and a control-bytes-only head (LJ6DTP's `.f1` = two 0x0F bytes) empties
     out entirely."""
     from ctrlkd.emit import hf_runs
     runs = hf_runs('  \x02\x02Title ∙ #\x02 tail')
     assert runs[0] == ('  ', frozenset())            # baked spaces survive
     texts = ''.join(t for t, _ in runs)
-    assert '\x02' not in texts and '∙' not in texts and '•' in texts
+    assert '\x02' not in texts and '∙' not in texts and '·' in texts
     assert any('b' in s for _, s in runs)            # bold recognized
     assert hf_runs('\x0f\x0f') == []                 # junk head -> nothing
     # end-to-end: a doc with a toggle-carrying head renders overlap-free

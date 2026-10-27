@@ -3018,18 +3018,30 @@ def _graphic_ops(text, x, y, pitch, pt, lead_factor=1.1):
         elif kind == 'rect':
             _, fx, fy, fw, fh = shape
             rect(cx + (fx - 0.5) * sq, cy + (fy - 0.5) * sq, fw * sq, fh * sq)
+    skip = 0
     for n, ch in enumerate(text):
+        if skip:
+            skip -= 1
+            continue
         x0 = x + n * pitch
         if ch == ' ':
             continue
+        # A run of the same block is one rectangle: cells drawn side by side
+        # leave a hairline seam at every cell edge in a viewer, where the
+        # printer's bar is solid (LJ6DTP p5, on the LaserJet scan).
+        run = 1
+        if ch == '█' or ch in SHADE_GRAY:
+            while n + run < len(text) and text[n + run] == ch:
+                run += 1
+            skip = run - 1
         if ch in SYMBOL_SHAPES:
             for shape in SYMBOL_SHAPES[ch]:
                 symbol_shape(shape, x0)
         elif ch == '█':
-            rect(x0, yb, pitch, h)
+            rect(x0, yb, pitch * run, h)
         elif ch in SHADE_GRAY:
             ops.append(b'q %.2f g' % SHADE_GRAY[ch])
-            rect(x0, yb, pitch, h)
+            rect(x0, yb, pitch * run, h)
             ops.append(b'Q')
         elif ch in PART_BLOCKS:
             fx, fy, fw, fh = PART_BLOCKS[ch]
@@ -8176,7 +8188,7 @@ def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
             continue
         styles = styles | style_attrs
         lj = _lj_pieces(run_text, entry, styles, pt, True,
-                        source=run_text.replace('•', '∙'))   # the document's F9
+                        source=run_text.replace('·', '∙'))   # the document's F9
         if lj is not None:
             total += lj[-1][1] + lj[-1][2] if lj else 0.0
             continue
@@ -8980,13 +8992,13 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                 and 0 <= font_idx < len(doc.fonts) else None)
         if (entry is None and not style_attrs
                 and (res is None or not any(ord(c) < 0x20 for c in txt))):
-            # `txt.replace('∙', '•')`: this fast path (no font block, no control/
+            # `txt.replace('∙', '·')`: this fast path (no font block, no control/
             # toggle byte anywhere) never calls `_hf_runs` at all -- fine for style
             # and control-byte handling, since the gate above already proves there
             # is neither to interpret, but `_hf_runs` ALSO does one plain character
             # substitution unconditionally (register C9, above): '∙' (U+2219 BULLET
-            # OPERATOR) -> '•' (U+2022 BULLET), because cp1252 carries a real bullet
-            # glyph and WordStar's own list marker means the round one. This path
+            # OPERATOR) -> '·' (U+00B7 MIDDLE DOT), the small dot the printer prints
+            # for the document's F9 (LJ6DTP's heads, on the LaserJet scan). This path
             # skipped that too, reintroducing the exact "downgrades a round bullet
             # to a middle dot for no encoding reason" regression C9 fixed for every
             # OTHER header/footer line -- found corpus-wide by `tools/verify_head_
@@ -8998,7 +9010,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             # substitution both are supposed to apply on their own read of it.
             return [b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                    (FONTS[(False, False)].encode(), size, x0, y,
-                    _esc(txt.replace('∙', '•')))]
+                    _esc(txt.replace('∙', '·')))]
         family = _pdf_family(entry) if entry is not None else 'Courier'
         pt = (max(1, round(entry['points']))
               if entry is not None and entry.get('points') else size)
@@ -9027,7 +9039,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
             font = res.ref(basefont)
             lj = _lj_pieces(run_text, entry, styles, pt, True,
-                            source=run_text.replace('•', '∙'))   # the document's F9
+                            source=run_text.replace('·', '∙'))   # the document's F9
             if lj is not None:
                 # placed by WS7's LASERJET driver, as a body line's words are
                 for i, (piece, px, pw) in enumerate(lj):
@@ -10304,26 +10316,42 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                 w_gap = target_x - x
                 leader_char = chr(leader_byte)
                 char_w = _natural_width_pt(leader_char, basefont, pt)
+                # In a font the LaserJet driver places, the printer advances each
+                # leader glyph at the driver's own width (LJ6DTP p5: 27 dots in
+                # the gap on the scan, not the stand-in face's 33): counted at
+                # that width, and the run scaled to it.
+                want_tz = TZ_DEFAULT
+                if entry is not None and entry.get('laserjet') and char_w > 0:
+                    from . import laserjet
+                    block, tw = _lj_block(entry, styles, size_here)
+                    driver_w = laserjet.dots_to_pt(
+                        block, laserjet.char_dots(block, tw, laserjet.code(leader_char)))
+                    if driver_w > 0:
+                        want_tz = round(driver_w / char_w * 100.0, 2)
+                        char_w = driver_w
                 count = int(w_gap / char_w) if char_w > 0 else len(text)
                 run_text = leader_char * count
+                # The leader's piece is the dots drawn, so a view draws as many.
+                if record_pieces is not None and rec_open is not None:
+                    rec_open = (run_text, rec_open[1])
                 symbol_bold = family == 'Symbol' and 'b' in styles
                 symbol_italic = family == 'Symbol' and 'i' in styles
                 if count == 0:
                     pass
                 elif symbol_bold or symbol_italic:
                     ops.append(_symbol_style_op(
-                        font, pt, rise, TZ_DEFAULT, tz_state, x, y,
+                        font, pt, rise, want_tz, tz_state, x, y,
                         _esc(run_text), symbol_bold, symbol_italic))
-                elif TZ_DEFAULT == tz_state[0]:
+                elif want_tz == tz_state[0]:
                     ops.append(b'BT /%s %s Tf %s Ts %.1f %.1f Td (%s)'
                               b' Tj ET' %
                               (font.encode(), _tf_size(pt), _tf_size(rise), x, y, _esc(run_text)))
                 else:
                     ops.append(b'BT /%s %s Tf %s Ts %.2f Tz %.1f %.1f'
                               b' Td (%s) Tj ET' %
-                              (font.encode(), _tf_size(pt), _tf_size(rise), TZ_DEFAULT, x, y,
+                              (font.encode(), _tf_size(pt), _tf_size(rise), want_tz, x, y,
                                _esc(run_text)))
-                    tz_state[0] = TZ_DEFAULT
+                    tz_state[0] = want_tz
                 if count:
                     ops += _rules(styles, run_text, x, y, char_w * count,
                                   ul_continuous, strike_sink=strike_sink)

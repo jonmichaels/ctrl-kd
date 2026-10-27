@@ -76,4 +76,8 @@ def test_lj6dtp_features_list_renders_a_real_bullet_not_a_middle_dot(require_saw
         doc = core.parse_ws(fh.read())
     out = pdf.emit_pdf(doc, mode='printed')
     assert b'(\x95) Tj' in out                      # the fix
-    assert b'(\xb7) Tj' not in out                  # the bug, named directly
+    # The bug, named directly: no body bullet drops to a middle dot. A middle
+    # dot is right only in the running head, which prints the document's F9
+    # (`PDF · 4` on the LaserJet scan).
+    assert out.count(b'(\x95) Tj') == 6               # the six list bullets
+    assert out.count(b'(\xb7) Tj') == 7               # one per head, pages 2-8

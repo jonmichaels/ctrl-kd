@@ -474,9 +474,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -484,9 +484,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -494,9 +494,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -504,9 +504,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -514,9 +514,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -524,9 +524,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -534,9 +534,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
@@ -544,9 +544,9 @@
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
-    "x": 135,
-    "missing-word": 367,
-    "extra-word": 336
+    "x": 141,
+    "missing-word": 360,
+    "extra-word": 329
    },
    "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },

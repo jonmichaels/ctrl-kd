@@ -30,9 +30,9 @@
       "no_substitute_word_count": 78,
       "counts_by_reason": {
         "exact-drift": 49,
-        "extra-word-in-engine": 270,
+        "extra-word-in-engine": 269,
         "line-start-shift": 7,
-        "word-unmatched": 105
+        "word-unmatched": 104
       },
       "divergences": [
         {
@@ -1320,7 +1320,7 @@
           "page": 5,
           "line_y_top_pt": 294.0,
           "words": [
-            "85%................................."
+            "85%..........................."
           ],
           "ws7_pos": null,
           "pdf_pos": [
@@ -1336,7 +1336,7 @@
           "page": 5,
           "line_y_top_pt": 330.0,
           "words": [
-            "50%................................."
+            "50%..........................."
           ],
           "ws7_pos": null,
           "pdf_pos": [
@@ -1352,7 +1352,7 @@
           "page": 5,
           "line_y_top_pt": 366.0,
           "words": [
-            "15%................................."
+            "15%..........................."
           ],
           "ws7_pos": null,
           "pdf_pos": [
@@ -1366,25 +1366,9 @@
         {
           "doc": "LJ6DTP",
           "page": 5,
-          "line_y_top_pt": 402.0,
-          "words": [
-            "2%................................."
-          ],
-          "ws7_pos": null,
-          "pdf_pos": [
-            186.7,
-            402.0
-          ],
-          "font_class": "sans",
-          "reason": "extra-word-in-engine",
-          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 5,
           "line_y_top_pt": 546.0,
           "words": [
-            "White.............................................."
+            "White....................................."
           ],
           "ws7_pos": null,
           "pdf_pos": [
@@ -1470,6 +1454,22 @@
           "pdf_pos": [
             101.7,
             282.0
+          ],
+          "font_class": "serif",
+          "reason": "extra-word-in-engine",
+          "detail": "engine word has no corresponding word anywhere in the WS7 capture"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 6,
+          "line_y_top_pt": 310.0,
+          "words": [
+            "\u201cWhite\u201d"
+          ],
+          "ws7_pos": null,
+          "pdf_pos": [
+            107.7,
+            310.0
           ],
           "font_class": "serif",
           "reason": "extra-word-in-engine",
@@ -2002,22 +2002,6 @@
         {
           "doc": "LJ6DTP",
           "page": 5,
-          "line_y_top_pt": 402.0,
-          "words": [
-            "2%..........................."
-          ],
-          "ws7_pos": [
-            186.7,
-            402.0
-          ],
-          "pdf_pos": null,
-          "font_class": "univers",
-          "reason": "word-unmatched",
-          "detail": "WS7 word has no corresponding word anywhere in the engine output"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 5,
           "line_y_top_pt": 546.0,
           "words": [
             "White"
@@ -2248,6 +2232,22 @@
           ],
           "ws7_pos": [
             296.4,
+            288.0
+          ],
+          "pdf_pos": null,
+          "font_class": "exact",
+          "reason": "word-unmatched",
+          "detail": "WS7 word has no corresponding word anywhere in the engine output"
+        },
+        {
+          "doc": "LJ6DTP",
+          "page": 7,
+          "line_y_top_pt": 288.0,
+          "words": [
+            "8294\u25022765\u25024716\u25024716\u25025529\u2551"
+          ],
+          "ws7_pos": [
+            362.4,
             288.0
           ],
           "pdf_pos": null,

@@ -129,5 +129,5 @@ def test_galleys_heads_are_bold_on_both_sides(require_sawyer_doc, mode):
     # that line's own font control before the style's `\b`. The weight is
     # what this test is about and it is still there, stated per run.
     assert r'\fs22 \b TITLE ' in out
-    assert '\\u8226? ROBERT J. SAWYER}' in out
+    assert '\\u183? ROBERT J. SAWYER}' in out      # the document's F9, a middle dot
     assert r'\b {\chpgn } ' in out
