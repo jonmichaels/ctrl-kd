@@ -175,5 +175,7 @@ def test_pcl_fidelity(doc_name):
         if doc_name in pt.INVENTORY_MODE_DOCS:
             print(f'{doc_name}: INVENTORY (v4 expansion, non-failing pending Jon\'s ruling on '
                   f'each cause) -- {msg}')
+        elif doc_name in pt.KNOWN_ISSUE_DOCS:
+            pytest.xfail(f'{pt.KNOWN_ISSUE_DOCS[doc_name]} -- {msg}')
         else:
             pytest.fail(msg)

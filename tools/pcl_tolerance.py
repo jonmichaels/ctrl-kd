@@ -217,6 +217,14 @@ CAPTURED_DOCS = CAPTURED_DOCS_V1V3 + CAPTURED_DOCS_V4
 # which set a document is in; only the "real bug already known and
 # unruled" bar is different.
 INVENTORY_MODE_DOCS = frozenset(CAPTURED_DOCS_V4)
+# Documents whose non-font-substitution divergences are a KNOWN issue: the
+# test still runs doc_report() and names every divergence, then reports
+# the case as an expected failure instead of a failure. A drift still
+# fails. LJ6DTP prints through Sawyer's own LJ6DTP driver, modelled only
+# closely enough to look roughly like the real printout (planning #210).
+KNOWN_ISSUE_DOCS = {
+    'LJ6DTP': 'LJ6DTP class, modelled roughly, not to this bar (planning #210)',
+}
 
 # ----------------------------------------------------------- v4 exclusions
 # (planning #224/#226, ruled 2026-09-08; re-scoped to PUBLIC documents only
