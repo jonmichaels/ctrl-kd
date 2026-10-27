@@ -88,8 +88,9 @@ def test_a_trailing_pa_alone_makes_no_page():
 
 
 def test_modern_still_drops_the_empty_trailing_page():
-    data = pdf.emit_pdf(_doc(_lines(55) + HARD), mode='modern')
-    assert _page_count(data) == 2          # 55 lines of Modern text spill by themselves
+    full = pdf.LINES_MODERN
+    pages = pdf._doc_to_pagelines(_doc(_lines(full) + HARD), False)
+    assert [len(pg) for pg in pages] == [full]
     short = pdf.emit_pdf(_doc(_lines(3) + HARD + HARD), mode='modern')
     assert _page_count(short) == 1
 

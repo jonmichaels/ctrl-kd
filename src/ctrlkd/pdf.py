@@ -4284,8 +4284,12 @@ class Page(list):
         self.explicit_break_bi = None
         # The page ended at a bare form feed in the text: WS7 ejects the sheet
         # without running its page-end routine, so no footer block prints --
-        # neither a `.fo` nor the automatic page number (WS7 report 14.3, run
-        # ff2; WS4 report 3.2). False for every other page.
+        # neither a `.fo` nor the automatic page number. Observed for the
+        # number (WS7 report 14.3, run ff2); the mechanism is inferred from
+        # the driver turning a text 0Ch into a pending eject (report 11.3),
+        # and WSFORMAT.TXT says "No footer lines are printed" (WS4 report 3.2
+        # reads the same in WS4's code), which is why a `.fo` goes too.
+        # False for every other page.
         self.ended_by_form_feed = False
         # `.pl` in force when this page's own pagination started -- None
         # for "the document's global (first-occurrence) value", the same
