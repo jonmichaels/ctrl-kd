@@ -5,6 +5,57 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+Printed mode now follows the teardowns of WordStar 4.00 and WordStar 7 Rev. D:
+the programs' own code and real runs, checked by a new test tier
+(`tests/test_teardown_fixtures.py`, armed by `CTRLKD_TEARDOWNS`).
+
+### Added
+
+- **`--printed-by own|ws7`** (and `parse(..., printed_by=)`): which WordStar
+  prints a WordStar 4 file. Printing belongs to the program that prints:
+  `own` (the default) prints a WS4 file as WS4 printed it; `ws7` prints it as
+  WS7 prints the same file. A WS5+ file is always printed by WS7. See ERAS.md.
+- **The layout JSON is version 14**: each printed page carries
+  `logical_page_x`, where its x = 0 sits on the sheet.
+- **`Span.soft`**: the offsets of a span's WS5+ soft spaces, which a
+  justifying driver ignores.
+
+### Changed
+
+- **A Printed page sits on the LaserJet's logical page.** WordStar measures
+  every x from the PCL logical page, 1/4" in from a Letter sheet's left edge
+  (71 dots on A4, 60 and 59 in landscape: HP PCL 5 Technical Reference,
+  tables 2-1 and 2-2), so text now lands where it did on paper, 18pt further
+  right than before. A print stream stays at the edge.
+- **A sub/superscript is set as WordStar 7 sets it**: reduced by each face's
+  own factor, floored to the LaserJet's quarter point (9.25pt Courier, 8.25pt
+  Helvetica at a 12pt body), on the driver's own narrower cell, and raised or
+  lowered by the `.sr` roll exactly (4.5pt at the default, not 4).
+- **WordStar 4 files paginate as WordStar 4 does**: a line starts while room
+  is left (37 lines at `.lh 12`), a mid-file `.pl/.mt/.mb` acts on the page in
+  progress, `.cp n` counts the lines it asks for, `^PK` in a header drops the
+  blanks after it, the automatic page number sits at `.pc` 28, and a blank
+  line at a page boundary is not forgiven.
+- **WordStar 7's page flow**: a blank line after a full page or a trailing
+  `.pa` makes a page with its number; a `.pa` on an empty page is ignored;
+  empty soft-return lines at the top of a page ended for room are dropped; a
+  page ended by a form feed in the text prints no number; under `.lh a` a
+  line is led by the font it starts in and may overhang the bottom by its
+  rise; the page number's baseline ignores `.cw`.
+- **Justification is WordStar 7's**: slack shared in dots, `floor(w * S_rem
+  / W_rem)`, by each blank's own width, over proportional and mixed-font
+  lines too; a hard-returned line stays ragged.
+- **`.l#`** numbers every row of the page, empty ones too, between WordStar's
+  two bars. **`^PA`** prints in the LaserJet's alternate font (Gothic 10 pt).
+- **A bare `.po` sets the page offset to 0**, and in a WS4 file a bad one
+  (`.po x`) does too.
+- **Detection**: WS4's `0D 8A` page marks count as evidence, a WS4 file's
+  `1B xx 1C` density no longer wins over its word-end high bits, a WS5-style
+  header kept as text in a WS4 file is no longer refused, and a short
+  headerless WS7 file with soft returns is read as WS7, not text.
+- **`--variant` chooses the era** (bit 7, record parsing, printing rules)
+  instead of only the parser.
+
 ### Fixed
 
 - **A stored soft return stays soft.** `Line.soft` is now exactly what the
@@ -26,9 +77,14 @@ https://github.com/jonmichaels/ctrl-kd/releases
   under it, a blank, then the rest. There is no three-line floor of body
   text: a very long note makes note-only pages. A note reference on a
   trailing empty last line is kept. A bare `.f# n` no longer adds `n` to
-  note numbers WordStar already stored with it. A note-bearing page
-  that matched WordStar's own capture only after this (`TAGS/-README.WS`) now
-  matches it exactly.
+  note numbers WordStar already stored with it. A note that runs over several
+  pages places its note-only pages and its last page as WordStar 7 does.
+  `TAGS/-README.WS` now matches WordStar's own capture exactly. An untagged
+  annotation prints no mark.
+
+- **A bare `.rr` in a WS4 file** no longer swallows the next
+  line; a soft line before an empty hard line under `.ls 2` stays soft; a
+  WS7 nondocument keeps bit 7 (its CP437 characters show).
 
 - **`.f# a` / `.f# A` (and `.e#`) letter the notes in Printed output**, as
   WordStar 7 prints them: a, b, c / A, B, C in the PDF, layout, text,
