@@ -464,11 +464,21 @@ def _doc_for(path, variant):
         return core.parse(f.read(), variant=variant)
 
 
+# Runs made with a WS.EXE patched to another footnote-run setting (WS7 report
+# 14.15): the setting lives in the program, not the document, so the harness
+# hands it to the engine (`doc.meta['fnrun']`) for these runs by file prefix.
+PATCHED_FNRUN = {'fnr0': 0, 'fnr3': 3, 'fnr4': 4, 'fnr5': 5, 'fnr6': 6,
+                 'fnr7': 7, 'fnr99': 99}
+
+
 def render_printed(path, variant):
     """The Printed PDF the CLI would write for `path` read as `variant`."""
     with open(path, 'rb') as f:
         data = f.read()
     doc = core.parse(data, variant=variant)
+    run = os.path.basename(path).split('-')[0]
+    if run in PATCHED_FNRUN:
+        doc.meta['fnrun'] = PATCHED_FNRUN[run]
     pix = ctrlkd_pictures.resolve_document_pictures(doc, path)
     return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix)
 

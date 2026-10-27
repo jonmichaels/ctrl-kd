@@ -582,20 +582,16 @@
   },
   "wordstar-dos/footnote-mb0": {
    "kinds": {
-    "x-logical-page": 10,
-    "missing-word": 4
+    "x-logical-page": 14,
+    "y": 1
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E21 a note reference on a trailing blank last line is lost"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; the Printed superscript rise is written to the PDF as a whole point (Ts 4) where the default .sr is 4.5 pt, so a superscript sits 0.5 pt low"
   },
   "wordstar-dos/footnote-moves": {
    "kinds": {
-    "x-logical-page": 121,
-    "page-of-word": 2,
-    "y": 17,
-    "missing-word": 5,
-    "extra-word": 7
+    "x-logical-page": 128
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 WS7 moves the reference line and the whole note to the next page when the room left is under fnrun (8 note lines); the engine keeps the reference and splits the note"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-long": {
    "kinds": {
@@ -605,13 +601,9 @@
   },
   "wordstar-dos/footnote-long-moves": {
    "kinds": {
-    "x-logical-page": 141,
-    "page-of-word": 2,
-    "y": 21,
-    "missing-word": 7,
-    "extra-word": 9
+    "x-logical-page": 150
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/justify-off": {
    "kinds": {
@@ -670,59 +662,39 @@
   },
   "wordstar-dos/footnote-run-fnrun0": {
    "kinds": {
-    "x-logical-page": 149,
-    "y": 24,
-    "missing-word": 3,
-    "extra-word": 3
+    "x-logical-page": 152
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 a running note: WS7's note area ends at PL - MB with the separator one row lower, and on the next page ...Continued... sits right under the separator"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-move-fnrun99": {
    "kinds": {
-    "x-logical-page": 141,
-    "page-of-word": 2,
-    "y": 21,
-    "missing-word": 7,
-    "extra-word": 9
+    "x-logical-page": 150
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-run-big": {
    "kinds": {
-    "x-logical-page": 182,
-    "y": 57,
-    "missing-word": 3,
-    "extra-word": 3
+    "x-logical-page": 185
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-run-huge": {
    "kinds": {
-    "x-logical-page": 252,
-    "y": 209,
-    "missing-word": 3,
-    "extra-word": 3
+    "x-logical-page": 255
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-fnrun6": {
    "kinds": {
-    "x-logical-page": 149,
-    "y": 24,
-    "missing-word": 3,
-    "extra-word": 3
+    "x-logical-page": 152
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/footnote-fnrun7": {
    "kinds": {
-    "x-logical-page": 141,
-    "page-of-word": 2,
-    "y": 21,
-    "missing-word": 7,
-    "extra-word": 9
+    "x-logical-page": 150
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/justify-share-by-width": {
    "kinds": {
@@ -798,13 +770,9 @@
   },
   "wordstar-dos/note-moves-52": {
    "kinds": {
-    "x-logical-page": 119,
-    "page-of-word": 2,
-    "y": 16,
-    "missing-word": 6,
-    "extra-word": 6
+    "x-logical-page": 127
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/two-notes-reserve": {
    "kinds": {
@@ -826,32 +794,26 @@
   },
   "wordstar-dos/note-numbers-bare": {
    "kinds": {
-    "x-logical-page": 201,
-    "x": 12,
-    "missing-word": 8,
-    "extra-word": 12
+    "x-logical-page": 221
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E25 a bare .f# n: the stored note numbers already include n and the engine adds it again"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/long-note": {
    "kinds": {
-    "x-logical-page": 458,
-    "page-of-word": 9,
-    "y": 356,
-    "missing-word": 22,
-    "extra-word": 24
+    "x-logical-page": 488,
+    "y": 214,
+    "missing-word": 1
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E24 a very long note: WS7 makes note-only pages; the engine keeps 3 body lines a page"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
   },
   "wordstar-dos/annotation-moves": {
    "kinds": {
-    "x-logical-page": 119,
-    "y": 17,
-    "x": 1,
-    "missing-word": 5,
-    "extra-word": 6
+    "x-logical-page": 122,
+    "x": 2,
+    "missing-word": 1,
+    "extra-word": 2
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 an annotation moves with its reference like a footnote"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; an annotation with no tag prints no mark in WS7 (no reference mark, note text at the margin) where the engine prints its running count"
   },
   "wordstar-dos/print-bg-off": {
    "kinds": {
@@ -892,19 +854,15 @@
   },
   "wordstar-dos/note-format-from-f#": {
    "kinds": {
-    "x-logical-page": 213,
-    "missing-word": 8,
-    "extra-word": 8
+    "x-logical-page": 221
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E26 .f# a: WS7 prints letters; the engine prints arabic (R-48)"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/note-format-from-f#-upper": {
    "kinds": {
-    "x-logical-page": 213,
-    "missing-word": 8,
-    "extra-word": 8
+    "x-logical-page": 221
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E26 .f# A: WS7 prints letters; the engine prints arabic (R-48)"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/page-ranges-20": {
    "kinds": {

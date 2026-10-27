@@ -29,7 +29,7 @@ the header states. Both are available to key a future split on.
 | 4 | Default page-number column: `.pc` | 3.3: column 33; 4: column 28 from the page offset; 7.0: centred on `(LM + RM) / 2`, which at the factory margins is 32 spaces, digit in column 33 | **Table row unread; WS3 unreachable by design.** `Era.pc_default` (28) is never read: Printed places every era's automatic number at WS7's 33.5 (`pdf._AUTO_PAGENO_DEFAULT_COL`), so a WS4 document's number lands 5 columns right of where WS4 prints it (WS4 teardown, `wordstar4-dos/4-formatting-printing.md`, the `.PC` row: default 28, manual p.215; WS7 teardown, `wordstar-dos/11-print-engine.md` 11.5). A plain WordStar 3.30 file cannot be told from a WS4 file by its bytes, so `detect()` never returns `ws3`. See "WordStar 3" below |
 | 5 | Bare `.pl` (no argument) | 6.0: page breaks OFF; 7.0: keeps the previous value | **KNOWN LIMITATION — 7.0 behaviour implemented.** See below |
 | 6 | Style-library layout | validated on 5.5-format libraries | **Caveat on record.** Every in-file style library we have decodes as style version BCD 55; the layout is spec-version-neutral but unverified against a genuine 5.0/6.0-written library |
-| 7 | Footnote/endnote note TAGS and non-numeric FORMAT TYPES | WS5+ | **Stored format: matches WS7 (ignored). `.f#` letter formats: not followed. Tags: unverified.** See below |
+| 7 | Footnote/endnote note TAGS and non-numeric FORMAT TYPES | WS5+ | **Stored format: matches WS7 (ignored). `.f#`/`.e#` letter formats: followed in Printed. Tags: unverified.** See below |
 
 ## Known limitation: bare `.pl` (divergence 5)
 
@@ -130,11 +130,16 @@ so it is never renumbered. `emit._annotated_notes` displays a tag when present
 (every format) and otherwise always prints an arabic number: `Note.number_format`
 is parsed and kept but never consulted (`emit._format_note_number`), which
 matches WS7 for the stored nibble (DISPLAY.WS, printed through real WS7, shows
-`1.` and `(1)`; the runs above agree). What differs is `.f#`/`.e#`: WS7 prints
-in the format they set, and this project does not parse their format argument
-yet, so a document with `.f# a` or `.f# A` gets arabic numbers where WS7 prints
-letters. Following it would mean parsing that argument, a change to settled
-behaviour, so it waits for a decision.
+`1.` and `(1)`; the runs above agree). `.f#`/`.e#` are followed: `core` reads
+their letter argument into `doc.meta['footnote_number_format']` /
+`['endnote_number_format']` (`'lower'` or `'upper'`; a digit, `d`, `p` or no
+argument keeps arabic), and every Printed output labels the notes in that
+format: the PDF and layout note areas and reference marks, Printed text,
+Markdown and HTML, and RTF as the document's footnote / endnote number format
+(`\ftnnalc`, `\ftnnauc`, `\aftnnalc`, `\aftnnauc`). Modern keeps its own
+`--note-refs` labels and is not lettered. Past `z` the letters continue `aa`,
+`ab` (the teardown does not say what WS7 does there); only the first `.f#`
+that names a letter is read, not one that changes the format mid-document.
 
 **Still unverified:** a user-assigned footnote tag (custom mark). No run has
 printed one, and no Sawyer-archive document carries one; it is implemented to

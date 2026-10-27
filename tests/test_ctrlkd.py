@@ -1275,14 +1275,12 @@ def test_note_number_field_marker_and_area_agree_when_nonzero():
     mtexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pm))
     assert b'2. Footnote body.' in mtexts       # no brackets (ruling 2026-08-23/24 item 2)
 
-def test_footnote_number_start_hook_ready_for_future_dot_command():
-    # core.py doesn't parse a `.f#`-style starting-number dot command yet
-    # (another agent is adding dot-command parsing separately) -- this
-    # proves the one named place designed to receive that value
-    # (doc.meta['footnote_number_start']) already produces the right
-    # display number today, so wiring in real `.f#` parsing later is a
-    # one-line change in core.py, not a redesign here.
-    data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=0) + b' y' + HARD
+def test_footnote_number_start_is_already_in_the_stored_number():
+    # WS7 folds the `.f#` start value into the note numbers it stores when
+    # it paginates and saves (WS7 report 15.1, run fnnum5: a bare `.f# 5`
+    # stores 4 and 5), so the shown number is the stored one plus one and the
+    # recorded start is not added a second time.
+    data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=4) + b' y' + HARD
     doc = core.parse_ws(data)
     doc.meta['footnote_number_start'] = 5
     md = emit.emit_markdown(doc, mode='modern')
@@ -1939,12 +1937,13 @@ def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
     ref_page = next(i for i, pg in enumerate(texts) if any('First body line' in l for l in pg))
     assert ref_page == 0
 
-    # the floor: pages before the note is fully drained still carry >= 3 body lines
-    # (every non-footnote, non-blank, non-separator line counts as body)
+    # a note that runs fills the rest of its page (WS7 report 14.15): the
+    # reference line is the page's last body line, no floor of body lines
+    # is kept against the area
     def body_count(pg):
         return sum(1 for l in pg if l and l != CONTINUATION_TEXT and 'word' not in l
                    and not l.startswith('-'))
-    assert body_count(texts[0]) == 3
+    assert body_count(texts[0]) == 1
 
     # continuation marker shows up, and nothing after page 0 repeats the "1." marker
     later_lines = [l for pg in texts[1:] for l in pg]
@@ -2181,10 +2180,12 @@ def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
 
 def test_footnote_endnote_number_start_dot_commands():
     # .F#/.E# (WordStar 7.0 file format spec): set the starting numbering
-    # value -- the hook emit.py's per-kind numbering already reads.
+    # value, recorded in doc.meta. WS7 stores the notes it numbers with it
+    # already folded in (4 for a first footnote under `.F# 5`), so the
+    # display is the stored number plus one.
     data = (b'.F# 5' + HARD + b'.E# 10' + HARD +
-            ws7_block(0x00) + b'x' + ws7_note(0x03, b'Foot.', number=0) +
-            b' y' + ws7_note(0x04, b'End.', number=0) + b' z' + HARD)
+            ws7_block(0x00) + b'x' + ws7_note(0x03, b'Foot.', number=4) +
+            b' y' + ws7_note(0x04, b'End.', number=9) + b' z' + HARD)
     doc = core.parse_ws(data)
     assert doc.meta['footnote_number_start'] == 5
     assert doc.meta['endnote_number_start'] == 10

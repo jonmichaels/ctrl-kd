@@ -2326,6 +2326,15 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
         n_total = 0 if kind == 'eof' else 1
         j = i + 1
         while j < len(lines) and not _visible(lines[j][0]).strip():
+            if (j == len(lines) - 1 and lines[j][1] == 'eof'
+                    and any(m[0] == 'fnref' for _off, m in lines[j][3])):
+                # The file's last, unterminated, blank line holds a note
+                # reference (a note typed on a trailing empty line): it is the
+                # anchor of that note, so it stays a line of its own -- the run
+                # of blanks the end of file consumes must not swallow it
+                # (WS7 report 14.8, run fnmb0: the reference prints on the
+                # line after line 05).
+                break
             k = lines[j][1]
             if k != 'eof':
                 n_total += 1
@@ -3957,6 +3966,18 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
             meta_extra[which + '_number_mode'] = 'page'
         elif low.startswith((b'cont', b'consec')):
             meta_extra[which + '_number_mode'] = 'continuous'
+        else:
+            # The label FORMAT: WS7's `.f#` parser takes a digit (decimal),
+            # an upper-case letter (upper) or a lower-case letter (lower);
+            # `d` and `p` are the continuous / per-page modes, not formats
+            # (WS7 report 15.1, 15.10). The format in force at print time is
+            # what prints, whatever the note records store, so the first
+            # `.f#` / `.e#` that names one is kept.
+            fmt_key = which + '_number_format'
+            first = rest.strip()[:1]
+            if (fmt_key not in meta_extra and first.isalpha()
+                    and first.lower() not in (b'd', b'p')):
+                meta_extra[fmt_key] = 'upper' if first.isupper() else 'lower'
         return
     m = _DOT_CMD_RE.match(cmd)
     if not m:

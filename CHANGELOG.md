@@ -5,6 +5,26 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ## [Unreleased]
 
+### Fixed
+
+- **Printed footnotes follow what WordStar 7 does with a note that does not
+  fit.** Checked against real runs: when fewer than eight note lines of room
+  are left (the program's "footnote run" setting) the reference line and the
+  whole note move to the next page; otherwise the note runs, one line fewer
+  than the room under the reference, the area ends on the bottom margin line,
+  and the next page opens with the separator, `...Continued...` directly
+  under it, a blank, then the rest. There is no three-line floor of body
+  text: a very long note makes note-only pages. A note reference on a
+  trailing empty last line is kept. A bare `.f# n` no longer adds `n` to
+  note numbers WordStar already stored with it. A note-bearing page
+  that matched WordStar's own capture only after this (`TAGS/-README.WS`) now
+  matches it exactly.
+
+- **`.f# a` / `.f# A` (and `.e#`) letter the notes in Printed output**, as
+  WordStar 7 prints them: a, b, c / A, B, C in the PDF, layout, text,
+  Markdown and HTML, and as the footnote / endnote number format in RTF.
+  Modern keeps its own labels.
+
 ## [4.10.1] — 2026-10-26
 
 ### Fixed
