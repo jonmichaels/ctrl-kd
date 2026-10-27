@@ -25,6 +25,7 @@ import zlib as _zlib
 from dataclasses import replace as _dc_replace
 from . import pix as _pixdecode
 from .core import merged_lines as _merged_lines, Span as _Span, \
+    era_for as _era_for, \
     trailing_blank_lines as _trailing_blank_lines, \
     effective_span_styles as _effective_span_styles, \
     detect_screenplay_blocks as _detect_screenplay_blocks, \
@@ -280,8 +281,9 @@ def _printed_cap(doc):
     `wordstar-dos/11-print-engine.md` 11.3); WS4 starts a line while the
     height used is under the body height, n = floor((H - 1) / LH) + 1 lines
     at one LH (WS4 teardown, `wordstar4-dos/4-formatting-printing.md` 3.1).
-    Printed's points budget (`_printed_budget_pt`) is the WS7 shape; the
-    run fixtures name where it still differs (WS4's rule, WS7's overhang)."""
+    Printed's points budget (`_printed_budget_pt`) is the WS7 shape; WS4's
+    own counter is the `Era.line_starts_in_room` / `geometry_acts_at_once`
+    branch in `_doc_to_pagelines`."""
     page = doc.meta.get('page')
     if page is not None:
         return max(FOOTNOTE_FLOOR + 1, page.get('text_lines', 55))
@@ -434,6 +436,13 @@ def _mt_mb_checkpoints(doc):
     from .core import DEFAULT_MT_LINES, DEFAULT_MB_LINES, _resolve_lines_arg
     mt = page.get('mt_lines', DEFAULT_MT_LINES)
     mb = page.get('mb_lines', DEFAULT_MB_LINES)
+    if _era_for(doc.meta.get('variant')).geometry_acts_at_once:
+        # WS4 acts on `.mt/.mb` when the line is reached, so a page that
+        # opens before the first one prints at the factory margins, not at
+        # the first occurrence's (`_pl_checkpoints` seeds the same way; WS4
+        # teardown `evidence/pass3/exe-static.md` 8: page 1 of run t43-mtmb
+        # prints its top margin as 3 although `.MT 10` follows line 30).
+        mt, mb = DEFAULT_MT_LINES, DEFAULT_MB_LINES
     checkpoints = [(0, mt, mb)]
     for bi, _li, cmd in doc.meta.get('dot_positions', ()):
         m = _MT_MB_CMD_RE.match(cmd)
@@ -523,6 +532,50 @@ def _pl_at(checkpoints, bi):
             break
         pl = cp_pl
     return pl
+
+
+def _body_geometry_checkpoints(doc):
+    """[(block_index, line_index, mt_lines, mb_lines, pl_lines), ...] in
+    ascending order -- the body-height commands IN FORCE from that LINE on,
+    for an era whose page counter acts on them at once
+    (`Era.geometry_acts_at_once`, WS4). Seeded at the factory values, like
+    `_pl_checkpoints`: a page that opens before the first `.mt/.mb/.pl` has
+    the factory margins. The line index is kept (as `_or_checkpoints` keeps
+    it) because a WS4 file is usually ONE block, so a block-granular reading
+    cannot tell the lines before a `.MT` from the lines after it. WS4 teardown
+    `evidence/pass3/exe-static.md` 8 (routine 1EE1B re-derives the space left
+    on every change); run t43-mtmb."""
+    from .core import (DEFAULT_MT_LINES, DEFAULT_MB_LINES, DEFAULT_PL_LINES,
+                       _resolve_lines_arg)
+    mt, mb, pl = DEFAULT_MT_LINES, DEFAULT_MB_LINES, DEFAULT_PL_LINES
+    checkpoints = [(0, 0, mt, mb, pl)]
+    for bi, li, cmd in doc.meta.get('dot_positions', ()):
+        m = _MT_MB_CMD_RE.match(cmd) or _PL_CMD_RE.match(cmd)
+        if not m:
+            continue
+        name, value, unit = m.group(1).upper(), float(m.group(2)), m.group(3)
+        resolved = _resolve_lines_arg(value, unit.encode() if unit else None)
+        if name == 'MT':
+            mt = resolved
+        elif name == 'MB':
+            mb = resolved
+        else:
+            pl = resolved
+        if (mt, mb, pl) != checkpoints[-1][2:]:
+            checkpoints.append((bi, li, mt, mb, pl))
+    return checkpoints
+
+
+def _body_geometry_at(checkpoints, bi, consumed):
+    """(mt, mb, pl) in force for the line at position `consumed` of block
+    `bi` (the paginator's `read_tally[bi]`, the lines of that block already
+    placed) per `_body_geometry_checkpoints`."""
+    cur = checkpoints[0][2:]
+    for cp_bi, cp_li, *geom in checkpoints:
+        if cp_bi > bi or (cp_bi == bi and cp_li > consumed):
+            break
+        cur = tuple(geom)
+    return cur
 
 
 # The SAME acceptance `core._apply_format_dot`'s own `.PR` branch applies: the
@@ -1141,7 +1194,12 @@ def _pgnum_at(checkpoints, bi):
 # count. The probes' indifference to a document `.rm` says that margin pair
 # is not the document's ruler. Whether 11700 is the factory value or this
 # install's own is still open.
-_AUTO_PAGENO_DEFAULT_COL = 33.5
+#
+# THE DEFAULT IS AN ERA FIELD (`Era.pc_default`): 33.5 above is WS7's, and
+# WS4's automatic number line is `(PC - 1)` spaces then `#` with the factory
+# `.PC` 28, counted from `.po` (WS4 teardown, `wordstar4-dos/4-formatting-
+# printing.md` 3.2; runs x41-*, p12-hepk, dt1), so a WS4 document's number
+# starts at column 28. `_auto_pageno_x_pt` reads it.
 
 
 def _pgnum_is_bodiless(pages):
@@ -1236,9 +1294,10 @@ def _auto_pageno_row_y(page_h, pl, mb, fm, size):
 
 def _auto_pageno_x_pt(doc, po_cols=None):
     """Left edge (points) of the automatic page number's text, from `.po`/
-    `.pc` -- see `_AUTO_PAGENO_DEFAULT_COL`'s docstring for the formula's
+    `.pc` -- see the comment above `_pgnum_is_bodiless` for the formula's
     own measurement. `pc_col` 0 or unset (`page.get('pc_col')` is None or
-    falsy either way -- both measured identical) uses the fixed default;
+    falsy either way -- both measured identical) uses the era's
+    `pc_default`;
     an explicit non-zero `.pc N` overrides it.
 
     `po_cols` IS THIS PAGE'S OWN PRINT OFFSET, and the document's
@@ -1277,7 +1336,7 @@ def _auto_pageno_x_pt(doc, po_cols=None):
     neither the head nor the number, measured (planning #241)."""
     page = doc.meta.get('page') or {}
     po = page.get('po_cols', 8.0) if po_cols is None else po_cols
-    pc = page.get('pc_col') or _AUTO_PAGENO_DEFAULT_COL
+    pc = page.get('pc_col') or _era_for(doc.meta.get('variant')).pc_default
     return (po + pc - 1) * _PDF_PT_PER_COL
 
 
@@ -5780,8 +5839,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # checkpoint global, which is exactly the pages BEFORE such a
     # command's first real occurrence.
     from .core import (DEFAULT_PL_LINES, DEFAULT_HM_LINES, DEFAULT_FM_LINES,
-                       DEFAULT_PO_COLS)
+                       DEFAULT_PO_COLS, DEFAULT_MT_LINES, DEFAULT_MB_LINES)
     _pg0 = doc.meta.get('page') or {}
+    doc_mt = _pg0.get('mt_lines', DEFAULT_MT_LINES)
+    doc_mb = _pg0.get('mb_lines', DEFAULT_MB_LINES)
     doc_pl = _pg0.get('pl_lines', DEFAULT_PL_LINES)
     doc_hm = _pg0.get('hm_lines', DEFAULT_HM_LINES)
     doc_fm = _pg0.get('fm_lines', DEFAULT_FM_LINES)
@@ -5816,8 +5877,24 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # onto its own page ahead of a `.pa`, and the capacity question
     # itself.)
     default_lead = _printed_lead(doc) if printed else LEAD
-    budget = (_printed_budget_pt(doc, cap, default_lead, global_mt, global_mb,
-                                 global_pl) if printed
+    # WS4's page counter (`Era.line_starts_in_room`, `.geometry_acts_at_once`):
+    # the body height is exactly `.pl - .mt - .mb` at the geometry in force,
+    # with no rounding up to the cap or "never tighten" clamp, and it is
+    # re-read for the page IN PROGRESS whenever one of them changes
+    # (WS4 teardown 3.1, `evidence/pass3/exe-static.md` 8; runs t43-mtmb).
+    era = _era_for(doc.meta.get('variant'))
+    exact_budget = printed and era.geometry_acts_at_once
+    body_checkpoints = _body_geometry_checkpoints(doc) if exact_budget else None
+
+    def _budget_for(cap, mt, mb, pl):
+        if exact_budget and pl != 0:
+            try:
+                return max(0.0, (float(pl) - float(mt) - float(mb)) * LEAD)
+            except (TypeError, ValueError):
+                pass
+        return _printed_budget_pt(doc, cap, default_lead, mt, mb, pl)
+
+    budget = (_budget_for(cap, global_mt, global_mb, global_pl) if printed
               else (cap - 1) * default_lead)
     # round 17b (RULINGS-LEDGER row 5/6, register C8): `.sb` suppresses
     # blank lines specifically at the TOP of a page -- WordStar's own
@@ -5827,6 +5904,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # doc.meta['formatting'] for free, same as every other item this round.
     suppress_blanks = printed and bool(doc.meta.get('formatting', {}).get('suppress_blanks', False))
     pages, page, spent = [], [], 0.0
+    page_end_geom = None     # (mt, mb, pl) at the open page's last line (WS4)
     # The note area (planning #577): `None` outside Printed. For a document
     # with no footnote/annotation reference every hook below is a no-op.
     notes = _NoteArea(doc, lines, default_lead, sentence_spacing) if printed else None
@@ -5910,8 +5988,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if explicit and not pg:
             pg.explicit_break = True
             pg.explicit_break_bi = break_bi
-        if (cur_mt, cur_mb) != (global_mt, global_mb):
-            pg.mt_lines, pg.mb_lines = cur_mt, cur_mb
+        # WS4 sets the footer after the body from the bottom margin in force
+        # when the page ENDS (run t43-mtmb: the number of page 1 sits at row
+        # 67 = 66 - 2 + 2 + 1, `.MB 2` having been read mid-page), while the
+        # top margin printed at the page's start stays what it opened with.
+        end_mb = page_end_geom[1] if page_end_geom is not None else cur_mb
+        if (cur_mt, end_mb) != (doc_mt, doc_mb):
+            pg.mt_lines, pg.mb_lines = cur_mt, end_mb
         if cur_pl != doc_pl:
             pg.pl_lines = cur_pl
         # M31: this page's own sheet, stamped only when it differs from the
@@ -6111,6 +6194,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
            path 2 can reproduce."""
         mt, mb = _mt_mb_at(mt_mb_checkpoints, bi) if mt_mb_checkpoints else (global_mt, global_mb)
         pl = _pl_at(pl_checkpoints, bi) if pl_checkpoints else global_pl
+        if body_checkpoints is not None:
+            mt, mb, pl = _body_geometry_at(body_checkpoints, bi,
+                                           read_tally.get(bi, 0))
         hm, fm = _hm_fm_at(hm_fm_checkpoints, bi) if hm_fm_checkpoints else (global_hm, global_fm)
         po = _po_at(po_checkpoints, bi) if po_checkpoints else global_po
         poe = _po_at(poe_checkpoints, bi) if poe_checkpoints else None
@@ -6214,8 +6300,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         nonlocal page, spent, carry_open
         nonlocal page_hdrs, page_ftrs, page_hdrs_pcl, page_ftrs_pcl
         nonlocal page_hdrs_e, page_hdrs_o, page_ftrs_e, page_ftrs_o
+        nonlocal page_end_geom
         _advance_column()
         page, spent = [], 0.0
+        page_end_geom = None
         page_hdrs, page_ftrs = dict(cur_hdrs), dict(cur_ftrs)
         page_hdrs_pcl, page_ftrs_pcl = dict(cur_hdrs_pcl), dict(cur_ftrs_pcl)
         page_hdrs_e, page_hdrs_o = dict(cur_hdrs_e), dict(cur_hdrs_o)
@@ -6312,17 +6400,31 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # answer's opening line after all, just elsewhere in the
             # document happens to still total 9 pages by coincidence).
             if printed:
-                needed, seen = 0.0, 0
+                needed, seen, last_lead = 0.0, 0, default_lead
                 for peek in lines[_li + 1:]:
                     if peek is None:
                         break
                     if isinstance(peek, tuple) and peek and peek[0] in ('hf', 'cond'):
                         continue
-                    needed += getattr(peek, 'lead', None) or default_lead
+                    last_lead = getattr(peek, 'lead', None) or default_lead
+                    needed += last_lead
                     seen += 1
                     if seen >= l[1]:
                         break
-                short = (budget - _col_cut() - spent - notes.height_pt) < needed - 1e-6
+                # `.cp n` asks whether n lines fit, not whether the lines that
+                # happen to follow it do: a line that is not there (a `.pa`,
+                # the end of the text) still takes the room it would have
+                # (WS4 teardown 7.7, runs w14-pafoot/w14-cpfoot; WS7
+                # teardown `wordstar-dos/11-print-engine.md` 11.3, 15.1:
+                # room / line height < n breaks).
+                needed += max(0, l[1] - seen) * last_lead
+                room = budget - _col_cut() - spent - notes.height_pt
+                if era.line_starts_in_room:
+                    # WS4: floor(R / LH) + 1 < n, i.e. the nth line from here
+                    # would not start in the room that is left.
+                    short = (needed - last_lead) >= room - 1e-6
+                else:
+                    short = room < needed - 1e-6
             else:
                 short = (cap - len(page)) < l[1]
             if short and page:
@@ -6337,8 +6439,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if printed and not page and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
             cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo, cur_or = _recompute_geom(l.bi)
             cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
-            budget = _printed_budget_pt(doc, cap, default_lead,
-                                        cur_mt, cur_mb, cur_pl)
+            budget = _budget_for(cap, cur_mt, cur_mb, cur_pl)
         if printed:
             _open_area()
         # A line LEAVING the columnar region releases the group's shared
@@ -6360,8 +6461,21 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # than the whole page still lands somewhere: a slightly overflowing
         # page beats a hang or lost content (the same doctrine
         # `_admit_footnotes` documents).
-        overflow = (spent + _cost(l) + notes.height_pt > budget - _col_cut() + 1e-6) \
-                  if printed else len(page) >= cap
+        if exact_budget and getattr(l, 'bi', None) is not None:
+            # WS4: a `.pl/.mt/.mb` read mid-page changes this page's budget
+            # at once; the page's own stamps (`cur_mt`..., its printed top
+            # margin) stay what the page opened with.
+            line_geom = _body_geometry_at(body_checkpoints, l.bi,
+                                          read_tally.get(l.bi, 0))
+            budget = _budget_for(cap, *line_geom)
+        if not printed:
+            overflow = len(page) >= cap
+        elif era.line_starts_in_room:
+            # WS4 starts a line while the height used is under the body
+            # height; the page ends after the first line that overruns it.
+            overflow = spent + notes.height_pt > budget - _col_cut() - 1e-6
+        else:
+            overflow = spent + _cost(l) + notes.height_pt > budget - _col_cut() + 1e-6
         # Finding 1 (round 26 visual pass): the FIRST `ws4_spacing`
         # blank (see `_ws4_spacing_blank_indices`) to overflow a page's
         # budget never triggers the break by itself -- a physical
@@ -6394,8 +6508,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 if printed and full and mt_mb_checkpoints and getattr(l, 'bi', None) is not None:
                     cur_mt, cur_mb, cur_pl, cur_hm, cur_fm, cur_po, cur_poe, cur_poo, cur_or = _recompute_geom(l.bi)
                     cap = _printed_cap_for(doc, cur_mt, cur_mb, cur_pl)
-                    budget = _printed_budget_pt(doc, cap, default_lead,
-                                                cur_mt, cur_mb, cur_pl)
+                    budget = _budget_for(cap, cur_mt, cur_mb, cur_pl)
                 if printed and full and l is not None:
                     _open_area()
             if l is None:
@@ -6424,6 +6537,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             read_tally[bi_here] = read_tally.get(bi_here, 0) + 1
             read_pos[0] = (bi_here, read_tally[bi_here])
         page.append(l)
+        if exact_budget and getattr(l, 'bi', None) is not None:
+            page_end_geom = line_geom
         if printed:
             # The page that admits the document's last line of regular text
             # is the terminal page: the floor lifts there (rule 5). Then this
@@ -7332,7 +7447,7 @@ def _printed_hf_right(doc, left):
     return left + rm_cols * _PDF_PT_PER_COL
 
 
-def _ctrl_k_even_page(txt, page_no):
+def _ctrl_k_even_page(txt, page_no, keep_blank=True):
     """A `^K` (0x0B) in a header/footer line suppresses the blanks that
     follow it, on EVEN-numbered pages only.
 
@@ -7364,16 +7479,23 @@ def _ctrl_k_even_page(txt, page_no):
     from "the run of blanks collapses to one" -- no document in the
     corpus has one, and both readings give the identical answer on every
     page that does exist; noted rather than guessed at.
+
+    WS4 DROPS THE `^K` TOGETHER WITH EVERY BLANK AND TAB THAT FOLLOWS and
+    keeps nothing (`Era.pk_even_keeps_blank` False; WS4 teardown,
+    `wordstar4-dos/evidence/pass3/exe-static.md` 9, code 16FD3-16FEB; run
+    p12-hepk: `.HE ^K<5 blanks>Pg #` prints `     Pg 1` and `Pg 2`).
     """
     if page_no % 2 or '\x0b' not in txt:
         return txt
     out, i = [], 0
+    run = ' ' if keep_blank else ' \t'          # WS4 drops tabs with the blanks
     while i < len(txt):
         if txt[i] == '\x0b':
             i += 1
-            while i < len(txt) and txt[i] == ' ':
+            while i < len(txt) and txt[i] in run:
                 i += 1
-            out.append(' ')
+            if keep_blank:
+                out.append(' ')
             continue
         out.append(txt[i])
         i += 1
@@ -7662,7 +7784,8 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                 saved_target_col = round(abs_hmi / _TAB_HMI_PER_COL) + len(stripped_suffix)
                 new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
                 txt = txt[:char_idx] + (' ' * new_cols) + suffix
-        return render(_ctrl_k_even_page(txt, page_no))
+        return render(_ctrl_k_even_page(
+            txt, page_no, _era_for(doc.meta.get('variant')).pk_even_keeps_blank))
 
     # The header block is anchored to the BODY, not the paper edge: its last
     # line sits `.hm` lines above the first body line, inside `.mt` (".MT ...

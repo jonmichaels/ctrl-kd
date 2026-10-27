@@ -4975,7 +4975,14 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     1/4" in from the left edge (one `cm` wrapping the page's content). The
     page's own ops are untouched. `styled` and the print stream are read as
     print streams, which carry their own offset and stay at the edge, and
-    Modern never moves."""
+    Modern never moves.
+
+    Re-pinned a TENTH time 2026-10-27 (the `make_prose` PRINTED hash ONLY):
+    `make_prose` has no header, so it is a WS4 document, and WS4 prints its
+    automatic page number at the `.PC` default 28 (`Era.pc_default`; WS4
+    teardown `wordstar4-dos/4-formatting-printing.md` 3.2, runs x41-*), not
+    at WS7's centred 33.5. Its one drawn number moves 39.6pt left; the
+    body, the page breaks and the other three hashes are unchanged."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4987,7 +4994,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        '74047110c0fce45fd4e6b3ca36af0c5e6d92dc45a605d8e4f3b4927f797bb041'
+        '98b2f52325b0f8fa2814a576fc318282a3b143cec2487fb95c35e07a0a8f333d'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'e766708c4040a5e50e8663fc5730fc6c8bbf9fb5be226a1abdeab16b150ca90d'
     assert digest(core.parse_ws(styled), 'printed') == \

@@ -2561,11 +2561,34 @@ class Era:
     versions: ask `era.high_bit_wordwrap`, never `variant == 'ws4'`."""
 
     __slots__ = ('name', 'high_bit_wordwrap', 'symmetric_blocks', 'has_notes',
-                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero')
+                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero',
+                 'line_starts_in_room', 'geometry_acts_at_once',
+                 'pk_even_keeps_blank')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
-                 has_sb, column_unit, pc_default, bare_po_zero=False):
+                 has_sb, column_unit, pc_default, bare_po_zero=False,
+                 line_starts_in_room=False, geometry_acts_at_once=False,
+                 pk_even_keeps_blank=True):
         self.name = name
+        # WS4's page counter (WS4 teardown, `wordstar4-dos/4-formatting-
+        # printing.md` 3.1): R starts a page at H - 1 and each line costs LH,
+        # so a line STARTS while the height used is under the body height H
+        # and the page holds floor((H - 1) / LH) + 1 lines (37 at `.lh 12`;
+        # `.cp n` breaks when floor(R / LH) + 1 < n). WS7 instead keeps a
+        # line only when it fits whole (`wordstar-dos/11-print-engine.md`
+        # 11.3), and `.cp n` there is `room / LH < n`.
+        self.line_starts_in_room = line_starts_in_room
+        # WS4 re-derives R at once when `.pl/.mt/.mb` change (`R := R - Hold +
+        # Hnew`, routine 1EE1B), so the page in progress takes the new body
+        # height, tighter or looser (`wordstar4-dos/evidence/pass3/exe-
+        # static.md` 8, runs t43-mtmb). WS7 measurements say a mid-document
+        # margin change may loosen a page but never tighten it.
+        self.geometry_acts_at_once = geometry_acts_at_once
+        # `^PK` in a header/footer on an EVEN page: WS7 keeps one blank of
+        # the run that follows (measured, `sawyer/REF/CTRL-K.H1`); WS4 drops
+        # the `^PK` together with every blank and tab after it (`exe-static.md`
+        # 9, 16FD3-16FEB; run p12-hepk).
+        self.pk_even_keeps_blank = pk_even_keeps_blank
         # A bare `.po` (no argument) sets the page offset to 0. WS7 Rev. D
         # does that (runs arg-*: x = 0), though a bare `.pl/.mt/.mb/.lh`
         # keeps its previous value (WS7 teardown,
@@ -2592,7 +2615,12 @@ class Era:
         # WS7's code (ruler unit 180 HMI = 1/10 inch; WS7 teardown,
         # `wordstar-dos/7-configuration.md` 7.1); the WS4 half has not been run.
         self.column_unit = column_unit
-        self.pc_default = pc_default          # page-number column
+        # The column the automatic page number starts in when `.pc` is unset
+        # or 0 (1-based, counted from `.po`; a number may be fractional: WS7
+        # centres a one-digit number on 33.5, WS7 teardown `wordstar-dos/11-
+        # print-engine.md` 11.5). WS4's factory `.PC` is 28 (WS4 teardown
+        # 3.2, 4 §13; runs x41-*).
+        self.pc_default = pc_default
 
     def __repr__(self):
         return f'<Era {self.name}>'
@@ -2601,14 +2629,16 @@ class Era:
 ERAS = {
     # name      hibit  sym    notes  .sb    column_unit  .pc
     'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
-    'ws4':  Era('ws4',  True,  False, False, False, 'font',       28),
-    'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 28,
+    'ws4':  Era('ws4',  True,  False, False, False, 'font',       28,
+                line_starts_in_room=True, geometry_acts_at_once=True,
+                pk_even_keeps_blank=False),
+    'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 33.5,
                 bare_po_zero=True),
 }
 
 # A print stream is printer output, not a document: no dot commands survive in
 # it and none of the above applies. It gets the most conservative entry.
-ERAS['printstream'] = Era('printstream', False, False, False, False, 'tenth-inch', 28)
+ERAS['printstream'] = Era('printstream', False, False, False, False, 'tenth-inch', 33.5)
 ERAS['text'] = ERAS['printstream']
 
 # 'binary' is a DETECTED variant, not an unknown one, and it must not inherit the
@@ -2618,7 +2648,7 @@ ERAS['text'] = ERAS['printstream']
 # escaped byte and every byte after it. Caught by the Swift port's escape test,
 # which this table had silently regressed; Python's own suite had no equivalent.
 # Conservative on BOTH axes -- no high-bit stripping AND no symmetric blocks.
-ERAS['binary'] = Era('binary', False, False, False, False, 'tenth-inch', 28)
+ERAS['binary'] = Era('binary', False, False, False, False, 'tenth-inch', 33.5)
 
 
 def era_for(variant):
