@@ -74,6 +74,11 @@ A MISMATCH is a fact to look at, not a verdict: it may be the engine, or a
 rule the reading does not cover yet. `--report` prints every one.
 
     CTRLKD_TEARDOWNS=/path/to/teardowns python3 tools/teardown_fixtures.py --report [--json OUT]
+
+After a deliberate change, `--update-known` rewrites the counts in
+`tests/teardown_fixtures_known.json`, keeping every part's reason: it drops
+the parts that now match, and refuses to write when a part mismatches for
+the first time (that part needs its reason written first).
 """
 from __future__ import annotations
 
@@ -569,11 +574,53 @@ def report(base=None):
     return rows
 
 
+KNOWN_PATH = os.path.join(_HERE, '..', 'tests', 'teardown_fixtures_known.json')
+
+
+def update_known(rows, path=KNOWN_PATH):
+    """Rewrite the known list's `kinds` from `rows`, keeping each reason."""
+    with open(path) as f:
+        known = json.load(f)
+    old = known['parts']
+    new, unreasoned = {}, []
+    for r in rows:
+        if r['error']:
+            print(f'{r["case"]}: {r["error"]}', file=sys.stderr)
+            return 1
+        kinds = {}
+        for m in r['mismatches']:
+            kinds[m['kind']] = kinds.get(m['kind'], 0) + 1
+        if not kinds:
+            continue
+        reason = old.get(r['case'], {}).get('reason')
+        if not reason:
+            unreasoned.append(f'{r["case"]} {kinds}')
+            continue
+        new[r['case']] = {'kinds': kinds, 'reason': reason}
+    if unreasoned:
+        print('new mismatches need a reason first (nothing written):', file=sys.stderr)
+        for u in unreasoned:
+            print('  ' + u, file=sys.stderr)
+        return 1
+    for case in sorted(set(old) - set(new)):
+        print(f'now matches: {case}')
+    for case in sorted(set(old) & set(new)):
+        if old[case]['kinds'] != new[case]['kinds']:
+            print(f'counts changed: {case} {old[case]["kinds"]} -> {new[case]["kinds"]}')
+    known['parts'] = new
+    with open(path, 'w') as f:
+        json.dump(known, f, indent=1, ensure_ascii=False)
+        f.write('\n')
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--report', action='store_true', help='print every mismatch')
     ap.add_argument('--json', help='also write the full report as JSON here')
     ap.add_argument('--limit', type=int, default=8, help='mismatches shown per part')
+    ap.add_argument('--update-known', action='store_true',
+                    help='rewrite the known list\'s counts, keeping each reason')
     a = ap.parse_args(argv)
     problem = manifest_problem()
     if problem:
@@ -584,6 +631,8 @@ def main(argv=None):
         if ip:
             print('install:', ip)
     rows = report()
+    if a.update_known:
+        return update_known(rows)
     clean = [r for r in rows if not r['mismatches'] and not r['error']]
     print(f'{len(rows)} parts: {len(clean)} match, {len(rows) - len(clean)} do not')
     for r in rows:

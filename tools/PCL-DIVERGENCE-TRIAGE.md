@@ -2859,3 +2859,29 @@ field unset — the PDF bytes for this document are UNCHANGED, confirmed
 byte-for-byte, since the override it now writes is numerically the SAME
 12pt the document's own default lead already produced with no override
 at all).
+
+
+## 2026-10-26: what the WordStar teardowns now explain (planning #549)
+
+Several mechanisms above were diagnosed here and left unfixed because the
+rule was not known. WS7's own code now gives it; none is implemented yet.
+
+- **Pair kerning** (the kerning chunk splits): a pair's delta is
+  `floor(|delta| * height_dots / 128)`, applied only between two characters of
+  the same font and sub/superscript state with no tab between, and pairs of
+  magnitude 7 or less never enter the table (WS7 teardown,
+  `wordstar-dos/11-print-engine.md` 11.12, `.kr`).
+- **Right and centre tabs** (the per-page right-tab padding): records of type
+  5Dh and 21h are re-aligned by the driver at the line's end when the line is
+  not justified, using the driver's widths; decimal tabs are editor-only
+  (`11-print-engine.md` 11.8).
+- **CG Times / Univers residuals** (mechanism I): WS7's widths are the raw HP
+  TFM design units, 8782 per em (2048 for the TrueType faces), and box
+  drawing B0h-DFh is one em in the Compugraphic faces
+  (`9-printer-drivers.md` 9.6, `reference/printer-database.txt`).
+- **Justification**: the per-gap rule is `floor(w * S_rem / W_rem)` in dots
+  (`11-print-engine.md` 11.7.3; see pdf.py `_justify_pieces_printed`).
+- **The PCL logical page** starts 1/4" in from the paper's left edge, which is
+  why the frame offset this gate measures is the x origin of the PCL frame,
+  not the paper's (`7-configuration.md` 7.7). Whether Printed should add it is
+  open (planning #549).

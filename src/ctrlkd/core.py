@@ -2643,6 +2643,11 @@ _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 # "Versions prior to 4.0 require whole numbers as arguments to dot commands
 # that require numbers (subscript roll, page offset). With version 4.0, math
 # was allowed in the arguments for easier entry of complex page layouts."
+# WS4's own code does not bear that out: its argument reader takes ASCII
+# digits only and stops at anything else, so a WS4 argument is a whole
+# number, and the "math" of 4.0 is `.MA` and the merge variables (WS4
+# teardown, `wordstar4-dos/3-document-format-files.md` 3.12). The grammar
+# below is applied to every variant all the same.
 # `_DOT_NUM_RE` above only ever matched a bare decimal -- it stops at the
 # first `/` or `(`, so a fraction or a parenthesized expression silently fell
 # back to being read as whatever bare digits happened to precede it (planning
@@ -3601,8 +3606,10 @@ def _parse_collect_dot(cmd: bytes, doc, encoding: str, block_index: int):
         #
         # The file is NOT read. It may not exist, it may be a Lotus worksheet
         # (the spec allows those), and following it would need the containing
-        # directory plus a nesting limit. Saying a file belongs here is the
-        # honest half we can do.
+        # directory plus a nesting limit (WS4 nests `.FI` seven levels under
+        # the master and skips an eighth without a message; WS4 teardown,
+        # `wordstar4-dos/4-formatting-printing.md` 8). Saying a file belongs
+        # here is the honest half we can do.
         parts = m.group(1).split()
         if parts:
             name = parts[0].decode(encoding, 'replace')
@@ -7353,7 +7360,10 @@ def compile_toc(doc, page_numbers=None):
 def compile_index(doc, page_numbers=None):
     """[display_text] from `doc.index_entries` -- same `#`/page-number
     resolution as `compile_toc`, flattened (an index entry carries no
-    level). Register C6."""
+    level). Register C6. Document order: WordStar's own index is sorted
+    (WS4: case-insensitive, first letter upper-cased, pages merged; WS4
+    teardown, `wordstar4-dos/4-formatting-printing.md` 13.3), which this
+    does not do."""
     return [_toc_index_display(text, block_index, page_numbers)
            for text, block_index in doc.index_entries]
 

@@ -63,10 +63,11 @@ LINES_MODERN = (PAGE_H - 2 * 72) // LEAD                 # 54
 # way, confirming right-alignment to a fixed column, not a `.po`-relative
 # one. WSFORMAT.TXT's own internal-format section (the 0Ch "Page offset"
 # printer-driver record) calls this field an "Absolute HMI spot for line
-# number", which is the same reading. One oracle value only (both real
-# `.l#` occurrences in the Sawyer archive share the same `.po .8"`) -- a
-# document with a narrower `.po` than this could in principle overlap its
-# own body text; not observed, not guarded against.
+# number", which is the same reading. WS7's code agrees and adds what this
+# engine does not draw yet: the number is right-aligned to 288 decipoints in
+# Courier 10 cpi on EVERY row of the page, empty ones included, with a double
+# bar at 504 and a single bar at 5328 (WS7 teardown,
+# `wordstar-dos/reference/drivera-map.txt`; run lnum-courier).
 LINE_NO_RIGHT_PT = 28.8
 # Printed capacity is per-document: _printed_cap() -- WordStar's own model
 # (.pl - .mt - .mb at the .lh line height; 55 for WordStar's defaults). The
@@ -273,12 +274,14 @@ def _printed_cap(doc):
     leading mid-page therefore paginates at a fixed lines-per-page while its
     lines advance at their own leads, so a page of tightly-led text ends
     early and a page of banners can run long. Whether WordStar RECOMPUTED
-    lines-per-page as `.lh` changed is UNMEASURED -- register open question
-    #15 -- and the honest options (recompute per line, or accumulate points
-    until the text height is used up) are different answers to a question no
-    manual page settles. Guessing here would silently repaginate every
-    multi-`.lh` document on an assumption; leaving capacity where the
-    evidence is keeps the change to what was ruled: leads, not pagination."""
+    lines-per-page as `.lh` changed is answered by both programs' code: it
+    accumulates height. WS7 ends a page after a line when the room left is
+    under the next line's height plus its base (WS7 teardown,
+    `wordstar-dos/11-print-engine.md` 11.3); WS4 starts a line while the
+    height used is under the body height, n = floor((H - 1) / LH) + 1 lines
+    at one LH (WS4 teardown, `wordstar4-dos/4-formatting-printing.md` 3.1).
+    Printed's points budget (`_printed_budget_pt`) is the WS7 shape; the
+    run fixtures name where it still differs (WS4's rule, WS7's overhang)."""
     page = doc.meta.get('page')
     if page is not None:
         return max(FOOTNOTE_FLOOR + 1, page.get('text_lines', 55))
@@ -8793,9 +8796,16 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     tested (mean residual 0.43dp vs 0.49dp on whole-column slack, 0.80dp
     vs 0.89dp on fractional slack, across 376 measured gaps) -- but it is
     still a disclosed approximation, not a fidelity-gate pass: it does not
-    hit every gap to the decipoint, and the true algorithm remains
-    unidentified (candidates ruled out and still open are in the research
-    note). The split is done in integer decipoints deliberately, not
+    hit every gap to the decipoint. WS7's own algorithm is now read from its
+    driver (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.7.3; it
+    reproduces all six measured rows above exactly): in DOTS (1/300in), each
+    run of blanks between the first word and the last takes
+    `floor(w * S_rem / W_rem)` of the slack still left, w being that run's
+    own width (so a double blank takes twice a single one's share, and a
+    proportional blank its own width's share), the remainders falling to the
+    later gaps; the trailing blanks before a soft return are not a gap; a
+    word lands at `floor(x_dots * 720 / 300)` decipoints. Not implemented
+    here yet. The split is done in integer decipoints deliberately, not
     float points, so the result never depends on summation order.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
@@ -9605,10 +9615,10 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
         # own `.po` already reserved without shifting `left` itself, same
         # as a running head does. Rendered in the document's own default
         # body font (`_span_render` with no styles -- the SAME resolution
-        # an ordinary unstyled span gets), not a hardcoded face: the one
-        # real oracle happens to be Courier, which is also this engine's
-        # own fallback, so this is untested against a document whose
-        # default body font is something else.
+        # an ordinary unstyled span gets). WS7 prints the numbers in
+        # Courier 10 cpi whatever the body font (WS7 teardown,
+        # `wordstar-dos/reference/drivera-map.txt`), so this differs from
+        # WS7 only for a document whose default body font is not Courier.
         # planning #251(d): the label/x themselves are now
         # `_doc_to_pagelines`'s own decision (`_attach_line_numbers_
         # printed`, set on `PageLine.line_no`) -- this call site's only

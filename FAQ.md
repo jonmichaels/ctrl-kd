@@ -38,14 +38,13 @@ implement the split properly. Technical details: `ERAS.md`.
 
 ### WordStar 3 (CP/M and early DOS)
 
-Not currently supported: ctrl-kd will not identify a file as WordStar 3. The
-groundwork exists — the era table already carries a `ws3` entry recording what is
-known to differ (the default page-number column moved from 33 to 28 between 3.3
-and 4, and pre-WS5 margin commands measure columns in the *current font's* width
-rather than a fixed 0.1 inch) — but detection was never taught to recognise the
-release, because we had no WordStar 3 documents to detect. If you have real
-WordStar 3 files, open an issue: with samples in hand the support is a
-well-marked, modest job. Technical details: `ERAS.md`.
+A WordStar 3.30 document converts as WordStar 4, and that reading is correct: a
+plain 3.30 file has no header or version byte, and every byte 3.30 writes means
+the same in WS4, so the two cannot be told apart by their bytes. ctrl-kd
+therefore never reports a file as WordStar 3. Three small things differ if you
+know a file is 3.30 (from its disk or date): its `00h` bytes are SpellStar flags
+rather than text, `.LM`/`.RM`/`.LS` act only in merge printing, and the default
+page-number column is 33, not 28. Technical details: `ERAS.md`.
 
 ## How do I know the output is right?
 
@@ -70,6 +69,9 @@ WordStar 5+ itself acknowledged other code pages — its font blocks carry
 symbol-map bits that distinguish cp437 from cp850, the DOS "multilingual"
 Western European set — so files written on French, German, or Spanish machines
 plausibly exist with accented text in cp850 (or cp860/863/865) byte positions.
+(The bits do not change what WS7 prints, though: its LaserJet driver does no
+code-page translation, and every font's select string fixes the PC-8 symbol
+set, so a cp850 or Math font block still prints PC-8.)
 
 We have **zero such files**. Implementing another code page is easy — it is a
 byte table — but *validating* one is not: without a real document written on

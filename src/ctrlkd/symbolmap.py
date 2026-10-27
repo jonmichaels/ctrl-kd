@@ -13,7 +13,11 @@ Trigger is the font block's own symbol-map bits (10=Math -> Symbol encoding,
 11=Symbols -> Dingbats encoding) with the typestyle NAME as fallback.
 Consistent with the CP850 oracle finding: there the DRIVER ignored the bits
 (body bytes stayed cp437 for text fonts); here the FONT carries the glyphs,
-and emulating the font is exactly what a converter is for.
+and emulating the font is exactly what a converter is for. WS7's code says
+the same: its LaserJet driver translates nothing, each font's own select
+string fixes the symbol set (PC-8 in the text faces, Symbol and WingDings in
+theirs), and the cp850/Math bits only help choose a font record (WS7
+teardown, `wordstar-dos/9-printer-drivers.md` 9.9).
 
 Unmapped bytes pass through unchanged -- pass-through beats a wrong guess.
 """

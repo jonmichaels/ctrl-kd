@@ -21,9 +21,11 @@ both `ws7-prints/v4`, private corpus):
      across the single-blank gaps (a documented APPROXIMATION: WS7's own
      real per-gap split is not perfectly flat even when the total divides
      evenly, e.g. one measured 8-gap/72-decipoint line split 7,7,10,9,10,
-     9,10,10 rather than a flat 9 each -- WS7's own internal rounding was
-     not reverse-engineered to the decipoint this pass; the always-flush,
-     self-consistent even split ships instead, documented as approximate).
+     9,10,10 rather than a flat 9 each; the always-flush, self-consistent
+     even split ships instead, documented as approximate). WS7's own rule
+     is now known -- dots, floor(w * S_rem / W_rem) per run of blanks (WS7
+     teardown, `wordstar-dos/11-print-engine.md` 11.7.3) -- and not yet
+     implemented.
   3. Only a line that resolves to exactly ONE styled span is justified --
      a styled/mixed line (a bold word mid-sentence, a leading indent) is
      left unjustified this pass (narrow, documented scope).
