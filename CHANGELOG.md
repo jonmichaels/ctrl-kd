@@ -41,6 +41,12 @@ the programs' own code and real runs, checked by a new test tier
 
 ### Changed
 
+- **`--fonts mac` takes closer faces for three LaserJet families**: Antique
+  Olive in Verdana (was Optima), Aachen and Albertus in Optima (were Rockwell
+  and Herculanum), and a bold Garamond run in Cochin (the RTF switches font for
+  the bold run). Each is the shipping Mac face whose widths are closest to WS7's
+  LaserJet driver's.
+
 - **A Printed page sits on the LaserJet's logical page.** WordStar measures
   every x from the PCL logical page, 1/4" in from a Letter sheet's left edge
   (71 dots on A4, 60 and 59 in landscape: HP PCL 5 Technical Reference,

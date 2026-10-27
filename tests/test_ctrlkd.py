@@ -4602,7 +4602,7 @@ def test_document_declaring_albertus_does_not_fall_through_to_generic():
     from ctrlkd.typestyles import TYPESTYLE_NAMES
     aachen_n = next(k for k, v in TYPESTYLE_NAMES.items()
                     if v.lower().startswith('aachen'))
-    expected_primary = {'office': 'Colonna MT', 'mac': 'Herculanum',
+    expected_primary = {'office': 'Colonna MT', 'mac': 'Optima',
                         'google': 'Cinzel', 'linux': 'DejaVu Serif'}
 
     def font(n):
@@ -4630,6 +4630,29 @@ def test_document_declaring_albertus_does_not_fall_through_to_generic():
     # must carry a real glyphic alternate BEFORE the bare CSS generic --
     # not `font-family:'Albertus', serif` with nothing in between.
     assert "font-family:'Albertus', 'Herculanum', 'Colonna MT', 'Rockwell', serif" in html
+
+
+def test_mac_target_takes_the_faces_closest_to_the_drivers_widths():
+    """The `mac` target sets Antique Olive in Verdana, Aachen and Albertus in
+    Optima, and a BOLD Garamond run in Cochin: the shipping faces whose
+    widths are closest to WS7's LaserJet driver's. Other targets keep theirs."""
+    from ctrlkd.fontmap import rtf_fonts, bold_face
+    assert rtf_fonts('antique olive', 'sans', 'mac')[0] == 'Verdana'
+    assert rtf_fonts('aachen', 'serif', 'mac')[0] == 'Optima'
+    assert rtf_fonts('albertus', 'serif', 'mac')[0] == 'Optima'
+    assert rtf_fonts('rockwell', 'serif', 'mac')[0] == 'Rockwell'
+    assert bold_face('Garamond', 'mac') == 'Cochin'
+    assert bold_face('Garamond', 'office') is None
+    garamond = ws7_block(0x02, (142).to_bytes(2, 'little') + (240).to_bytes(2, 'little')
+                         + (0xC612).to_bytes(2, 'little') + bytes(6))
+    data = (ws7_block(0x00) +
+            b'Prose padding for detection, a perfectly ordinary sentence.\r\n' +
+            garamond + b'Plain then \x02bold\x02 again.' + HARD +
+            b'Closing prose line keeps the byte ratio looking like text.\r\n')
+    rtf = emit.emit_rtf(core.parse_ws(data), mode='modern', fonts_target='mac')
+    assert '{\\f2 Hoefler Text{\\*\\falt Garamond};}' in rtf
+    assert '{\\f3 Cochin{\\*\\falt Hoefler Text};}' in rtf
+    assert re.search(r'\\b [^}]*\\f3 [^}]*bold', rtf), rtf
 
 
 def test_postscript_document_typefaces_map_to_correct_face_every_target():

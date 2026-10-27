@@ -21,7 +21,7 @@ from .core import (merged_lines, Span, Block, trailing_blank_lines, coalesce_spa
                    pm_first_line_indent_cols, graphic_row_clips,
                    fixed_pitch_column_body_col,
                    line_numbering_checkpoints, line_numbering_at)
-from .fontmap import font_stack, rtf_fonts
+from .fontmap import bold_face, font_stack, rtf_fonts
 
 # ---------------------------------------------------------------- registry
 #
@@ -1613,6 +1613,13 @@ def _font_ctl_rtf(doc, target='office', inline_styling=True):
                     extra.append('{\\f%d %s;}' % (next_k, safe))
                 next_k += 1
             parts += '\\f%d' % prim_to_k[primary]
+            bold = bold_face(fam, target) if f.get('proportional') is not False else None
+            if bold:
+                if bold not in prim_to_k:
+                    prim_to_k[bold] = next_k
+                    extra.append('{\\f%d %s{\\*\\falt %s};}' % (next_k, bold, primary))
+                    next_k += 1
+                ctl['font%d:b' % idx] = '\\f%d ' % prim_to_k[bold]
         pts = f.get('points')
         # round 18 (RULINGS-LEDGER row 10): gated ONLY for a genuinely
         # INLINE (mid-text) font change -- `f['offset']` is the byte
@@ -2997,6 +3004,10 @@ def _rtf_span(sp, refs, keep, fontctl=None, printed=False, shown_map=None,
                 c += r'\dn%d ' % roll_half_pt
         if fontctl:
             c += ''.join(fontctl.get(st, '') for st in these_styles if st.startswith('font'))
+            if 'b' in these_styles:
+                # a family whose bold takes a face of its own (fontmap.BOLD_FACES)
+                c += ''.join(fontctl.get(st + ':b', '') for st in these_styles
+                             if st.startswith('font'))
         # planning #252 (Jon's ruling 2026-09-09): a run no WS5+ font block
         # covers (no 'fontN' tag at all -- core.py:3371's own producer,
         # the same test `_span_font`/pdf.py's `_modern_tok_font` use) gets

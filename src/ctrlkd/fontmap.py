@@ -234,19 +234,20 @@ TARGET_FONTS = {
         ('prestige',                             ('Courier New', None)),
         ('univers',                              ('Helvetica Neue', 'Arial')),
         ('cg triumvirate|triumvirate|ps sansser qual',       ('Helvetica', 'Arial')),
-        ('antique olive',                        ('Optima', 'Verdana')),
+        # Antique Olive, Albertus and Aachen (which WS7's LaserJet driver
+        # prints in its Albertus) take the shipping face whose widths are
+        # closest to the driver's: Verdana -2.5%, Optima +1% (Optima was -16%
+        # for Antique Olive, Rockwell +16% for Albertus).
+        ('antique olive',                        ('Verdana', 'Optima')),
         ('optima',                               ('Optima', 'Candara')),
         ('garamond',                             ('Hoefler Text', 'Garamond')),
         ('clarendon',                            ('Rockwell', 'Clarendon')),
-        ('aachen|rockwell',                      ('Rockwell', 'Courier New')),
+        ('aachen',                               ('Optima', 'Rockwell')),
+        ('rockwell',                             ('Rockwell', 'Courier New')),
         ('bodoni',                               ('Bodoni 72', 'Bodoni MT')),
         ('broadway',                             ('Phosphate Solid', 'Futura')),
         ('univ. roman',                          ('Didot', 'Georgia')),
-        # Herculanum: Apple's own bundled glyphic/incised display face
-        # (Frutiger, ships standard in macOS's decorative set alongside
-        # Papyrus) -- the closest Mac-native chiseled-serif match to
-        # Albertus's flared, non-serif/non-sans character.
-        ('albertus',                              ('Herculanum', 'Copperplate')),
+        ('albertus',                             ('Optima', 'Herculanum')),
     ]),
     'google': _expand([
         ('avant garde',                          ('Poppins', 'Century Gothic')),
@@ -321,6 +322,20 @@ TARGET_FONTS = {
         ('albertus',                              ('DejaVu Serif', 'Rockwell')),
     ]),
 }
+
+
+# A bold run takes a face of its own where the family's own bold is far from
+# the driver's widths: Hoefler Text Bold sets Garamond bold 7% wide, Cochin
+# Bold 2% narrow.
+BOLD_FACES = {
+    'mac': {'garamond': 'Cochin'},
+}
+
+
+def bold_face(family, target='office'):
+    """The face a BOLD run of `family` takes on `target` in place of the
+    family's own primary, or None when it keeps it."""
+    return BOLD_FACES.get(target, {}).get((family or '').lower())
 
 
 def rtf_fonts(family, generic_style=None, target='office', proportional=None):
