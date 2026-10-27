@@ -1907,14 +1907,11 @@ def detect(data: bytes) -> dict:
         # byte (WS4 report 3.14, run ws5hdr -- `1D 7D 00 00 80 00` and
         # zero fill read as one line of `^]}^@^@...`). The zero fill is
         # WS4's kept 00h, not binary noise, so judge what follows the
-        # block (text for 90%, the bar a plain-text file clears).
+        # block by the ordinary statistics: when they say text, it is the
+        # WS4 file's text.
         if 8 <= jump < 0x400 and end < len(data) and data[end] != 0x1D:
-            body = data[end + 1:]
-            eof = _bare_eof(body)
-            body = body[:eof] if eof != -1 else body
-            if body and sum(1 for b in body
-                            if 0x20 <= b < 0x7F or b in (0x0D, 0x0A, 0x09)
-                            ) * 100 // len(body) >= 90:
+            after = detect(data[end + 1:])['variant']
+            if after in ('text', 'printstream', 'ws4'):
                 return _with_merge_data_kind(
                     data,
                     {'variant': 'ws4',
