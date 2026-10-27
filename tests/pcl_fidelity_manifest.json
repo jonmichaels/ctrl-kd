@@ -6371,631 +6371,10 @@
       "n_engine_pages": 28,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 31,
         "extra-word-in-engine": 7,
         "word-unmatched": 5
       },
       "divergences": [
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 211.5,
-          "words": [
-            "text",
-            "text"
-          ],
-          "ws7_pos": [
-            223.4,
-            211.5
-          ],
-          "pdf_pos": [
-            223.1,
-            212.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 211.5,
-          "words": [
-            "junk",
-            "junk"
-          ],
-          "ws7_pos": [
-            278.6,
-            211.5
-          ],
-          "pdf_pos": [
-            278.1,
-            212.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 211.5,
-          "words": [
-            "file.",
-            "file."
-          ],
-          "ws7_pos": [
-            306.2,
-            211.5
-          ],
-          "pdf_pos": [
-            305.6,
-            212.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 235.5,
-          "words": [
-            "program",
-            "program"
-          ],
-          "ws7_pos": [
-            217.9,
-            235.5
-          ],
-          "pdf_pos": [
-            217.6,
-            236.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 235.5,
-          "words": [
-            "(while",
-            "(while"
-          ],
-          "ws7_pos": [
-            262.0,
-            235.5
-          ],
-          "pdf_pos": [
-            261.6,
-            236.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 235.5,
-          "words": [
-            "working",
-            "working"
-          ],
-          "ws7_pos": [
-            300.7,
-            235.5
-          ],
-          "pdf_pos": [
-            300.1,
-            236.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 235.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            361.4,
-            235.5
-          ],
-          "pdf_pos": [
-            360.6,
-            236.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            209.5,
-            247.5
-          ],
-          "pdf_pos": [
-            209.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "editing",
-            "editing"
-          ],
-          "ws7_pos": [
-            231.6,
-            247.5
-          ],
-          "pdf_pos": [
-            231.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "screen).",
-            "screen)."
-          ],
-          "ws7_pos": [
-            275.7,
-            247.5
-          ],
-          "pdf_pos": [
-            275.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "files",
-            "files"
-          ],
-          "ws7_pos": [
-            195.8,
-            271.5
-          ],
-          "pdf_pos": [
-            195.6,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "once",
-            "once"
-          ],
-          "ws7_pos": [
-            245.5,
-            271.5
-          ],
-          "pdf_pos": [
-            245.1,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "with",
-            "with"
-          ],
-          "ws7_pos": [
-            273.1,
-            271.5
-          ],
-          "pdf_pos": [
-            272.6,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            300.7,
-            271.5
-          ],
-          "pdf_pos": [
-            300.1,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "4.0,",
-            "4.0,"
-          ],
-          "ws7_pos": [
-            350.4,
-            271.5
-          ],
-          "pdf_pos": [
-            349.6,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "using",
-            "using"
-          ],
-          "ws7_pos": [
-            378.0,
-            271.5
-          ],
-          "pdf_pos": [
-            377.1,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            165.3,
-            283.5
-          ],
-          "pdf_pos": [
-            165.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            187.4,
-            283.5
-          ],
-          "pdf_pos": [
-            187.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "windows",
-            "windows"
-          ],
-          "ws7_pos": [
-            209.5,
-            283.5
-          ],
-          "pdf_pos": [
-            209.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "feature",
-            "feature"
-          ],
-          "ws7_pos": [
-            253.6,
-            283.5
-          ],
-          "pdf_pos": [
-            253.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "found",
-            "found"
-          ],
-          "ws7_pos": [
-            297.8,
-            283.5
-          ],
-          "pdf_pos": [
-            297.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "later",
-            "later"
-          ],
-          "ws7_pos": [
-            347.5,
-            283.5
-          ],
-          "pdf_pos": [
-            346.6,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.91pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "file",
-            "file"
-          ],
-          "ws7_pos": [
-            223.4,
-            319.5
-          ],
-          "pdf_pos": [
-            223.1,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            267.6,
-            319.5
-          ],
-          "pdf_pos": [
-            267.1,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "hard",
-            "hard"
-          ],
-          "ws7_pos": [
-            289.6,
-            319.5
-          ],
-          "pdf_pos": [
-            289.1,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "disk",
-            "disk"
-          ],
-          "ws7_pos": [
-            317.2,
-            319.5
-          ],
-          "pdf_pos": [
-            316.6,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            344.8,
-            319.5
-          ],
-          "pdf_pos": [
-            344.1,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 319.5,
-          "words": [
-            "send",
-            "send"
-          ],
-          "ws7_pos": [
-            366.9,
-            319.5
-          ],
-          "pdf_pos": [
-            366.1,
-            320.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 331.5,
-          "words": [
-            "floppy",
-            "floppy"
-          ],
-          "ws7_pos": [
-            187.4,
-            331.5
-          ],
-          "pdf_pos": [
-            187.1,
-            332.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 331.5,
-          "words": [
-            "disk",
-            "disk"
-          ],
-          "ws7_pos": [
-            226.0,
-            331.5
-          ],
-          "pdf_pos": [
-            225.6,
-            332.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
-          "page": 9,
-          "line_y_top_pt": 331.5,
-          "words": [
-            "Drive",
-            "Drive"
-          ],
-          "ws7_pos": [
-            270.2,
-            331.5
-          ],
-          "pdf_pos": [
-            269.6,
-            332.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
         {
           "doc": "sawyer__MACROS__HOLYMAC__1-3MAC",
           "page": 12,
@@ -18884,811 +18263,10 @@
       "n_engine_pages": 4,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 118,
         "extra-word-in-engine": 1,
         "word-unmatched": 1
       },
       "divergences": [
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 160.5,
-          "words": [
-            "code",
-            "code"
-          ],
-          "ws7_pos": [
-            159.8,
-            160.5
-          ],
-          "pdf_pos": [
-            159.6,
-            160.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 160.5,
-          "words": [
-            "consisted",
-            "consisted"
-          ],
-          "ws7_pos": [
-            187.4,
-            160.5
-          ],
-          "pdf_pos": [
-            187.1,
-            160.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 160.5,
-          "words": [
-            "four",
-            "four"
-          ],
-          "ws7_pos": [
-            259.2,
-            160.5
-          ],
-          "pdf_pos": [
-            258.6,
-            160.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 160.5,
-          "words": [
-            "letters:",
-            "letters:"
-          ],
-          "ws7_pos": [
-            286.8,
-            160.5
-          ],
-          "pdf_pos": [
-            286.1,
-            160.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 160.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            391.6,
-            160.5
-          ],
-          "pdf_pos": [
-            390.59,
-            160.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "for",
-            "for"
-          ],
-          "ws7_pos": [
-            123.8,
-            184.5
-          ],
-          "pdf_pos": [
-            123.6,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "cytosine,",
-            "cytosine,"
-          ],
-          "ws7_pos": [
-            145.9,
-            184.5
-          ],
-          "pdf_pos": [
-            145.6,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            201.1,
-            184.5
-          ],
-          "pdf_pos": [
-            200.6,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "cytosine's",
-            "cytosine's"
-          ],
-          "ws7_pos": [
-            223.2,
-            184.5
-          ],
-          "pdf_pos": [
-            222.6,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "chemical",
-            "chemical"
-          ],
-          "ws7_pos": [
-            283.9,
-            184.5
-          ],
-          "pdf_pos": [
-            283.1,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "formula",
-            "formula"
-          ],
-          "ws7_pos": [
-            333.6,
-            184.5
-          ],
-          "pdf_pos": [
-            332.6,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 184.5,
-          "words": [
-            "was",
-            "was"
-          ],
-          "ws7_pos": [
-            377.7,
-            184.5
-          ],
-          "pdf_pos": [
-            376.59,
-            184.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.11pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "carbons,",
-            "carbons,"
-          ],
-          "ws7_pos": [
-            150.9,
-            208.5
-          ],
-          "pdf_pos": [
-            150.7,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "five",
-            "five"
-          ],
-          "ws7_pos": [
-            200.6,
-            208.5
-          ],
-          "pdf_pos": [
-            200.2,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "hydrogens,",
-            "hydrogens,"
-          ],
-          "ws7_pos": [
-            228.2,
-            208.5
-          ],
-          "pdf_pos": [
-            227.7,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "three",
-            "three"
-          ],
-          "ws7_pos": [
-            288.9,
-            208.5
-          ],
-          "pdf_pos": [
-            288.2,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "nitrogens,",
-            "nitrogens,"
-          ],
-          "ws7_pos": [
-            322.0,
-            208.5
-          ],
-          "pdf_pos": [
-            321.2,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 208.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            382.8,
-            208.5
-          ],
-          "pdf_pos": [
-            381.69,
-            208.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.10pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "cytosine",
-            "cytosine"
-          ],
-          "ws7_pos": [
-            159.8,
-            247.5
-          ],
-          "pdf_pos": [
-            159.6,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "was",
-            "was"
-          ],
-          "ws7_pos": [
-            209.5,
-            247.5
-          ],
-          "pdf_pos": [
-            209.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            231.6,
-            247.5
-          ],
-          "pdf_pos": [
-            231.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 247.5,
-          "words": [
-            "same.",
-            "same."
-          ],
-          "ws7_pos": [
-            253.6,
-            247.5
-          ],
-          "pdf_pos": [
-            253.1,
-            248.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "long",
-            "long"
-          ],
-          "ws7_pos": [
-            346.0,
-            252.0
-          ],
-          "pdf_pos": [
-            345.4,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "been",
-            "been"
-          ],
-          "ws7_pos": [
-            382.0,
-            252.0
-          ],
-          "pdf_pos": [
-            381.4,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "known",
-            "known"
-          ],
-          "ws7_pos": [
-            418.0,
-            252.0
-          ],
-          "pdf_pos": [
-            417.4,
-            252.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 372.0,
-          "words": [
-            "For",
-            "For"
-          ],
-          "ws7_pos": [
-            438.2,
-            372.0
-          ],
-          "pdf_pos": [
-            437.8,
-            372.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 376.5,
-          "words": [
-            "CCG,",
-            "CCG,"
-          ],
-          "ws7_pos": [
-            350.4,
-            376.5
-          ],
-          "pdf_pos": [
-            350.2,
-            376.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 376.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            378.0,
-            376.5
-          ],
-          "pdf_pos": [
-            377.7,
-            376.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 1,
-          "line_y_top_pt": 376.5,
-          "words": [
-            "CCT",
-            "CCT"
-          ],
-          "ws7_pos": [
-            400.0,
-            376.5
-          ],
-          "pdf_pos": [
-            399.7,
-            376.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "were",
-            "were"
-          ],
-          "ws7_pos": [
-            159.8,
-            79.5
-          ],
-          "pdf_pos": [
-            159.6,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "indeed",
-            "indeed"
-          ],
-          "ws7_pos": [
-            187.4,
-            79.5
-          ],
-          "pdf_pos": [
-            187.1,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "aerated,",
-            "aerated,"
-          ],
-          "ws7_pos": [
-            226.0,
-            79.5
-          ],
-          "pdf_pos": [
-            225.6,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "with",
-            "with"
-          ],
-          "ws7_pos": [
-            275.7,
-            79.5
-          ],
-          "pdf_pos": [
-            275.1,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "nitrogen,",
-            "nitrogen,"
-          ],
-          "ws7_pos": [
-            303.3,
-            79.5
-          ],
-          "pdf_pos": [
-            302.6,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "oxygen,",
-            "oxygen,"
-          ],
-          "ws7_pos": [
-            358.5,
-            79.5
-          ],
-          "pdf_pos": [
-            357.6,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.91pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 79.5,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            402.7,
-            79.5
-          ],
-          "pdf_pos": [
-            401.59,
-            80.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.11pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 103.5,
-          "words": [
-            "well",
-            "well"
-          ],
-          "ws7_pos": [
-            129.3,
-            103.5
-          ],
-          "pdf_pos": [
-            129.1,
-            104.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 103.5,
-          "words": [
-            "some",
-            "some"
-          ],
-          "ws7_pos": [
-            173.5,
-            103.5
-          ],
-          "pdf_pos": [
-            173.1,
-            104.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 103.5,
-          "words": [
-            "gabbroic",
-            "gabbroic"
-          ],
-          "ws7_pos": [
-            201.1,
-            103.5
-          ],
-          "pdf_pos": [
-            200.6,
-            104.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
-          "page": 2,
-          "line_y_top_pt": 103.5,
-          "words": [
-            "rock",
-            "rock"
-          ],
-          "ws7_pos": [
-            250.8,
-            103.5
-          ],
-          "pdf_pos": [
-            250.1,
-            104.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
         {
           "doc": "sawyer__REF__SUB-SUPE_EXT_TST",
           "page": 1,
@@ -20480,7 +19058,7 @@
     },
     "sawyer__REF__WSFORMAT_EXT_WS": {
       "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/WSFORMAT.WS",
       "capture_set": "v4",
       "install": "pristine",
@@ -20488,8 +19066,7 @@
       "n_engine_pages": 26,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "cgtimes-drift-exceeds-tolerance": 78,
-        "exact-drift": 7
+        "cgtimes-drift-exceeds-tolerance": 78
       },
       "divergences": [
         {
@@ -21291,151 +19868,11 @@
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
           "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 187.5,
-          "words": [
-            "footer",
-            "footer"
-          ],
-          "ws7_pos": [
-            320.4,
-            187.5
-          ],
-          "pdf_pos": [
-            320.1,
-            188.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 187.5,
-          "words": [
-            "line,",
-            "line,"
-          ],
-          "ws7_pos": [
-            359.0,
-            187.5
-          ],
-          "pdf_pos": [
-            358.6,
-            188.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 187.5,
-          "words": [
-            "even",
-            "even"
-          ],
-          "ws7_pos": [
-            408.7,
-            187.5
-          ],
-          "pdf_pos": [
-            408.1,
-            188.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 199.5,
-          "words": [
-            "all",
-            "all"
-          ],
-          "ws7_pos": [
-            320.4,
-            199.5
-          ],
-          "pdf_pos": [
-            320.1,
-            200.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 199.5,
-          "words": [
-            "blanks",
-            "blanks"
-          ],
-          "ws7_pos": [
-            342.4,
-            199.5
-          ],
-          "pdf_pos": [
-            342.1,
-            200.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 199.5,
-          "words": [
-            "following",
-            "following"
-          ],
-          "ws7_pos": [
-            381.1,
-            199.5
-          ],
-          "pdf_pos": [
-            380.6,
-            200.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 199.5,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            436.3,
-            199.5
-          ],
-          "pdf_pos": [
-            435.6,
-            200.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
         }
       ],
       "document_frame_offset_pt": {
         "n": 1277,
-        "median_dx": 0.0,
+        "median_dx": -0.0,
         "iqr_dx": 0.0
       }
     },
@@ -25033,7 +23470,7 @@
             43.5
           ],
           "pdf_pos": [
-            90.6,
+            90.72,
             44.0
           ],
           "font_class": "exact",
@@ -25053,7 +23490,7 @@
             43.5
           ],
           "pdf_pos": [
-            145.6,
+            145.92,
             44.0
           ],
           "font_class": "exact",
@@ -25073,7 +23510,7 @@
             43.5
           ],
           "pdf_pos": [
-            167.6,
+            168.0,
             44.0
           ],
           "font_class": "exact",
@@ -25093,7 +23530,7 @@
             43.5
           ],
           "pdf_pos": [
-            189.6,
+            190.08,
             44.0
           ],
           "font_class": "exact",
@@ -25113,7 +23550,7 @@
             43.5
           ],
           "pdf_pos": [
-            211.6,
+            212.16,
             44.0
           ],
           "font_class": "exact",
@@ -25133,7 +23570,7 @@
             43.5
           ],
           "pdf_pos": [
-            255.6,
+            256.32,
             44.0
           ],
           "font_class": "exact",
@@ -25153,7 +23590,7 @@
             43.5
           ],
           "pdf_pos": [
-            316.1,
+            317.04,
             44.0
           ],
           "font_class": "exact",
@@ -25193,7 +23630,7 @@
             55.5
           ],
           "pdf_pos": [
-            107.1,
+            107.28,
             56.0
           ],
           "font_class": "exact",
@@ -25213,7 +23650,7 @@
             55.5
           ],
           "pdf_pos": [
-            145.6,
+            145.92,
             56.0
           ],
           "font_class": "exact",
@@ -25233,7 +23670,7 @@
             55.5
           ],
           "pdf_pos": [
-            173.1,
+            173.52,
             56.0
           ],
           "font_class": "exact",
@@ -25253,7 +23690,7 @@
             55.5
           ],
           "pdf_pos": [
-            195.1,
+            195.6,
             56.0
           ],
           "font_class": "exact",
@@ -25273,7 +23710,7 @@
             55.5
           ],
           "pdf_pos": [
-            222.6,
+            223.2,
             56.0
           ],
           "font_class": "exact",
@@ -25293,7 +23730,7 @@
             55.5
           ],
           "pdf_pos": [
-            277.6,
+            278.4,
             56.0
           ],
           "font_class": "exact",
@@ -25313,7 +23750,7 @@
             232.5
           ],
           "pdf_pos": [
-            222.6,
+            223.2,
             196.0
           ],
           "font_class": "exact",
@@ -25333,7 +23770,7 @@
             232.5
           ],
           "pdf_pos": [
-            299.6,
+            300.48,
             196.0
           ],
           "font_class": "exact",
@@ -25613,7 +24050,7 @@
             376.5
           ],
           "pdf_pos": [
-            222.6,
+            223.2,
             316.0
           ],
           "font_class": "exact",
@@ -25633,7 +24070,7 @@
             376.5
           ],
           "pdf_pos": [
-            299.6,
+            300.48,
             316.0
           ],
           "font_class": "exact",
@@ -30323,7 +28760,6 @@
       "no_substitute_word_count": 0,
       "counts_by_reason": {
         "baseline-shift": 79,
-        "exact-drift": 3,
         "extra-word-in-engine": 13,
         "word-unmatched": 13
       },
@@ -30401,7 +28837,7 @@
             79.5
           ],
           "pdf_pos": [
-            242.2,
+            242.4,
             56.0
           ],
           "font_class": "exact",
@@ -30421,7 +28857,7 @@
             79.5
           ],
           "pdf_pos": [
-            365.8,
+            366.2,
             56.0
           ],
           "font_class": "exact",
@@ -30441,7 +28877,7 @@
             84.0
           ],
           "pdf_pos": [
-            199.0,
+            199.2,
             60.0
           ],
           "font_class": "exact",
@@ -30461,7 +28897,7 @@
             84.0
           ],
           "pdf_pos": [
-            322.6,
+            323.0,
             60.0
           ],
           "font_class": "exact",
@@ -30501,7 +28937,7 @@
             91.5
           ],
           "pdf_pos": [
-            168.1,
+            168.24,
             68.0
           ],
           "font_class": "exact",
@@ -30521,7 +28957,7 @@
             91.5
           ],
           "pdf_pos": [
-            201.1,
+            201.36,
             68.0
           ],
           "font_class": "exact",
@@ -30621,7 +29057,7 @@
             115.5
           ],
           "pdf_pos": [
-            168.1,
+            168.24,
             92.0
           ],
           "font_class": "exact",
@@ -30681,7 +29117,7 @@
             127.5
           ],
           "pdf_pos": [
-            157.1,
+            157.2,
             104.0
           ],
           "font_class": "exact",
@@ -31127,66 +29563,6 @@
           "font_class": "exact",
           "reason": "baseline-shift",
           "detail": "baseline residual -12.25pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__TAGS__-README_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 271.5,
-          "words": [
-            "[How?]",
-            "[How?]"
-          ],
-          "ws7_pos": [
-            371.2,
-            271.5
-          ],
-          "pdf_pos": [
-            370.9,
-            272.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__TAGS__-README_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 276.0,
-          "words": [
-            "HOW",
-            "HOW"
-          ],
-          "ws7_pos": [
-            342.4,
-            276.0
-          ],
-          "pdf_pos": [
-            342.1,
-            276.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__TAGS__-README_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 283.5,
-          "words": [
-            "Word]",
-            "Word]"
-          ],
-          "ws7_pos": [
-            190.3,
-            283.5
-          ],
-          "pdf_pos": [
-            190.1,
-            284.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         },
         {
           "doc": "sawyer__TAGS__-README_EXT_WS",
@@ -31698,38 +30074,15 @@
     },
     "sawyer__TAGS__DW": {
       "doc": "sawyer__TAGS__DW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/TAGS/DW",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "exact-drift": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__TAGS__DW",
-          "page": 1,
-          "line_y_top_pt": 43.5,
-          "words": [
-            "Word]",
-            "Word]"
-          ],
-          "ws7_pos": [
-            118.3,
-            43.5
-          ],
-          "pdf_pos": [
-            118.1,
-            44.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 3,
         "median_dx": 0.0,
@@ -31916,38 +30269,15 @@
     },
     "sawyer__TAGS__SHOW": {
       "doc": "sawyer__TAGS__SHOW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/TAGS/SHOW",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "exact-drift": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__TAGS__SHOW",
-          "page": 1,
-          "line_y_top_pt": 43.5,
-          "words": [
-            "Tell]",
-            "Tell]"
-          ],
-          "ws7_pos": [
-            129.3,
-            43.5
-          ],
-          "pdf_pos": [
-            129.1,
-            44.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 3,
         "median_dx": 0.0,

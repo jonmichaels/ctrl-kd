@@ -855,7 +855,10 @@ def parse_text_ops(content: bytes) -> list:
         elif val == b'Tf':
             nm, sz = names(), nums()
             if nm and sz:
-                font, size = nm[-1].decode(), int(sz[-1])
+                # a Printed sub/superscript is fractional (9.25); whole sizes
+                # stay ints, as every dump and manifest has them
+                font, size = nm[-1].decode(), (int(sz[-1]) if sz[-1] == int(sz[-1])
+                                               else sz[-1])
         elif val == b'Tz':
             n = nums()
             if n:
