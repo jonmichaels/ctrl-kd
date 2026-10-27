@@ -10073,7 +10073,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         if record_pieces is not None:
             if rec_open is not None:
                 record_pieces.append((rec_open[0], rec_open[1], x - rec_open[1]))
-            rec_open = (text, x)
+            # A print control's display string is screen-only, as the line's
+            # segments say.
+            rec_open = ('' if any(t.startswith('pctl') for t in styles) else text, x)
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
