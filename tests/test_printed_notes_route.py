@@ -1,4 +1,4 @@
-"""Planning #577 (ruling R-130): in Printed mode a document WITH notes lays
+"""Planning #577: in Printed mode a document WITH notes lays
 out exactly like one WITHOUT, apart from the note area itself. There is one
 paginator for both (`_doc_to_pagelines`); a note is a feature it runs when
 the document has one. These tests state that as behaviour: the same text,

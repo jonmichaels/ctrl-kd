@@ -159,21 +159,21 @@
     "y-driver-origin": 14,
     "x": 10
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON on HPLJET: PS14B proportional widths, each word placed (R-40: .ps not rendered)"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON on HPLJET: PS14B proportional widths, each word placed (Printed does not render .ps)"
   },
   "wordstar4-dos/ps-hpljet-uj-on": {
    "kinds": {
     "y-driver-origin": 26,
     "x": 11
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification, letter-spaced runs (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification, letter-spaced runs"
   },
   "wordstar4-dos/ps-hpljet-uj-off": {
    "kinds": {
     "y-driver-origin": 26,
     "x": 22
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
   },
   "wordstar4-dos/ps-hpljet-attributes": {
    "kinds": {
@@ -181,35 +181,35 @@
     "y-driver-origin": 6,
     "x": 4
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
   },
   "wordstar4-dos/mj-no-flag#0": {
    "kinds": {
     "y-driver-origin": 26,
     "x": 22
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
   },
   "wordstar4-dos/mj-no-flag#1": {
    "kinds": {
     "y-driver-origin": 26,
     "x": 22
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
   },
   "wordstar4-dos/mj-first-word": {
    "kinds": {
     "y-driver-origin": 26,
     "x": 10
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification"
   },
   "wordstar4-dos/mj-two-letters": {
    "kinds": {
     "y-driver-origin": 8,
     "x": 5
    },
-   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+   "reason": "O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths"
   },
   "wordstar4-dos/draft-formfeed-y": {
    "kinds": {
