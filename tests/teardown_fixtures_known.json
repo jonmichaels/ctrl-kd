@@ -623,10 +623,9 @@
   "wordstar-dos/justify-on": {
    "kinds": {
     "variant": 1,
-    "x-logical-page": 15,
-    "x": 22
+    "x-logical-page": 37
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D4 detection; E17 justification: the blank before the soft return counted as a gap, and decipoint Bresenham where WS7 shares dots by floor(w*S_rem/W_rem)"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D4 detection"
   },
   "wordstar-dos/centre-print": {
    "kinds": {
@@ -649,24 +648,23 @@
   },
   "wordstar-dos/justify-font-change": {
    "kinds": {
-    "x-logical-page": 6,
-    "x": 16
+    "x-logical-page": 21,
+    "x": 1
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified line with a font change is not justified"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: the Times 24 word is about 2 dots wider than WS7's, which moves the words after it by 0.3pt"
   },
   "wordstar-dos/justify-font-change-ref": {
    "kinds": {
-    "x-logical-page": 6,
-    "x": 16
+    "x-logical-page": 22
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E17 justification arithmetic (see justify-on)"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
   },
   "wordstar-dos/justify-times": {
    "kinds": {
-    "x-logical-page": 5,
-    "x": 8
+    "x-logical-page": 6,
+    "x": 7
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified proportional line is not justified"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/footnote-run-fnrun0": {
    "kinds": {
@@ -726,17 +724,17 @@
   },
   "wordstar-dos/justify-share-by-width": {
    "kinds": {
-    "x-logical-page": 6,
-    "x": 16
+    "x-logical-page": 17,
+    "x": 5
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 mixed-font justification (each blank shares by its own width)"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/justify-times24-blank": {
    "kinds": {
-    "x-logical-page": 6,
-    "x": 16
+    "x-logical-page": 16,
+    "x": 6
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 mixed-font justification"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/pa-after-full-page": {
    "kinds": {
@@ -932,10 +930,10 @@
   },
   "wordstar-dos/lj-no-letter-spacing": {
    "kinds": {
-    "x-logical-page": 6,
-    "x": 7
+    "x-logical-page": 8,
+    "x": 5
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified proportional line is not justified"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/pl-bare-keeps": {
    "kinds": {

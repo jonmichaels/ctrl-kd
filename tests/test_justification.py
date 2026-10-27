@@ -15,23 +15,20 @@ both `ws7-prints/v4`, private corpus):
      measured from the same `.po` origin as the left edge). The last
      line of the paragraph is left ragged -- confirmed directly (LSRBOX's
      own final line sits short of the margin in the real capture).
-  2. Only single-blank inter-word gaps are stretched -- a run of 2+
-     literal blanks (e.g. an author's own end-of-sentence double space)
-     is left at its natural width. The line's total slack is split evenly
-     across the single-blank gaps (a documented APPROXIMATION: WS7's own
-     real per-gap split is not perfectly flat even when the total divides
-     evenly, e.g. one measured 8-gap/72-decipoint line split 7,7,10,9,10,
-     9,10,10 rather than a flat 9 each; the always-flush, self-consistent
-     even split ships instead, documented as approximate). WS7's own rule
-     is now known -- dots, floor(w * S_rem / W_rem) per run of blanks (WS7
-     teardown, `wordstar-dos/11-print-engine.md` 11.7.3) -- and not yet
-     implemented.
-  3. Only a line that resolves to exactly ONE styled span is justified --
-     a styled/mixed line (a bold word mid-sentence, a leading indent) is
-     left unjustified this pass (narrow, documented scope).
-  4. Only a FIXED-PITCH span is justified -- no evidenced proportional-
-     font `.oj on` capture was found in the corpus this pass; a
-     proportional line's own natural-width path is unmodified.
+  2. The slack is shared the way WS7's own driver does it (WS7 report
+     11.7.3, `wordstar-dos/11-print-engine.md`): in dots (1/300 in), every
+     run of blanks between the first word and the last takes
+     `floor(w * S_rem / W_rem)` of the slack still left, w being that run's
+     own width -- so a double blank takes twice a single one's share, the
+     remainders fall to the later runs, and a word lands at
+     `floor(x_dots * 720 / 300)` decipoints. Leading blanks and the blanks
+     before the soft return are not a gap. The six rows measured on earlier
+     WS7 captures are reproduced exactly (`test_the_measured_gap_rows`).
+  3. The rule runs over the whole line, whatever its spans: a styled word
+     mid-sentence, or a proportional face, is spread with each item's own
+     width (report 14.15, runs mixj1-mixj4).
+  4. WS5+ soft spaces (bare 0xA0) are ignored: the driver spreads the line
+     itself (report 14.6).
   5. Modern mode is untouched -- Modern already expresses `align='justify'`
      as a CSS/RTF property rather than literal padding (`test_justify_
      `is_not_faked_with_padding_in_plain_text` in test_ctrlkd.py); no
@@ -121,28 +118,111 @@ def test_last_line_of_justified_paragraph_is_not_stretched():
     assert _word_x(out, 'DD.') == 0.0
 
 
-def test_multi_space_gap_is_not_stretched_single_space_gaps_absorb_it():
-    """`.rm` chosen so the SINGLE-blank gap (AA-BB) and the DOUBLE-blank
-    gap (BB-CC, an author's own end-of-sentence spacing) are both present
-    on the one physical line -- only the single-blank gap should carry any
-    of the line's slack; the double stays at its natural 2*7.2=14.4pt."""
+def test_a_double_blank_takes_twice_a_single_blanks_share():
+    """`AA BB  CC` at `.rm 20`: 330 dots of slack over a 30-dot and a 60-dot
+    run of blanks -- floor(30*330/90) = 110 dots, then the rest (220) to the
+    double blank. WS7 report 11.7.3 (a typed double blank DOES stretch)."""
     doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
               b'AA BB  CC' + SOFT + b'DD.' + HARD)
     b = doc.blocks[0]
     assert b.lines[0].text() == 'AA BB  CC'
     out = pdf.emit_pdf(doc, mode='printed')
-    x_aa = _word_x(out, 'AA')
-    x_bb = _word_x(out, 'BB')
-    x_cc = _word_x(out, 'CC')
-    assert x_aa == 0.0
-    # BB's own gap (AA-BB, single blank) carries ALL the line's slack --
-    # the only elastic gap on this line.
-    natural_total = 9 * 7.2      # "AA BB  CC" = 9 chars
-    stretch = 144.0 - natural_total
-    assert x_bb == round(2 * 7.2 + 7.2 + stretch, 1)
-    # BB-CC stays at its natural DOUBLE-blank width -- not stretched.
-    assert x_cc == round(x_bb + 2 * 7.2 + 2 * 7.2, 1)
-    assert x_cc + 2 * 7.2 == 144.0
+    # AA ends at 60 dots; BB starts 30 + 110 dots later, CC 60 + 220 after BB ends
+    assert _word_x(out, 'AA') == 0.0
+    assert _word_x(out, 'BB') == (60 + 30 + 110) * 12 // 5 / 10
+    assert _word_x(out, 'CC') == (200 + 60 + 60 + 220) * 12 // 5 / 10
+    assert _word_x(out, 'CC') + 2 * 7.2 == 144.0
+
+
+def test_the_blank_before_the_soft_return_is_not_a_gap():
+    """WS7 report 11.7.3: trailing blanks are not items. `AA BB CC ` + soft
+    return gives the same line as without the trailing blank."""
+    plain = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+                b'AA BB CC' + SOFT + b'DD.' + HARD)
+    trailing = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+                   b'AA BB CC ' + SOFT + b'DD.' + HARD)
+    a = pdf._doc_to_pagelines(plain, True)[0][0].justify_word_x
+    b = pdf._doc_to_pagelines(trailing, True)[0][0].justify_word_x
+    assert [p[:2] for p in a] == [p[:2] for p in b[:5]]
+    assert b[5][0] == ' '                      # the blank is still a piece
+    assert b[4][1] + b[4][2] == 144.0         # and CC still ends on the margin
+
+
+def test_leading_blanks_are_not_a_gap():
+    """A paragraph's indent is not stretched (report 11.7.3): AA, BB, CC share
+    the slack in their two gaps only."""
+    doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+              b'  AA BB CC' + SOFT + b'DD.' + HARD)
+    pieces = pdf._doc_to_pagelines(doc, True)[0][0].justify_word_x
+    assert pieces[0][:2] == ('  ', 0.0)
+    assert pieces[1][1] == 14.4                      # AA right after the indent
+    assert round(pieces[-1][1] + pieces[-1][2], 1) == 144.0
+
+
+def test_the_measured_gap_rows():
+    """The six rows measured on earlier WS7 captures (report 11.7.3): per-gap
+    stretch in decipoints for a slack of N/1800 in over G single gaps."""
+    measured = [
+        (180, 8, [7, 7, 10, 9, 10, 9, 10, 10]),
+        (180, 9, [7, 7, 7, 7, 8, 7, 9, 10, 10]),
+        (125, 5, [9, 10, 9, 10, 12]),
+        (225, 5, [16, 17, 19, 20, 19]),
+        (225, 8, [9, 10, 12, 12, 12, 12, 12, 12]),
+        (225, 9, [9, 10, 9, 10, 10, 9, 10, 12, 12]),
+    ]
+    for slack, gaps, want in measured:
+        kinds, widths = [], []
+        for i in range(gaps + 1):
+            kinds.append('w')
+            widths.append(21.6)
+            if i < gaps:
+                kinds.append('s')
+                widths.append(7.2)
+        right = sum(widths) + slack / 25
+        xs = pdf._justify_x_printed(kinds, widths, 0.0, right)[0::2]
+        natural = [i * 120 * 12 // 5 for i in range(gaps + 1)]
+        extra = [x - n for x, n in zip(xs, natural)]
+        assert [b - a for a, b in zip(extra, extra[1:])] == want
+
+
+def test_blanks_share_by_their_own_width():
+    """A narrow blank gets a proportionally smaller share (report 14.15,
+    run mixj4): widths 30 and 15 dots, 45 dots of slack -> 30 and 15."""
+    xs = pdf._justify_x_printed(['w', 's', 'w', 's', 'w'],
+                                [24.0, 7.2, 24.0, 3.6, 24.0], 0.0,
+                                24 * 3 + 7.2 + 3.6 + 45 * 0.24)
+    # word 0 is 100 dots wide, then the 30-dot blank takes its 30, the
+    # 15-dot blank its 15 (S_rem and W_rem both fall to 15 by then)
+    assert xs == [0, 240, 384, 624, 696]
+
+
+def test_a_line_that_is_too_long_is_left_alone():
+    assert pdf._justify_x_printed(['w', 's', 'w'], [100.0, 7.2, 100.0], 0.0,
+                                  150.0) is None
+
+
+def test_soft_spaces_are_ignored_by_the_driver():
+    """WS5+ soft spaces (0xA0 after a typed blank, report 11.7.3/14.6) are
+    not part of the gap: `AA`, one typed blank + three soft ones, `BB`."""
+    data = (b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+            b'AA \xa0\xa0\xa0BB CC \x8d\nDD.\r\n')
+    doc = core.parse(data, variant='ws5+')
+    pieces = pdf._doc_to_pagelines(doc, True)[0][0].justify_word_x
+    assert [p[0] for p in pieces] == ['AA', '    ', 'BB', ' ', 'CC', ' ']
+    # two equal one-blank gaps: 144 - 8*7.2 = 86.4pt = 360 dots -> 180 each
+    assert pieces[2][1] == (60 + 30 + 180) * 12 // 5 / 10
+    assert round(pieces[4][1] + pieces[4][2], 1) == 144.0
+
+
+def test_a_hard_return_line_in_a_justified_block_stays_ragged_in_ws5():
+    """Report 11.7.1: only a line that ends in a soft return is spread. In a
+    WS5+ block, a hard-returned line that is not the block's last is ragged."""
+    data = (b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+            b'AA BB CC\r\nDD EE FF\x8d\nGG.\r\n')
+    doc = core.parse(data, variant='ws5+')
+    lines = pdf._doc_to_pagelines(doc, True)[0]
+    assert [getattr(l, 'justify_word_x', None) is not None
+            for l in lines if hasattr(l, 'justify_right_x')][:2] == [False, True]
 
 
 def test_oj_off_is_unaffected():
@@ -170,20 +250,18 @@ def test_oj_on_then_off_mid_document_only_justifies_the_on_block():
     assert _word_x(out, 'FF') is None          # never split into pieces
 
 
-def test_styled_mixed_line_is_left_unjustified_documented_scope():
-    """A line that carries more than one styled span (a bold word
-    mid-sentence) resolves to more than one seg -- out of this pass's
-    scope (see this module's own docstring, point 3) -- so it renders at
-    its natural width rather than guessing how to split the slack among
-    several spans."""
+def test_styled_mixed_line_is_justified_across_its_spans():
+    """A line with a bold word mid-sentence resolves to several spans; the
+    slack is shared over the whole line anyway (report 14.15): `AA BB CC`
+    at `.rm 40` -- two equal gaps of 480 dots (115.2pt) each."""
     doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 40\r\n.oj on\r\n'
-              b'AA \x02BB\x02 CC' + HARD)
+              b'AA \x02BB\x02 CC' + SOFT + b'DD.' + HARD)
     b = doc.blocks[0]
     assert b.align == 'justify'
     assert len(b.lines[0].spans) > 1
     out = pdf.emit_pdf(doc, mode='printed')
-    x_bb = _word_x(out, 'BB')
-    assert x_bb == 2 * 7.2 + 7.2     # natural, not stretched to the 40-col margin
+    assert _word_x(out, 'BB') == 136.8
+    assert _word_x(out, 'CC') == 273.6
 
 
 def test_justify_word_x_lands_on_the_pageline_model():
@@ -227,22 +305,27 @@ def test_justify_word_x_lands_on_the_pageline_model():
     assert 'justify_word_x' not in out['printed']['pages'][0]['lines'][1]
 
 
-def test_justify_word_x_absent_for_styled_mixed_line():
-    """planning #251(b): the same narrow scope as the PDF-bytes test above
-    (`test_styled_mixed_line_is_left_unjustified_documented_scope`) --
-    `_attach_justify_word_x_printed` runs the SAME `_split_indent`/
-    `_split_symbol_fallback`/`_split_graphics` pipeline the writer does,
-    so a line that resolves to more than one span leaves the model's own
-    `justify_word_x` unset too, not just the PDF unstretched. A SECOND
-    line is needed so the styled one is not also the block's own LAST
-    physical line (rule 1 -- never justified regardless of shape, and
-    `justify_right_x` itself would already be None for that unrelated
-    reason)."""
+def test_justify_word_x_tiles_a_styled_mixed_line():
+    """planning #251(b): the model's pieces cover the whole line across its
+    spans -- their texts concatenate to the line's text, so a consumer can
+    map them onto its own spans by offset."""
     doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 40\r\n.oj on\r\n'
               b'AA \x02BB\x02 CC' + SOFT + b'DD.' + HARD)
     line = pdf._doc_to_pagelines(doc, True)[0][0]
-    assert line.justify_right_x is not None      # still eligible BY POSITION
-    assert line.justify_word_x is None            # but not by SHAPE (2+ spans)
+    assert line.justify_right_x is not None
+    assert ''.join(p[0] for p in line.justify_word_x) == 'AA BB CC'
+    assert [p[1] for p in line.justify_word_x if p[0].strip()] == [0.0, 136.8, 273.6]
+
+
+def test_a_tab_span_leaves_the_line_unspread():
+    """A tab record resets the justified region (report 11.7.3); until that
+    is modelled a line with one is drawn at its natural widths."""
+    segs = [('AA', frozenset(), 'Courier', 12.0, None, False),
+            ('  ', frozenset({'tabhmi900', 'tableader32'}), 'Courier', 12.0,
+             None, False),
+            ('BB CC', frozenset(), 'Courier', 12.0, None, False)]
+    assert pdf._justify_line_printed(segs, 0.0, 144.0, None, False,
+                                     frozenset()) is None
 
 
 # ------------------ notes-paginator scope gap (planning #238, cause 1) ------

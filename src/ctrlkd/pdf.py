@@ -35,7 +35,7 @@ from .core import merged_lines as _merged_lines, Span as _Span, \
     expand_bare_tabs_texts as _expand_bare_tabs_texts, \
     pm_first_line_indent_cols as _pm_first_line_indent_cols, \
     graphic_row_clips as _graphic_row_clips, \
-    Line as _Line, coalesce_spans as _coalesce_spans, \
+    Line as _Line, coalesce_spans as _coalesce_spans, era_for as _era_for, \
     _SCREENPLAY_SLUGLINE_RE, DEFAULT_LH_48, TAB_HMI_PER_COL as _TAB_HMI_PER_COL
 from .emit import emitter, _printed, _annotated_notes, _ref_pairs, \
     _font_family, hf_runs as _hf_runs, _rtf_columns_state
@@ -4042,17 +4042,15 @@ class PageLine(list):
     # (`columns`/`column_gutter_pt`/`column_width_pt`) below, once per
     # page rather than repeated on every line.
     # `justify_word_x` (planning #251(b), 2026-09-09): this line's own
-    # PRECOMPUTED `_justify_pieces_printed` result -- `[(piece, x_pt,
-    # width_pt), ...]` covering the whole line left to right -- or None.
-    # Set by `_attach_justify_word_x_printed` ONLY when this is a
-    # `justify_right_x`-carrying line that resolves (after the SAME
-    # `_split_indent`/`_split_symbol_fallback`/`_split_graphics`/
-    # `_lj_substitute` pipeline `_line_ops_printed` itself runs) to
-    # exactly one FIXED-PITCH, untagged span with a real gap to stretch --
-    # every other justified line (styled/mixed, proportional, a pctl/tab
-    # span, or one with no slack to distribute) leaves this None, and
-    # `_line_ops_printed` falls back to computing it fresh at render time,
-    # unchanged from before this field existed.
+    # PRECOMPUTED justification -- `[(piece, x_pt, width_pt), ...]`, the
+    # words and runs of blanks left to right, covering the line's whole text
+    # across all its spans (the pieces tile it, so a consumer maps them onto
+    # its own spans by text offset) -- or None. Set by
+    # `_attach_justify_word_x_printed` on a `justify_right_x`-carrying line
+    # that WS7's word-gap rule can spread (`_justify_line_printed`); a line
+    # it cannot (a tab, print-control or graphic span, no blank between two
+    # words, too long) leaves this None, and `_line_ops_printed` draws it at
+    # its natural widths.
     # `line_no` (planning #251(d), 2026-09-09): this line's own `.l#`
     # gutter label and ABSOLUTE x, as `(label, x_pt)`, or None for a line
     # no active `.l#` interval numbers -- moved off `_page_stream`'s own
@@ -4076,13 +4074,13 @@ class PageLine(list):
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
                 'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
-                'po_cols', 'refs')
+                'po_cols', 'refs', 'soft_blanks')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
                 justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None,
-                refs=()):
+                refs=(), soft_blanks=()):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -4125,6 +4123,11 @@ class PageLine(list):
         # line, for the note area (`_NoteArea.enqueue`). Endnote references
         # never queue -- they collect at the document's end.
         self.refs = refs
+        # On a justified line only: `(text, offsets)` -- the line's text and
+        # the offsets in it of the blanks that were WS5+ soft spaces, which
+        # the driver ignores when it spreads the line. `()` when there are
+        # none (or the text changed since they were read).
+        self.soft_blanks = soft_blanks
 
 
 class Page(list):
@@ -5595,22 +5598,37 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     # (see _recentred_centre_tab_spans).
                     spans = _recentred_centre_tab_spans(spans, b, doc)
                 justify_right_x = None
-                # Planning #270 item 37: under `.pf on` the PARAGRAPH is the
-                # unit, and WordStar never justifies a paragraph's LAST line
-                # -- which is exactly what `line.soft` says after the re-wrap
-                # (every produced line but the paragraph's last carries it).
-                # Without `.pf` the block remains the unit, unchanged: a
-                # document that never realigns has no paragraph structure on
-                # the printed page for this engine to read.
+                # WS7 justifies a line only when it ends in a soft return; a
+                # hard return (the paragraph's last line, or a line the
+                # author ended by hand) is left ragged (WS7 report 11.7.1,
+                # fixture w16-ljls: a hard-returned line inside the same
+                # `.oj on` block stays at its natural widths). In a WS5+
+                # file `line.soft` is exactly that (and after a `.pf on`
+                # re-wrap, planning #270 item 37, it is true of every
+                # produced line but the paragraph's last). An older file's
+                # soft return is only an inference (`lines_pass`), so there
+                # the block's own last line stays the unit, as before.
                 last_in_unit = (not line.soft
-                                if getattr(b, 'print_reformat', None) == 'on'
+                                if (_era_for(doc.meta.get('variant')).symmetric_blocks
+                                    or getattr(b, 'print_reformat', None) == 'on')
                                 else _idx >= len(blk_lines) - 1)
+                soft_blanks = ()
                 if printed and b.align == 'justify' and not last_in_unit:
                     po_origin_pt = (own_left if own_left is not None
                                     else _printed_left(doc, size_for_left))
                     rm_cols = (b.right_margin if b.right_margin is not None
                               else 65.0)
                     justify_right_x = po_origin_pt + rm_cols * _PDF_PT_PER_COL
+                    # The WS5+ soft spaces on this line, by offset (WS7
+                    # report 14.6: the driver ignores the stored ones).
+                    base_text = ''.join(sp.text for sp in kept)
+                    if (any(sp.soft for sp in kept)
+                            and ''.join(t for t, _ in spans) == base_text):
+                        offs, base = [], 0
+                        for sp in kept:
+                            offs.extend(base + k for k in sp.soft)
+                            base += len(sp.text)
+                        soft_blanks = (base_text, tuple(offs))
                 pl = PageLine(spans, soft=line.soft, lead=own_lead,
                              overprint=line.overprint,
                              fi=(fi_pt if first_line_of_block else None),
@@ -5621,7 +5639,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              justify_right_x=justify_right_x,
                              parity_left=own_parity_left,
                              po_cols=getattr(line, 'po_cols', None),
-                             refs=refs)
+                             refs=refs, soft_blanks=soft_blanks)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -6751,14 +6769,12 @@ def _attach_justify_word_x_printed(doc, pages, size):
     own comment) on every justified line that resolves, through the SAME
     preprocessing pipeline `_line_ops_printed` itself runs (bare-tab
     expansion; `_lj_substitute`; `_split_graphics`; `_split_symbol_
-    fallback`; `_split_indent`), to exactly one FIXED-PITCH, untagged
-    span with real slack to distribute. Anything outside that -- a
-    styled/mixed line, a proportional span, a `pctl`/`tabhmi`-tagged span
-    (the writer's own preamble branches off those BEFORE reaching
-    ordinary per-character placement, so this function's own arithmetic
-    does not apply), or a line with no elastic gap or no slack -- leaves
-    `justify_word_x` unset; `_line_ops_printed` then computes it fresh at
-    render time, byte-identical to before this function existed."""
+    fallback`; `_split_indent`), to plain text that WS7's word-gap rule can
+    spread: any number of spans, fixed-pitch or proportional (WS7 report
+    11.7.3, 14.15). A line with a tab, print-control or graphic span, a
+    `.pm` column indent, no run of blanks between two words, or no slack
+    (it is too long) leaves `justify_word_x` unset; `_line_ops_printed`
+    then draws it at its natural widths, as before this function existed."""
     fonts = doc.fonts
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
@@ -6779,28 +6795,30 @@ def _attach_justify_word_x_printed(doc, pages, size):
                 segs = _lj_substitute(segs, getattr(line, 'kerning', True),
                                       dq.typography, dq.corners)
             segs = _split_indent(_split_symbol_fallback(_split_graphics(segs)))
-            if len(segs) != 1:
+            if not segs:
                 continue
-            text, styles, family, size_here, entry, seg_indent = segs[0]
-            if any(t.startswith('pctl') or t.startswith('tabhmi')
-                  for t in styles):
-                continue
-            if entry is not None and entry.get('proportional'):
-                continue           # rule 4: fixed-pitch spans only
             own_left = getattr(line, 'left', None)
             left_here = left if own_left is None else own_left
             fi = getattr(line, 'fi', None)
-            if fi and seg_indent:
+            if fi and segs[0][5]:
                 fi = None
-            x0 = left_here + (fi or 0)
-            pt, rise = _sized(styles, size_here, roll_pt, family, entry)
-            basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-            pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
-                    or _span_pitch(entry, pt))
-            pieces = _justify_pieces_printed(text, pitch, x0,
-                                             line.justify_right_x, basefont, pt)
+            pieces = _justify_line_printed(
+                segs, left_here + (fi or 0), line.justify_right_x, roll_pt,
+                getattr(line, 'pm_active', False),
+                _soft_blanks_of(segs, getattr(line, 'soft_blanks', ())))
             if pieces:
                 line.justify_word_x = pieces
+
+
+def _soft_blanks_of(segs, soft_blanks):
+    """The offsets of the WS5+ soft spaces within the joined text of `segs`,
+    or an empty set when the line's text is no longer the text they were
+    recorded against (the preprocessing changed it)."""
+    if not soft_blanks:
+        return frozenset()
+    text, recorded = soft_blanks
+    return (frozenset(recorded) if ''.join(t[0] for t in segs) == text
+            else frozenset())
 
 
 def _attach_graphic_cells_printed(doc, pages, size):
@@ -6859,7 +6877,8 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 record_graphic_cells=record,
                 pm_active=getattr(line, 'pm_active', False),
                 lj_typo=dq.typography, lj_corners=dq.corners,
-                hp_patterns=dq.patterns)
+                hp_patterns=dq.patterns,
+                soft_blanks=getattr(line, 'soft_blanks', ()))
             if record:
                 line.graphic_cells = record
 
@@ -8634,58 +8653,130 @@ def _expand_bare_tabs_for_printed_layout(segs):
     return [(t,) + entry[1:] for t, entry in zip(texts, segs)]
 
 
-def _justify_pieces_printed(text, pitch, x0, justify_right_x, basefont, pt):
-    """[(piece, x, width), ...] left to right from `x0` -- one FIXED-PITCH
-    justified line's own word/gap split (planning #238's measured rule,
-    factored out planning #251(b) so `_doc_to_pagelines` can call the
-    EXACT SAME arithmetic at model-build time and attach the result to
-    `PageLine.justify_word_x`; `_line_ops_printed` then renders from that
-    stored list when given one, byte-identical to before by construction
-    -- same function, same inputs, computed once). Returns None when the
-    line has no single-blank gap to stretch or no slack to distribute --
-    the caller falls back to the un-split natural-width path, unchanged.
+def _units_1800(pt):
+    """Points -> 1/1800 inch, rounded (the unit a WS7 font block counts in)."""
+    return int(_math.floor(pt * 25 + 0.5))
 
-    Cumulative-floor Bresenham distribution across the elastic (single-
-    blank) gaps, in whole decipoints: `stretch[i] = floor((i+1)*S/G) -
-    floor(i*S/G)`, S = the line's total slack in decipoints, G = elastic
-    gap count -- see `_line_ops_printed`'s own docstring for the measured
-    rule and its documented approximation. A run of 2+ literal blanks is
-    left at its natural width, like every non-space WORD piece: only
-    `_tz_scale`'s own target changes (the gap's own stretched width, not
-    a fresh `pw`), which is why a piece's stored `width` alone is enough
-    for a later caller to reproduce its own `pscale` -- `_tz_scale(piece,
-    basefont, pt, width)` on an ALREADY-RESOLVED width reproduces the
-    same scale/actual-width pair `_tz_scale(piece, basefont, pt, pw)`
-    produced the first time (self-consistent: in-clamp, `width == pw`
-    already; out-of-clamp, `width` IS the natural width, so scaling to it
-    is a no-op ratio of 100 either way)."""
-    pieces = _re.findall(r' +|[^ ]+', text)
-    elastic = [i for i, p in enumerate(pieces) if p == ' ']   # exactly one blank
-    natural_total = sum(len(p) * pitch for p in pieces)
-    stretch_total = justify_right_x - x0 - natural_total
-    if not (elastic and stretch_total > 0):
+
+def _dots_300(pt):
+    """Points -> printer dots (1/300 inch), rounded half up -- WS7's
+    conversion of a width or a margin when it first selects a font for the
+    justification pass (WS7 report 11.7.3)."""
+    return (_units_1800(pt) + 3) // 6
+
+
+def _justify_x_printed(kinds, widths, x0, justify_right_x):
+    """WS7's word-gap justification (WS7 report 11.7.3, DRIVERN +0x0DEE,
+    +0x0E6A), as the left edge in decipoints of each item of one line, or
+    None when the line has nothing to stretch.
+
+    `kinds` is 'w' for a word and 's' for a run of blanks, `widths` the
+    items' natural widths in points, `x0` where the first item starts and
+    `justify_right_x` the right margin. Everything is counted in dots
+    (1/300 inch): the slack is the margin less where the last WORD ends
+    (leading blanks and the blanks before the soft return are not items),
+    rounded half up; then, for each run of blanks from the first word to the
+    last and in order, `share = floor(w * S_rem / W_rem)` of the slack still
+    left, `w` being that run's own width. A run of two blanks takes twice a
+    single blank's share, a proportional blank its own width's, and the
+    remainder of every division falls to the later runs. An item lands at
+    `floor(x_dots * 720 / 300)` decipoints. A line that is too long
+    (negative slack) is left alone."""
+    n = len(kinds)
+    words = [i for i in range(n) if kinds[i] == 'w']
+    if len(words) < 2:
         return None
-    n = len(elastic)
-    stretch_total_dp = round(stretch_total * 10)
-    stretch_dp = [
-        ((i + 1) * stretch_total_dp) // n - (i * stretch_total_dp) // n
-        for i in range(n)
-    ]
+    first, last = words[0], words[-1]
+    gaps = [i for i in range(first, last) if kinds[i] == 's']
+    if not gaps:
+        return None
+    wd = [_dots_300(w) for w in widths]
+    xd = []
+    cur = _dots_300(x0)
+    for i in range(n):
+        xd.append(cur)
+        cur += wd[i]
+    slack = _units_1800(justify_right_x) - 6 * (xd[last] + wd[last])
+    if slack < 0:
+        return None
+    s_rem = (slack + 3) // 6
+    w_rem = sum(wd[i] for i in gaps)
+    carry = 0
     out = []
-    x = x0
-    ei = 0
-    for pi, piece in enumerate(pieces):
-        pw = len(piece) * pitch
-        is_elastic_gap = (piece == ' ' and ei < len(elastic) and elastic[ei] == pi)
-        if is_elastic_gap:
-            pw += stretch_dp[ei] / 10.0
-            ei += 1
-            actual_w = pw          # nothing is ever drawn for a space piece
-                                   # (see docstring) -- no glyph-metric lookup
+    for i in range(n):
+        out.append((xd[i] + carry) * 12 // 5)
+        if kinds[i] == 's' and first < i < last:
+            if s_rem != 0 and w_rem > 0:
+                share = wd[i] * s_rem // w_rem
+                carry += share
+                s_rem -= share
+            w_rem -= wd[i]
+    return out
+
+
+def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft):
+    """[(piece, x, width), ...] left to right across ALL of one justified
+    line's spans, or None when the line cannot be justified here (a tab,
+    print-control or graphic span, a `.pm` column indent, fewer than two
+    words, no run of blanks between them, or negative slack -- it is drawn
+    at its natural widths instead). WS7 report 11.7.3: the rule runs over the
+    whole line with each item's own width, so a mixed-font or proportional
+    line is justified like a Courier one (mixj1-mixj4); the pieces are the
+    runs of blanks and the words, each at the width the line's ordinary
+    drawing gives it, and they tile the line's text exactly.
+
+    `segs` are the line's spans after the same preprocessing
+    `_line_ops_printed` does. `soft` is the set of offsets, in the line's
+    text, of the blanks that were WS5+ soft spaces: the driver ignores the
+    stored ones (WS7 report 14.6), so a run of blanks is as wide as the
+    blanks that were typed (at least one, so words never touch)."""
+    kinds, widths, texts = [], [], []
+    off = 0
+    for text, styles, family, size_here, entry, indent in segs:
+        if (indent and pm_active) or (set(text) & GRAPHIC_CHARS) or any(
+                t.startswith('pctl') or t.startswith('tabhmi') for t in styles):
+            return None
+        pt, _ = _sized(styles, size_here, roll_pt, family, entry)
+        basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        proportional = entry is not None and entry.get('proportional')
+        if proportional:
+            pitch = _span_pitch(entry, size_here)
+            factor = _face_tz(basefont, pitch, size_here) / 100.0
         else:
-            _, actual_w = _tz_scale(piece, basefont, pt, pw)
-        out.append((piece, x, actual_w))
-        x += actual_w
+            pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
+                     or _span_pitch(entry, pt))
+        for m in _re.finditer(r' +|[^ ]+', text):
+            piece = m.group(0)
+            if piece[0] == ' ':
+                typed = sum(1 for k in range(m.start(), m.end())
+                            if off + k not in soft) or 1
+                if not proportional:
+                    w = typed * pitch
+                elif indent:
+                    w = typed * pt * _TYPED_INDENT_SPACE_EM
+                else:
+                    nat = _natural_width_pt(' ' * typed, basefont, pt)
+                    w = nat * factor if nat > 0 else typed * pitch
+                kinds.append('s')
+            else:
+                if proportional:
+                    nat = _natural_width_pt(piece, basefont, pt)
+                    w = nat * factor if nat > 0 else len(piece) * pitch
+                else:
+                    w = len(piece) * pitch
+                kinds.append('w')
+            widths.append(w)
+            texts.append(piece)
+        off += len(text)
+    xs = _justify_x_printed(kinds, widths, x0, justify_right_x)
+    if xs is None:
+        return None
+    out = []
+    for i, piece in enumerate(texts):
+        if kinds[i] == 's' and i + 1 < len(texts):
+            out.append((piece, xs[i] / 10.0, (xs[i + 1] - xs[i]) / 10.0))
+        else:
+            out.append((piece, xs[i] / 10.0, widths[i]))
     return out
 
 
@@ -8722,7 +8813,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                       ul_continuous=False, pcl_programs=(), page_h=PAGE_H,
                       kerning=True, justify_right_x=None, justify_word_x=None,
                       record_graphic_cells=None, pm_active=False,
-                      lj_typo=False, lj_corners=False, hp_patterns=False):
+                      lj_typo=False, lj_corners=False, hp_patterns=False,
+                      soft_blanks=()):
     """One laid-out line, on the document's own horizontal grid.
 
     `pm_active` (planning #257, PageLine.pm_active): whether this line's own
@@ -8752,61 +8844,38 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     ordinary render call) costs nothing extra.
 
     `justify_word_x` (planning #251(b)): this line's own PRECOMPUTED
-    `_justify_pieces_printed` result (`PageLine.justify_word_x`, set by
+    `_justify_line_printed` result (`PageLine.justify_word_x`, set by
     `_doc_to_pagelines`'s `_attach_justify_word_x_printed`), or None. When
     given, the justify branch below renders from it directly instead of
-    recomputing the Bresenham split -- the model states it, the writer
-    places it. None (every call site this function had before this field
-    existed, and any line `_attach_justify_word_x_printed` could not
-    resolve on its own -- a styled/tagged span outside its narrow scope)
+    recomputing the split -- the model states it, the writer places it.
+    None (any call site this function had before the field existed, and any
+    line `_attach_justify_word_x_printed` could not resolve on its own)
     falls back to computing it fresh here, unchanged from before.
 
     `justify_right_x` (planning #238, `.oj on` full justification): the
     ABSOLUTE x this line's own right text-margin sits at, or None for an
     unjustified line -- `_doc_to_pagelines` sets it only on a PageLine it
-    already knows is (a) inside a `.oj on`/`align='justify'` block, (b) NOT
+    already knows is inside a `.oj on`/`align='justify'` block and is not
     that block's own last physical line (WordStar never justifies a
     paragraph's trailing line -- confirmed directly against
     ws7-prints/v4/sawyer__LSRBOX__LSRBOX_EXT_WS.pcl, whose paragraph's own
     final line sits short of the margin, ragged, while every line above it
-    reaches the margin exactly), and (c) resolves to exactly ONE coalesced
-    span (a styled/mixed line is left unjustified this pass -- narrow,
-    documented scope, see research/2026-09-08_justification-rule.md).
-    Applied only to a FIXED-PITCH span (a proportional line's own
-    per-word-natural-width path, just above, is unmodified -- no evidenced
-    proportional `.oj on` capture was found in the corpus this pass).
+    reaches the margin exactly).
 
-    The measured rule (same research note): WS7 stretches ONLY the
-    single-character inter-word gaps of the line (a run of 2+ literal
-    blanks -- e.g. an author's own end-of-sentence double space -- is left
-    at its natural width), distributing the line's own total slack across
-    those gaps so the line's last character lands exactly on
-    `justify_right_x`. The measured LSRBOX/CTRL-K.H1 captures show WS7's
-    own per-gap split is NOT perfectly flat even when the total divides
-    evenly (e.g. one 8-gap, 72dp-total line measured 7,7,10,9,10,9,10,10
-    decipoints rather than a flat 9 each) -- WS7's own internal rounding
-    for that split was not reverse-engineered to the decipoint this pass
-    (research/2026-09-08_justification-gap-model.md). What ships here is
-    cumulative-floor Bresenham distribution across the elastic gaps,
-    computed in whole decipoints: `stretch[i] = floor((i+1)*S/G) -
-    floor(i*S/G)`, S = the line's total slack in decipoints, G = elastic
-    gap count. It reproduces every measured whole-column-slack gap
-    (including the 7,7,10,9,10,9,10,10 example above) exactly, and is a
-    measured improvement over flat-even-split everywhere else it was
-    tested (mean residual 0.43dp vs 0.49dp on whole-column slack, 0.80dp
-    vs 0.89dp on fractional slack, across 376 measured gaps) -- but it is
-    still a disclosed approximation, not a fidelity-gate pass: it does not
-    hit every gap to the decipoint. WS7's own algorithm is now read from its
-    driver (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.7.3; it
-    reproduces all six measured rows above exactly): in DOTS (1/300in), each
-    run of blanks between the first word and the last takes
+    The rule is WS7's own, read from its driver (WS7 teardown,
+    `wordstar-dos/11-print-engine.md` 11.7.3; it reproduces the six rows
+    measured on the earlier captures exactly): in DOTS (1/300in), each run
+    of blanks between the first word and the last takes
     `floor(w * S_rem / W_rem)` of the slack still left, w being that run's
     own width (so a double blank takes twice a single one's share, and a
-    proportional blank its own width's share), the remainders falling to the
-    later gaps; the trailing blanks before a soft return are not a gap; a
-    word lands at `floor(x_dots * 720 / 300)` decipoints. Not implemented
-    here yet. The split is done in integer decipoints deliberately, not
-    float points, so the result never depends on summation order.
+    proportional blank its own width's), the remainders falling to the later
+    runs; the blanks before the soft return are not a gap; a word lands at
+    `floor(x_dots * 720 / 300)` decipoints. It runs over the whole line
+    with each item's own width, so a mixed-font or proportional line is
+    spread like a Courier one (14.15, runs mixj1-mixj4); see
+    `_justify_x_printed` and `_justify_line_printed`. A line with a tab, a
+    print control or a graphic, or that is too long, is drawn at its
+    natural widths instead.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
     WordStar's: the characters before it, each at its own run's HMI advance
@@ -8904,12 +8973,29 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     if fi and segs and segs[0][5]:            # segs[0][5] is that first
         fi = None                             # segment's own `indent` flag
     ops, x = [], left + (fi or 0)
-    # Justification only ever touches the ONE span that IS the whole line
-    # (see this function's own docstring, "justify_right_x") -- a line that
-    # split into several segs (a styled word mid-sentence, a leading indent,
-    # graphics) is left unjustified rather than guess how to divide the
-    # slack among them.
-    justify_eligible = justify_right_x is not None and len(segs) == 1
+    # Justification spreads the slack over the whole line, whatever its
+    # spans (see this function's own docstring, "justify_right_x"): the
+    # pieces for every span, or None when the line cannot be spread.
+    justified = None
+    if justify_right_x is not None and segs:
+        justified = justify_word_x
+        if (justified is not None
+                and ''.join(p[0] for p in justified)
+                != ''.join(sg[0] for sg in segs)):
+            justified = None
+        if justified is None:
+            justified = _justify_line_printed(
+                segs, left + (fi or 0), justify_right_x, roll_pt, pm_active,
+                _soft_blanks_of(segs, soft_blanks))
+    seg_pieces, _at = {}, 0
+    if justified:
+        for _si, _sg in enumerate(segs):
+            _n, _got = 0, []
+            while _n < len(_sg[0]) and _at < len(justified):
+                _got.append(justified[_at])
+                _n += len(justified[_at][0])
+                _at += 1
+            seg_pieces[_si] = _got
     # A pctl span whose display string carries a graphic char (box-drawing,
     # LJ6DTP's own «...┌─│...» labels) gets fragmented by _split_graphics
     # above into several pieces that all still carry the same 'pctl'/'pcl<N>'
@@ -8919,7 +9005,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # E3: every `_rules` call on this line records into here instead of
     # emitting its own strike rule; `_strike_runs` draws them at the end.
     strike_sink = []
-    for text, styles, family, size_here, entry, indent in segs:
+    for _si, (text, styles, family, size_here, entry, indent) in enumerate(segs):
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
@@ -9173,6 +9259,58 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         # did with -HOW-TO.RJS's typed spaces (measured: Univers 10pt's own
         # space glyph, ~3.36pt wide, not the 7.2pt 10-CPI column this
         # branch used to charge every one of them).
+        if justified and seg_pieces.get(_si):
+            # WS7's word-gap justification (WS7 report 11.7.3): this span's
+            # words and runs of blanks at the x `_justify_line_printed` gave
+            # them. A proportional span keeps its face's constant stretch
+            # (`want`, as in its ordinary path below); a fixed-pitch one fits
+            # each word to its own width. Nothing is drawn for a blank.
+            if entry is not None and entry.get('proportional'):
+                jwant = _face_tz(basefont, _span_pitch(entry, size_here),
+                                 size_here)
+            else:
+                jwant = None
+            symbol_bold = family == 'Symbol' and 'b' in styles
+            symbol_italic = family == 'Symbol' and 'i' in styles
+            ul_x0 = ul_x1 = None
+            span_ul = ul_continuous and 'u' in styles
+            piece_styles = (styles - {'u'}) if span_ul else styles
+            for piece, piece_x, actual_w in seg_pieces[_si]:
+                if jwant is not None:
+                    pwant = round(jwant, 2)
+                elif piece == ' ':
+                    pwant = TZ_DEFAULT
+                else:
+                    pscale, _ = _tz_scale(piece, basefont, pt, actual_w)
+                    pwant = TZ_DEFAULT if pscale is None else round(pscale, 2)
+                if piece.strip():
+                    if symbol_bold or symbol_italic:
+                        ops.append(_symbol_style_op(
+                            font, pt, rise, pwant, tz_state, piece_x, y,
+                            _esc(piece), symbol_bold, symbol_italic))
+                    elif pwant == tz_state[0]:
+                        ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td'
+                                   b' (%s) Tj ET' %
+                                   (font.encode(), _tf_size(pt), rise, piece_x, y,
+                                    _esc(piece)))
+                    else:
+                        ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f'
+                                   b' %.1f Td (%s) Tj ET' %
+                                   (font.encode(), _tf_size(pt), rise, pwant,
+                                    piece_x, y, _esc(piece)))
+                        tz_state[0] = pwant
+                    if ul_x0 is None:
+                        ul_x0 = piece_x
+                    ul_x1 = piece_x + actual_w
+                ops += _rules(piece_styles, piece, piece_x, y, actual_w,
+                              ul_continuous, strike_sink=strike_sink)
+            if span_ul and ul_x0 is not None:
+                ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
+                           % (ul_x0, y - 1.5, ul_x1, y - 1.5))
+            # Land EXACTLY on the margin regardless of any rounding
+            # accumulated across the pieces above.
+            x = justify_right_x
+            continue
         column_indent = indent and pm_active
         if entry is not None and entry.get('proportional') and not column_indent:
             # PROPORTIONAL runs advance at NATURAL widths, face-scaled. Every
@@ -9289,68 +9427,6 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # size the way WS7's driver builds it.
             pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
                      or _span_pitch(entry, pt))
-            if justify_eligible:
-                # Planning #238/#251(b): this line IS the whole span
-                # (justify_eligible guarantees it) and it is fixed-pitch --
-                # split it into word/gap pieces and stretch only the
-                # single-blank gaps. `justify_word_x` (the model's own
-                # precomputed answer, when `_attach_justify_word_x_printed`
-                # could resolve one) is used directly when present; every
-                # other call site recomputes via the same pure function.
-                # See `_justify_pieces_printed`'s own docstring for the
-                # measured rule and its documented approximation.
-                word_pieces = (justify_word_x if justify_word_x is not None
-                              else _justify_pieces_printed(
-                                  text, pitch, x, justify_right_x, basefont, pt))
-                if word_pieces:
-                    symbol_bold = family == 'Symbol' and 'b' in styles
-                    symbol_italic = family == 'Symbol' and 'i' in styles
-                    ul_x0 = ul_x1 = None
-                    span_ul = ul_continuous and 'u' in styles
-                    piece_styles = (styles - {'u'}) if span_ul else styles
-                    for piece, piece_x, actual_w in word_pieces:
-                        # Nothing is drawn for a bare elastic gap (a single
-                        # blank -- `piece.strip()` below is what actually
-                        # gates the draw); `_tz_scale` is skipped for it
-                        # too, same as before this was factored out (see
-                        # `_justify_pieces_printed`'s own docstring for why
-                        # recomputing against the STORED width is safe for
-                        # every piece that IS drawn).
-                        if piece == ' ':
-                            pscale = None
-                        else:
-                            pscale, _ = _tz_scale(piece, basefont, pt, actual_w)
-                        pwant = TZ_DEFAULT if pscale is None else round(pscale, 2)
-                        if piece.strip():
-                            if symbol_bold or symbol_italic:
-                                ops.append(_symbol_style_op(
-                                    font, pt, rise, pwant, tz_state, piece_x, y,
-                                    _esc(piece), symbol_bold, symbol_italic))
-                            elif pwant == tz_state[0]:
-                                ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td'
-                                          b' (%s) Tj ET' %
-                                          (font.encode(), _tf_size(pt), rise, piece_x, y,
-                                           _esc(piece)))
-                            else:
-                                ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f'
-                                          b' %.1f Td (%s) Tj ET' %
-                                          (font.encode(), _tf_size(pt), rise, pwant, piece_x,
-                                           y, _esc(piece)))
-                                tz_state[0] = pwant
-                            if ul_x0 is None:
-                                ul_x0 = piece_x
-                            ul_x1 = piece_x + actual_w
-                        ops += _rules(piece_styles, piece, piece_x, y, actual_w,
-                                     ul_continuous, strike_sink=strike_sink)
-                    if span_ul and ul_x0 is not None:
-                        ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
-                                  % (ul_x0, y - 1.5, ul_x1, y - 1.5))
-                    # Land EXACTLY on the margin regardless of any rounding
-                    # accumulated across the pieces above -- the one part of
-                    # the measured rule confirmed on every justified line in
-                    # the corpus, never left to float drift.
-                    x = justify_right_x
-                    continue
             target = len(text) * pitch
             scale, w = _tz_scale(text, basefont, pt, target)
         want = TZ_DEFAULT if scale is None else round(scale, 2)
@@ -9651,7 +9727,8 @@ def _page_stream(pagelines, top, page_h=PAGE_H, lead=LEAD, size=SIZE,
                                  getattr(line, 'justify_word_x', None),
                                  pm_active=getattr(line, 'pm_active', False),
                                  lj_typo=lj_typo, lj_corners=lj_corners,
-                                 hp_patterns=hp_patterns)
+                                 hp_patterns=hp_patterns,
+                                 soft_blanks=getattr(line, 'soft_blanks', ()))
     return b'\n'.join(ops)
 
 

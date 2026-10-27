@@ -65,6 +65,13 @@ _GRAPHIC_RUN = re.compile('[%s]+' % re.escape(''.join(GRAPHIC_CHARS)))
 class Span:
     text: str
     styles: frozenset = frozenset()      # subset of {'b','i','u','sup','sub','strike'}
+    # Offsets, into `text`, of the blanks that were WS5+ soft spaces (bare
+    # 0xA0) in the file. They decode to a plain ' ' like any blank and every
+    # emitter treats them so; only print-time justification tells them apart,
+    # because WordStar's driver ignores the stored soft spaces and spreads the
+    # line itself (WS7 report 11.7.3, 14.6). Empty for a span that came from
+    # anywhere else; code that rebuilds a span from its text simply drops it.
+    soft: tuple = ()
 
 
 def split_graphic_spans(spans: list) -> list:
@@ -4043,10 +4050,13 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
     that does not exist. `fn_counter` (ws5+ only) numbers them.
     """
     spans, buf = [], bytearray()
+    soft_at = []              # offsets in `buf` of the WS5+ soft spaces (0xA0)
 
     def flush():
         if buf:
             text = buf.decode(encoding, 'replace')
+            soft = tuple(soft_at) if len(text) == len(buf) else ()
+            soft_at.clear()
             # A byte set in Symbol/ZapfDingbats is a GLYPH INDEX, not styled
             # text: transliterate through the font's own encoding into real
             # Unicode (symbolmap.py), after which no font is required at all.
@@ -4055,7 +4065,8 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
                 kind = font_translit_kind(fonts[fidx])
                 if kind:
                     text = transliterate(text, kind)
-            spans.append(Span(text, frozenset(active)))
+                    soft = ()
+            spans.append(Span(text, frozenset(active), soft))
             buf.clear()
 
     pending = sorted(fnref_at)
@@ -4243,7 +4254,9 @@ def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
             # 'á'). A REAL á is carried as the wrapped triple <1B A0 1C>,
             # which the escape branch above already decodes through cp437.
             # WS4 needs nothing: its soft spaces are 0x20|0x80 and the bit-7
-            # mask restores them.
+            # mask restores them. The span remembers which blanks they were
+            # (`Span.soft`): print-time justification ignores them.
+            soft_at.append(len(buf))
             buf.append(0x20)
         elif b < 0x20 or b == 0x7F:
             if b not in WS_DROP:
