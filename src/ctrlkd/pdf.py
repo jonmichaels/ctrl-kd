@@ -4460,15 +4460,19 @@ class PageLine(list):
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
                 'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
                 'po_cols', 'refs', 'font_rise', 'soft_blanks', 'hibit', 'soft_hyphen', 'li', 'face',
-                'overstrike')
+                'overstrike', 'driver_pieces')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
                 justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None,
                 refs=(), font_rise=None, soft_blanks=(), hibit=(), soft_hyphen=False,
-                li=None, face=None, overstrike=()):
+                li=None, face=None, overstrike=(), driver_pieces=None):
         super().__init__(segments)
+        # A line WS7's LASERJET driver places: [(text, x_pt, width_pt)]
+        # tiling its text, each width the advance to the next piece
+        # (`_attach_driver_pieces_printed`), or None.
+        self.driver_pieces = driver_pieces
         # WS4 under HPLJET: [(offset, char)] of the characters COMPOS prints
         # as two, the second over the first (`_hpljet_compos_spans`); then,
         # once placed (`_attach_hpljet_pieces`), [(char, x_pt)].
@@ -7207,6 +7211,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         _substitute_merge_page_numbers_printed(doc, pages)
         _attach_justify_word_x_printed(doc, pages, size_for_left)
         _attach_graphic_cells_printed(doc, pages, size_for_left)
+        _attach_driver_pieces_printed(doc, pages, size_for_left)
         _attach_line_numbers_printed(doc, pages, size_for_left)
         # planning #274 follow-up (2026-09-15): THE FALLBACK PAGE HAS TO
         # EXIST BEFORE THIS PASS. `pages or [[]]` used to happen at the
@@ -7704,6 +7709,59 @@ def _attach_graphic_cells_printed(doc, pages, size):
                 full_scripts=_printing_era(doc).hpljet_driver)
             if record:
                 line.graphic_cells = record
+
+
+def _attach_driver_pieces_printed(doc, pages, size):
+    """Sets `PageLine.driver_pieces` on every line with text WS7's LASERJET
+    driver places (a `laserjet` font, `_laserjet_fonts`): `[(text, x_pt,
+    width_pt)]` tiling the line's text left to right, each width the advance
+    to the next piece, so a piece lands on its x by construction. Recorded
+    from a real (throwaway-state) call to `_line_ops_printed`, as
+    `_attach_graphic_cells_printed` records its cells, so they are the
+    positions the writer draws. Native pins its own faces to them."""
+    if _printing_era(doc).hpljet_driver:
+        return
+    fonts = _render_fonts(doc)
+    if not any(f.get('laserjet') for f in fonts):
+        return
+    left = _printed_left(doc, size)
+    roll_pt = _printed_roll_pt(doc)
+    ul_continuous = bool(doc.meta.get('formatting', {}).get('underline_blanks', True))
+    dq = _driver_quirks(doc)
+    colour_map = _COLOUR_GRAY_LJ6DTP if dq.colour else {}
+    page_h = _resolved_page_height(doc, True)
+    for page in pages:
+        for line in page:
+            segs = []
+            for text, styles in _coalesce(line):
+                if not text and not _is_zero_width_tab(styles):
+                    continue
+                written, family, size_here, entry = _span_render(
+                    text, styles, fonts, size)
+                segs.append((written, styles, family, size_here, entry))
+            if not any(sg[4] is not None and sg[4].get('laserjet') and sg[0].strip()
+                       for sg in segs):
+                continue
+            own_left = getattr(line, 'left', None)
+            own_roll = getattr(line, 'roll', None)
+            record = []
+            _line_ops_printed(
+                segs, left if own_left is None else own_left, 0.0, size, FontRes(),
+                [TZ_DEFAULT], [('g', 0.0), False], colour_map or {},
+                roll_pt if own_roll is None else own_roll,
+                getattr(line, 'fi', None), ul_continuous, doc.pcl_programs, page_h,
+                getattr(line, 'kerning', True),
+                getattr(line, 'justify_right_x', None),
+                getattr(line, 'justify_word_x', None),
+                pm_active=getattr(line, 'pm_active', False),
+                lj_typo=dq.typography, lj_corners=dq.corners,
+                hp_patterns=dq.patterns,
+                soft_blanks=getattr(line, 'soft_blanks', ()),
+                record_pieces=record)
+            record = [(t, x, w) for t, x, w in record if t]
+            line.driver_pieces = [
+                (t, x, (record[i + 1][1] - x) if i + 1 < len(record) else w)
+                for i, (t, x, w) in enumerate(record)] or None
 
 
 def has_modern_graphic_content(doc):
@@ -9764,8 +9822,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                       kerning=True, justify_right_x=None, justify_word_x=None,
                       record_graphic_cells=None, pm_active=False,
                       lj_typo=False, lj_corners=False, hp_patterns=False,
-                      soft_blanks=(), full_scripts=False, face=None):
+                      soft_blanks=(), full_scripts=False, face=None,
+                      record_pieces=None):
     """One laid-out line, on the document's own horizontal grid.
+
+    `record_pieces`: a list, or None. When given, every piece this call
+    places is appended as `(text, x_pt, width_pt)`, left to right and tiling
+    the line's text: a driver-placed word or kerned part of one, a run of
+    blanks, or a whole span drawn as one (`PageLine.driver_pieces`).
 
     `full_scripts`: WS4's HPLJET sets a sub/superscript in the line's own
     font and cell, only moved `.SR` x 15 decipoints up or down (WS4 teardown
@@ -9963,9 +10027,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # emitting its own strike rule; `_strike_runs` draws them at the end.
     strike_sink = []
     prev_span = None            # the span before, for a pair across records
+    rec_open = None             # (text, x) of a span recorded whole when it ends
     for _si, (text, styles, family, size_here, entry, indent) in enumerate(segs):
         lj_prev = _lj_last(*prev_span) if prev_span else None
         prev_span = (text, entry, styles, size_here)
+        if record_pieces is not None:
+            if rec_open is not None:
+                record_pieces.append((rec_open[0], rec_open[1], x - rec_open[1]))
+            rec_open = (text, x)
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
@@ -10241,6 +10310,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             ul_x0 = ul_x1 = None
             span_ul = ul_continuous and 'u' in styles
             piece_styles = (styles - {'u'}) if span_ul else styles
+            if record_pieces is not None:
+                record_pieces.extend(seg_pieces[_si])
+                rec_open = None
             for piece, piece_x, actual_w in seg_pieces[_si]:
                 if jwant is not None:
                     pwant = round(jwant, 2)
@@ -10369,6 +10441,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                     plan.append((piece, xx, pw, want))
                     xx += pw
                 x_end = xx
+            if record_pieces is not None:
+                record_pieces.extend((p, px, pw) for p, px, pw, _w in plan)
+                rec_open = None
             for piece, x, pw, want in plan:
                 if piece[0] != ' ':
                     if symbol_bold or symbol_italic:
@@ -10461,6 +10536,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         ops += _rules(styles, text, x, y, w, ul_continuous,
                       strike_sink=strike_sink)
         x += w
+    if record_pieces is not None and rec_open is not None:
+        record_pieces.append((rec_open[0], rec_open[1], x - rec_open[1]))
     # E3 (2026-09-16): the line's strikeout, drawn once now that every piece
     # has been placed -- one rule per struck RUN, word gaps included, the way
     # real WS7 overstrikes them. See `_rules`'s own `strike_sink` note.

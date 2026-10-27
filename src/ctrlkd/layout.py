@@ -1232,7 +1232,11 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     `{'family', 'size', 'bold'}`, the face its `justify_word_x` words are
     drawn in, and a line with a character WS4 prints as two carries
     `overstrike`, `[{'char', 'x'}]`, the second character printed over the
-    first at x. See ERAS.md, "WS4's LaserJet driver, HPLJET".
+    first at x. See ERAS.md, "WS4's LaserJet driver, HPLJET". A Printed
+    line with text WS7's LASERJET driver places carries `driver_pieces`,
+    `[{'text', 'x', 'width'}]`: the pieces the writer places, left to right
+    and tiling the line's text, each width the advance to the next piece
+    (see ERAS.md, "WS7's LaserJet driver, LASERJET").
 
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
@@ -1306,6 +1310,11 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 line['justify_word_x'] = [
                     {'text': t, 'x': round(x, 1), 'width': round(w, 1)}
                     for t, x, w in pl_justify_word_x]
+            pl_driver = getattr(pl, 'driver_pieces', None)
+            if pl_driver is not None:
+                line['driver_pieces'] = [
+                    {'text': t, 'x': round(x, 1), 'width': round(w, 1)}
+                    for t, x, w in pl_driver]
             pl_face = getattr(pl, 'face', None)
             if pl_face is not None:
                 line['face'] = {'family': pl_face[0], 'size': pl_face[1],

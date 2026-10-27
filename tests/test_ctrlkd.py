@@ -598,6 +598,27 @@ def test_proportional_words_are_placed_one_op_each_by_the_driver():
     assert b' Tz ' in pdf
     assert b'(proportional)' in pdf and b'(prose)' in pdf and b'(.)' in pdf
 
+def test_a_driver_placed_line_records_its_pieces_for_native():
+    # `driver_pieces` (layout JSON): the pieces the writer places, tiling
+    # the line's text, each landing where the PDF draws it.
+    import json
+    from ctrlkd import layout
+    from ctrlkd.pdf import emit_pdf
+    univers = ws7_block(0x02, (155).to_bytes(2, 'little')
+                        + (240).to_bytes(2, 'little')
+                        + (49710).to_bytes(2, 'little') + bytes(6))
+    body = (ws7_block(0x00, bytes([0x70]) + bytes(11) + bytes(4)) +
+            univers + b'A proportional line of prose.' + HARD)
+    doc = core.parse_ws(body)
+    line = json.loads(layout.emit_layout(doc))['printed']['pages'][0]['lines'][0]
+    pieces = line['driver_pieces']
+    assert ''.join(p['text'] for p in pieces) == 'A proportional line of prose.'
+    for a, b in zip(pieces, pieces[1:]):
+        assert round(a['x'] + a['width'], 1) == b['x']
+    pdf = emit_pdf(doc, 'printed')
+    assert b' %.1f 744.0 Td (prose)' % next(p['x'] for p in pieces if p['text'] == 'prose') in pdf
+
+
 def test_detect_honours_the_header_blocks_declaration():
     # A WS5+ file DECLARES itself: a valid type-0 header block at offset 0.
     # Detection must believe it before running byte statistics -- and before

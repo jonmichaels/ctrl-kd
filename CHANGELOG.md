@@ -18,7 +18,9 @@ the programs' own code and real runs, checked by a new test tier
 - **The layout JSON is version 15**: each printed page carries
   `logical_page_x`, where its x = 0 sits on the sheet; `printed.driver` names
   the driver the pages model (`hpljet` or `laserjet`); a WS4 `.ps on` line
-  carries its `face` and a line with a doubled character its `overstrike`.
+  carries its `face` and a line with a doubled character its `overstrike`;
+  a line WS7's LaserJet driver places carries `driver_pieces`, the pieces the
+  writer places, tiling the line's text.
 - **`Span.soft`**: the offsets of a span's WS5+ soft spaces, which a
   justifying driver ignores.
 - **`Line.hibit`**: in a WS4 file, the offsets of the characters stored with
