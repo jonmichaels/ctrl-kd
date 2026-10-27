@@ -4823,37 +4823,15 @@
     },
     "sawyer__INSET__CHART_EXT_WS": {
       "doc": "sawyer__INSET__CHART_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/INSET/CHART.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "page-number-mismatch": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__INSET__CHART_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 732.0,
-          "words": [
-            "1"
-          ],
-          "ws7_pos": [
-            291.6,
-            732.0
-          ],
-          "pdf_pos": [
-            252.0,
-            732.0
-          ],
-          "font_class": null,
-          "reason": "page-number-mismatch",
-          "detail": "WS7 page 1 foot: 1 at x=291.6pt; engine: 1 at x=252.0pt (column tolerance 0.5pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 10,
         "median_dx": 0.0,
@@ -16231,37 +16209,15 @@
     },
     "sawyer__REF__Keyboard scancode specification - Microsoft_EXT_doc": {
       "doc": "sawyer__REF__Keyboard scancode specification - Microsoft_EXT_doc",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/Keyboard scancode specification - Microsoft.doc",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 1,
       "n_engine_pages": 1,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "page-number-mismatch": 1
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__Keyboard scancode specification - Microsoft_EXT_doc",
-          "page": 1,
-          "line_y_top_pt": 732.0,
-          "words": [
-            "1"
-          ],
-          "ws7_pos": [
-            291.6,
-            732.0
-          ],
-          "pdf_pos": [
-            252.0,
-            732.0
-          ],
-          "font_class": null,
-          "reason": "page-number-mismatch",
-          "detail": "WS7 page 1 foot: 1 at x=291.6pt; engine: 1 at x=252.0pt (column tolerance 0.5pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 1,
         "median_dx": 0.0,
