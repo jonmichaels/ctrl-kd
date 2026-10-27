@@ -35,8 +35,8 @@
  },
  "engine_version": "4.10.1",
  "generator": {
-  "date": "2026-10-27T14:10:37-04:00",
-  "git_sha": "4f175c8b890a51896040d2e49be187acbebd4d78",
+  "date": "2026-10-27T15:14:52-04:00",
+  "git_sha": "1ced8d580d3ddc46e5147f58428babd8abba495f",
   "tool": "tools/answer_key.py"
  },
  "groups": {
@@ -5615,12 +5615,12 @@
        "sha256": "a99901bcb81babfdc39a125320e8fa08da76fddc6f0ec4cef2ec8664698383a5"
       },
       "layout.modern": {
-       "bytes": 1177007,
-       "sha256": "ee1875db6847e30ec8ed3c7d4b992f97bb4c76ebf5979a2281fe5e315a6fd71b"
+       "bytes": 1150973,
+       "sha256": "a2dd171433ec13e1b176becd2b3463279fd80d00d66e1950238a049358787d73"
       },
       "layout.printed": {
-       "bytes": 1177007,
-       "sha256": "ee1875db6847e30ec8ed3c7d4b992f97bb4c76ebf5979a2281fe5e315a6fd71b"
+       "bytes": 1150973,
+       "sha256": "a2dd171433ec13e1b176becd2b3463279fd80d00d66e1950238a049358787d73"
       },
       "markdown.modern": {
        "bytes": 21992,
@@ -5843,12 +5843,12 @@
        "sha256": "df69712f1d37ffd7e385d0ac28132b81fe464b10b932894438cbaad8063536e2"
       },
       "layout.modern": {
-       "bytes": 403868,
-       "sha256": "a7a8e79ab80900dc67a32d5f60561cb5f6148a570b80d9620903839595adce77"
+       "bytes": 398775,
+       "sha256": "e17f5b1d40302134eda30027ec436254d6688a5a6bf2a56875081f81e9df6ba9"
       },
       "layout.printed": {
-       "bytes": 403868,
-       "sha256": "a7a8e79ab80900dc67a32d5f60561cb5f6148a570b80d9620903839595adce77"
+       "bytes": 398775,
+       "sha256": "e17f5b1d40302134eda30027ec436254d6688a5a6bf2a56875081f81e9df6ba9"
       },
       "markdown.modern": {
        "bytes": 11325,
@@ -16720,12 +16720,12 @@
        "sha256": "b0b01c95ca2548556ec9cfa6816135a1dce2d4e4c21830155825280d520efb6f"
       },
       "layout.modern": {
-       "bytes": 95472,
-       "sha256": "f88e7119823a958e4fc489ca775d9ddae477099eb018a74cb8851810998af7f4"
+       "bytes": 95366,
+       "sha256": "1d65371871335a2da1682e6089f946e74afd2a9e77cba3ad85b977e9cc0c0b4b"
       },
       "layout.printed": {
-       "bytes": 95472,
-       "sha256": "f88e7119823a958e4fc489ca775d9ddae477099eb018a74cb8851810998af7f4"
+       "bytes": 95366,
+       "sha256": "1d65371871335a2da1682e6089f946e74afd2a9e77cba3ad85b977e9cc0c0b4b"
       },
       "markdown.modern": {
        "bytes": 4388,
