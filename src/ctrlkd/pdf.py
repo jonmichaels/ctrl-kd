@@ -3632,6 +3632,8 @@ def _note_marker(note, label, pad_cols=None):
     capture has ever measured one -- widening the fix to a kind with no
     evidence either way is exactly the guess this fix itself replaces."""
     is_annotation = note.kind == 'annotation'
+    if is_annotation and not label:
+        return ''            # an untagged annotation: WS7 prints its text at the margin
     base = f'{label}' if is_annotation else f'{label}.'
     if pad_cols is not None:
         return base.ljust(pad_cols)

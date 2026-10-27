@@ -252,8 +252,11 @@ def _annotated_notes(doc, printed=False):
       annotation        its own tag string (e.g. "AC1"), which is what
                         WordStar itself displays/prints for an annotation
                         instead of a number (spec: annotations carry no
-                        numeric identity) — falls back to a running count
-                        only when untagged
+                        numeric identity). Untagged, WS7 prints no mark at
+                        all, in the text or before the note (the capture of
+                        run ann52, WS7 report 15.1), so Printed's label is
+                        empty; the other outputs fall back to a running
+                        count
       comment           WordStar gives comments neither a number nor a tag
                         (spec: "not used"); a running count is the only
                         option, and comments have no inline reference to
@@ -274,7 +277,7 @@ def _annotated_notes(doc, printed=False):
     for n in doc.notes:
         counters[n.kind] += 1
         if n.kind == 'annotation':
-            label = n.tag or str(counters[n.kind])
+            label = n.tag or ('' if printed else str(counters[n.kind]))
         elif n.kind in ('footnote', 'endnote'):
             if n.tag is not None:
                 label = n.tag

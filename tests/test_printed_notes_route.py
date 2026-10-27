@@ -80,3 +80,17 @@ def test_the_note_area_is_the_only_thing_a_page_with_a_note_adds():
     assert all(getattr(ln, 'bi', None) is not None for ln in plain)
     assert any('A note.' in ''.join(t for t, _ in ln) for ln in area)
     assert len(noted) == len(plain) + len(area)
+
+
+def test_an_untagged_annotation_prints_no_mark():
+    """WS7 prints an annotation with no tag without any mark, in the text or
+    before the note: its text sits at the margin (the capture of run ann52,
+    WS7 report 15.1). Modern and the other outputs keep a running count."""
+    from ctrlkd.emit import _annotated_notes
+    doc = core.parse_ws(b'Body text' + _ws7_note(0x05, b'An annotation.', number=0) + b'.\r\n')
+    assert [label for _n, label in _annotated_notes(doc, printed=True)] == ['']
+    assert [label for _n, label in _annotated_notes(doc, printed=False)] == ['1']
+    shown = [t for t in pdf.emit_pdf(doc, 'printed', page_numbers='off').split(b'(')[1:]]
+    texts = [s.split(b')')[0] for s in shown]
+    assert b'An annotation.' in texts
+    assert b'1' not in texts
