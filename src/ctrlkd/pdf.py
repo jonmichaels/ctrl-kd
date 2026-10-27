@@ -3441,10 +3441,25 @@ def _lj_words(plan):
     return out
 
 
-def _lj_piece_tz(piece, basefont, pt, width):
+def _lj_alone(pieces, i):
+    """Whether piece `i` of a driver-placed span is a lone symbol: one
+    character, neither letter nor digit, with a blank or nothing either side
+    (a bullet, a © standing by itself)."""
+    text = pieces[i][0]
+    return (len(text) == 1 and not text.isalnum() and not text.isspace()
+            and (i == 0 or not pieces[i - 1][0].strip())
+            and (i == len(pieces) - 1 or not pieces[i + 1][0].strip()))
+
+
+def _lj_piece_tz(piece, basefont, pt, width, alone=False):
     """The horizontal scale that draws `piece` in `basefont` at `pt` to the
-    width the driver gave it (`_tz_scale`'s fit), 100 for a blank."""
+    width the driver gave it (`_tz_scale`'s fit), 100 for a blank. A lone
+    symbol (`_lj_alone`) narrower than its width is never stretched: the
+    printer drew its own glyph at the cursor, so the stand-in's is drawn there
+    at its own width (a bullet stays round)."""
     if not piece.strip():
+        return TZ_DEFAULT
+    if alone and 0 < _natural_width_pt(piece, basefont, pt) < width:
         return TZ_DEFAULT
     scale, _ = _tz_scale(piece, basefont, pt, width)
     return TZ_DEFAULT if scale is None else round(scale, 2)
@@ -8997,10 +9012,11 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                             source=run_text.replace('•', '∙'))   # the document's F9
             if lj is not None:
                 # placed by WS7's LASERJET driver, as a body line's words are
-                for piece, px, pw in lj:
+                for i, (piece, px, pw) in enumerate(lj):
                     if piece.strip():
                         ops.append(b'BT /%s %d Tf 0 Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
-                                   (font.encode(), pt, _lj_piece_tz(piece, basefont, pt, pw),
+                                   (font.encode(), pt,
+                                    _lj_piece_tz(piece, basefont, pt, pw, _lj_alone(lj, i)),
                                     _lj_x(x + px), y, _esc(piece)))
                         scaled = True
                 x += lj[-1][1] + lj[-1][2] if lj else 0.0
@@ -10315,7 +10331,10 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         if set(text) & GRAPHIC_CHARS:
             pitch = (pt if (entry is not None and entry.get('proportional'))
                      else _span_pitch(entry, pt))
-            ops += _graphic_ops(text, x, y, pitch, pt)
+            # A superscript or subscript rolls the carriage for a block as for
+            # a letter (LJ6DTP p6: the superscripted second row of █ heightens
+            # the bar).
+            ops += _graphic_ops(text, x, y + rise, pitch, pt)
             # planning #251(c): the model's own per-cell x/width -- see
             # `record_graphic_cells`'s own doc on this function's
             # signature. Recorded here, the ONE place this run's per-
@@ -10466,8 +10485,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # neither run into the next word nor leave it a wider gap.
             lj = _lj_pieces(text, entry, styles, size_here, kerning, lj_prev)
             if lj is not None:
-                plan = [(p, _lj_x(x + px), w, _lj_piece_tz(p, basefont, pt, w))
-                        for p, px, w in lj]
+                plan = [(p, _lj_x(x + px), w,
+                         _lj_piece_tz(p, basefont, pt, w, _lj_alone(lj, i)))
+                        for i, (p, px, w) in enumerate(lj)]
                 x_end = x + (lj[-1][1] + lj[-1][2] if lj else 0.0)
             else:
                 plan, xx = [], x

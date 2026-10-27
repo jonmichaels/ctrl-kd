@@ -452,14 +452,14 @@
    "kinds": {
     "rect-not-compared": 4
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-racing-stripes": {
    "kinds": {
     "rect-not-compared": 132,
     "missing-word": 84
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-script": {
    "kinds": {
@@ -475,80 +475,80 @@
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p2": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p3": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p4": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p5": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p6": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p7": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-manual-p8": {
    "kinds": {
     "rect-not-compared": 164,
     "missing-graphic": 213,
     "x": 135,
-    "missing-word": 369,
-    "extra-word": 334
+    "missing-word": 367,
+    "extra-word": 335
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-symbol": {
    "kinds": {
@@ -614,7 +614,7 @@
     "missing-word": 240,
     "extra-word": 40
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   },
   "wordstar-dos/lj6-checker": {
    "kinds": {
@@ -622,7 +622,7 @@
     "pages": 1,
     "missing-word": 49
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
+   "reason": "LJ6DTP's driver is modelled (planning #210), but this tool does not compare its PCL rectangles or graphic cells, the symbol charts are not modelled, and a lone symbol drawn at its own width (…, +, /) is read as a separate word"
   }
  }
 }
