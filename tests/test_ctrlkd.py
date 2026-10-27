@@ -3684,7 +3684,7 @@ def test_rr_bare_ruler_image_overprint_terminator_adds_no_blank_line():
         b'.rr\rL----P----!----!-------------R\r\r\n'
         b'.rr\rL----!---------------------------!------------------------------R\r\n'
         b'\r\n'
-        b'Line after the rulers.\r\n')
+        b'Line after the rulers.\r\n', variant='ws5+')
     first, second = doc.blocks
     assert [''.join(s.text for s in ln.spans) for ln in first.lines] == [
         'Line ending before the rulers.', '', '']
@@ -4983,7 +4983,12 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     automatic page number at the `.PC` default 28 (`Era.pc_default`; WS4
     teardown `wordstar4-dos/4-formatting-printing.md` 3.2, runs x41-*), not
     at WS7's centred 33.5. Its one drawn number moves 39.6pt left; the
-    body, the page breaks and the other three hashes are unchanged."""
+    body, the page breaks and the other three hashes are unchanged.
+
+    Re-pinned an ELEVENTH time 2026-10-27, back to the NINTH's hash:
+    `make_prose` has soft returns and no word-end high bits, which detection
+    now reads as a headerless WS5+ file (WS4 teardown 3.14), so its number
+    is WS7's centred one again."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4995,7 +5000,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        '98b2f52325b0f8fa2814a576fc318282a3b143cec2487fb95c35e07a0a8f333d'
+        '74047110c0fce45fd4e6b3ca36af0c5e6d92dc45a605d8e4f3b4927f797bb041'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'e766708c4040a5e50e8663fc5730fc6c8bbf9fb5be226a1abdeab16b150ca90d'
     assert digest(core.parse_ws(styled), 'printed') == \

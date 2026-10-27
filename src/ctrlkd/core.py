@@ -1072,6 +1072,7 @@ def merged_lines(block: Block) -> list:
     # arrives keeps the print-stream case (one block, interior blanks are the only
     # paragraph separation) without breaking the WS4 case (blank ends the block).
     pending_blanks = 0
+    sep_span = None    # the join space a soft line just appended to `cur`, if any
     for line in block.lines:
         if not line.spans:
             # A blank PHYSICAL line, and the two kinds mean different things.
@@ -1108,6 +1109,12 @@ def merged_lines(block: Block) -> list:
                     # round 10: a private-corpus WS5+ document with exactly
                     # this shape -- three physical lines, soft/soft/soft,
                     # immediately followed by a blank hard line).
+                    # A soft line that ends the paragraph (WordStar keeps the
+                    # stored return soft before `.ls` filler's empty hard
+                    # line, WS7 report 15.10) joins nothing: its separator
+                    # space goes.
+                    if sep_span is not None and cur.spans and cur.spans[-1] is sep_span:
+                        cur.spans.pop()
                     cur.spans = coalesce_spans(cur.spans)
                     out.append(cur)
                     cur = None
@@ -1137,8 +1144,10 @@ def merged_lines(block: Block) -> list:
             cur.spans.extend(spans)
         if line.soft:
             t = cur.spans[-1].text if cur.spans else ''
+            sep_span = None
             if t and not t.endswith((' ', '-')):
-                cur.spans.append(Span(' ', cur.spans[-1].styles))
+                sep_span = Span(' ', cur.spans[-1].styles)
+                cur.spans.append(sep_span)
             continue
         cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
@@ -1902,6 +1911,22 @@ def detect(data: bytes) -> dict:
                  'reason': 'opens with a valid header block (declared '
                            f'release {data[4] >> 4}.{data[4] & 0x0F})',
                  'size': len(data)})
+        # A header-shaped opening whose block never closes is not a header:
+        # WS4 loads such a file as ordinary text and saves it back byte for
+        # byte (WS4 report 3.14, run ws5hdr -- `1D 7D 00 00 80 00` and
+        # zero fill read as one line of `^]}^@^@...`). The zero fill is
+        # WS4's kept 00h, not binary noise, so judge what follows the
+        # block by the ordinary statistics: when they say text, it is the
+        # WS4 file's text.
+        if 8 <= jump < 0x400 and end < len(data) and data[end] != 0x1D:
+            after = detect(data[end + 1:])['variant']
+            if after in ('text', 'printstream', 'ws4'):
+                return _with_merge_data_kind(
+                    data,
+                    {'variant': 'ws4',
+                     'reason': 'opens with a header-shaped block that does '
+                               'not close: WS4 holds it as text',
+                     'size': len(data)})
     # The first 0x1A is not reliably EOF either: it can be a legitimate
     # in-content control byte (REF/ROUNDED.BRD's box-drawing template opens
     # with page-setup dot commands then hits a bare 0x1A at offset 48 that
@@ -1949,6 +1974,14 @@ def detect(data: bytes) -> dict:
     # the two populations do not overlap: every genuine trip-carrying document
     # sits at >= 7x chance, every binary at <= 2x.
     dense_trips = trips >= 3 and trips * 16384 >= len(core)
+    # WS4 sets bit 7 on the last letter of every word and WS5+ dropped that
+    # convention (WSFORMAT), so the high-bit bytes that are NOT the middle
+    # of a wrapped triple and NOT the 8D/8A of a return or page mark -- the
+    # ones every WordStar writes -- are WS4's own. LASER1.DOC carries 709
+    # wrapped box characters in 8 KB of WS4 text (WS4 report 3.14, run
+    # laser1): the triples alone must not make it WS5+.
+    ws4_hi = len(re.sub(rb'\x1b.\x1c|\x8d\x0a|\x8d\x8a|\x0d\x8a', b'', core,
+                        flags=re.S).translate(None, bytes(range(0x80))))
     # ONE well-formed block is the threshold, not two. The old `>= 2` was a
     # BYTE threshold and a single real block spends two 0x1D bytes (opening
     # bracket and closing bracket), so `>= 2` bytes and `>= 1` block are the
@@ -1956,9 +1989,15 @@ def detect(data: bytes) -> dict:
     # (PLAYS.DOC, the MAILLIST envelope layouts, the LSRBOX templates, the
     # WS7 TAGS/ files, -MACROS.DOC) carry exactly one block, and reading the
     # old constant as a block count would have dropped every one of them.
-    if blocks_1d >= 1 or dense_trips:
-        # Well-formed 1D symmetric blocks and 1B..1C wrapped extended
-        # characters are WS5+ machinery regardless of anything else
+    if blocks_1d >= 1:
+        # Well-formed 1D symmetric blocks are WS5+ machinery regardless of
+        # anything else
+        return _with_merge_data_kind(data, {'variant': 'ws5+', **ev})
+    if dense_trips:
+        # 1B..1C wrapped extended characters are WS5+ machinery too -- unless
+        # the file also carries WS4's bit-7 word ends, which WS5+ never writes
+        if ws4_hi >= max(1, len(core) // 20) and txt >= 70:
+            return _with_merge_data_kind(data, {'variant': 'ws4', **ev})
         return _with_merge_data_kind(data, {'variant': 'ws5+', **ev})
     # soft returns are strong WS evidence on their own; high-bit density alone is
     # not — binaries are full of high bytes — unless the file is mostly text.
@@ -1969,14 +2008,25 @@ def detect(data: bytes) -> dict:
     # case for calling a 21 MB Windows executable a WS4 document. A real WS4
     # document soft-wraps every line: one per ~60 bytes, thousands of times
     # the floor asked for here.
-    dense_soft = soft >= 3 and soft * 16384 >= len(core)
-    if dense_soft or (hi >= max(1, len(core) // 20) and txt >= 70):
+    #
+    # Two soft returns are enough in a short file (WS7 report 14.6: the
+    # three-line paragraph of run just0 has two): the floor is the density.
+    dense_soft = soft >= 2 and soft * 16384 >= len(core)
+    # A page mark `0D 8A` is WS4's own write -- the editor stores one at
+    # every page it paginated, and print ignores them (WS4 report 1.10,
+    # 3.14; run marks3) -- under the same density floor, and only in a file
+    # that is text through and through: machine code is full of 0D and 8A.
+    marks = core.count(b'\x0d\x8a')
+    dense_marks = marks >= 1 and marks * 16384 >= len(core) and txt >= 90
+    if dense_soft or dense_marks or (hi >= max(1, len(core) // 20) and txt >= 70):
         # WS5+ kept soft returns but dropped the bit-7-on-last-letter
         # convention: a wordstar file with many soft returns and near-zero
-        # high bits is WS5+. (Symmetric blocks -- footnotes etc., WS5+ only --
-        # settled it above; blocks_1d is necessarily 0 by the time we get
-        # here, so this branch is about returns alone.)
-        if dense_soft and hi < soft // 4:
+        # high bits is WS5+. The soft returns' own 8D bytes are high bits
+        # too, so the count is of the others (`ws4_hi`). (Symmetric blocks --
+        # footnotes etc., WS5+ only -- settled it above; blocks_1d is
+        # necessarily 0 by the time we get here, so this branch is about
+        # returns alone.)
+        if dense_soft and ws4_hi * 4 < soft:
             return _with_merge_data_kind(data, {'variant': 'ws5+', **ev})
         return _with_merge_data_kind(data, {'variant': 'ws4', **ev})
     if txt >= 90 and hard >= 2:
@@ -6475,8 +6525,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
             # entry the same way this entry itself is swallowed
             # (round-tripped, never decoded as content) -- see the check at
             # the top of this loop.
+            #
+            # WS4 has no such form (WS4 report evidence/pass3/exe-static.md
+            # P17, P19B): a bare `.RR` has LM = RM and is REJECTED -- the
+            # ruler goes back to the document-start ruler and the next line
+            # is ordinary text (runs p17-rr, p19b-rr).
             elif cmd[1:3].upper() == b'RR' and not cmd[3:].strip():
-                consume_next_as_ruler = True
+                if ws5:
+                    consume_next_as_ruler = True
             # Header/footer TEXT is content, not command syntax: hand it the
             # UNMASKED line. The bit-7 mask that protects WS4 command letters
             # corrupts 8-bit argument text -- LJ6DTP's `.h1` carries a wrapped
@@ -6639,6 +6695,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
             if (cmd[1:3].upper() == b'RR' and cmd[3:].strip()
                     and not cmd[3:].strip()[:1].isdigit()):
                 _apply_ruler_margins(cmd[3:], fmt)
+            elif cmd[1:3].upper() == b'RR' and not cmd[3:].strip() and not ws5:
+                _apply_ruler_margins(b'', fmt)     # WS4 rejects it: start ruler
             if _block_format(fmt) != before:
                 close_block()
             _parse_page_dot(cmd, page, meta_extra,
@@ -6928,6 +6986,14 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
                 _rt_content[0] += 1        # close_line() would have done for
                 _rt_lastc[0] = blank       # a non-empty line (#20/#21)
         else:                                      # para / eof
+            if (sep == 'para' and cur_line.spans and _rt_brk
+                    and _rt_brk[0] in (0x8D, 0x8A)):
+                # The paragraph ends here for reflow, but the line was stored
+                # with a SOFT return and WordStar keeps it soft: Enter under
+                # `.ls n` stores `8D 0A`, n-2 empty soft lines and an empty
+                # hard line (WS7 report 15.10, runs w16-ls2, w16-ls3). The
+                # flag is the stored terminator's, whatever follows it.
+                cur_line.soft = True
             close_block()
         # Stamp this entry's raw separator on the Line that closed it (tasks
         # #20/#21). Entries that appended no Line (a toggles-only invisible
@@ -7230,9 +7296,12 @@ def _detect_comment_bug(data: bytes):
     return {'count': count, 'first_offset': first, 'stray_ctrl_t': b'\x14' in data}
 
 def parse_printstream(data: bytes, encoding: str = 'cp437',
-                      codes: dict = None) -> Document:
+                      codes: dict = None, keep_bit7: bool = False) -> Document:
     """A print-to-disk capture IS the printed page: every line verbatim, printer
-    style codes decoded, everything else below 0x20 stripped."""
+    style codes decoded, everything else below 0x20 stripped. Stray high bits are
+    printer noise and are masked, unless the caller says the file is a
+    nondocument (`keep_bit7`): WS7 keeps bit 7 there and the bytes show as
+    CP437 characters."""
     codes = PRINT_CODES if codes is None else codes
     doc = Document(meta={'variant': 'printstream', 'columnar': True})
     cut = data.find(b'\x1a')
@@ -7259,7 +7328,12 @@ def parse_printstream(data: bytes, encoding: str = 'cp437',
 
     for b in data:
         c = b & 0x7F
-        if c in codes:
+        # A nondocument keeps bit 7 (WS7 report 14.2, run ws4an: the bytes
+        # of a WS4 file opened as a nondocument show as CP437 characters);
+        # only the flagged line end, form feed and return are read as theirs.
+        if keep_bit7 and b >= 0x80 and c not in (0x0A, 0x0C, 0x0D):
+            buf.append(b)
+        elif c in codes:
             flush()
             style, on = codes[c]
             (active.add if on else active.discard)(style)
@@ -7378,7 +7452,7 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None,
     if v in ('ws4', 'ws5+'):
         return parse_ws(data, encoding, variant=variant, printed_by=printed_by)
     if v in ('printstream', 'text'):
-        return parse_printstream(data, encoding)
+        return parse_printstream(data, encoding, keep_bit7=(v == 'text'))
     reason = det.get('reason', 'content statistics')
     raise ParseError(f'not a convertible file (detected: {v} -- {reason})',
                      'binary', det)

@@ -43,12 +43,6 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar4-dos/laser1-zeros": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D2 detect() calls this WS4 file ws5+: its 1B xx 1C density wins over 470 WS4 high-bit word ends"
-  },
   "wordstar4-dos/eof-127#0": {
    "kinds": {
     "variant-plain": 1
@@ -79,12 +73,6 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar4-dos/ws5-header-as-text": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D3 a WS5-style header kept as text in a WS4 file: detect() refuses it as binary"
-  },
   "wordstar4-dos/justify-14-over-5": {
    "kinds": {
     "end": 1
@@ -111,11 +99,9 @@
   },
   "wordstar4-dos/ruler-p17": {
    "kinds": {
-    "variant-plain": 1,
-    "dot-count": 1,
-    "missing-line": 1
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E3 a bare .RR in WS4 swallows the next line as a ruler image (the WS7 rule); WS4 rejects it and restores the document-start ruler"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; WS4 rejects it and restores the document-start ruler"
   },
   "wordstar4-dos/ruler-p18a": {
    "kinds": {
@@ -131,23 +117,9 @@
   },
   "wordstar4-dos/ruler-p19b": {
    "kinds": {
-    "variant-plain": 1,
-    "dot-count": 1,
-    "missing-line": 1
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E3 bare .RR in WS4 (see ruler-p17)"
-  },
-  "wordstar4-dos/page-marks-written": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D1 detect() does not count WS4's 0D 8A page marks as WordStar evidence"
-  },
-  "wordstar4-dos/print-ignores-8a": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D1 detect() does not count 0D 8A page marks; E5 WS4's automatic page number at WS7's column 33.5, not .PC 28"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/print-wi-ignored#0": {
    "kinds": {
@@ -299,35 +271,11 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar4-dos/pages-lh-mid": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D1 detection; E8 WS4 page capacity at .LH 16 and the lead after a line (R-38: WS4 paginates on the WS7 model); E5 page number column"
-  },
-  "wordstar4-dos/pages-lh12": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D1 detection; E8 WS4 page capacity at .LH 12: 37 lines, engine 36 (R-38); E5 page number column"
-  },
-  "wordstar4-dos/pages-mtmb-mid": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D1 detection; E9 a mid-file .MT/.MB changes WS4's current page at once; the engine applies it per block (R-38)"
-  },
   "wordstar4-dos/po-bare-zero": {
    "kinds": {
     "variant-plain": 1
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
-  },
-  "wordstar-dos/ws4-as-nondocument": {
-   "kinds": {
-    "text": 2
-   },
-   "reason": "E4 a nondocument keeps bit 7 in WS7 (CP437 characters); parse_printstream strips it"
   },
   "wordstar-dos/page-55-lines": {
    "kinds": {
@@ -454,18 +402,11 @@
    },
    "reason": "the Printed superscript rise is written to the PDF as a whole point (Ts 4) where the default .sr is 4.5 pt, so a superscript sits 0.5 pt low"
   },
-  "wordstar-dos/justify-off": {
-   "kinds": {
-    "variant": 1
-   },
-   "reason": "D4 a short headerless WS7 file with 8D 0A soft returns: detect() calls it text"
-  },
   "wordstar-dos/justify-on": {
    "kinds": {
-    "variant": 1,
     "x": 22
    },
-   "reason": "D4 detection; E17 justification: the blank before the soft return counted as a gap, and decipoint Bresenham where WS7 shares dots by floor(w*S_rem/W_rem)"
+   "reason": "E17 justification: the blank before the soft return counted as a gap, and decipoint Bresenham where WS7 shares dots by floor(w*S_rem/W_rem)"
   },
   "wordstar-dos/attributes": {
    "kinds": {
@@ -559,18 +500,6 @@
     "variant-plain": 1
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
-  },
-  "wordstar-dos/enter-ls2#0": {
-   "kinds": {
-    "end": 1
-   },
-   "reason": "E2 a soft line before an empty hard line under .ls 2 is read as a paragraph end (hard)"
-  },
-  "wordstar-dos/enter-ls2#1": {
-   "kinds": {
-    "end": 1
-   },
-   "reason": "E2 a soft line before an empty hard line under .ls 2 is read as a paragraph end (hard)"
   },
   "wordstar-dos/page-ranges-20": {
    "kinds": {
