@@ -1026,16 +1026,18 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     version 3 (planning #251(b), 2026-09-09): each printed line MAY now
     carry 'justify_word_x' — `[{'text': str, 'x': float, 'width': float},
-    ...]` — the per-word/per-gap Bresenham justification split
-    (`PageLine.justify_word_x`, set by `_attach_justify_word_x_printed`)
-    covering the WHOLE line left to right, in the SAME absolute points
-    `pdf.py`'s own writer draws from. Present only on a justified
-    (`.oj on`) line that resolves to exactly one fixed-pitch, untagged
-    span with real slack to distribute — every other justified line
-    (styled/mixed, proportional, a `pctl`/tab-marked span, or one with no
-    elastic gap or no slack) omits it, same "omitted, not null" and
-    "byte-identical to version 2 when unused" convention `left`/`col`
-    already use.
+    ...]` — WS7's word-gap justification (WS7 report 11.7.3: shares in dots,
+    `floor(w * S_rem / W_rem)` per run of blanks) as the words and runs of
+    blanks left to right (`PageLine.justify_word_x`, set by
+    `_attach_justify_word_x_printed`), in the SAME absolute points `pdf.py`'s
+    own writer draws from. Since planning #549 the pieces cover the line's
+    whole text across ALL its spans, fixed-pitch or proportional, and tile it
+    exactly (a consumer maps them onto its own spans by text offset); WS5+
+    soft spaces are ignored, as the driver ignores them. Present only on a
+    justified (`.oj on`) line that has two words with a run of blanks between
+    them and no tab, print-control or graphic span; every other justified line
+    omits it, same "omitted, not null" and "byte-identical to version 2 when
+    unused" convention `left`/`col` already use.
 
     version 4 (planning #251(d), 2026-09-09): each printed line MAY now
     carry 'line_no' — `{'text': str, 'x': float}` — the `.l#` gutter

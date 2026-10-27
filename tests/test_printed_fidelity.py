@@ -1054,7 +1054,10 @@ def test_l_hash_gutter_numbers_every_nth_line_printed_pdf_and_rtf():
     # line-number entry.
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
-    assert nums == [b'1', b'2', b'3']
+    # WS7 keeps numbering to the end of the page, the empty rows included
+    # (WS7 report, run lnum-courier): 55 rows, every second one numbered.
+    assert nums[:3] == [b'1', b'2', b'3']
+    assert len(nums) == 28 and nums[-1] == b'28'
 
     r = emit.emit_rtf(doc, mode='printed')
     assert r'1\tab' in r and r'2\tab' in r and r'3\tab' in r
@@ -1073,7 +1076,8 @@ def test_l_hash_gutter_interval_1_numbers_every_line():
 
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
     nums = re.findall(rb'BT /\S+ \d+ Tf 0 Ts [\d.]+ [\d.]+ Td \((\d+)\) Tj ET', out)
-    assert nums == [b'1', b'2', b'3']
+    # every row of the page, the empty ones after the text too
+    assert nums == [b'%d' % i for i in range(1, 56)]
 
     r = emit.emit_rtf(doc, mode='printed')
     assert r'1\tab' in r and r'2\tab' in r and r'3\tab' in r
@@ -1127,12 +1131,13 @@ def test_l_hash_labels_and_x_land_on_the_pageline_model():
     pages = _pdf._doc_to_pagelines(doc, True)
     line_nos = [getattr(pl, 'line_no', None) for pl in pages[0]]
     labels = [ln[0] for ln in line_nos if ln is not None]
-    assert labels == ['1', '2', '3']
+    assert labels[:3] == ['1', '2', '3'] and len(labels) == 28
+    assert len(pages[0]) == 55            # the page is filled out (WS7 report)
     # every labelled line's x is the SAME right-aligned position
     # (`LINE_NO_RIGHT_PT` minus the label's own width) `_page_stream`
     # used to compute at render time -- single-digit labels here, so
     # all three land at the identical x.
-    xs = {ln[1] for ln in line_nos if ln is not None}
+    xs = {ln[1] for ln in line_nos if ln is not None and len(ln[0]) == 1}
     assert len(xs) == 1
     # unlabelled lines (including the trailing blank the parser folds
     # in) carry no opinion, same "furniture" convention as `left`/`col`.
@@ -1147,7 +1152,7 @@ def test_l_hash_labels_and_x_land_on_the_pageline_model():
     assert out['version'] == 14
     json_lines = out['printed']['pages'][0]['lines']
     json_labels = [l['line_no']['text'] for l in json_lines if 'line_no' in l]
-    assert json_labels == ['1', '2', '3']
+    assert json_labels[:3] == ['1', '2', '3'] and len(json_labels) == 28
     assert all('line_no' not in l for l, ln in zip(json_lines, line_nos)
               if ln is None)
 

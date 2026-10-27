@@ -391,12 +391,6 @@
    },
    "reason": "the Printed superscript rise is written to the PDF as a whole point (Ts 4) where the default .sr is 4.5 pt, so a superscript sits 0.5 pt low"
   },
-  "wordstar-dos/justify-on": {
-   "kinds": {
-    "x": 22
-   },
-   "reason": "E17 justification: the blank before the soft return counted as a gap, and decipoint Bresenham where WS7 shares dots by floor(w*S_rem/W_rem)"
-  },
   "wordstar-dos/attributes": {
    "kinds": {
     "variant-plain": 1
@@ -405,33 +399,27 @@
   },
   "wordstar-dos/justify-font-change": {
    "kinds": {
-    "x": 16
+    "x": 1
    },
-   "reason": "E18 a justified line with a font change is not justified"
-  },
-  "wordstar-dos/justify-font-change-ref": {
-   "kinds": {
-    "x": 16
-   },
-   "reason": "E17 justification arithmetic (see justify-on)"
+   "reason": "E19 Times metrics: the Times 24 word is about 2 dots wider than WS7's, which moves the words after it by 0.3pt"
   },
   "wordstar-dos/justify-times": {
    "kinds": {
-    "x": 8
+    "x": 7
    },
-   "reason": "E18 a justified proportional line is not justified"
+   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/justify-share-by-width": {
    "kinds": {
-    "x": 16
+    "x": 5
    },
-   "reason": "E18 mixed-font justification (each blank shares by its own width)"
+   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/justify-times24-blank": {
    "kinds": {
-    "x": 16
+    "x": 6
    },
-   "reason": "E18 mixed-font justification"
+   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/tall-line-stays": {
    "kinds": {
@@ -488,21 +476,15 @@
   },
   "wordstar-dos/lj-no-letter-spacing": {
    "kinds": {
-    "x": 7
+    "x": 5
    },
-   "reason": "E18 a justified proportional line is not justified"
+   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
   },
   "wordstar-dos/lnum-courier": {
    "kinds": {
-    "missing-word": 160
+    "missing-word": 110
    },
-   "reason": "E27 .l#: WS7 numbers every row of the page, empty ones too, and draws bars at 504 and 5328; the engine numbers text lines only, no bars"
-  },
-  "wordstar-dos/raw01-lj": {
-   "kinds": {
-    "x": 3
-   },
-   "reason": "E20 raw 01h (^PA) selects the printer's alternate font; the engine ignores it"
+   "reason": "the engine numbers text lines only, no bars; E27b the .l# bars are drawn as vectors (cp437 graphics), so the comparison sees no word where WS7 prints BAh and B3h"
   }
  }
 }

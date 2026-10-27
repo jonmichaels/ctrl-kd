@@ -12889,7 +12889,7 @@
       "n_engine_pages": 5,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "exact-drift": 814
+        "exact-drift": 464
       },
       "divergences": [
         {
@@ -13057,86 +13057,6 @@
           "page": 1,
           "line_y_top_pt": 100.8,
           "words": [
-            "voyages",
-            "voyages"
-          ],
-          "ws7_pos": [
-            44.1,
-            100.8
-          ],
-          "pdf_pos": [
-            43.2,
-            101.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 100.8,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            125.2,
-            100.8
-          ],
-          "pdf_pos": [
-            122.4,
-            101.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 100.8,
-          "words": [
-            "Starship",
-            "Starship"
-          ],
-          "ws7_pos": [
-            155.0,
-            100.8
-          ],
-          "pdf_pos": [
-            151.2,
-            101.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 100.8,
-          "words": [
-            "Enterprise.",
-            "Enterprise."
-          ],
-          "ws7_pos": [
-            220.8,
-            100.8
-          ],
-          "pdf_pos": [
-            216.0,
-            101.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -4.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 100.8,
-          "words": [
             "seek",
             "seek"
           ],
@@ -13257,86 +13177,6 @@
           "page": 1,
           "line_y_top_pt": 118.8,
           "words": [
-            "year",
-            "year"
-          ],
-          "ws7_pos": [
-            52.3,
-            118.8
-          ],
-          "pdf_pos": [
-            57.6,
-            119.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +5.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 118.8,
-          "words": [
-            "mission:",
-            "mission:"
-          ],
-          "ws7_pos": [
-            90.2,
-            118.8
-          ],
-          "pdf_pos": [
-            93.6,
-            119.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +3.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 118.8,
-          "words": [
-            "explore",
-            "explore"
-          ],
-          "ws7_pos": [
-            190.0,
-            118.8
-          ],
-          "pdf_pos": [
-            187.2,
-            119.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 118.8,
-          "words": [
-            "strange,",
-            "strange,"
-          ],
-          "ws7_pos": [
-            249.8,
-            118.8
-          ],
-          "pdf_pos": [
-            244.8,
-            119.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 118.8,
-          "words": [
             "boldly",
             "boldly"
           ],
@@ -13407,206 +13247,6 @@
           "pdf_pos": [
             669.6,
             119.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "seek",
-            "seek"
-          ],
-          "ws7_pos": [
-            95.0,
-            136.8
-          ],
-          "pdf_pos": [
-            93.6,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "out",
-            "out"
-          ],
-          "ws7_pos": [
-            132.0,
-            136.8
-          ],
-          "pdf_pos": [
-            129.6,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "new",
-            "new"
-          ],
-          "ws7_pos": [
-            161.7,
-            136.8
-          ],
-          "pdf_pos": [
-            158.4,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "life",
-            "life"
-          ],
-          "ws7_pos": [
-            191.5,
-            136.8
-          ],
-          "pdf_pos": [
-            187.2,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -4.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            228.4,
-            136.8
-          ],
-          "pdf_pos": [
-            223.2,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 136.8,
-          "words": [
-            "new",
-            "new"
-          ],
-          "ws7_pos": [
-            258.2,
-            136.8
-          ],
-          "pdf_pos": [
-            252.0,
-            137.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -6.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 154.8,
-          "words": [
-            "boldly",
-            "boldly"
-          ],
-          "ws7_pos": [
-            104.1,
-            154.8
-          ],
-          "pdf_pos": [
-            108.0,
-            155.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +3.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 154.8,
-          "words": [
-            "where",
-            "where"
-          ],
-          "ws7_pos": [
-            179.5,
-            154.8
-          ],
-          "pdf_pos": [
-            180.0,
-            155.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +0.50pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 154.8,
-          "words": [
-            "man",
-            "man"
-          ],
-          "ws7_pos": [
-            248.1,
-            154.8
-          ],
-          "pdf_pos": [
-            244.8,
-            155.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 154.8,
-          "words": [
-            "has",
-            "has"
-          ],
-          "ws7_pos": [
-            278.8,
-            154.8
-          ],
-          "pdf_pos": [
-            273.6,
-            155.0
           ],
           "font_class": "exact",
           "reason": "exact-drift",
@@ -13691,6 +13331,366 @@
           "font_class": "exact",
           "reason": "exact-drift",
           "detail": "residual -5.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 172.8,
+          "words": [
+            "voyages",
+            "voyages"
+          ],
+          "ws7_pos": [
+            440.1,
+            172.8
+          ],
+          "pdf_pos": [
+            439.2,
+            173.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 172.8,
+          "words": [
+            "the",
+            "the"
+          ],
+          "ws7_pos": [
+            521.2,
+            172.8
+          ],
+          "pdf_pos": [
+            518.4,
+            173.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -2.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 172.8,
+          "words": [
+            "Starship",
+            "Starship"
+          ],
+          "ws7_pos": [
+            551.0,
+            172.8
+          ],
+          "pdf_pos": [
+            547.2,
+            173.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 172.8,
+          "words": [
+            "Enterprise.",
+            "Enterprise."
+          ],
+          "ws7_pos": [
+            616.8,
+            172.8
+          ],
+          "pdf_pos": [
+            612.0,
+            173.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -4.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "The",
+            "The"
+          ],
+          "ws7_pos": [
+            112.0,
+            190.8
+          ],
+          "pdf_pos": [
+            115.2,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +3.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "final",
+            "final"
+          ],
+          "ws7_pos": [
+            142.8,
+            190.8
+          ],
+          "pdf_pos": [
+            144.0,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +1.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "frontier.",
+            "frontier."
+          ],
+          "ws7_pos": [
+            187.9,
+            190.8
+          ],
+          "pdf_pos": [
+            187.2,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -0.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "These",
+            "These"
+          ],
+          "ws7_pos": [
+            271.4,
+            190.8
+          ],
+          "pdf_pos": [
+            266.4,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -5.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "year",
+            "year"
+          ],
+          "ws7_pos": [
+            448.3,
+            190.8
+          ],
+          "pdf_pos": [
+            453.6,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +5.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "mission:",
+            "mission:"
+          ],
+          "ws7_pos": [
+            486.2,
+            190.8
+          ],
+          "pdf_pos": [
+            489.6,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual +3.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "explore",
+            "explore"
+          ],
+          "ws7_pos": [
+            586.0,
+            190.8
+          ],
+          "pdf_pos": [
+            583.2,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -2.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 190.8,
+          "words": [
+            "strange,",
+            "strange,"
+          ],
+          "ws7_pos": [
+            645.8,
+            190.8
+          ],
+          "pdf_pos": [
+            640.8,
+            191.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -5.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "seek",
+            "seek"
+          ],
+          "ws7_pos": [
+            491.0,
+            208.8
+          ],
+          "pdf_pos": [
+            489.6,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -1.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "out",
+            "out"
+          ],
+          "ws7_pos": [
+            528.0,
+            208.8
+          ],
+          "pdf_pos": [
+            525.6,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "new",
+            "new"
+          ],
+          "ws7_pos": [
+            557.7,
+            208.8
+          ],
+          "pdf_pos": [
+            554.4,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -3.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "life",
+            "life"
+          ],
+          "ws7_pos": [
+            587.5,
+            208.8
+          ],
+          "pdf_pos": [
+            583.2,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -4.30pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "and",
+            "and"
+          ],
+          "ws7_pos": [
+            624.4,
+            208.8
+          ],
+          "pdf_pos": [
+            619.2,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -5.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
+        },
+        {
+          "doc": "sawyer__REF__BOOKLET_EXT_WS",
+          "page": 1,
+          "line_y_top_pt": 208.8,
+          "words": [
+            "new",
+            "new"
+          ],
+          "ws7_pos": [
+            654.2,
+            208.8
+          ],
+          "pdf_pos": [
+            648.0,
+            209.0
+          ],
+          "font_class": "exact",
+          "reason": "exact-drift",
+          "detail": "residual -6.20pt (tolerance 0.2pt, exact/fixed-pitch font)"
         }
       ],
       "document_frame_offset_pt": {
@@ -13837,578 +13837,15 @@
     },
     "sawyer__REF__CTRL-K_EXT_H1": {
       "doc": "sawyer__REF__CTRL-K_EXT_H1",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/CTRL-K.H1",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 9,
       "n_engine_pages": 9,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "exact-drift": 28
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            125.5,
-            48.0
-          ],
-          "pdf_pos": [
-            122.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.10pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "final",
-            "final"
-          ],
-          "ws7_pos": [
-            159.3,
-            48.0
-          ],
-          "pdf_pos": [
-            158.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "frontier.",
-            "frontier."
-          ],
-          "ws7_pos": [
-            207.8,
-            48.0
-          ],
-          "pdf_pos": [
-            208.8,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "These",
-            "These"
-          ],
-          "ws7_pos": [
-            297.6,
-            48.0
-          ],
-          "pdf_pos": [
-            295.2,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "are",
-            "are"
-          ],
-          "ws7_pos": [
-            346.0,
-            48.0
-          ],
-          "pdf_pos": [
-            338.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            380.1,
-            48.0
-          ],
-          "pdf_pos": [
-            374.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 6,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "voyages",
-            "voyages"
-          ],
-          "ws7_pos": [
-            414.2,
-            48.0
-          ],
-          "pdf_pos": [
-            410.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            125.5,
-            48.0
-          ],
-          "pdf_pos": [
-            122.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.10pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "final",
-            "final"
-          ],
-          "ws7_pos": [
-            159.3,
-            48.0
-          ],
-          "pdf_pos": [
-            158.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "frontier.",
-            "frontier."
-          ],
-          "ws7_pos": [
-            207.8,
-            48.0
-          ],
-          "pdf_pos": [
-            208.8,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "These",
-            "These"
-          ],
-          "ws7_pos": [
-            297.6,
-            48.0
-          ],
-          "pdf_pos": [
-            295.2,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "are",
-            "are"
-          ],
-          "ws7_pos": [
-            346.0,
-            48.0
-          ],
-          "pdf_pos": [
-            338.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            380.1,
-            48.0
-          ],
-          "pdf_pos": [
-            374.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "voyages",
-            "voyages"
-          ],
-          "ws7_pos": [
-            414.2,
-            48.0
-          ],
-          "pdf_pos": [
-            410.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            125.5,
-            48.0
-          ],
-          "pdf_pos": [
-            122.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.10pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "final",
-            "final"
-          ],
-          "ws7_pos": [
-            159.3,
-            48.0
-          ],
-          "pdf_pos": [
-            158.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "frontier.",
-            "frontier."
-          ],
-          "ws7_pos": [
-            207.8,
-            48.0
-          ],
-          "pdf_pos": [
-            208.8,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "These",
-            "These"
-          ],
-          "ws7_pos": [
-            297.6,
-            48.0
-          ],
-          "pdf_pos": [
-            295.2,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "are",
-            "are"
-          ],
-          "ws7_pos": [
-            346.0,
-            48.0
-          ],
-          "pdf_pos": [
-            338.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            380.1,
-            48.0
-          ],
-          "pdf_pos": [
-            374.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 8,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "voyages",
-            "voyages"
-          ],
-          "ws7_pos": [
-            414.2,
-            48.0
-          ],
-          "pdf_pos": [
-            410.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            125.5,
-            48.0
-          ],
-          "pdf_pos": [
-            122.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.10pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "final",
-            "final"
-          ],
-          "ws7_pos": [
-            159.3,
-            48.0
-          ],
-          "pdf_pos": [
-            158.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -0.90pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "frontier.",
-            "frontier."
-          ],
-          "ws7_pos": [
-            207.8,
-            48.0
-          ],
-          "pdf_pos": [
-            208.8,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual +1.00pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "These",
-            "These"
-          ],
-          "ws7_pos": [
-            297.6,
-            48.0
-          ],
-          "pdf_pos": [
-            295.2,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -2.40pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "are",
-            "are"
-          ],
-          "ws7_pos": [
-            346.0,
-            48.0
-          ],
-          "pdf_pos": [
-            338.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -7.60pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            380.1,
-            48.0
-          ],
-          "pdf_pos": [
-            374.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -5.70pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        },
-        {
-          "doc": "sawyer__REF__CTRL-K_EXT_H1",
-          "page": 9,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "voyages",
-            "voyages"
-          ],
-          "ws7_pos": [
-            414.2,
-            48.0
-          ],
-          "pdf_pos": [
-            410.4,
-            48.0
-          ],
-          "font_class": "exact",
-          "reason": "exact-drift",
-          "detail": "residual -3.80pt (tolerance 0.2pt, exact/fixed-pitch font)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 35,
         "median_dx": 0.0,
