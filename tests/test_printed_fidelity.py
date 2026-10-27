@@ -92,7 +92,7 @@ def test_lm_rm_never_become_printed_rtf_paragraph_margins():
     # And the PDF this is now answerable to draws the line at the page
     # offset alone: `.po 8` = 57.6pt, no `.lm` column added anywhere.
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
-    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    m = re.search(rb'BT /\S+ \d+ Tf [-\d.]+ Ts ([\d.]+) ([\d.]+) Td', out)
     assert float(m.group(1)) == 57.6, m.group(1)
 
     # Modern is untouched by any of this -- the reader owns presentation,
@@ -145,7 +145,7 @@ def test_sr_roll_drives_printed_pdf_rise():
     doc = _sup_sub_doc(b'.sr 10' + HARD)
     assert doc.meta['formatting']['sub_super_roll_48'] == 10.0
     out = pdf.emit_pdf(doc, mode='printed')
-    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out)}
+    rises = {float(x) for x in re.findall(rb'(-?[\d.]+) Ts', out)}
     # 10/48in * 1.5 pt/48in-unit = 15pt, symmetric per WSFORMAT's own text
     assert 15 in rises and -15 in rises
     assert 3 not in rises and -2 not in rises   # the old hardcoded pair is gone
@@ -155,10 +155,11 @@ def test_sr_absent_uses_the_wsformat_default_not_the_old_hardcode():
     doc = _sup_sub_doc()
     assert 'sub_super_roll_48' not in doc.meta['formatting']
     out = pdf.emit_pdf(doc, mode='printed')
-    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out)}
-    # WSFORMAT's own stated default (3/48in = 4.5pt, rounds to 4) -- NOT the
-    # emitter's old, spec-unrelated fixed 3/-2 pair.
-    assert 4 in rises and -4 in rises
+    rises = {float(x) for x in re.findall(rb'(-?[\d.]+) Ts', out)}
+    # WSFORMAT's own stated default (3/48in = 4.5pt, written exactly, as WS7
+    # rolls it: WS7 report 14.8, run fnmb0) -- NOT the emitter's old,
+    # spec-unrelated fixed 3/-2 pair.
+    assert 4.5 in rises and -4.5 in rises
 
 
 def test_sr_roll_drives_printed_rtf_up_dn_alongside_super_sub():
@@ -179,7 +180,7 @@ def test_sr_roll_never_reaches_modern_rtf_or_pdf():
     assert r'\super' in r_modern and r'\sub' in r_modern   # semantic tag intact
 
     out_modern = pdf.emit_pdf(doc, mode='modern')
-    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out_modern)}
+    rises = {float(x) for x in re.findall(rb'(-?[\d.]+) Ts', out_modern)}
     # Modern PDF keeps the exact prior fixed pair, unaffected by `.sr 10`
     assert 3 in rises and -2 in rises
     assert 15 not in rises and -15 not in rises
@@ -212,10 +213,10 @@ def test_sr_is_stateful_not_a_later_documentwide_reading():
     # point of this test is that the PDF's per-line rise must NOT use it.
     assert doc.meta['formatting']['sub_super_roll_48'] == 6.0
     out = pdf.emit_pdf(doc, mode='printed')
-    rises = {int(x) for x in re.findall(rb'(-?\d+) Ts', out)}
-    # 3/48in * 1.5 pt/48in-unit = 4.5pt, truncates to 4 -- the roll actually
-    # in force where the superscript sat (no `.sr` had been reached yet).
-    assert 4 in rises, rises
+    rises = {float(x) for x in re.findall(rb'(-?[\d.]+) Ts', out)}
+    # 3/48in * 1.5 pt/48in-unit = 4.5pt -- the roll actually in force where
+    # the superscript sat (no `.sr` had been reached yet).
+    assert 4.5 in rises, rises
     # NOT the later, not-yet-reached `.sr 6` (6/48in * 1.5 = 9pt) -- that
     # was the bug: a `.sr` appearing anywhere in the document could shift a
     # superscript that printed BEFORE it was ever reached.
@@ -753,7 +754,7 @@ def test_pm_shifts_printed_pdf_first_line_start_x():
     # ws7-prints/v3 finding #2) would otherwise be the FIRST `Td` match
     # this regex finds -- unrelated to the `.pm` arithmetic this test checks.
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
-    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    m = re.search(rb'BT /\S+ \d+ Tf [-\d.]+ Ts ([\d.]+) ([\d.]+) Td', out)
     baseline = core.parse_ws(
         ws7_block(0x00, bytes([0x70]) + bytes(15))
         + b'Some paragraph text without a typed indent at all.' + HARD)
@@ -778,7 +779,7 @@ def test_pm_column_normalization_matches_lm_flush_left():
     # ws7-prints/v3 finding #2) would otherwise be the FIRST `Td` match
     # this regex finds -- unrelated to the `.pm`/`.po` arithmetic checked here.
     out = pdf.emit_pdf(doc, mode='printed', page_numbers='off')
-    m = re.search(rb'BT /\S+ \d+ Tf \d+ Ts ([\d.]+) ([\d.]+) Td', out)
+    m = re.search(rb'BT /\S+ \d+ Tf [-\d.]+ Ts ([\d.]+) ([\d.]+) Td', out)
     assert float(m.group(1)) == 57.6           # `.po 8` flush left, 8*12*0.6pt
     # Pre-fix this landed at 64.8pt (57.6 + 1 unnormalized `.pm` column *
     # 7.2pt/col) -- one column right of the file's own bytes.

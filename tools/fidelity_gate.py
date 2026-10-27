@@ -866,7 +866,8 @@ def parse_text_ops(content: bytes) -> list:
         elif val == b'Ts':
             n = nums()
             if n:
-                rise = int(n[-1])
+                # a `.sr` roll that is not a whole point is fractional (4.5)
+                rise = int(n[-1]) if n[-1] == int(n[-1]) else n[-1]
         elif val == b'Tr':
             n = nums()
             if n:

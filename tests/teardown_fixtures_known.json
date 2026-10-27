@@ -385,12 +385,6 @@
    },
    "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt)"
   },
-  "wordstar-dos/footnote-mb0": {
-   "kinds": {
-    "y": 1
-   },
-   "reason": "the Printed superscript rise is written to the PDF as a whole point (Ts 4) where the default .sr is 4.5 pt, so a superscript sits 0.5 pt low"
-  },
   "wordstar-dos/attributes": {
    "kinds": {
     "variant-plain": 1
@@ -437,6 +431,28 @@
    "kinds": {
     "y": 214,
     "missing-word": 1
+   },
+   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
+  },
+  "wordstar-dos/note-chain-175": {
+   "kinds": {
+    "y": 381,
+    "missing-word": 2
+   },
+   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
+  },
+  "wordstar-dos/note-chain-250": {
+   "kinds": {
+    "y": 612,
+    "missing-word": 13,
+    "extra-word": 8
+   },
+   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
+  },
+  "wordstar-dos/note-chain-250-mb14": {
+   "kinds": {
+    "y": 628,
+    "missing-word": 4
    },
    "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
   },

@@ -3533,7 +3533,7 @@ def _symbol_style_op(font, pt, rise, want, tz_state, x, y, text_bytes,
         parts.append(b'2 Tr %.2f w' % round(pt * _BOLD_STROKE_FRAC, 2))
     else:
         parts.append(b'0 Tr')
-    parts.append(b'%d Ts' % rise)
+    parts.append(b'%s Ts' % _tf_size(rise))
     if is_italic:
         parts.append(b'1 0 %.4f 1 %.1f %.1f Tm' % (_ITALIC_SHEAR, x, y))
     else:
@@ -8622,8 +8622,9 @@ def _sized(styles, size, roll_pt=None, family=None, entry=None):
 
 
 def _tf_size(pt):
-    """A Tf operand: a whole number as an integer (every size but a Printed
-    sub/superscript), otherwise to the hundredth -- `9.25`."""
+    """A Tf or Ts operand: a whole number as an integer (every size but a
+    Printed sub/superscript, every rise but a `.sr` roll that is not a whole
+    point), otherwise to the hundredth -- `9.25`, `4.5`."""
     if pt == int(pt):
         return b'%d' % pt
     return (b'%.2f' % pt).rstrip(b'0')
@@ -9686,13 +9687,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                         font, pt, rise, TZ_DEFAULT, tz_state, x, y,
                         _esc(run_text), symbol_bold, symbol_italic))
                 elif TZ_DEFAULT == tz_state[0]:
-                    ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s)'
+                    ops.append(b'BT /%s %s Tf %s Ts %.1f %.1f Td (%s)'
                               b' Tj ET' %
-                              (font.encode(), _tf_size(pt), rise, x, y, _esc(run_text)))
+                              (font.encode(), _tf_size(pt), _tf_size(rise), x, y, _esc(run_text)))
                 else:
-                    ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f'
+                    ops.append(b'BT /%s %s Tf %s Ts %.2f Tz %.1f %.1f'
                               b' Td (%s) Tj ET' %
-                              (font.encode(), _tf_size(pt), rise, TZ_DEFAULT, x, y,
+                              (font.encode(), _tf_size(pt), _tf_size(rise), TZ_DEFAULT, x, y,
                                _esc(run_text)))
                     tz_state[0] = TZ_DEFAULT
                 if count:
@@ -9775,14 +9776,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                             font, pt, rise, pwant, tz_state, piece_x, y,
                             _esc(piece), symbol_bold, symbol_italic))
                     elif pwant == tz_state[0]:
-                        ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td'
+                        ops.append(b'BT /%s %s Tf %s Ts %.1f %.1f Td'
                                    b' (%s) Tj ET' %
-                                   (font.encode(), _tf_size(pt), rise, piece_x, y,
+                                   (font.encode(), _tf_size(pt), _tf_size(rise), piece_x, y,
                                     _esc(piece)))
                     else:
-                        ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f'
+                        ops.append(b'BT /%s %s Tf %s Ts %.2f Tz %.1f'
                                    b' %.1f Td (%s) Tj ET' %
-                                   (font.encode(), _tf_size(pt), rise, pwant,
+                                   (font.encode(), _tf_size(pt), _tf_size(rise), pwant,
                                     piece_x, y, _esc(piece)))
                         tz_state[0] = pwant
                     if ul_x0 is None:
@@ -9880,14 +9881,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                             font, pt, rise, want, tz_state, x, y,
                             _esc(piece), symbol_bold, symbol_italic))
                     elif want == tz_state[0]:
-                        ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s)'
+                        ops.append(b'BT /%s %s Tf %s Ts %.1f %.1f Td (%s)'
                                    b' Tj ET' %
-                                   (font.encode(), _tf_size(pt), rise, x, y,
+                                   (font.encode(), _tf_size(pt), _tf_size(rise), x, y,
                                     _esc(piece)))
                     else:
-                        ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f'
+                        ops.append(b'BT /%s %s Tf %s Ts %.2f Tz %.1f %.1f'
                                    b' Td (%s) Tj ET' %
-                                   (font.encode(), _tf_size(pt), rise, want, x, y,
+                                   (font.encode(), _tf_size(pt), _tf_size(rise), want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
                     if ul_x0 is None:
@@ -9949,11 +9950,11 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                             _esc(text), symbol_bold,
                                             symbol_italic))
             elif want == tz_state[0]:
-                ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                           (font.encode(), _tf_size(pt), rise, x, y, _esc(text)))
+                ops.append(b'BT /%s %s Tf %s Ts %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), _tf_size(pt), _tf_size(rise), x, y, _esc(text)))
             else:
-                ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
-                           (font.encode(), _tf_size(pt), rise, want, x, y, _esc(text)))
+                ops.append(b'BT /%s %s Tf %s Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), _tf_size(pt), _tf_size(rise), want, x, y, _esc(text)))
                 tz_state[0] = want
         ops += _rules(styles, text, x, y, w, ul_continuous,
                       strike_sink=strike_sink)

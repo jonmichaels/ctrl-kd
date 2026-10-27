@@ -1787,7 +1787,7 @@ def test_pdf_output_bytes_carry_po_left_and_cw_size():
     # ws7-prints/v3 finding #2) would otherwise ALSO match this regex's
     # first `Tf ... Td` occurrence -- unrelated to what this test measures.
     pdf = emit_pdf(core.parse_ws(data), mode='printed', page_numbers='off')
-    m = re.search(rb'/F1 (\d+) Tf \d+ Ts ([\d.]+) [\d.]+ Td', pdf)
+    m = re.search(rb'/F1 (\d+) Tf [-\d.]+ Ts ([\d.]+) [\d.]+ Td', pdf)
     assert m and m.group(1) == b'10'               # elite type size
     assert m.group(2) == b'86.4'                   # 12 cols x 7.2pt/col, pitch-independent
 
@@ -2079,8 +2079,8 @@ def test_pdf_printed_footnote_and_endnote_markers_share_the_same_rise():
     # Courier's natural glyph width no longer equals that narrower cell) --
     # the Tz is optional here (written only on a scale CHANGE) for the same
     # reason `_content_text`'s own module-level `_SHOW_RE` allows it.
-    rises = [int(m.group(1)) for m in
-             re.finditer(rb'(-?\d+) Ts (?:[\d.]+ Tz )?[\d.]+ [\d.]+ Td \(1\) Tj',
+    rises = [float(m.group(1)) for m in
+             re.finditer(rb'(-?[\d.]+) Ts (?:[\d.]+ Tz )?[\d.]+ [\d.]+ Td \(1\) Tj',
                          stream)]
     assert len(rises) == 2, f'expected exactly 2 raised "1" markers, got {rises}'
     assert rises[0] == rises[1] != 0
@@ -4716,7 +4716,7 @@ def _helv_typestyle():
     return next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
 
 
-_SHOW_RE = (rb'/(F\d+) ([\d.]+) Tf -?\d+ Ts (?:([\d.]+) Tz )?'
+_SHOW_RE = (rb'/(F\d+) ([\d.]+) Tf -?[\d.]+ Ts (?:([\d.]+) Tz )?'
             rb'(-?[\d.]+) (-?[\d.]+) Td \(((?:\\.|[^)\\])*)\) Tj')
 
 
