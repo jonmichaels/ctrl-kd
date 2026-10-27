@@ -76,6 +76,10 @@ Span
                                                  .text is the number, doc.footnotes[n-1]
                                                  is the note. Render as your format's
                                                  footnote mechanism, not as plain text.
+  .soft       tuple[int]    # offsets, into .text, of the blanks that were WS5+ soft
+                             # spaces (bare A0): WordStar's driver ignores them when
+                             # it spreads a justified line. () almost always; plain
+                             # text emitters can ignore it.
 ```
 
 Semantics worth knowing:
@@ -308,6 +312,7 @@ these; none are required.
 | Key | Meaning |
 |---|---|
 | `variant` | `ws4` / `ws5+` / `printstream` / `text` — how the file is *encoded* |
+| `printing_era` | the release whose *printing* rules apply (`core.printing_era(doc)`): the file's own, or `ws5+` for a WS4 file parsed with `printed_by='ws7'` (WS7 printing it). See ERAS.md, "Which WordStar prints a WS4 file" |
 | `producer` | who *wrote* it, when detectable. `'wordtsar'` when the WordTsar-only dot commands `.PT`/`.PSA`/`.PSB` are present — those are not WordStar commands. Provenance, not format: a WordTsar file is still `ws5+` |
 | `page` | page geometry from the file's own `.pl`/`.po`/`.mt`/`.mb`/`.hm`/`.fm`/`.lh`/`.ls`/`.cw`, with provenance: `size_name`, `size_source` (`'file'` \| `'default'`), `height_in`, `pl_lines`, `mt_lines`, `mb_lines`, `po_cols`, `hm_lines`, `fm_lines`, `lh_48` (line height, 1/48 in units), `ls`, `cw_120` (character width, 1/120 in units — 12 is 10 CPI) and their `*_source`. **Unit-less dot-command arguments are LINES, not inches** (`.lh`'s are 1/48 in; `.po`'s are columns; `.cw`'s are 1/120 in). Also carries the derived `text_lines` — printed text lines per page from WordStar's own model, `(pl − mt − mb)` at the `.lh` line height (55 for the defaults). `.po` defaults to **8** columns — the WS7 manual's ".8 inch" — and positions printed text at `po × cw` from the paper edge. `.hm`/`.fm` never reserve space (header/footer print *inside* `.mt`/`.mb`) and `.ls` never divides capacity (its blank lines are literal lines in the file); both are recorded for diagnosis only. Lets a caller say "Legal (from file)" vs "Letter (default)" |
 | `footnote_number_start` / `endnote_number_start` | starting values from `.f#` / `.e#`, default 1, recorded only: WS7 already folds them into the note numbers it stores, so the shown number is the stored one plus one. Footnotes and endnotes number **independently** — WordStar has separate commands for separate sequences |

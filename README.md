@@ -40,6 +40,8 @@ $ ctrl-kd --quirk sawyer-strikeout NOVEL.WS   # turn one on
 * `--mode printed` (bare runs produce PDF): every line as laid out, on the
   era's own page — how it came off the printer. Gaps are filled with 1990's
   conventions instead; `--page-settings` supplies a particular machine's.
+  A WordStar 4 file prints as WordStar 4 printed it; `--printed-by ws7`
+  prints it as WordStar 7 prints the same file.
 
 More information: **[FAQ.md](FAQ.md)**, and **[ERAS.md](ERAS.md)**.
 

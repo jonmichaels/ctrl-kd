@@ -15,6 +15,29 @@ axis conservative (a wrong `False` loses a feature; a wrong `True` can destroy
 text — see the `binary` entry's history in the table's own comments), and no row
 relies on the `era_for()` fallback.
 
+## Which WordStar prints a WS4 file
+
+Printing behaviour belongs to the program that prints, not to the file. WS7
+opens a WS4 file and prints it by WS7's own rules (the PCL captures of WS7
+printing Sawyer's WS4 files centre the page number); WS4 prints it by WS4's.
+WS4 cannot open a WS7 file at all (it reads the WS5 header as text). So the
+`Era` fields split in two:
+
+- **What the bytes mean** comes from the file's own era, `era_for(variant)`:
+  bit 7 as word-end flags, symmetric records, notes, `.sb`.
+- **How the page is printed** comes from the *printing* era,
+  `printing_era(doc)`: the page counter (`line_starts_in_room`), margins acting
+  on the page in progress (`geometry_acts_at_once`), the automatic page
+  number's column (`pc_default`), `^PK` in a header (`pk_even_keeps_blank`),
+  a bare or bad `.po` (`bare_po_zero`, `bad_po_zero`) and WS7's paginator
+  (`blank_lines_make_pages`, `pa_ignored_on_empty_page`,
+  `soft_blanks_swallowed`, `overhangs_by_font_rise`,
+  `pageno_row_below_page_line`, `forgives_spacing_blank`).
+
+`parse(..., printed_by=)` chooses it: `'own'` (the default) prints a WS4 file
+as WS4 printed it; `'ws7'` prints it as WS7 prints the same file. A WS5+ file is
+always printed by WS7. The CLI's flag is `--printed-by own|ws7`.
+
 Documents also *declare* their release: the WS5+ header block carries a BCD
 version byte, surfaced as `doc.meta['ws_header']['release']`. Detection infers;
 the header states. Both are available to key a future split on.
@@ -26,7 +49,7 @@ the header states. Both are available to key a future split on.
 | 1 | High bit on text bytes: word-wrap/soft flags vs literal characters | ≤4 vs 5+ | **Modelled + oracle-verified.** WS4-era sets bit 7 on the last character of each word. WS5+ text is 7-bit with extended characters as `1B xx 1C` triples; a bare high-bit byte there is a *flagged control* (the `8D 8A` soft-return pair; flagged toggles), confirmed by tracing real WS7 print output byte-for-byte (2026-08-04) |
 | 2 | Symmetric sequences, notes, `.sb` | 5+ only | **Modelled.** A WS4 file cannot contain them (exhaustive command-table extraction) |
 | 3 | What a "column" measures in `.rm .lm .pm .po .pc` | ≤4: one character of the current font; 5+: fixed 0.1 in | **Modelled; WS7 half confirmed, WS4 half not yet run.** WS7 counts every ruler and margin column in `rlunit` = 180 HMI = 1/10 inch (WS7 teardown, `wordstar-dos/7-configuration.md` 7.1 and `13-screen-ui.md` 13.3; the `.pc` arithmetic in `11-print-engine.md` 11.5 divides by 180). WS4 stores its settings in columns and 1/120 in (`wordstar4-dos/5-configuration-addons.md`, the 7.3 note); what a WS4 margin column measures after a `.cw` change has not been run. Only bites a document that changes `.cw` *and* uses a margin dot command |
-| 4 | Default page-number column: `.pc` | 3.3: column 33; 4: column 28 from the page offset; 7.0: centred on `(LM + RM) / 2`, which at the factory margins is 32 spaces, digit in column 33 | **Table row unread; WS3 unreachable by design.** `Era.pc_default` (28) is never read: Printed places every era's automatic number at WS7's 33.5 (`pdf._AUTO_PAGENO_DEFAULT_COL`), so a WS4 document's number lands 5 columns right of where WS4 prints it (WS4 teardown, `wordstar4-dos/4-formatting-printing.md`, the `.PC` row: default 28, manual p.215; WS7 teardown, `wordstar-dos/11-print-engine.md` 11.5). A plain WordStar 3.30 file cannot be told from a WS4 file by its bytes, so `detect()` never returns `ws3`. See "WordStar 3" below |
+| 4 | Default page-number column: `.pc` | 3.3: column 33; 4: column 28 from the page offset; 7.0: centred on `(LM + RM) / 2`, which at the factory margins is 32 spaces, digit in column 33 | **Modelled for 4 and 7; WS3 unreachable by design.** `Era.pc_default`: a WS4 document printed by WS4 puts its number at `.PC` 28 (WS4 teardown, `wordstar4-dos/4-formatting-printing.md` 3.2, runs x41-*), WS7 centres it on 33.5 (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.5), and WS7 printing a WS4 file centres it too (see "Which WordStar prints a WS4 file" below). A plain WordStar 3.30 file cannot be told from a WS4 file by its bytes, so `detect()` never returns `ws3`. See "WordStar 3" below |
 | 5 | Bare `.pl` (no argument) | 6.0: page breaks OFF; 7.0: keeps the previous value | **KNOWN LIMITATION — 7.0 behaviour implemented.** See below |
 | 6 | Style-library layout | validated on 5.5-format libraries | **Caveat on record.** Every in-file style library we have decodes as style version BCD 55; the layout is spec-version-neutral but unverified against a genuine 5.0/6.0-written library |
 | 7 | Footnote/endnote note TAGS and non-numeric FORMAT TYPES | WS5+ | **Stored format: matches WS7 (ignored). `.f#`/`.e#` letter formats: followed in Printed. Tags: unverified.** See below |
@@ -48,12 +71,16 @@ with a bad character, `.pl .mt .lh .mb .hm .fm` keep the previous value. (Note
 reads as zero; WS7 Rev. D does not do that.) Runs of WS7 Rev. D confirm note
 662 for `.pl`, `.mt`, `.mb` and `.lh`: a bare or bad argument keeps the previous
 value. A bare **`.po`** is the exception: it sets the page offset to 0 (WS7
-teardown, `wordstar-dos/7-configuration.md` 7.9, runs arg-*).
+teardown, `wordstar-dos/7-configuration.md` 7.9, runs arg-*). WS4 sets 0 for a
+bare `.PO`, a bad one (`.PO x`) and one followed only by blanks: its argument
+reader collects no digits and an empty number is 0 (WS4 teardown 4 §2.3 and
+3.12, runs po-args).
 
 **What ctrl-kd does.** The 7.0 reading: bare `.pl` is a no-op; explicit `.pl 0`
 turns page breaks off (modelled as a page too tall to fill; the PDF page box
-falls back to Letter). Both are tested. A bare `.po` is also a no-op today,
-which differs from WS7 (it should set 0); the run fixtures test it.
+falls back to Letter). Both are tested. A bare `.po` sets 0 (`Era.bare_po_zero`),
+and in a WS4 file printed by WS4 a bad one does too (`Era.bad_po_zero`); a bad
+`.po` in a WS7 file keeps its value, since WS7 has not been run on one.
 
 **Why the 6.0 behaviour is not implemented.** Two missing pieces of evidence:
 no document in our reference corpus uses bare `.pl` at all (so there is no real
