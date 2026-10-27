@@ -1824,10 +1824,21 @@ def _font_lead_pt(line, fonts, base_size, state):
                                every font size declared anywhere ON line N )
 
     and what a line carries OUT is the size of the font in force at its END --
-    its LAST span's -- when that font is PROPORTIONAL, and the document
-    default when it is fixed-pitch or there is no font tag there at all. A
-    blank line has no spans, so it carries its predecessor's answer through
-    unchanged and advances by it. No 1.2 factor (`AUTO_LEAD_FACTOR` is 1.0 on
+    when that font is PROPORTIONAL, and the document default when it is
+    fixed-pitch or there is no font at all. A blank line declares nothing, so
+    it carries its predecessor's answer through unchanged and advances by it.
+
+    THE END OF A LINE counts a font record that follows its last text and
+    precedes its return (WS7 report 14.5, runs lead3 and lead5: Times 24 text
+    closed by a restore record before the return, and the next line, Courier,
+    advances 12; a 24-pt font that runs on from mid line 3 into line 4 makes
+    line 4 advance 24 and line 5 12 -- "a line's height is the largest font on
+    it, counting the font in effect at its start, and nothing carries
+    further"). Such a record puts no span on the line it ends, so the font in
+    force at the end is `Line.font_out`, read at parse time; a line built
+    without it falls back to its last span's.
+
+    No 1.2 factor (`AUTO_LEAD_FACTOR` is 1.0 on
     a stock install; Robert J. Sawyer's own WSCHANGE-customized install had
     the 120% setting on, which is what every v1 capture shows), no rounding.
 
@@ -1895,7 +1906,15 @@ def _font_lead_pt(line, fonts, base_size, state):
     sizes_here = [p for p in (_pts(sp) for sp in line.spans) if p]
     carried = state[0] if state[0] else base_size
     governing = max([carried] + sizes_here)
-    if line.spans:
+    font_out = getattr(line, 'font_out', None)
+    if font_out is not None:
+        # the font in force at the line's end, a trailing record included
+        last = fonts[font_out] if 0 <= font_out < len(fonts) else None
+        if last is not None and (last.get('points') or 0.0) <= 0:
+            last = None
+        state[0] = (last.get('points') if last and last.get('proportional')
+                    else base_size)
+    elif line.spans:
         last = _entry(line.spans[-1])
         state[0] = (last.get('points') if last and last.get('proportional')
                     else base_size)
@@ -4076,13 +4095,13 @@ class PageLine(list):
     __slots__ = ('soft', 'lead', 'overprint', 'fi', 'pm_active', 'bi', 'image',
                 'ws4_spacing', 'kerning', 'left', 'roll', 'justify_right_x',
                 'parity_left', 'col', 'justify_word_x', 'line_no', 'graphic_cells',
-                'po_cols', 'refs')
+                'po_cols', 'refs', 'font_rise')
 
     def __init__(self, segments=(), soft=False, lead=None, overprint=False, fi=None,
                 pm_active=False, bi=None, image=None, ws4_spacing=False, kerning=True,
                 left=None, roll=None, justify_right_x=None, parity_left=None, col=None,
                 justify_word_x=None, line_no=None, graphic_cells=None, po_cols=None,
-                refs=()):
+                refs=(), font_rise=None):
         super().__init__(segments)
         self.soft = soft
         self.overprint = overprint      # bare-CR ^PM: the NEXT line prints
@@ -4125,6 +4144,11 @@ class PageLine(list):
         # line, for the note area (`_NoteArea.enqueue`). Endnote references
         # never queue -- they collect at the document's end.
         self.refs = refs
+        # Pagination-time only: how far this line's `.lh a` height (taken from
+        # the fonts on it) stands above the base line, in points, or None for
+        # a line whose lead is not font-driven. WS7 lets such a line overhang
+        # the bottom by that rise (`_doc_to_pagelines`' `overflow`).
+        self.font_rise = font_rise
 
 
 class Page(list):
@@ -4146,7 +4170,7 @@ class Page(list):
     __slots__ = ('headers', 'footers', 'mt_lines', 'mb_lines', 'pl_lines',
                 'hm_lines', 'fm_lines', 'po_cols', 'po_parity',
                 'auto_pageno_po',
-                'explicit_break', 'explicit_break_bi',
+                'explicit_break', 'explicit_break_bi', 'ended_by_form_feed',
                 'columns', 'column_gutter_pt', 'column_width_pt',
                 'column_top_offset_pt', 'header_pcl', 'footer_pcl',
                 'header_lines', 'footer_lines', 'auto_pageno',
@@ -4258,6 +4282,11 @@ class Page(list):
         # one).
         self.explicit_break = False
         self.explicit_break_bi = None
+        # The page ended at a bare form feed in the text: WS7 ejects the sheet
+        # without running its page-end routine, so no footer block prints --
+        # neither a `.fo` nor the automatic page number (WS7 report 14.3, run
+        # ff2; WS4 report 3.2). False for every other page.
+        self.ended_by_form_feed = False
         # `.pl` in force when this page's own pagination started -- None
         # for "the document's global (first-occurrence) value", the same
         # contract as mt_lines/mb_lines above (register b31-dot-command-
@@ -4594,6 +4623,7 @@ def _apply_columns(doc, pages, size):
         merged.orientation = getattr(pg, 'orientation', None)
         merged.po_parity = getattr(pg, 'po_parity', False)
         merged.auto_pageno_po = getattr(pg, 'auto_pageno_po', None)
+        merged.ended_by_form_feed = getattr(pg, 'ended_by_form_feed', False)
         merged.explicit_break = getattr(pg, 'explicit_break', False)
         merged.explicit_break_bi = getattr(pg, 'explicit_break_bi', None)
         # planning #227 follow-up (2026-09-09): this page's own column
@@ -5044,7 +5074,9 @@ def _pf_rewrap_paragraph(para, measure, fonts, size, cache):
             soft=(k < len(rows) - 1) or para[-1].soft,
             lead_48=src.lead_48, kerning=src.kerning, po_cols=src.po_cols,
             poe_cols=src.poe_cols, poo_cols=src.poo_cols,
-            roll_48=src.roll_48))
+            roll_48=src.roll_48,
+            # the paragraph ends in the font its last stored line ended in
+            font_out=(para[-1].font_out if k == len(rows) - 1 else None)))
     return out
 
 
@@ -5082,6 +5114,17 @@ def pf_rewrapped_lines(doc, block):
     # assert "nothing moved" identically for a `.pf on` block WordStar left
     # alone and for every block in every other document
     return out if moved else base
+
+
+def _page_holds_nothing(lines):
+    """Whether the page the next entry of `lines` would land on has had
+    nothing placed on it: no entries yet, or the last real one is a forced
+    break. Header/footer events and `.cp` sentinels place nothing."""
+    for entry in reversed(lines):
+        if isinstance(entry, tuple):
+            continue
+        return entry is None
+    return True
 
 
 def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
@@ -5232,6 +5275,14 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     text_width_pt = _printed_text_width_pt(doc) if embed_images else 0.0
 
     lines = []                                            # None = forced page break
+    # WS7's paginator (WS7 report 14.3, 14.5, 15.1, 15.10); see `Era`.
+    from .core import era_for as _era_for
+    era = _era_for(doc.meta.get('variant'))
+    # Indexes in `lines` of the forced breaks that are a bare form feed in
+    # the text (`origin == 'ff'`): WS7 ejects the sheet there without the
+    # page-end routine, so the page prints no foot (WS7 report 14.3, run
+    # ff2; WS4 report 3.2).
+    ff_breaks = set()
     # #228: block index of the MOST RECENT explicit pagebreak, so a
     # trailing one (nothing real follows it) can still hand the render
     # step something to resolve auto-page-number state against -- see
@@ -5271,6 +5322,16 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # have fired at all).
             last_pagebreak_bi = bi
             continue
+        if (printed and b.kind == 'pagebreak' and b.origin != 'ff'
+                and era.pa_ignored_on_empty_page
+                and _page_holds_nothing(lines)):
+            # WS7 report 15.1 (runs patop, paful): the paginator's `.pa` handler
+            # reads the line end before the dot line, and when that already
+            # ends a page (or is a form feed) the `.pa` is ignored -- so a
+            # `.pa` as the first line, or right after another break, adds no
+            # empty page.
+            last_pagebreak_bi = bi
+            continue
         if b.kind in ('pagebreak', 'colbreak'):
             # `.cb` (unconditional column break) maps onto the SAME forced-
             # break sentinel `.pa` uses OUTSIDE a columnar region (or always,
@@ -5282,6 +5343,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # never appears there in this corpus -- research §7's own open
             # point), there is nothing to group and it degrades to an
             # ordinary forced page break, the documented fallback.
+            if b.origin == 'ff':
+                ff_breaks.add(len(lines))
             lines.append(None)
             last_pagebreak_bi = bi
             continue
@@ -5521,9 +5584,11 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # took the style branch above and never reaches this) gets
                 # its lead from the font block actually in force. See
                 # `_font_lead_pt`.
+                font_rise = None
                 if own_lead is None and font_lead_ok and b.lh_auto:
                     own_lead = _font_lead_pt(line, doc.fonts, font_lead_base,
                                              font_lead_state)
+                    font_rise = max(0.0, own_lead - default_lead_pt)
                 # Finding 1: this blank IS the block's own double-spacing
                 # (see `_ws4_spacing_blank_indices`) -- it still becomes its
                 # own literal PageLine, at its own natural (unextended)
@@ -5621,7 +5686,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                              justify_right_x=justify_right_x,
                              parity_left=own_parity_left,
                              po_cols=getattr(line, 'po_cols', None),
-                             refs=refs)
+                             refs=refs, font_rise=font_rise)
                 lines.append(pl)
                 first_line_of_block = False
             else:
@@ -5644,6 +5709,19 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # nothing to space away from). Carried to whatever PageLine
             # comes next, however many sentinel entries away that is.
             pending_sa = doc_sa
+    # The blank lines a document ends with. The parser drops the trailing run
+    # from the IR (it is not content), but to WS7 each is a text line: it takes
+    # its room, and one that no longer fits makes a page that carries only its
+    # number (WS7 report 14.3, runs pg55b and pa3). They go in as plain blank
+    # lines after everything else; `eof_blanks` remembers them so the clean-up
+    # below can tell a page made of them from a page of machine padding. A
+    # document with no block at all (a template of dot commands) has no body
+    # for them to follow and keeps its one fallback page.
+    eof_blanks = []
+    if printed and era.blank_lines_make_pages and doc.blocks:
+        eof_blanks = [PageLine([], bi=len(doc.blocks) - 1)
+                      for _ in range(doc.meta.get('eof_blank_lines', 0))]
+        lines.extend(eof_blanks)
     if not printed:
         # Printed mode's own layout is handled above (period-authentic,
         # per-page); this end-of-document dump is this legacy helper's own
@@ -5849,8 +5927,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     read_tally = {}
     read_pos = [None]
 
-    def _close_page(explicit=False, break_bi=None):
+    def _close_page(explicit=False, break_bi=None, form_feed=False):
         pg = Page(page)
+        pg.ended_by_form_feed = form_feed
         # triage Q12 -- see `read_pos`'s own comment at the append site.
         # Counted off the BODY only: a note area's lines are the emitter's
         # own, and the reference that pulled them down here was already
@@ -6095,6 +6174,10 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # opens a page depends on doc.meta['pa_eof_blank_after'] (see the
     # post-loop branch below).
     trailing_pagebreak = False
+    # True from the moment the paginator ends a page for room until a line
+    # lands on the page it opens: the blank soft-return lines at that top
+    # are swallowed (`era.soft_blanks_swallowed`).
+    room_break_open = False
     # Planning #227 follow-up (2026-09-12): A COLUMN GROUP SHARES ONE TOP.
     # `_apply_columns` folds every N consecutive sub-"pages" of a `.co n`
     # region into one physical sheet, side by side -- so those N sub-pages
@@ -6291,6 +6374,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 short = (cap - len(page)) < l[1]
             if short and page:
                 _close_page(); _open_new_page()
+                room_break_open = False
             continue
         # Finding 3: a line about to start a FRESH page (whether the page
         # was just closed above, by the `cond` branch, or this is simply
@@ -6324,7 +6408,18 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # than the whole page still lands somewhere: a slightly overflowing
         # page beats a hang or lost content (the same doctrine
         # `_admit_footnotes` documents).
-        overflow = (spent + _cost(l) + notes.height_pt > budget - _col_cut() + 1e-6) \
+        need = _cost(l) if printed else 0.0
+        rise = getattr(l, 'font_rise', None)
+        if rise and era.overhangs_by_font_rise:
+            # WS7 report 15.1 (runs tall24, tall36): under `.lh a` the paginator
+            # looks one base line ahead at each line's end, so a line starts
+            # while a base line still fits, and a font on it that raises its
+            # height moves it to the next page only when the room left is
+            # smaller than the RISE -- otherwise it stays and overhangs the
+            # bottom. The room test is therefore against the larger of the
+            # base line and the rise, not against the line's whole height.
+            need = max(default_lead, rise)
+        overflow = (spent + need + notes.height_pt > budget - _col_cut() + 1e-6) \
                   if printed else len(page) >= cap
         # Finding 1 (round 26 visual pass): the FIRST `ws4_spacing`
         # blank (see `_ws4_spacing_blank_indices`) to overflow a page's
@@ -6350,7 +6445,9 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                                  and not already_over)
         if l is None or full:
             if page or l is None:
-                _close_page(); _open_new_page()
+                _close_page(form_feed=(l is None and _li in ff_breaks))
+                _open_new_page()
+                room_break_open = l is not None
                 # organic overflow (see `_recompute_geom`'s docstring,
                 # path 2): `l` itself is the new page's first line and
                 # never reaches the top-of-loop `not page` gate, since it
@@ -6369,6 +6466,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if (suppress_blanks and not page and not getattr(l, 'image', None)
                 and not any(t.strip() for t, _ in l)):
             continue          # `.sb`: a blank line at the top of a page doesn't print
+        if (printed and era.soft_blanks_swallowed and room_break_open and not page and l.soft
+                and not getattr(l, 'image', None) and not any(t.strip() for t, _ in l)):
+            # WS7 report 15.1 (run sb8d): when a line ends a page by room the
+            # paginator swallows the empty lines that follow it whose return
+            # is soft -- the same loop that serves `.sb`, which swallows
+            # every empty line. Hard-return empties carry over to the top of
+            # the next page (blank3).
+            continue
+        room_break_open = False
         if printed:
             lc = _line_cols(l)
             if lc is not None and lc > 1 and col_group_cols == 1:
@@ -6559,9 +6665,22 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 pg.pop()
     elif printed and pages:
         # A document: keep leading blanks (authorial), drop trailing (machine).
+        #
+        # A last page made only of the document's own trailing blank lines is
+        # a page, not padding: it prints its number (WS7 report 14.3, runs
+        # pg55b, pa3). It has no body line left for the number to be looked up
+        # from once the blanks are dropped, so it is marked like the empty page
+        # a trailing `.pa` opens (`explicit_break`, which the trailing-page pop
+        # below leaves alone).
+        eof_blank_page = bool(
+            eof_blanks and pages[-1] and pages[-1][-1] is eof_blanks[-1]
+            and all(_is_blank(ln) for ln in pages[-1]))
         for pg in pages:
             while pg and _is_blank(pg[-1]):
                 pg.pop()
+        if eof_blank_page:
+            pages[-1].explicit_break = True
+            pages[-1].explicit_break_bi = eof_blanks[-1].bi
     else:
         for pg in pages:
             del pg[:leading(pg)]
@@ -7019,7 +7138,8 @@ def _attach_head_foot_lines_printed(doc, pages, size):
             head_hf_override=getattr(pg, 'head_hf_override', None),
             foot_hf_override=getattr(pg, 'foot_hf_override', None),
             footer_in_use=getattr(pg, 'footer_in_use', None),
-            po_cols=running_po)
+            po_cols=running_po,
+            foot_ejected=getattr(pg, 'ended_by_form_feed', False))
         if saved_pg is not None:
             doc.meta['page'] = saved_pg
         if resolved is None:
@@ -7344,11 +7464,16 @@ def _ctrl_k_even_page(txt, page_no):
     return ''.join(out)
 
 
+def _era_for_variant(doc):
+    from .core import era_for
+    return era_for(doc.meta.get('variant'))
+
+
 def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                              headers=None, footers=None, auto_page_number=False,
                              head_hf_override=None, foot_hf_override=None,
                              footer_in_use=None, headers_pcl=None,
-                             footers_pcl=None, po_cols=None):
+                             footers_pcl=None, po_cols=None, foot_ejected=False):
     """The running head/foot's own GEOMETRY and TEXT resolution -- WHERE
     (each line's `y`; `x` is simply the caller's already-resolved `left`,
     since -- unlike `y` -- no header/footer line's own starting x has ever
@@ -7503,6 +7628,9 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     if footer_in_use is None:
         footer_in_use = bool(footers)
     show_auto_num = printed and auto_page_number and not footer_in_use
+    if foot_ejected:
+        # `Page.ended_by_form_feed`: no footer block at all.
+        footers, footers_pcl, show_auto_num = {}, {}, False
     # 2026-09-12 (cause 10): a running head whose ENTIRE content was a 0x0F
     # user print control has empty text and a real rule to draw --
     # `sawyer/LSRBOX/LSRBOX.WS`'s own `.h1` is exactly that. Only the PDF
@@ -7546,6 +7674,11 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     auto_pl = float(page.get('pl_lines', 66))
     auto_mb = float(page.get('mb_lines', 8))
     auto_fm = float(page.get('fm_lines', 2))
+    # How far below the foot row its baseline sits. WS7 puts it at
+    # `PL - MB + FM + LH` whatever `.cw` is (WS7 report 15.10, run w16-cwtab:
+    # with `.cw 20` the number stays at V=7320); the type size stood in for the
+    # last term until then, which is the same 12pt at the default `.cw`.
+    row_drop = (LEAD if _era_for_variant(doc).pageno_row_below_page_line else size)
 
     def render(txt):
         return txt.replace('#', str(page_no))
@@ -7847,7 +7980,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
     # `.mb 0` -> no row, so no footer line: `_auto_pageno_row_y`'s own rule
     # ("no bottom margin -- there is nowhere to put it"), and the SAME
     # outcome the removed `y < 0` guard already produced for that case.
-    first_foot_y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, size)
+    first_foot_y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, row_drop)
     resolved_footers = []
     for n in sorted(set(footers) | set(footers_pcl)):
         txt = footers.get(n) or ''
@@ -7884,7 +8017,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
         # real footer is in use (WSFORMAT.WS's own "active only when the
         # footers are not in use"), so this never collides with the loop
         # just above -- at most one of the two ever fires for a given page.
-        y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, size)
+        y = _auto_pageno_row_y(page_h, auto_pl, auto_mb, auto_fm, row_drop)
         if y is not None:
             auto = (str(page_no), _auto_pageno_x_pt(doc, po_cols), y)
     return {'headers': resolved_headers, 'footers': resolved_footers, 'auto': auto}
@@ -7894,7 +8027,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                  headers=None, footers=None, res=None, auto_page_number=False,
                  head_hf_override=None, foot_hf_override=None,
                  footer_in_use=None, headers_pcl=None, footers_pcl=None,
-                 po_cols=None):
+                 po_cols=None, foot_ejected=False):
     """Header and footer text for one page, as content-stream ops -- a
     thin RENDERING shell over `_resolve_head_foot_lines` (planning
     #251(d)): that function resolves WHERE (`y`, and this page's own
@@ -7910,7 +8043,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
                                         printed, headers, footers, auto_page_number,
                                         head_hf_override, foot_hf_override,
                                         footer_in_use, headers_pcl, footers_pcl,
-                                        po_cols)
+                                        po_cols, foot_ejected)
     if resolved is None:
         return []
 
@@ -11935,7 +12068,8 @@ def _emit_pdf_inner(doc, printed, options):
                                                 if show_headers else None),
                                    footers_pcl=(getattr(pl, 'footer_pcl', None)
                                                 if show_headers else None),
-                                   po_cols=running_po)
+                                   po_cols=running_po,
+                                   foot_ejected=getattr(pl, 'ended_by_form_feed', False))
             if saved_pg is not None:
                 doc.meta['page'] = saved_pg
             streams.append(_page_stream(pl, page_top, page_h_this, lead, size, left,

@@ -134,6 +134,13 @@ class Line:
     # --diagnose -- and resolving ONLY that stacked 72pt banners on a single
     # 14pt lead, which is the bug this field exists to fix. Register C24.
     lead_48: float = None
+    # The font in force when this line ends (a `doc.fonts` index, -1 for none),
+    # counting a font record that follows the last text and precedes the
+    # return -- which puts no span on the line it closes, so the spans alone
+    # cannot say. `.lh a` leads a line by the font it starts in, which is the
+    # font the line before it ended in (WS7 report 14.5). None for a line the
+    # parser did not read from a body entry.
+    font_out: int = None
     # `.KR` in force AS THIS LINE ENDS -- STATEFUL like `.lh` above, captured
     # the same way (close_line() reads `fmt.get('kerning', True)`, True
     # being WordStar's own default, per the document's own prose "when
@@ -2099,7 +2106,8 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     the raw-source facts the classified output discards -- 'breaks', the
     exact separator bytes for each yielded line (parallel to the returned
     list), and 'eof_tail', the verbatim bytes of the invisible trailing run
-    this pass drops when a file ends in blank lines before its 0x1A. Purely
+    this pass drops when a file ends in blank lines before its 0x1A, with
+    'eof_blank_lines', how many of those lines ended in a return. Purely
     additive: the returned value is byte-for-byte what it always was.
     """
     cut = _bare_eof(data)
@@ -2127,6 +2135,7 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
     if raw_extras is not None:
         raw_extras['breaks'] = []
         raw_extras['eof_tail'] = b''
+        raw_extras['eof_blank_lines'] = 0
 
     def _emit(text_start, text_end, brk, after=b''):
         # A BARE CR is ^PM Overprint Line (WSFORMAT and the WS4 manual
@@ -2251,6 +2260,19 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
                 if prev is not None:
                     lines[prev][3].append((len(lines[prev][0]), m))
                     placed = True
+            if not placed and m[0] == 'font':
+                # A font record just before a return closes the font on the
+                # line it ends: it is that line's END state, though it adds no
+                # text there (WS7 report 14.5, runs lead3 and lead5 -- the
+                # line below is led by the font it STARTS in). It used to be
+                # handed to the next line at offset 0, which set the same
+                # font for that line's text but left the line it sits on
+                # ending in the font before it.
+                prev = next((idx for a, ln, idx in starts
+                             if a + ln == off and lines[idx][1] != 'eof'), None)
+                if prev is not None:
+                    lines[prev][3].append((len(lines[prev][0]), m))
+                    placed = True
             if not placed:
                 nxt = next((idx for a, ln, idx in starts if a >= off), None)
                 if nxt is not None:
@@ -2341,6 +2363,12 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
                 raw_extras['breaks'].append(brks[i])
                 raw_extras['eof_tail'] = b''.join(
                     lines[b][0] + brks[b] for b in range(i + 1, len(lines)))
+                # How many of them ended in a return: each is a blank text
+                # line to WS7 (a page holds it and the page prints), though
+                # the IR keeps none. Printed pagination reads the count
+                # (`doc.meta['eof_blank_lines']`).
+                raw_extras['eof_blank_lines'] = sum(
+                    1 for b in range(i + 1, len(lines)) if lines[b][1] != 'eof')
             break
         if n_hard >= 1 and n_total >= 2:
             sep = 'para'
@@ -2561,11 +2589,31 @@ class Era:
     versions: ask `era.high_bit_wordwrap`, never `variant == 'ws4'`."""
 
     __slots__ = ('name', 'high_bit_wordwrap', 'symmetric_blocks', 'has_notes',
-                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero')
+                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero',
+                 'blank_lines_make_pages', 'pa_ignored_on_empty_page',
+                 'soft_blanks_swallowed', 'overhangs_by_font_rise',
+                 'pageno_row_below_page_line')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
-                 has_sb, column_unit, pc_default, bare_po_zero=False):
+                 has_sb, column_unit, pc_default, bare_po_zero=False,
+                 ws7_paging=False):
         self.name = name
+        # WS7's paginator (WS7 report 14.3, 14.5, 15.1, 15.10), as five
+        # behaviours that WS4 has not been shown to share:
+        # a blank line after a full page or a trailing `.pa` is a text line
+        # and makes a page that prints its number;
+        self.blank_lines_make_pages = ws7_paging
+        # a `.pa` on a page that holds nothing yet is ignored;
+        self.pa_ignored_on_empty_page = ws7_paging
+        # an empty soft-return line at the top of a page the paginator ended
+        # for room is swallowed, with or without `.sb`;
+        self.soft_blanks_swallowed = ws7_paging
+        # under `.lh a` a line may overhang the bottom by its font's rise
+        # over the base line when that rise fits the room left;
+        self.overhangs_by_font_rise = ws7_paging
+        # and the page number's baseline is a page line below the foot row
+        # whatever `.cw` is.
+        self.pageno_row_below_page_line = ws7_paging
         # A bare `.po` (no argument) sets the page offset to 0. WS7 Rev. D
         # does that (runs arg-*: x = 0), though a bare `.pl/.mt/.mb/.lh`
         # keeps its previous value (WS7 teardown,
@@ -2603,7 +2651,7 @@ ERAS = {
     'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
     'ws4':  Era('ws4',  True,  False, False, False, 'font',       28),
     'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 28,
-                bare_po_zero=True),
+                bare_po_zero=True, ws7_paging=True),
 }
 
 # A print stream is printer output, not a document: no dot commands survive in
@@ -4026,6 +4074,12 @@ def _font_entry(w, h, style, offset):
         # None for numbers the table doesn't carry
         'typestyle_name': TYPESTYLE_NAMES.get(style & 0x01FF),
     }
+
+
+def _active_font(active) -> int:
+    """The `doc.fonts` index of the font tag in `active`, -1 when none."""
+    return next((int(t[4:]) for t in active
+                 if t.startswith('font') and t[4:].isdigit()), -1)
 
 
 def _decode_spans(raw: bytes, strip_hibit: bool, encoding: str, active: set,
@@ -5807,6 +5861,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
     physical, margin = lines_pass(data, tab_at, marks, soft_is_wrap=ws5,
                                   overprint_cr=True, raw_extras=_rt_extras)
     doc.meta['margin_estimate'] = margin
+    if _rt_extras.get('eof_blank_lines'):
+        doc.meta['eof_blank_lines'] = _rt_extras['eof_blank_lines']
 
     active, unknown, dots, dot_at = set(), {}, [], []
     # #229: `.IF`/`.EL`/`.EI` nesting stacks (up to 255 deep per WSFORMAT.WS,
@@ -6718,6 +6774,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
                         pending_marks = []
                     for sp in spans:
                         cur_line.spans.append(sp)
+                    cur_line.font_out = _active_font(active)
             # planning #270 item 37: `raw` is about to be emptied, but the
             # separator handling below still needs this entry's LAST source
             # byte to tell an active soft hyphen from a typed one (see
@@ -6758,6 +6815,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
             pending_marks = []
         for s in spans:
             cur_line.spans.append(s)
+        cur_line.font_out = _active_font(active)
         if sep == 'wrap':
             # A soft return: a REAL line break on paper (printed mode renders
             # it), just word wrap for reflow (merged_lines joins it back with
