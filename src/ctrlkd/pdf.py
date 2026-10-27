@@ -9443,7 +9443,11 @@ _PCL_POP_RE = _re.compile(rb'\x1b&f1S')
 # 85 exactly, and y=3202 at row 3202. This is the printer's own unprintable-
 # area registration, not a WordStar margin -- raw PCL bypasses WordStar's own
 # cursor/margin machinery and addresses the physical page directly.
-_PCL_ABS_X_OFFSET_UNITS = 75
+# That 75 units is the LaserJet's logical-page offset, which every Printed
+# page now carries whole (`_place_on_sheet`); raw PCL and the text share one
+# frame, so the program adds nothing of its own (box left edge 18.5pt, as
+# gpcl6 draws WS7's).
+_PCL_ABS_X_OFFSET_UNITS = 0
 _PCL_ABS_Y_OFFSET_UNITS = 0
 _PCL_UNIT_PT = 72.0 / 300.0            # PCL unit (1/300in) -> point, exact
 

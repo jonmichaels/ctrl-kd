@@ -121,8 +121,9 @@ def test_worked_example_rectangle_geometry_in_points():
     unit: the top rule's dark row sits at pixel/PCL y=85..87, the left rule's
     dark column at x=77..79, the right rule's at x=2444..2446, the bottom
     rule's dark row at y=3202..3204 -- i.e. a flat +75-unit (0.25in) offset
-    on X, none on Y, converting this document's own PCL-absolute coordinates
-    to the page)."""
+    on X, none on Y). That offset is the LaserJet's logical page, which the
+    whole Printed page carries (`_place_on_sheet`), so the program itself
+    places the rules at their raw PCL x."""
     ops = _parse_pcl_program(BORDER_PCL)
     rect_ops = _pcl_rect_ops(ops, anchor_x=0.0, anchor_y=0.0, page_h=PAGE_H,
                              restore_gray=0.0)
@@ -135,7 +136,7 @@ def test_worked_example_rectangle_geometry_in_points():
     def pt(units):
         return units * _PCL_UNIT_PT
 
-    top_x, top_y = pt(2 + 75), PAGE_H - pt(85)
+    top_x, top_y = pt(2), PAGE_H - pt(85)
     # top rule: 2370 x 3 at (2,85)
     assert rects[0] == pytest.approx((top_x, top_y - pt(3), pt(2370), pt(3)))
     # left rule: 3 x 3120, SAME position (no intervening move)
@@ -144,7 +145,7 @@ def test_worked_example_rectangle_geometry_in_points():
     bot_y = PAGE_H - pt(3202)
     assert rects[2] == pytest.approx((top_x, bot_y - pt(3), pt(2370), pt(3)))
     # right rule: 3 x 3117 at (2369, 85)
-    right_x = pt(2369 + 75)
+    right_x = pt(2369)
     assert rects[3] == pytest.approx((right_x, top_y - pt(3117), pt(3), pt(3117)))
 
 
@@ -210,7 +211,8 @@ def test_real_document_pdf_border_rect_ops_present(require_sawyer_doc):
     def pt(units):
         return units * _PCL_UNIT_PT
 
-    top_x = pt(2 + 75)
+    assert b'q 1 0 0 1 18 0 cm' in pdf_bytes   # the page moves 75 units right
+    top_x = pt(2)
     top_y = PAGE_H - pt(85)
     expected_top_rule = b'%.2f %.2f %.2f %.2f re f' % (
         top_x, top_y - pt(3), pt(2370), pt(3))
