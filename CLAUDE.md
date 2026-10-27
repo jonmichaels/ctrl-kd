@@ -49,6 +49,16 @@ totals while the suite still reported success. The Sawyer-archive gate now
 FAILS instead once armed (`tests/conftest.py`, `require_sawyer_doc`). Prefer
 that shape for any new gate.
 
+**The `teardowns` tier tests against real WordStar.** `CTRLKD_TEARDOWNS`
+names the WordStar teardowns checkout; its run fixtures (documents WordStar
+4.00 and 7.0 saved or printed under DOSBox-X, each with an expected reading
+of what WordStar itself did) are read in place and never copied here.
+`tools/teardown_fixtures.py` says how each kind is compared; `--report`
+lists every mismatch. `tests/teardown_fixtures_known.json` names each known
+mismatch with its reason; a new one, or one that went away, fails. A
+mismatch is a question first: it may be the engine, or a rule the reading
+does not cover yet. A ruled behaviour changes only on Jon's word.
+
 **Pictures are a real axis, not an afterthought.** `--pictures` (off/embed/
 export, CLI default `embed`) is a shipped, user-facing flag — `tests/
 answer_key.json`'s `axes.pictures` and `tools/answer_key.py`'s own

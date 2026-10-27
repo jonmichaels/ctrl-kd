@@ -51,6 +51,15 @@
 #                          never as a bare skip (see tools/PAPER-VERDICTS.md
 #                          and paper_verdicts.PARKED_BY_RULING).
 #
+#   CTRLKD_TEARDOWNS       `teardowns` tier (planning #549): the WordStar
+#                          teardowns checkout. Its run fixtures (real WS
+#                          4.00 and 7.0 output with expected readings) are
+#                          read in place, never copied. Deselected when
+#                          unarmed, like `sawyer`; armed, a part whose
+#                          mismatches differ from
+#                          tests/teardown_fixtures_known.json FAILS by name
+#                          (tools/teardown_fixtures.py --report lists them).
+#
 # USAGE.
 #
 #   CTRLKD_SAWYER_ARCHIVE=/path/to/sawyer/WS  tools/run-full-suite.sh
@@ -109,11 +118,14 @@ pcl_status="not armed"
 # run: named, cited, and impossible to mistake for a tier nobody ran. The
 # status word therefore says PARKED whether or not the corpus is present,
 # because arming it no longer gates anything.
+teardowns_status="not armed"
+[ -n "${CTRLKD_TEARDOWNS:-}" ] && teardowns_status="armed"
+
 paper_status="parked by ruling (RULINGS-LEDGER 2026-09-14), corpus not armed"
 [ -n "${CTRLKD_PRIVATE_CORPUS:-}" ] && paper_status="parked by ruling (RULINGS-LEDGER 2026-09-14)"
 
 # Clear addopts' default tier filter (-m "not sawyer and not pcl and not
-# paper") so tier 2, the pcl tier, and the paper tier all run alongside
+# paper and not teardowns") so tier 2, the pcl tier, and the paper tier all run alongside
 # tier 1 when armed, in one invocation, in one report. An unarmed tier's
 # own fixtures still fail loud (sawyer) or skip by name (pcl, paper) with a
 # clear message rather than silently vanishing, if something manages to
@@ -134,7 +146,7 @@ public_count=$(echo "$public_line" | grep -oE '^[0-9]+')
 # Full-denominator discipline (per Jon's rule): this line names every tier's
 # state every run, not just the ones that happen to be armed today.
 echo
-echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private (CTRLKD_PRIVATE_CORPUS): ${private_status}, richer suite tested separately / pcl fidelity tier: ${pcl_status} / paper verdicts tier: ${paper_status}"
+echo "public: ${public_count} ran / sawyer: ${sawyer_status} / private (CTRLKD_PRIVATE_CORPUS): ${private_status}, richer suite tested separately / pcl fidelity tier: ${pcl_status} / teardowns tier: ${teardowns_status} / paper verdicts tier: ${paper_status}"
 if [ "$pcl_status" = "armed" ]; then
     echo "  (pcl per-document verdicts are in the -rs output above; regenerate the answer key with"
     echo "   \`python3 tools/pcl_tolerance.py --record\` -- a FAILED pcl case names a real, unfixed"

@@ -1287,11 +1287,9 @@ class Note:
     number_format: int = 0     # conv-flag high nybble: 0 symbols,1 upper,2 lower,3
                                 # numeric -- meaningless for annotations (spec: "not
                                 # used"), left 0 there rather than reporting noise.
-                                # Honoured by emit.py's label formatting (ruling
-                                # 2026-08-24 item 5) for footnote/endnote; values
-                                # 0/1/2 (symbols/upper/lower) are UNTESTED AGAINST A
-                                # REAL DOCUMENT -- no archive specimen uses anything
-                                # but 3 (numeric), synthetic-fixture-verified only.
+                                # Kept, never displayed: WS7 does not read it either
+                                # (emit._format_note_number; WS7 teardown,
+                                # `wordstar-dos/15-open-items-closed.md` 15.10).
     convert_to: int = 0        # conv-flag low nybble: 0 = none, else target note type
                                 # (same annotation caveat as number_format)
     dot_commands: list = field(default_factory=list)  # the note's OWN dot-command
@@ -2563,11 +2561,16 @@ class Era:
     versions: ask `era.high_bit_wordwrap`, never `variant == 'ws4'`."""
 
     __slots__ = ('name', 'high_bit_wordwrap', 'symmetric_blocks', 'has_notes',
-                 'has_sb', 'column_unit', 'pc_default')
+                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
-                 has_sb, column_unit, pc_default):
+                 has_sb, column_unit, pc_default, bare_po_zero=False):
         self.name = name
+        # A bare `.po` (no argument) sets the page offset to 0. WS7 Rev. D
+        # does that (runs arg-*: x = 0), though a bare `.pl/.mt/.mb/.lh`
+        # keeps its previous value (WS7 teardown,
+        # `wordstar-dos/7-configuration.md` 7.9). WS4 has not been run.
+        self.bare_po_zero = bare_po_zero
         # WS4 and earlier set bit 7 on the LAST character of each word
         # (microjustify flags). WS5+ dropped it, and a high byte there is an
         # extended cp437 character instead -- so this decides whether stripping
@@ -2585,9 +2588,9 @@ class Era:
         # What a "column" means in .rm/.lm/.pm/.po/.pc. Pre-WS5 it is one
         # character of the CURRENT FONT; WS5+ it is a fixed 0.1 inch. Equal at
         # the default .cw 12 (10 cpi), so this only bites a document that
-        # changes .cw AND uses a margin dot command.
-        # UNVERIFIED: WS7's "Upgrading" and WS5's "What's New" name DIFFERENT
-        # command lists as affected. Settle by experiment before relying on it.
+        # changes .cw AND uses a margin dot command. The WS7 half is read from
+        # WS7's code (ruler unit 180 HMI = 1/10 inch; WS7 teardown,
+        # `wordstar-dos/7-configuration.md` 7.1); the WS4 half has not been run.
         self.column_unit = column_unit
         self.pc_default = pc_default          # page-number column
 
@@ -2599,7 +2602,8 @@ ERAS = {
     # name      hibit  sym    notes  .sb    column_unit  .pc
     'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
     'ws4':  Era('ws4',  True,  False, False, False, 'font',       28),
-    'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 28),
+    'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 28,
+                bare_po_zero=True),
 }
 
 # A print stream is printer output, not a document: no dot commands survive in
@@ -3149,7 +3153,7 @@ def _apply_ruler_margins(ruler: bytes, state: dict) -> None:
     state['right_margin'] = float(r) if r is not None else None
 
 
-def _parse_format_dot(cmd: bytes, state: dict) -> None:
+def _parse_format_dot(cmd: bytes, state: dict, bare_po_zero: bool = False) -> None:
     """Update running FORMATTING state from one dot-command line.
 
     These differ from the page-geometry commands in `_parse_page_dot`: those
@@ -3250,6 +3254,8 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
                 resolved = _resolve_cols_arg(value, m.group(2))
                 if resolved is not None:
                     state['po_cols'] = resolved
+        elif bare_po_zero and not arg.strip():
+            state['po_cols'] = 0.0             # Era.bare_po_zero
     elif name in (b'POE', b'POO'):          # planning #231: even/odd page offset
         # WSFORMAT.WS: ".PO can optionally specify even or odd number page
         # offsets" -- `.poe`/`.poo` are independently STATEFUL, exactly like
@@ -3871,7 +3877,8 @@ def _cp_lines(cmd: bytes) -> int:
         return 1
 
 
-def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = False):
+def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = False,
+                    bare_po_zero: bool = False):
     """Try to interpret one dot-command line as page geometry (.pl/.po/.mt/.mb)
     or a WordTsar-invented command (.PT/.PSA/.PSB -- "not a Wordstar command"
     per WordTsar's own source, so their mere presence is a producer signal).
@@ -3961,6 +3968,8 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
             return
         num = _dot_num_match(arg)
         if not num or not num.group(1):
+            if key == 'po_cols' and bare_po_zero and not arg.strip():
+                page[key] = 0.0                 # Era.bare_po_zero
             return
         value = float(num.group(1))
         unit = num.group(2)
@@ -5689,7 +5698,12 @@ def _trailing_pa_has_content_after(data: bytes) -> bool:
     return bool(extra) and all(b in _TRAILING_PA_WHITESPACE for b in extra)
 
 
-def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
+def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document:
+    """A WordStar document. `variant` ('ws4' or 'ws5+'), when given, is what
+    the caller knows the file to be (`parse(variant=...)`, the CLI's
+    `--variant`): it chooses the era -- bit 7 as word-end flags or not,
+    symmetric records or not -- instead of detection's guess. WordStar
+    itself reads a file the way it was told to open it."""
     doc = Document()
     marks = {}
     # Round-trip ledger scaffolding (tasks #20/#21). `_rt_original` is a
@@ -5700,6 +5714,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
     _rt_extras = {}
     _rt_flagged = []
     det = detect(data)
+    if variant and det.get('variant') != variant:
+        det = dict(det, variant=variant)
     doc.meta.update(det)
     era = era_for(det['variant'])
     doc.meta['era'] = era.name
@@ -6492,7 +6508,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
             before = _block_format(fmt)
-            _parse_format_dot(cmd, fmt)
+            _parse_format_dot(cmd, fmt, era.bare_po_zero)
             # `.lh` and a paragraph STYLE's own `line_height_vmi` are the
             # SAME WordStar setting -- a line height -- reached two ways, so
             # the one that comes LATER in the file wins. `_style_lead_pt`
@@ -6540,7 +6556,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437') -> Document:
             if _block_format(fmt) != before:
                 close_block()
             _parse_page_dot(cmd, page, meta_extra,
-                            has_text=_rt_body_seen[0] or bool(cur_line.spans))
+                            has_text=_rt_body_seen[0] or bool(cur_line.spans),
+                            bare_po_zero=era.bare_po_zero)
             # LJ6DTP parity C1: a dot-command line is CONSUMED here -- it never
             # reaches `_decode_spans`, so any mark that landed on it dies with
             # it. That silently dropped LJ6DTP's colour RESTORE: the document
@@ -7270,7 +7287,7 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document
     if det.get('kind') == MERGE_DATA_KIND:
         return parse_merge_data(data, encoding, det)
     if v in ('ws4', 'ws5+'):
-        return parse_ws(data, encoding)
+        return parse_ws(data, encoding, variant=variant)
     if v in ('printstream', 'text'):
         return parse_printstream(data, encoding)
     reason = det.get('reason', 'content statistics')

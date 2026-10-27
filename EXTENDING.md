@@ -347,13 +347,10 @@ symmetrical-sequence types 3-6). `doc.footnotes` / `.endnotes` / `.annotations` 
   footnote/endnote-tag tests), not measured behaviour. Ruling 2026-08-24 item 4.
 - **`Note.number_format`** (0 symbols, 1 upper-case, 2 lower-case, 3 numeric --
   the conversion-flag byte's high nybble, as WSFORMAT.TXT documents it) is
-  honoured when a footnote/endnote's display label is built. **This differs from
-  WordStar 7**, which prints the number in the `.f#`/`.e#` format in force at
-  print time and never reads the stored nibble (its formatter's codes are 1
-  upper, 2 lower, 3 decimal, 4 symbols); see `ERAS.md`, divergence 7. The
-  symbol cycle (`*`, `†`, `‡`, `§`, `‖`, `¶`) is a fallback (the classical
-  printer's/Word's own "symbol" footnote-numbering convention), not WordStar's
-  own sequence. Ruling 2026-08-24 item 5.
+  parsed and kept but not used for display: footnote/endnote labels are always
+  arabic, as WordStar 7 prints them (it never reads the stored nibble). WS7 does
+  print letters when the document's own `.f#`/`.e#` sets a letter format; this
+  project does not follow that yet (see `ERAS.md`, divergence 7).
 - **TXT/MD/HTML renumber footnotes/endnotes continuously** (independently per
   kind) when — and only when — WordStar's own per-page-reset numbers actually
   collide within that kind (`emit._pageless_notes`); a document whose notes

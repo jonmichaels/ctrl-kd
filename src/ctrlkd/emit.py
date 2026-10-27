@@ -235,8 +235,8 @@ def _annotated_notes(doc):
                         real note number for THAT kind — footnote #1 and
                         endnote #1 are different notes with the same
                         number, which is why they need separate counters,
-                        not one merged one — formatted per the note's own
-                        `number_format` (item 5: arabic/upper/lower/symbol)
+                        not one merged one — always arabic
+                        (`_format_note_number`)
       annotation        its own tag string (e.g. "AC1"), which is what
                         WordStar itself displays/prints for an annotation
                         instead of a number (spec: annotations carry no

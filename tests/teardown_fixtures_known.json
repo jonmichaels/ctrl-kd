@@ -1,0 +1,1015 @@
+{
+ "note": "Known mismatches between this engine and the WordStar run fixtures, by part. Each reason names the cause by an ID the planning #549 report uses (L = layout frame, D = detection, E = engine, O = outside the Printed model, R = the reading, X = an input artefact, S = out of scope). Regenerate the counts with tools/teardown_fixtures.py --report only after deciding each change.",
+ "parts": {
+  "wordstar4-dos/tab-document": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/tab-short-line": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/tab-past-last-stop": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/tab-ctrl-p": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ctrl-p-keys": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ctrl-p-not-keys": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/zero-byte-kept": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/laser1-zeros": {
+   "kinds": {
+    "variant": 1
+   },
+   "reason": "D2 detect() calls this WS4 file ws5+: its 1B xx 1C density wins over 470 WS4 high-bit word ends"
+  },
+  "wordstar4-dos/eof-127#0": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/eof-127#1": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/no-line-ends": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/no-line-ends-words": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/large-file-stale-tail": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ws5-header-as-text": {
+   "kinds": {
+    "variant": 1
+   },
+   "reason": "D3 a WS5-style header kept as text in a WS4 file: detect() refuses it as binary"
+  },
+  "wordstar4-dos/justify-14-over-5": {
+   "kinds": {
+    "end": 1
+   },
+   "reason": "E1 a stored 8D 0A read as a hard return (lines_pass: next word \"would have fit\" a guessed 65-column margin)"
+  },
+  "wordstar4-dos/soft-hyphen": {
+   "kinds": {
+    "end": 1
+   },
+   "reason": "E1 a stored 1F 8D 0A read as a hard return (lines_pass fit test)"
+  },
+  "wordstar4-dos/ruler-margins": {
+   "kinds": {
+    "end": 2
+   },
+   "reason": "E1 a stored 8D 0A read as a hard return (lines_pass: the next line starts with .LM A0 fill)"
+  },
+  "wordstar4-dos/ruler-p16": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ruler-p17": {
+   "kinds": {
+    "variant-plain": 1,
+    "dot-count": 1,
+    "missing-line": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E3 a bare .RR in WS4 swallows the next line as a ruler image (the WS7 rule); WS4 rejects it and restores the document-start ruler"
+  },
+  "wordstar4-dos/ruler-p18a": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ruler-p18b": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/ruler-p19b": {
+   "kinds": {
+    "variant-plain": 1,
+    "dot-count": 1,
+    "missing-line": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E3 bare .RR in WS4 (see ruler-p17)"
+  },
+  "wordstar4-dos/page-marks-written": {
+   "kinds": {
+    "variant": 1
+   },
+   "reason": "D1 detect() does not count WS4's 0D 8A page marks as WordStar evidence"
+  },
+  "wordstar4-dos/print-ignores-8a": {
+   "kinds": {
+    "variant": 1,
+    "x": 2
+   },
+   "reason": "D1 detect() does not count 0D 8A page marks; E5 WS4's automatic page number at WS7's column 33.5, not .PC 28"
+  },
+  "wordstar4-dos/print-all-8a": {
+   "kinds": {
+    "x": 2
+   },
+   "reason": "E5 WS4's automatic page number at WS7's column 33.5, not .PC 28"
+  },
+  "wordstar4-dos/print-wi-ignored#0": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 2,
+    "y": 3,
+    "x": 1,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+  },
+  "wordstar4-dos/print-wi-ignored#1": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 2,
+    "y": 3,
+    "x": 1,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+  },
+  "wordstar4-dos/print-wi-ignored#2": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 2,
+    "y": 3,
+    "x": 1,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+  },
+  "wordstar4-dos/print-wi-ignored#3": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 2,
+    "y": 3,
+    "x": 1,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+  },
+  "wordstar4-dos/print-header-pagenum": {
+   "kinds": {
+    "variant-plain": 1,
+    "x": 4
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E6 ^PK in .HE: WS4 drops it and the blanks after it on an even page; the engine keeps one blank (a WS7 measurement); E5 page number column"
+  },
+  "wordstar4-dos/print-dt-ignored": {
+   "kinds": {
+    "variant-plain": 1,
+    "x": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E5 page number column"
+  },
+  "wordstar4-dos/print-hpljet-lines": {
+   "kinds": {
+    "variant-plain": 1,
+    "y-driver-origin": 4,
+    "x-logical-page": 3,
+    "x": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; E5 page number column"
+  },
+  "wordstar4-dos/print-hpljet-po": {
+   "kinds": {
+    "variant-plain": 1,
+    "y-driver-origin": 5,
+    "x-logical-page": 3,
+    "x": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; E5 page number column"
+  },
+  "wordstar4-dos/ps-hpljet": {
+   "kinds": {
+    "variant-plain": 1,
+    "y-driver-origin": 14,
+    "x-logical-page": 3,
+    "x": 11
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON on HPLJET: PS14B proportional widths, each word placed (R-40: .ps not rendered)"
+  },
+  "wordstar4-dos/ps-hpljet-uj-on": {
+   "kinds": {
+    "y-driver-origin": 14,
+    "x-logical-page": 2,
+    "x": 12,
+    "missing-word": 48,
+    "extra-word": 12
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification, letter-spaced runs (R-40)"
+  },
+  "wordstar4-dos/ps-hpljet-uj-off": {
+   "kinds": {
+    "y-driver-origin": 26,
+    "x-logical-page": 3,
+    "x": 23
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+  },
+  "wordstar4-dos/ps-hpljet-attributes": {
+   "kinds": {
+    "variant-plain": 1,
+    "y-driver-origin": 6,
+    "x-logical-page": 1,
+    "x": 5
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+  },
+  "wordstar4-dos/mj-no-flag#0": {
+   "kinds": {
+    "y-driver-origin": 26,
+    "x-logical-page": 3,
+    "x": 23
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+  },
+  "wordstar4-dos/mj-no-flag#1": {
+   "kinds": {
+    "y-driver-origin": 26,
+    "x-logical-page": 3,
+    "x": 23
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+  },
+  "wordstar4-dos/mj-first-word": {
+   "kinds": {
+    "y-driver-origin": 14,
+    "x-logical-page": 3,
+    "x": 11,
+    "missing-word": 48,
+    "extra-word": 12
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON + .UJ microjustification (R-40)"
+  },
+  "wordstar4-dos/mj-two-letters": {
+   "kinds": {
+    "y-driver-origin": 8,
+    "x-logical-page": 2,
+    "x": 6
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
+  },
+  "wordstar4-dos/draft-formfeed-y": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/draft-formfeed-n": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "extra-word": 10
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; R2 form feeds off: the reading keeps DRAFT's output as one page; WS4 pads to the next multiple of .PL"
+  },
+  "wordstar4-dos/draft-formfeed-xl": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "extra-word": 10
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; R2 form feeds replaced by the .XL string: the reading does not split pages at it"
+  },
+  "wordstar4-dos/hanging-indent": {
+   "kinds": {
+    "end": 6
+   },
+   "reason": "E1 stored 8D 0A read as hard returns (lines_pass: fit test and A0 indent rule)"
+  },
+  "wordstar4-dos/footer-after-pa#0": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/footer-after-pa#1": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "page-of-word": 7,
+    "missing-word": 2
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E7 .CP n with fewer than n lines after it: WS4 breaks when fewer than n remain on the page; the engine counts the lines that follow"
+  },
+  "wordstar4-dos/footer-after-pa#2": {
+   "kinds": {
+    "variant-plain": 1
+   },
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar4-dos/pages-lh-mid": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 3,
+    "x": 1,
+    "missing-word": 2,
+    "extra-word": 2
+   },
+   "reason": "D1 detection; E8 WS4 page capacity at .LH 16 and the lead after a line (R-38: WS4 paginates on the WS7 model); E5 page number column"
+  },
+  "wordstar4-dos/pages-lh12": {
+   "kinds": {
+    "variant": 1,
+    "page-of-word": 3,
+    "x": 1,
+    "missing-word": 2,
+    "extra-word": 2
+   },
+   "reason": "D1 detection; E8 WS4 page capacity at .LH 12: 37 lines, engine 36 (R-38); E5 page number column"
+  },
+  "wordstar4-dos/pages-mtmb-mid": {
+   "kinds": {
+    "variant": 1,
+    "pages": 1,
+    "y": 129,
+    "page-of-word": 21,
+    "missing-word": 3,
+    "extra-word": 3
+   },
+   "reason": "D1 detection; E9 a mid-file .MT/.MB changes WS4's current page at once; the engine applies it per block (R-38)"
+  },
+  "wordstar4-dos/sample-chapter1": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar4-dos/sample-chapter2": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar4-dos/sample-chapter3": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar4-dos/sample-sample1": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar4-dos/sample-sample2": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar4-dos/sample-sample3": {
+   "kinds": {
+    "x": 1
+   },
+   "reason": "E5 page number column"
+  },
+  "wordstar-dos/ws4-as-nondocument": {
+   "kinds": {
+    "text": 2
+   },
+   "reason": "E4 a nondocument keeps bit 7 in WS7 (CP437 characters); parse_printstream strips it"
+  },
+  "wordstar-dos/page-55-lines": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 111
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/page-55-plus-blank": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "x-logical-page": 111,
+    "missing-word": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E10 a blank line after a full page makes a page with only its number; the parser drops the trailing blank run"
+  },
+  "wordstar-dos/page-56-lines": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 114
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/pa-plain-crlf": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 42
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/pa-trailing": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 21
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/pa-trailing-blank": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "x-logical-page": 21,
+    "missing-word": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E10 a blank line after a trailing .pa makes a page (R-37 says so; the engine looks for it only in a saved trailer)"
+  },
+  "wordstar-dos/cp-4": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 122
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/cp-5": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 122
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/cp-6": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 122
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/pl-0": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 126
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/blank-lines-top": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 113
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/header": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 126
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/footer": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 22
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/lh-18pt": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 21
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/ls-2": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 21
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/lh-fixed": {
+   "kinds": {
+    "x-logical-page": 12,
+    "x": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics (about 0.6pt)"
+  },
+  "wordstar-dos/lh-auto": {
+   "kinds": {
+    "x-logical-page": 12,
+    "x": 1,
+    "y": 6
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E14 .lh a: a line's height counts the font in effect at its start, nothing carries further; the engine carries the previous line's last font; E19 Times metrics"
+  },
+  "wordstar-dos/lh-auto-carry": {
+   "kinds": {
+    "x-logical-page": 13,
+    "x": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt)"
+  },
+  "wordstar-dos/stored-8a-ignored": {
+   "kinds": {
+    "x-logical-page": 142
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/stored-page-record-ignored": {
+   "kinds": {
+    "x-logical-page": 142
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/form-feed-breaks": {
+   "kinds": {
+    "x-logical-page": 21,
+    "extra-word": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E13 WS7 prints no page number on a page ended by a bare 0Ch (mechanism inferred); the engine does"
+  },
+  "wordstar-dos/footnote": {
+   "kinds": {
+    "x-logical-page": 8
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/footnote-mb0": {
+   "kinds": {
+    "x-logical-page": 10,
+    "missing-word": 4
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E21 a note reference on a trailing blank last line is lost"
+  },
+  "wordstar-dos/footnote-moves": {
+   "kinds": {
+    "x-logical-page": 121,
+    "page-of-word": 2,
+    "y": 17,
+    "missing-word": 5,
+    "extra-word": 7
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 WS7 moves the reference line and the whole note to the next page when the room left is under fnrun (8 note lines); the engine keeps the reference and splits the note"
+  },
+  "wordstar-dos/footnote-long": {
+   "kinds": {
+    "x-logical-page": 69
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/footnote-long-moves": {
+   "kinds": {
+    "x-logical-page": 141,
+    "page-of-word": 2,
+    "y": 21,
+    "missing-word": 7,
+    "extra-word": 9
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+  },
+  "wordstar-dos/justify-off": {
+   "kinds": {
+    "variant": 1,
+    "x-logical-page": 37
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D4 a short headerless WS7 file with 8D 0A soft returns: detect() calls it text"
+  },
+  "wordstar-dos/justify-on": {
+   "kinds": {
+    "variant": 1,
+    "x-logical-page": 15,
+    "x": 22
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D4 detection; E17 justification: the blank before the soft return counted as a gap, and decipoint Bresenham where WS7 shares dots by floor(w*S_rem/W_rem)"
+  },
+  "wordstar-dos/centre-print": {
+   "kinds": {
+    "x-logical-page": 6
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/tab-print": {
+   "kinds": {
+    "x-logical-page": 5
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/attributes": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 10
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/justify-font-change": {
+   "kinds": {
+    "x-logical-page": 6,
+    "x": 16
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified line with a font change is not justified"
+  },
+  "wordstar-dos/justify-font-change-ref": {
+   "kinds": {
+    "x-logical-page": 6,
+    "x": 16
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E17 justification arithmetic (see justify-on)"
+  },
+  "wordstar-dos/justify-times": {
+   "kinds": {
+    "x-logical-page": 5,
+    "x": 8
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified proportional line is not justified"
+  },
+  "wordstar-dos/footnote-run-fnrun0": {
+   "kinds": {
+    "x-logical-page": 149,
+    "y": 24,
+    "missing-word": 3,
+    "extra-word": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 a running note: WS7's note area ends at PL - MB with the separator one row lower, and on the next page ...Continued... sits right under the separator"
+  },
+  "wordstar-dos/footnote-move-fnrun99": {
+   "kinds": {
+    "x-logical-page": 141,
+    "page-of-word": 2,
+    "y": 21,
+    "missing-word": 7,
+    "extra-word": 9
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+  },
+  "wordstar-dos/footnote-run-big": {
+   "kinds": {
+    "x-logical-page": 182,
+    "y": 57,
+    "missing-word": 3,
+    "extra-word": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+  },
+  "wordstar-dos/footnote-run-huge": {
+   "kinds": {
+    "x-logical-page": 252,
+    "y": 209,
+    "missing-word": 3,
+    "extra-word": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+  },
+  "wordstar-dos/footnote-fnrun6": {
+   "kinds": {
+    "x-logical-page": 149,
+    "y": 24,
+    "missing-word": 3,
+    "extra-word": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E23 running note area"
+  },
+  "wordstar-dos/footnote-fnrun7": {
+   "kinds": {
+    "x-logical-page": 141,
+    "page-of-word": 2,
+    "y": 21,
+    "missing-word": 7,
+    "extra-word": 9
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+  },
+  "wordstar-dos/justify-share-by-width": {
+   "kinds": {
+    "x-logical-page": 6,
+    "x": 16
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 mixed-font justification (each blank shares by its own width)"
+  },
+  "wordstar-dos/justify-times24-blank": {
+   "kinds": {
+    "x-logical-page": 6,
+    "x": 16
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 mixed-font justification"
+  },
+  "wordstar-dos/pa-after-full-page": {
+   "kinds": {
+    "x-logical-page": 113
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/pa-first-line": {
+   "kinds": {
+    "pages": 1,
+    "page-of-word": 6,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "E11 a .pa as the first line closes an empty page 1; WS7 ignores it"
+  },
+  "wordstar-dos/blank-lines-sb-on": {
+   "kinds": {
+    "x-logical-page": 113
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/blank-soft-lines": {
+   "kinds": {
+    "x-logical-page": 113,
+    "y": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E12 empty soft-return lines at the top of a page WS7 ended for room are dropped; the engine drops blanks only under .sb"
+  },
+  "wordstar-dos/tall-line-stays": {
+   "kinds": {
+    "x-logical-page": 119,
+    "page-of-word": 2,
+    "y": 10,
+    "missing-word": 1,
+    "extra-word": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E15 a line whose rise fits the room stays and overhangs; the engine moves it; E14 font carry"
+  },
+  "wordstar-dos/tall-line-moves": {
+   "kinds": {
+    "x-logical-page": 122,
+    "y": 10
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E14 font carry into the next line"
+  },
+  "wordstar-dos/unformatted-56": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 243
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/note-fits-51": {
+   "kinds": {
+    "x-logical-page": 127
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-moves-52": {
+   "kinds": {
+    "x-logical-page": 119,
+    "page-of-word": 2,
+    "y": 16,
+    "missing-word": 6,
+    "extra-word": 6
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 note moves with its reference"
+  },
+  "wordstar-dos/two-notes-reserve": {
+   "kinds": {
+    "x-logical-page": 131
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-numbers-per-page": {
+   "kinds": {
+    "x-logical-page": 221
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-numbers-continuous": {
+   "kinds": {
+    "x-logical-page": 221
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-numbers-bare": {
+   "kinds": {
+    "x-logical-page": 201,
+    "x": 12,
+    "missing-word": 8,
+    "extra-word": 12
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E25 a bare .f# n: the stored note numbers already include n and the engine adds it again"
+  },
+  "wordstar-dos/long-note": {
+   "kinds": {
+    "x-logical-page": 458,
+    "page-of-word": 9,
+    "y": 356,
+    "missing-word": 22,
+    "extra-word": 24
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E24 a very long note: WS7 makes note-only pages; the engine keeps 3 body lines a page"
+  },
+  "wordstar-dos/annotation-moves": {
+   "kinds": {
+    "x-logical-page": 119,
+    "y": 17,
+    "x": 1,
+    "missing-word": 5,
+    "extra-word": 6
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E22 an annotation moves with its reference like a footnote"
+  },
+  "wordstar-dos/print-bg-off": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 7
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/enter-ls2#0": {
+   "kinds": {
+    "end": 1
+   },
+   "reason": "E2 a soft line before an empty hard line under .ls 2 is read as a paragraph end (hard)"
+  },
+  "wordstar-dos/enter-ls2#1": {
+   "kinds": {
+    "end": 1
+   },
+   "reason": "E2 a soft line before an empty hard line under .ls 2 is read as a paragraph end (hard)"
+  },
+  "wordstar-dos/note-format-ignored#0": {
+   "kinds": {
+    "x-logical-page": 221
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-format-ignored#1": {
+   "kinds": {
+    "x-logical-page": 221
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-format-ignored#2": {
+   "kinds": {
+    "x-logical-page": 221
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/note-format-from-f#": {
+   "kinds": {
+    "x-logical-page": 213,
+    "missing-word": 8,
+    "extra-word": 8
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E26 .f# a: WS7 prints letters; the engine prints arabic (R-48)"
+  },
+  "wordstar-dos/note-format-from-f#-upper": {
+   "kinds": {
+    "x-logical-page": 213,
+    "missing-word": 8,
+    "extra-word": 8
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E26 .f# A: WS7 prints letters; the engine prints arabic (R-48)"
+  },
+  "wordstar-dos/page-ranges-20": {
+   "kinds": {
+    "variant-plain": 1,
+    "pages": 1,
+    "x-logical-page": 60,
+    "extra-word": 15
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; S1 WordStar's print dialog printed selected pages only; a converter prints the whole document"
+  },
+  "wordstar-dos/cw-bare-tab": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 3,
+    "y": 1
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E16 the automatic page number's baseline moves with the .cw size; WS7's is PL - MB + FM + LH"
+  },
+  "wordstar-dos/bare-tab-factory": {
+   "kinds": {
+    "variant-plain": 1,
+    "x-logical-page": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
+  },
+  "wordstar-dos/lj-no-letter-spacing": {
+   "kinds": {
+    "x-logical-page": 6,
+    "x": 7
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E18 a justified proportional line is not justified"
+  },
+  "wordstar-dos/pl-bare-keeps": {
+   "kinds": {
+    "x-logical-page": 243
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/pl-bad-keeps": {
+   "kinds": {
+    "x-logical-page": 243
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/pl20-control": {
+   "kinds": {
+    "x-logical-page": 85
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/pl20-bare-keeps": {
+   "kinds": {
+    "x-logical-page": 85
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/pl20-bad-keeps": {
+   "kinds": {
+    "x-logical-page": 85
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/mt-bare-keeps": {
+   "kinds": {
+    "x-logical-page": 142
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/mb-bare-keeps": {
+   "kinds": {
+    "x-logical-page": 142
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/lh-bare-keeps": {
+   "kinds": {
+    "x-logical-page": 41
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/cp-bare-nothing": {
+   "kinds": {
+    "x-logical-page": 122
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/po-bare-zero": {
+   "kinds": {
+    "x-logical-page": 7
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge"
+  },
+  "wordstar-dos/lnum-courier": {
+   "kinds": {
+    "x-logical-page": 16,
+    "missing-word": 160
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E27 .l#: WS7 numbers every row of the page, empty ones too, and draws bars at 504 and 5328; the engine numbers text lines only, no bars"
+  },
+  "wordstar-dos/raw01-lj": {
+   "kinds": {
+    "x-logical-page": 9,
+    "x": 3
+   },
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; E20 raw 01h (^PA) selects the printer's alternate font; the engine ignores it"
+  }
+ }
+}

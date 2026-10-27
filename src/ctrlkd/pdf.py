@@ -716,11 +716,16 @@ def _po_checkpoints(doc):
     right. Confirmed genuine LaserJet PCL (PJL `ENTER LANGUAGE=PCL`,
     `ESC(s...T` font selection), not a different driver family's own
     margin convention -- see `tools/PCL-DIVERGENCE-TRIAGE.md`."""
-    from .core import DEFAULT_PO_COLS, _resolve_cols_arg
+    from .core import DEFAULT_PO_COLS, _resolve_cols_arg, era_for
+    bare_po_zero = era_for(doc.meta.get('variant')).bare_po_zero
     checkpoints = [(0, DEFAULT_PO_COLS)]
     for bi, _li, cmd in doc.meta.get('dot_positions', ()):
         m = _PO_CMD_RE.match(cmd)
         if not m:
+            if bare_po_zero and _PO_BARE_RE.match(cmd):
+                resolved = 0.0                 # core.Era.bare_po_zero
+                if resolved != checkpoints[-1][1]:
+                    checkpoints.append((bi, resolved))
             continue
         value, unit = float(m.group(1)), m.group(2)
         resolved = _resolve_cols_arg(value, unit.encode() if unit else None)
@@ -731,6 +736,7 @@ def _po_checkpoints(doc):
 
 _PO_CMD_RE = _re.compile(r'^\.PO\s*([0-9.]+)\s*("|[A-Za-z]{1,2})?',
                          _re.IGNORECASE)
+_PO_BARE_RE = _re.compile(r'^\.PO\s*$', _re.IGNORECASE)
 
 
 def _po_at(checkpoints, bi):

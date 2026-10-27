@@ -1,0 +1,609 @@
+#!/usr/bin/env python3
+"""The WordStar run fixtures: this engine against what real WordStar did.
+
+The WordStar teardowns keep scripted DOSBox-X runs of real WordStar 4.00 and
+7.0 Rev. D: each run's input document, the files WordStar saved or the bytes
+it sent to the printer, and an expected READING generated from those bytes
+(schema `wordstar-reading/1`). A reading records only what WordStar's own
+behaviour fixes (these bytes are a soft line end; the LaserJet put `line` at
+x = 576, V = 480 on page 2), never what a converter's own formats should do
+with it. Nothing is copied into this repo: `CTRLKD_TEARDOWNS` names the
+teardowns checkout, and every fixture is read from there, in place, read-only.
+
+Two sets, one manifest each (`<set>/fixtures/fixtures.json`, schema
+`wordstar-run-fixtures/2`): `wordstar4-dos` and `wordstar-dos` (WS7). The
+fixtures whose `use` is `reader`, `layout-printed` or `layout-lines` are for
+the converters; every one of them carries a reading with one part per
+document WordStar wrote or per print capture.
+
+HOW EACH KIND OF FIXTURE IS COMPARED
+
+`reader` -- the engine parses `part.file` (`core.parse`, auto-detect, the
+CLI's defaults) and its physical lines are set against `part.lines`:
+
+  - Dot lines (`dot: true`) are not body lines: the engine keeps them in
+    `doc.meta['dot_commands']`, not in `doc.blocks`. They are checked by
+    count only.
+  - Text: the reading's `text` with U+00A0 (WordStar's justification and
+    indent fill, `A0`) read as a plain blank, because the engine decodes
+    `A0` to a blank. Where the reading names something WordStar prints, the
+    engine's text may show it: a tab record as the blanks to its stop, a
+    footnote/endnote record as its reference number, a binding space (`0F`)
+    as a blank, an active soft hyphen as `-`. Characters below 20h are not
+    text on either side. Trailing blanks are compared too: WordStar stores
+    them.
+  - A line ended by a form feed (`0C`), and a `.pa` dot line, are the
+    engine's own `pagebreak` block; an empty form-feed line is nothing else.
+  - An empty last line on one side only is the end of the file, not a line.
+  - End: the reading's `end` against the engine line's own `soft` /
+    `overprint` flags (`hard` = neither, `soft`, `overprint` = a lone 0D).
+    `form feed` and `none` are compared as hard.
+  - `variant`: the reading's `ws4`/`ws5+`/`nondocument` against what
+    `core.detect` says (`nondocument` = `text` or `printstream`).
+
+THE VARIANT. Many fixture inputs are plain ASCII the teardown sessions
+wrote, which WordStar opened as a document; content-based detection calls
+such a file `text` and lays it out as one. So every part is parsed as what
+WordStar opened it as -- the release's document variant (`ws4`, `ws5+`) or
+`text` for a nondocument -- exactly as `--variant` would, and a detection
+that disagrees is reported on its own (kind `variant`).
+
+`layout-printed` -- the engine renders `part.file` as Printed PDF (the
+CLI's own defaults: `pictures='embed'`, as `fidelity_gate.render_engine_pdf`
+does) and its words
+are matched by text, in reading order, against the capture's decoded rows.
+A row item is a run WordStar positioned; only the FIRST word of an item has
+a known x (the blanks inside a run are not positioned). Coordinates: x is
+the item's decipoints plus the PCL logical page's own 1/4" offset from the
+paper's left edge (HP; WS7 teardown, `wordstar-dos/7-configuration.md` 7.7),
+which a PDF has to add because its origin is the paper's edge; y is the
+row's V, the baseline in decipoints from the page top. Page counts are
+compared too.
+
+`layout-lines` -- WS4's DRAFT driver: rows of text, 1-based, a row = 1/6",
+the paper's own left edge at column 0, blank rows left out, pages split at
+form feeds. The same matching as `layout-printed`, with every word's x known
+(column x 7.2pt) and the baseline of row r at r x 12pt.
+
+INSTALL. Each manifest's `install` names the settings its layout fixtures
+assume: the FACTORY install of each release. This engine's own defaults are
+WordStar's factory values; `install_problem()` checks that they agree, and
+the parts are rendered with no page settings at all.
+
+A MISMATCH is a fact to look at, not a verdict: it may be the engine, or a
+rule the reading does not cover yet. `--report` prints every one.
+
+    CTRLKD_TEARDOWNS=/path/to/teardowns python3 tools/teardown_fixtures.py --report [--json OUT]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_HERE, '..', 'src'))
+sys.path.insert(0, _HERE)
+
+from ctrlkd import core  # noqa: E402
+from ctrlkd import pdf as pdfmod  # noqa: E402
+from ctrlkd import pictures as ctrlkd_pictures  # noqa: E402
+import fidelity_gate as fg  # noqa: E402
+
+ENV = 'CTRLKD_TEARDOWNS'
+SETS = ('wordstar4-dos', 'wordstar-dos')
+USES = ('reader', 'layout-printed', 'layout-lines')
+MANIFEST_SCHEMA = 'wordstar-run-fixtures/2'
+READING_SCHEMA = 'wordstar-reading/1'
+
+# The PCL logical page starts 1/4" in from the paper's left edge.
+PCL_LOGICAL_PAGE_X_PT = 18.0
+# WS4's HPLJET driver starts the first line 12pt lower than WS7 or DRAFT
+# (its own vertical bias; WS4 teardown, evidence/pass3/print-static.md E3).
+HPLJET_Y_ORIGIN_PT = 12.0
+DRAFT_ROW_PT = 12.0
+DRAFT_COL_PT = 7.2
+# Position tolerance, in points: a decipoint is 0.1pt and the engine writes
+# positions to 0.1pt, so two rounding steps.
+POSITION_TOL_PT = 0.2
+
+# Each release's factory install (the manifests' `install`) against this
+# engine's own defaults.
+_FACTORY_KEYS = {
+    'wordstar4-dos': {'pl_lines': core.DEFAULT_PL_LINES, 'mt_lines': core.DEFAULT_MT_LINES,
+                      'mb_lines': core.DEFAULT_MB_LINES, 'po_columns': core.DEFAULT_PO_COLS,
+                      'hm_lines': core.DEFAULT_HM_LINES, 'fm_lines': core.DEFAULT_FM_LINES},
+    'wordstar-dos': {'pl_in': core.DEFAULT_PL_LINES / 6, 'mt_in': core.DEFAULT_MT_LINES / 6,
+                     'mb_in': core.DEFAULT_MB_LINES / 6, 'po_in': core.DEFAULT_PO_COLS / 10,
+                     'hm_in': core.DEFAULT_HM_LINES / 6, 'fm_in': core.DEFAULT_FM_LINES / 6},
+}
+
+_HEX = re.compile(r'<([0-9A-F]{2})>')
+
+
+def root():
+    """The teardowns checkout, or None when the tier is not armed."""
+    return os.environ.get(ENV) or None
+
+
+def manifest_path(set_name, base=None):
+    return os.path.join(base or root(), set_name, 'fixtures', 'fixtures.json')
+
+
+def load_manifest(set_name, base=None):
+    with open(manifest_path(set_name, base)) as f:
+        return json.load(f)
+
+
+def runs_dir(set_name, manifest, base=None):
+    return os.path.normpath(os.path.join(os.path.dirname(manifest_path(set_name, base)),
+                                         manifest['root']))
+
+
+def manifest_problem(base=None):
+    """One reason the armed tier cannot run, or None."""
+    base = base or root()
+    if not base:
+        return f'{ENV} is not set'
+    for s in SETS:
+        p = manifest_path(s, base)
+        if not os.path.isfile(p):
+            return f'{ENV}={base}: no manifest at {s}/fixtures/fixtures.json'
+        m = load_manifest(s, base)
+        if m.get('schema') != MANIFEST_SCHEMA:
+            return f'{s}: manifest schema {m.get("schema")!r}, this tier reads {MANIFEST_SCHEMA!r}'
+    return None
+
+
+def install_problem(set_name, manifest):
+    """None when the manifest's install is this engine's factory default."""
+    inst = manifest.get('install') or {}
+    for key, ours in _FACTORY_KEYS[set_name].items():
+        theirs = inst.get(key)
+        if theirs is None or abs(float(theirs) - ours) > 0.002:
+            return f'{set_name}: install {key}={theirs!r}, engine default {ours!r}'
+    return None
+
+
+def parts(base=None):
+    """[(case_id, set_name, fixture, part_index, part)] for every converter
+    fixture's reading part, both sets, manifest order."""
+    out = []
+    for s in SETS:
+        m = load_manifest(s, base)
+        for fx in m['fixtures']:
+            if fx.get('use') not in USES:
+                continue
+            reading = fx.get('reading') or {}
+            for i, part in enumerate(reading.get('parts', ())):
+                tail = f'#{i}' if len(reading['parts']) > 1 else ''
+                out.append((f'{s}/{fx["id"]}{tail}', s, fx, i, part))
+    return out
+
+
+def unhex(text):
+    """The manifest's byte form (printable ASCII as itself, `<XX>` for any
+    other byte) back to bytes."""
+    out = bytearray()
+    pos = 0
+    for m in _HEX.finditer(text):
+        out += text[pos:m.start()].encode('latin-1')
+        out.append(int(m.group(1), 16))
+        pos = m.end()
+    out += text[pos:].encode('latin-1')
+    return bytes(out)
+
+
+# ------------------------------------------------------------------ reader
+_FF = object()  # a form-feed line: the engine's own `pagebreak` block
+
+
+def _engine_lines(doc):
+    out = []
+    for b in doc.blocks:
+        if b.kind == 'pagebreak':
+            out.append(_FF)
+        for ln in b.lines:
+            out.append(ln)
+    return out
+
+
+def _end_of(line):
+    if getattr(line, 'overprint', False):
+        return 'overprint'
+    return 'soft' if line.soft else 'hard'
+
+
+# What may stand in the engine's text where a reading names a record or a
+# mark that WordStar prints as something: a tab record is the blanks to its
+# stop; a note record is its reference number; a binding space and an active
+# soft hyphen print themselves.
+_RECORD_PATTERN = {'09': ' *', '03': r'[0-9A-Za-z*]{0,3}', '04': r'[0-9A-Za-z*]{0,3}'}
+_MARK_TEXT = {'0F': ' '}
+
+
+def _expected_pattern(rl):
+    """A regex the engine's text must match in full."""
+    text = rl['text']
+    inserts = []
+    for pos, typ, *_rest in rl.get('records', ()):
+        if typ in _RECORD_PATTERN:
+            inserts.append((pos, _RECORD_PATTERN[typ]))
+    for pos, byte, name in rl.get('marks', ()):
+        if 'prints -' in name:
+            inserts.append((pos, '-'))
+        elif byte in _MARK_TEXT:
+            inserts.append((pos, re.escape(_MARK_TEXT[byte])))
+    out, last = [], 0
+    for pos, pat in sorted(inserts, key=lambda t: t[0]):
+        out.append(re.escape(text[last:pos].replace('\u00a0', ' ')))
+        out.append(pat)
+        last = pos
+    out.append(re.escape(text[last:].replace('\u00a0', ' ')))
+    return ''.join(out)
+
+
+def _expected_text(rl):
+    """The readable form of `_expected_pattern`, for reports."""
+    return rl['text'].replace('\u00a0', ' ')
+
+
+def _engine_text(line):
+    """The line's text as WordStar has it: a note's reference mark (`fnref`,
+    which also marks a `..` comment line's own anchor) is the engine's, not
+    the file's, and control characters are not text."""
+    return ''.join(ch for sp in line.spans if 'fnref' not in sp.styles
+                   for ch in sp.text if ch >= ' ')
+
+
+def _expected_end(rl):
+    return {'soft': 'soft', 'overprint': 'overprint'}.get(rl['end'], 'hard')
+
+
+def _expected_lines(part):
+    out = []
+    for rl in part['lines']:
+        if rl.get('dot'):
+            if re.match(r'\.pa\b', rl['text'], re.I):
+                out.append(_FF)
+            continue
+        if rl['end'] == 'form feed':
+            if rl['text']:
+                out.append(rl)
+            out.append(_FF)
+        else:
+            out.append(rl)
+    return out
+
+
+_DETECTED = {'ws4': ('ws4',), 'ws5+': ('ws5+',), 'nondocument': ('text', 'printstream')}
+_PARSE_AS = {'ws4': 'ws4', 'ws5+': 'ws5+', 'nondocument': 'text'}
+_RELEASE_VARIANT = {'wordstar4-dos': 'ws4', 'wordstar-dos': 'ws5+'}
+
+
+def _ws_evidence(data):
+    """True when the bytes carry anything a WordStar detector could go on: a
+    soft return (`8D 0A`), a page mark (`0D 8A`, `8D 8A`), a high-bit byte
+    outside a `1B xx 1C` character, or a WS5+ header record."""
+    if b'\x8d\x0a' in data or b'\x0d\x8a' in data or b'\x8d\x8a' in data:
+        return True
+    if data[:1] == b'\x1d':
+        return True
+    stripped = re.sub(rb'\x1b[\x00-\xff]\x1c', b'', data)
+    return any(b >= 0x80 for b in stripped)
+
+
+def _variant_check(data, want):
+    """[mismatch] when detection disagrees with how WordStar opened it. A file
+    with nothing for a detector to go on is `variant-plain` (the tier's own
+    synthetic ASCII inputs), kept apart from a real `variant` miss. A file
+    WordStar was told to open as a nondocument fails only when detection
+    refuses it outright: the mode was the user's choice, not the file's."""
+    try:
+        got = core.detect(data).get('variant')
+    except Exception as exc:  # detection itself failing is a finding
+        got = f'{type(exc).__name__}'
+    if want == 'nondocument':
+        return [{'kind': 'variant', 'want': want, 'got': got}] if got == 'binary' else []
+    if got not in _DETECTED.get(want, (want,)):
+        kind = 'variant' if _ws_evidence(data) else 'variant-plain'
+        return [{'kind': kind, 'want': want, 'got': got}]
+    return []
+
+
+def compare_reader(part, data):
+    """[mismatch] for one reader part, `data` being the file's bytes."""
+    want_variant = part.get('variant')
+    found = _variant_check(data, want_variant)
+    doc = core.parse(data, variant=_PARSE_AS.get(want_variant))
+    want = _expected_lines(part)
+    n_dot = sum(1 for rl in part['lines'] if rl.get('dot'))
+    got_dot = len(doc.meta.get('dot_commands') or ())
+    if n_dot != got_dot:
+        found.append({'kind': 'dot-count', 'want': n_dot, 'got': got_dot})
+    got = _engine_lines(doc)
+    # an empty last line on either side is the end of the file, not a line
+    while len(got) > len(want) and got[-1] is not _FF and not got[-1].text():
+        got.pop()
+    while len(want) > len(got) and want[-1] is not _FF and not want[-1]['text']:
+        want.pop()
+    for i in range(max(len(want), len(got))):
+        rl = want[i] if i < len(want) else None
+        ln = got[i] if i < len(got) else None
+        if rl is None:
+            found.append({'kind': 'extra-line', 'line': i + 1,
+                          'got': 'form feed' if ln is _FF else ln.text()})
+            continue
+        if ln is None:
+            found.append({'kind': 'missing-line', 'line': i + 1,
+                          'want': 'form feed' if rl is _FF else _expected_text(rl)})
+            continue
+        if rl is _FF or ln is _FF:
+            if rl is not ln:
+                found.append({'kind': 'form-feed', 'line': i + 1,
+                              'want': 'form feed' if rl is _FF else _expected_text(rl),
+                              'got': 'form feed' if ln is _FF else ln.text()})
+            continue
+        gt = _engine_text(ln)
+        if not re.fullmatch(_expected_pattern(rl), gt):
+            found.append({'kind': 'text', 'line': i + 1, 'want': _expected_text(rl), 'got': gt,
+                          'raw': rl['raw']})
+        we, ge = _expected_end(rl), _end_of(ln)
+        if want_variant == 'nondocument' and we == 'soft':
+            we = 'hard'    # a nondocument has no soft returns, only bytes
+        if we != ge:
+            found.append({'kind': 'end', 'line': i + 1, 'want': rl['end'], 'got': ge,
+                          'term': rl['term']})
+    return found
+
+
+# ------------------------------------------------------------------ layout
+def _decode_item(text):
+    """A row item's text with the manifest's `<XX>` bytes as CP437."""
+    return unhex(text).decode('cp437')
+
+
+SUPSUB_RISE_DP = 45       # WS7 factory `.sr`: 3/48" = 45 decipoints
+COURIER_CELL_DP = 72      # 10 cpi
+SUPSUB_CELL_DP = 55.2     # 13.04 cpi (23 dots)
+
+
+def prepare_printed_rows(rows):
+    """The LaserJet rows in the form the engine's words are compared with.
+
+    - `<XX>` bytes become their CP437 characters (the `.l#` bars).
+    - A strikeout is printed as a second pass of `-` over the struck word;
+      the engine draws a rule instead. An item of nothing but `-` that
+      starts at the same x as another item on its row is that pass.
+    - A sub/superscript is a separate pass 45 decipoints off its line; the
+      engine's words keep it attached to the word it follows. An item on a
+      row 45 decipoints from a base row on the same page, starting where a
+      base item ends (Courier cells), is glued onto that item, and so is a
+      base item that starts where it ends (13.04-cpi cells).
+    """
+    out = []
+    for row in rows:
+        items = [[x, _decode_item(t)] for x, t in row['items']]
+        xs = [x for x, t in items if not re.fullmatch(r'-+', t)]
+        items = [[x, t] for x, t in items if not (re.fullmatch(r'-+', t) and x in xs)]
+        out.append({**row, 'items': items})
+    by_key = {(r['page'], r['v']): r for r in out}
+    for row in out:
+        for rise in (SUPSUB_RISE_DP, -SUPSUB_RISE_DP):
+            base = by_key.get((row['page'], row['v'] + rise))
+            if base is None:
+                continue
+            for item in list(row['items']):
+                ix, itext = item
+                for b in base['items']:
+                    bx, btext = b
+                    if abs(bx + len(btext) * COURIER_CELL_DP - ix) <= 2:
+                        b[1] = btext + itext
+                        tail_x = ix + len(itext) * SUPSUB_CELL_DP
+                        for nxt in list(base['items']):
+                            if nxt is not b and abs(nxt[0] - tail_x) <= 3:
+                                b[1] += nxt[1]
+                                base['items'].remove(nxt)
+                                break
+                        row['items'].remove(item)
+                        break
+    return [r for r in out if r['items']]
+
+
+def _first_word_tokens(rows, page_key, pos_of):
+    """Expected tokens from reading rows: [{text, page, x or None, y_top}].
+    `pos_of(row, item_index, word_index, char_col)` returns (x, y_top) or
+    (None, y_top) for a word whose x is not known."""
+    out = []
+    for row in rows:
+        items = row['items'] if 'items' in row else [[None, row['text']]]
+        for ii, (ix, text) in enumerate(items):
+            col = 0
+            for wi, m in enumerate(re.finditer(r'\S+', text)):
+                x, y = pos_of(row, ix, wi, m.start())
+                if wi == 0 and m.start() and ix is not None:
+                    x = None    # blanks lead the run: its first word's x is not known
+                out.append({'text': m.group(0), 'page': row[page_key], 'x': x, 'y_top': y})
+                col = m.end()
+    return out
+
+
+def _printed_pos(row, ix, wi, _col):
+    x = ix / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT if wi == 0 else None
+    return x, row['v'] / fg.DECIPT_PER_PT
+
+
+def _draft_pos(row, _ix, _wi, col):
+    return col * DRAFT_COL_PT, row['row'] * DRAFT_ROW_PT
+
+
+def _engine_tokens(pdf):
+    """The engine's words, its page count and its sheet height. A word placed
+    off its sheet is dropped: WordStar puts words there too (a page number
+    under `.pl 0`, or past a short `.PL` on DRAFT's continuous paper), and
+    off the sheet neither side can be compared by position. The expected
+    words get the same cut (`compare_layout`)."""
+    pages = fg.extract_pages(pdf)
+    toks = []
+    for n, page in enumerate(pages, 1):
+        h = page['mediabox'][1]
+        toks += [t for t in fg.engine_page_tokens(page, n) if 0 <= t['y_top'] <= h]
+    sheet_h = pages[0]['mediabox'][1] if pages else 11 * 72
+    return toks, len(pages), sheet_h
+
+
+def _doc_for(path, variant):
+    with open(path, 'rb') as f:
+        return core.parse(f.read(), variant=variant)
+
+
+def render_printed(path, variant):
+    """The Printed PDF the CLI would write for `path` read as `variant`."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    doc = core.parse(data, variant=variant)
+    pix = ctrlkd_pictures.resolve_document_pictures(doc, path)
+    return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix)
+
+
+def compare_layout(part, path, variant, hpljet=False):
+    """[mismatch] for one layout part; `path` is the printed document."""
+    with open(path, 'rb') as f:
+        found = _variant_check(f.read(), {'ws4': 'ws4', 'ws5+': 'ws5+'}.get(variant, 'nondocument'))
+    pdf = render_printed(path, variant)
+    eng, n_pages, sheet_h = _engine_tokens(pdf)
+    printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
+    if printed:
+        rows = [r for r in prepare_printed_rows(part['rows'])
+                if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
+        want = _first_word_tokens(rows, 'page', _printed_pos)
+        check_y = True
+    else:
+        rows = [r for r in part['rows'] if r['row'] * DRAFT_ROW_PT <= sheet_h]
+        want = _first_word_tokens(rows, 'page', _draft_pos)
+        # DRAFT prints whole rows: a row is a line only at `.LH 8` (6 lpi)
+        page = _doc_for(path, variant).meta.get('page') or {}
+        check_y = page.get('lh_48', 8) == 8 and not page.get('lh_varies')
+    if part.get('pages') is not None and part['pages'] != n_pages:
+        found.append({'kind': 'pages', 'want': part['pages'], 'got': n_pages})
+    m = fg.match_doc(want, eng)
+    for w, e in m['pairs']:
+        if w['page'] != e['page']:
+            found.append({'kind': 'page-of-word', 'text': w['text'], 'want': w['page'],
+                          'got': e['page']})
+            continue
+        dy = round(e['y_top'] - w['y_top'], 2)
+        if hpljet and abs(dy + HPLJET_Y_ORIGIN_PT) <= POSITION_TOL_PT:
+            found.append({'kind': 'y-driver-origin', 'text': w['text'], 'page': w['page'],
+                          'd': dy})
+        elif check_y and abs(dy) > POSITION_TOL_PT:
+            found.append({'kind': 'y', 'text': w['text'], 'page': w['page'],
+                          'want': round(w['y_top'], 2), 'got': round(e['y_top'], 2), 'd': dy})
+        if w['x'] is not None:
+            dx = round(e['x'] - w['x'], 2)
+            if printed and abs(dx + PCL_LOGICAL_PAGE_X_PT) <= POSITION_TOL_PT:
+                # exactly the logical page's own offset: the engine set x
+                # in the PCL frame, from the logical page's edge
+                found.append({'kind': 'x-logical-page', 'text': w['text'], 'page': w['page'],
+                              'd': dx})
+            elif abs(dx) > POSITION_TOL_PT:
+                found.append({'kind': 'x', 'text': w['text'], 'page': w['page'],
+                              'want': round(w['x'], 2), 'got': round(e['x'], 2), 'd': dx})
+    for w in m['unmatched_ws7']:
+        found.append({'kind': 'missing-word', 'text': w['text'], 'page': w['page']})
+    for e in m['unmatched_engine']:
+        found.append({'kind': 'extra-word', 'text': e['text'], 'page': e['page']})
+    return found
+
+
+# ------------------------------------------------------------------ driver
+def check_part(set_name, fixture, part, base=None):
+    """[mismatch] for one part. Raises FileNotFoundError when the part's
+    file is not in the checkout."""
+    m = load_manifest(set_name, base)
+    path = printed_document(runs_dir(set_name, m, base), part, fixture['use'])
+    if fixture['use'] == 'reader':
+        with open(path, 'rb') as f:
+            return compare_reader(part, f.read())
+    variant = _RELEASE_VARIANT[set_name] if fixture.get('mode') != 'nondocument' else 'text'
+    hpljet = set_name == 'wordstar4-dos' and fixture['use'] == 'layout-printed'
+    return compare_layout(part, path, variant, hpljet)
+
+
+def printed_document(runs, part, use):
+    """The file a part is about. For a layout part that is the document
+    WordStar printed: when the run edited the input before printing (typed
+    a note, set a font) and saved it, that is the run's `-out-` file, which
+    the reading does not always name; it is used whenever it exists and
+    differs from the named `-in-` file."""
+    path = os.path.join(runs, part['file'])
+    if use == 'reader' or '-in-' not in part['file']:
+        return path
+    out = os.path.join(runs, part['file'].replace('-in-', '-out-'))
+    if os.path.isfile(out):
+        with open(path, 'rb') as a, open(out, 'rb') as b:
+            if a.read() != b.read():
+                return out
+    return path
+
+
+def _summary(found):
+    kinds = {}
+    for f in found:
+        kinds[f['kind']] = kinds.get(f['kind'], 0) + 1
+    return ', '.join(f'{k} {n}' for k, n in sorted(kinds.items()))
+
+
+def report(base=None):
+    rows = []
+    for case, s, fx, _i, part in parts(base):
+        try:
+            found = check_part(s, fx, part, base)
+            error = None
+        except Exception as exc:  # a crash is a result too
+            found, error = [], f'{type(exc).__name__}: {exc}'
+        rows.append({'case': case, 'use': fx['use'], 'claim': fx['claim'],
+                     'cite': fx.get('cite', []), 'error': error, 'mismatches': found})
+    return rows
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--report', action='store_true', help='print every mismatch')
+    ap.add_argument('--json', help='also write the full report as JSON here')
+    ap.add_argument('--limit', type=int, default=8, help='mismatches shown per part')
+    a = ap.parse_args(argv)
+    problem = manifest_problem()
+    if problem:
+        print(problem, file=sys.stderr)
+        return 2
+    for s in SETS:
+        ip = install_problem(s, load_manifest(s))
+        if ip:
+            print('install:', ip)
+    rows = report()
+    clean = [r for r in rows if not r['mismatches'] and not r['error']]
+    print(f'{len(rows)} parts: {len(clean)} match, {len(rows) - len(clean)} do not')
+    for r in rows:
+        if not r['mismatches'] and not r['error']:
+            continue
+        print(f'\n{r["case"]} [{r["use"]}] {r["claim"]}')
+        print(f'  cite: {", ".join(r["cite"])}')
+        if r['error']:
+            print(f'  ERROR {r["error"]}')
+            continue
+        print(f'  {_summary(r["mismatches"])}')
+        for f in r['mismatches'][:a.limit]:
+            print('   ', json.dumps(f, ensure_ascii=False))
+        if len(r['mismatches']) > a.limit:
+            print(f'    ... {len(r["mismatches"]) - a.limit} more')
+    if a.json:
+        with open(a.json, 'w') as f:
+            json.dump(rows, f, indent=1, ensure_ascii=False)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -7890,3 +7890,34 @@ def test_head_foot_no_style_select_is_unchanged():
     size = _pdf._printed_size(doc)
     left = _pdf._printed_left(doc, size)
     assert hl[0]['x'] == left
+
+
+def test_forced_variant_chooses_the_era():
+    """`parse(variant=...)` (the CLI's `--variant`) used to pick the parser
+    only: `parse_ws` re-ran detection and took bit 7, symmetric records and
+    the rest from its guess. A WS4 file whose bytes detection calls `binary`
+    (a WS5-style header kept as text in a WS4 file: WS4 teardown,
+    `wordstar4-dos/3-document-format-files.md` 3.14, run hdr) must read with
+    WS4's era when told it is WS4: its 0x80 is a word-end flag on 00h, not
+    a `Ç`."""
+    data = b'\x1d}\x00\x00\x80' + b'\x00' * 123 + b'Body line one.\r\n'
+    doc = core.parse(data, variant='ws4')
+    assert doc.meta['variant'] == 'ws4' and doc.meta['era'] == 'ws4'
+    text = ''.join(ln.text() for b in doc.blocks for ln in b.lines)
+    assert 'Ç' not in text and 'Body line one.' in text
+
+
+def test_bare_po_sets_zero_in_ws7_only():
+    """A bare `.po` sets the page offset to 0 in WS7 Rev. D (runs arg-*,
+    x = 0), though a bare `.pl/.mt/.mb/.lh` keeps the previous value (WS7
+    teardown, `wordstar-dos/7-configuration.md` 7.9). WS4 has not been run,
+    so a WS4 file keeps the old reading: a bare `.PO` changes nothing."""
+    from ctrlkd.pdf import emit_pdf
+    body = b'.po\r\nflush left\r\n.po 8\r\nindented\r\n'
+    doc7 = core.parse(ws7_block(0x00) + body, variant='ws5+')
+    spans = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc7, 'printed'))}
+    assert spans[b'flush left'] == 0.0
+    assert spans[b'indented'] == 57.6
+    doc4 = core.parse(body, variant='ws4')
+    spans4 = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc4, 'printed'))}
+    assert spans4[b'flush left'] == 57.6
