@@ -7921,3 +7921,16 @@ def test_bare_po_sets_zero_in_ws7_only():
     doc4 = core.parse(body, variant='ws4')
     spans4 = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc4, 'printed'))}
     assert spans4[b'flush left'] == 57.6
+
+
+def test_sup_sub_cell_in_a_non_courier_fixed_pitch_face():
+    """Only Courier's sub/superscript cell comes from the LaserJet driver's
+    formula (23 dots at 9.25pt); another fixed-pitch face drawn in Courier
+    keeps its own body cell, scaled by the size ratio -- unchanged when its
+    X38 is 0, as LinePrinter's is (CODES.WS: 8.5pt at 16.7 cpi)."""
+    from ctrlkd.pdf import _sup_sub_span_pitch
+    lp = {'typestyle_number': 0, 'width_1800': 108, 'proportional': False}
+    assert _sup_sub_span_pitch(lp, {'sup'}, 'Courier', 8, 8) == 108 / 25
+    gothic = {'typestyle_number': 6, 'width_1800': 150, 'proportional': False}
+    assert _sup_sub_span_pitch(gothic, {'sub'}, 'Courier', 9.0, 12) == 150 / 25 * 9.0 / 12
+    assert _sup_sub_span_pitch(None, {'sup'}, 'Courier', 9.25, 12) == 23 * 72 / 300

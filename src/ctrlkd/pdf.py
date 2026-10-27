@@ -6792,7 +6792,7 @@ def _attach_justify_word_x_printed(doc, pages, size):
             x0 = left_here + (fi or 0)
             pt, rise = _sized(styles, size_here, roll_pt, family, entry)
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-            pitch = (_sup_sub_span_pitch(entry, styles, family, pt)
+            pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
                     or _span_pitch(entry, pt))
             pieces = _justify_pieces_printed(text, pitch, x0,
                                              line.justify_right_x, basefont, pt)
@@ -8296,21 +8296,27 @@ def _span_pitch(entry, pt):
 #   - a WS4/print-stream span (no font block at all, `entry` is `None`) --
 #     `_span_pitch` falls back to `pt * 0.6`, where `pt` was already the
 #     REDUCED sup/sub size, narrowing the cell TWICE (a private paper).
-# Both now take the cell from the reduced size by the driver's own formula.
-# Courier only: it is the one fixed-pitch face the PDF can draw.
+# A Courier span (typestyle 3, or no font block: the install's Courier)
+# takes the cell from its reduced size by that formula. Another fixed-pitch
+# face drawn in Courier (LinePrinter, Gothic: CODES.WS has a LinePrinter
+# superscript) has its own block+4/+6, not read here, so its body cell is
+# scaled by the size ratio instead -- unchanged where X38 is 0.
 
 
-def _sup_sub_span_pitch(entry, styles, family, pt):
-    """The per-character advance for a sup/sub run inside a fixed-pitch
-    Courier span, `pt` being its reduced size (`_sized`), or `None` when the
-    override does not apply -- the caller falls back to the ordinary
-    `_span_pitch(entry, pt)` unchanged."""
+def _sup_sub_span_pitch(entry, styles, family, pt, body_pt):
+    """The per-character advance for a sup/sub run inside a fixed-pitch span
+    drawn in Courier, `pt` being its reduced size (`_sized`) and `body_pt`
+    the span's own size, or `None` when the override does not apply -- the
+    caller falls back to the ordinary `_span_pitch(entry, pt)` unchanged."""
     if family != 'Courier' or not ({'sup', 'sub'} & styles):
         return None
     if entry is not None and entry.get('proportional'):
         return None
-    dots = _math.floor(round(pt * 20) / 8 + 0.5)
-    return dots * 72 / 300
+    if entry is None or entry.get('typestyle_number') == 3:
+        dots = _math.floor(round(pt * 20) / 8 + 0.5)
+        return dots * 72 / 300
+    body_cell = _span_pitch(entry, body_pt)
+    return body_cell * pt / body_pt if body_cell and body_pt else None
 
 
 def _tz_scale(text, basefont, pt, target_w):
@@ -9271,7 +9277,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # A sup/sub run gets mechanism G's own narrower cell instead of
             # the body's (see `_sup_sub_span_pitch`), built from its reduced
             # size the way WS7's driver builds it.
-            pitch = (_sup_sub_span_pitch(entry, styles, family, pt)
+            pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
                      or _span_pitch(entry, pt))
             if justify_eligible:
                 # Planning #238/#251(b): this line IS the whole span
