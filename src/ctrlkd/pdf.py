@@ -3335,7 +3335,7 @@ def _laserjet_fonts(doc):
     from . import laserjet
     out = []
     for f in fonts:
-        if (f.get('proportional') and f.get('symbol_map') == 'cp437'
+        if (f.get('proportional') and f.get('symbol_map') in ('cp437', 'cp850')
                 and laserjet.block_for(f, False, False) is not None
                 and not laserjet.FONTS[laserjet.match(
                     f['width_1800'], f['height_1440'], f['typestyle'])][3] & 0x2000):
@@ -3344,19 +3344,50 @@ def _laserjet_fonts(doc):
     return out
 
 
-def _lj_pieces(text, entry, styles, size_here, kerning):
+def _lj_pieces(text, entry, styles, size_here, kerning, prev=None):
     """`text` placed by WS7's LASERJET driver, `[(piece, x_pt, width_pt)]`
     from the start of `text`, or None when `entry` is not one of the
     driver's proportional fonts (`_laserjet_fonts`). A word is split where
     a kerning pair applies. `size_here` is the span's own declared size; a
-    sub/superscript is measured at the driver's own script size."""
+    sub/superscript is measured at the driver's own script size.
+
+    `prev` is `_lj_last` of the span before: a pair still applies across
+    a record for the same font, at the same size, script and underline, so
+    the first piece may start left of the span's own start."""
     if entry is None or not entry.get('laserjet'):
         return None
     from . import laserjet
-    block = laserjet.block_for(entry, 'b' in styles, 'i' in styles)
-    tw = laserjet.twips(block, size_here, bool({'sup', 'sub'} & styles))
-    return [(p, laserjet.dots_to_pt(block, x), laserjet.dots_to_pt(block, w))
+    block, tw = _lj_block(entry, styles, size_here)
+    lead = 0
+    if kerning and prev is not None and text[:1].strip() and prev[0] == _lj_key(block, tw, styles):
+        lead = laserjet.kern_dots(block, tw, prev[1], laserjet.code(text[0]))
+    return [(p, laserjet.dots_to_pt(block, x + lead), laserjet.dots_to_pt(block, w))
             for p, x, w in laserjet.pieces(text, block, tw, kerning)]
+
+
+def _lj_block(entry, styles, size_here):
+    from . import laserjet
+    block = laserjet.block_for(entry, 'b' in styles, 'i' in styles)
+    return block, laserjet.twips(block, size_here, bool({'sup', 'sub'} & styles))
+
+
+def _lj_key(block, tw, styles):
+    """What two spans share for a kerning pair to work across them: the
+    driver block, the size, the script and the underline."""
+    return (id(block), tw, 'sup' in styles, 'sub' in styles, 'u' in styles)
+
+
+def _lj_last(text, entry, styles, size_here):
+    """`(key, last character's code)` for the span after this one to kern
+    against, or None when this span is not driver-placed or ends in a
+    blank, a tab or a print control."""
+    if (entry is None or not entry.get('laserjet') or not text[-1:].strip()
+            or any(t.startswith('pctl') or t.startswith('tabhmi') for t in styles)
+            or set(text) & GRAPHIC_CHARS):
+        return None
+    from . import laserjet
+    block, tw = _lj_block(entry, styles, size_here)
+    return _lj_key(block, tw, styles), laserjet.code(text[-1])
 
 
 def _lj_x(x):
@@ -9626,14 +9657,19 @@ def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft,
     blanks that were typed (at least one, so words never touch)."""
     kinds, widths, texts = [], [], []
     off = 0
+    prev_span = None            # the span before, for a pair across records
     for text, styles, family, size_here, entry, indent in segs:
+        lj_prev = _lj_last(*prev_span) if prev_span else None
+        prev_span = (text, entry, styles, size_here)
         if (indent and pm_active) or (set(text) & GRAPHIC_CHARS) or any(
                 t.startswith('pctl') or t.startswith('tabhmi') for t in styles):
             return None
         pt, _ = _sized(styles, size_here, roll_pt, family, entry)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-        lj = _lj_pieces(text, entry, styles, size_here, kerning)
+        lj = _lj_pieces(text, entry, styles, size_here, kerning, lj_prev)
         if lj is not None:
+            if lj and lj[0][1] and widths:
+                widths[-1] += lj[0][1]      # a pair across the record before
             # WS7's LASERJET driver: each piece's width is its advance to
             # the next (kerning included); a run of blanks is as wide as
             # the blanks that were typed.
@@ -9926,7 +9962,10 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     # E3: every `_rules` call on this line records into here instead of
     # emitting its own strike rule; `_strike_runs` draws them at the end.
     strike_sink = []
+    prev_span = None            # the span before, for a pair across records
     for _si, (text, styles, family, size_here, entry, indent) in enumerate(segs):
+        lj_prev = _lj_last(*prev_span) if prev_span else None
+        prev_span = (text, entry, styles, size_here)
         # A 0x0F user print control's display string is SCREEN-ONLY: on paper
         # WordStar sent the raw printer payload and advanced by the block's
         # own HMI word (0 for LJ6DTP's rule-drawing controls, whose payload
@@ -10307,7 +10346,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # each piece at the x its own widths and kerning give, and drawn
             # to the width it had on paper, so the stand-in face's glyphs
             # neither run into the next word nor leave it a wider gap.
-            lj = _lj_pieces(text, entry, styles, size_here, kerning)
+            lj = _lj_pieces(text, entry, styles, size_here, kerning, lj_prev)
             if lj is not None:
                 plan = [(p, _lj_x(x + px), w, _lj_piece_tz(p, basefont, pt, w))
                         for p, px, w in lj]

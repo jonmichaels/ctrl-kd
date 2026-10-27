@@ -96,11 +96,13 @@ def twips(block, pt, script=False):
     return tw - tw % 5
 
 
-def _code(ch):
+def code(ch):
+    """The printer character code (PC-8) of `ch`; 0, the table's default
+    width, for a character it has none for."""
     try:
         return ch.encode('cp437')[0]
     except UnicodeEncodeError:
-        return 0                         # the table's default width
+        return 0
 
 
 def char_dots(block, tw, code):
@@ -133,20 +135,20 @@ def pieces(text, block, tw, kerning=True):
     start = piece_x = 0
     prev = None
     for i, ch in enumerate(text):
-        code = _code(ch)
+        c = code(ch)
         if ch == ' ':
             if i > start and prev is not None:
                 out.append((text[start:i], piece_x, x - piece_x))
                 start, piece_x = i, x
             prev = None
         else:
-            k = kern_dots(block, tw, prev, code) if kerning and prev is not None else 0
+            k = kern_dots(block, tw, prev, c) if kerning and prev is not None else 0
             if i > start and (prev is None or k):
                 out.append((text[start:i], piece_x, x - piece_x))
                 x += k
                 start, piece_x = i, x
-            prev = code
-        x += char_dots(block, tw, code)
+            prev = c
+        x += char_dots(block, tw, c)
     if start < len(text):
         out.append((text[start:], piece_x, x - piece_x))
     return out

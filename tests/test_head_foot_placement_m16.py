@@ -69,7 +69,7 @@ def _drawn(out):
           for s in out.split(b'>>\nstream\n')[1:]][0]
     return {(round((h - float(y)) / 72.0, 2), round(float(x) / 72.0, 2)):
             t.decode('latin-1')
-            for x, y, t in re.findall(rb'Ts ([\d.]+) ([\d.]+) Td \((.*?)\) Tj', st)}
+            for x, y, t in re.findall(rb'Ts (?:[\d.]+ Tz )?([\d.]+) ([\d.]+) Td \((.*?)\) Tj', st)}
 
 
 # ------------------------------------------------------- the arithmetic
@@ -119,8 +119,11 @@ def test_booklet_heads_land_where_real_ws7_puts_them(require_sawyer_doc):
     with open(require_sawyer_doc('REF/BOOKLET.WS'), 'rb') as fh:
         doc = core.parse(fh.read())
     drawn = _drawn(pdf.emit_pdf(doc, mode='printed'))
-    assert drawn.get((0.57, 0.20)) == 'Header Even 1', sorted(drawn)[:6]
-    assert drawn.get((0.57, 9.21)) == 'Header Odd 1', sorted(drawn)[:6]
+    row = [t for (y, x), t in sorted(drawn.items()) if y == 0.57]
+    # WS7's LASERJET places each word of a proportional head on its own
+    assert row == ['Header', 'Even', '1', 'Header', 'Odd', '1'], sorted(drawn)[:6]
+    assert drawn.get((0.57, 0.20)) == 'Header'
+    assert drawn.get((0.57, 9.21)) == 'Header'
 
 
 @pytest.mark.sawyer
