@@ -114,6 +114,71 @@ def test_a_note_longer_than_a_page_makes_note_only_pages():
     assert ' '.join(_words(1500).decode().split()) == text.replace('1.', '', 1)
 
 
+def _ys(pg):
+    """(baseline y in points, text) for each line of a page: the page top plus
+    every line's own lead, the document default 12 where it has none."""
+    y, out = 36.0, []
+    for ln in pg:
+        y += ln.lead if ln.lead is not None else 12.0
+        out.append((round(y, 1), ''.join(t for t, _ in ln).rstrip()))
+    return out
+
+
+def _chain_pages(words):
+    return pdf._doc_to_pagelines(_doc(60, 50, _words(words), 0), True)
+
+
+def _at(rows, prefix):
+    return [y for y, t in rows if t.startswith(prefix)]
+
+
+def test_a_note_only_page_sits_1_6_pt_below_the_grid_and_prints_its_number():
+    # runs fnlong120, fnch175, fnch250: separator 616, Continued 736, first
+    # note 976, the 51st note line at BB + 16 decipoints
+    pg = _chain_pages(1464)[2]
+    rows = _ys(pg)
+    assert rows[0] == (61.6, FOOTNOTE_SEPARATOR)
+    assert rows[1] == (73.6, CONTINUATION_TEXT)
+    assert rows[3][0] == 97.6 and rows[-1][0] == 697.6
+    assert len(rows) == 54
+    # nothing on it to look the automatic number up from: it takes the state
+    # of the last block read (run fnlong120 prints "3" on this page)
+    assert pg.explicit_break_bi is not None
+
+
+def test_the_page_where_a_chain_of_note_only_pages_ends_sits_at_bb_less_r_lh_2h():
+    # run fnlong120 p4: R = 19 note lines left; P = BB - R*LH - 2H puts the
+    # separator at 396 pt, one blank row more under Continued, the first note
+    # line at P + 720 (444 pt) and the last three rows above BB
+    pg = _chain_pages(1464)[3]
+    rows = _ys(pg)
+    assert _at(rows, 'line ')[:1] == [48.0] and _at(rows, 'line ')[-1] == 156.0
+    assert _at(rows, '-----') == [396.0]
+    assert _at(rows, '...Continued') == [408.0]
+    notes = [y for y, t in rows if t.startswith('w')]
+    assert len(notes) == 19 and notes[0] == 444.0 and notes[-1] == 660.0
+
+
+def test_a_remainder_too_long_for_the_text_prints_under_it_and_runs_on():
+    # run fnch250: 250 note lines, note-only pages 3-5; page 6 has 47 left,
+    # which with 2H does not fit under the resumed text: lines 51-55, the
+    # separator three rows under the last of them, 45 note lines to BB, the
+    # other two on page 7, again under the text, with the extra blank row
+    pages = _chain_pages(2898)
+    assert len(pages) == 7
+    rows = _ys(pages[5])
+    assert _at(rows, 'line ')[-1] == 96.0 and len(_at(rows, 'line ')) == 5
+    assert _at(rows, '-----') == [132.0] and _at(rows, '...Continued') == [144.0]
+    notes = [y for y, t in rows if t.startswith('w')]
+    assert notes[0] == 168.0 and notes[-1] == 696.0 and len(notes) == 45
+    rows = _ys(pages[6])
+    assert [t for _, t in rows if t.startswith('line ')][-1] == 'line 60'
+    assert _at(rows, 'line ')[-1] == 96.0 and len(_at(rows, 'line ')) == 5
+    assert _at(rows, '-----') == [132.0] and _at(rows, '...Continued') == [144.0]
+    notes = [y for y, t in rows if t.startswith('w')]
+    assert notes == [180.0, 192.0]
+
+
 def test_a_bare_f_hash_start_is_not_added_to_the_stored_numbers():
     # run fnnum5: `.f# 5` stored 4, 5 / 0, 1 and printed 5., 6. / 1., 2.
     data = (b'.f# 5' + HARD + ws7_block(0x00) +

@@ -427,35 +427,6 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar-dos/long-note": {
-   "kinds": {
-    "y": 214,
-    "missing-word": 1
-   },
-   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
-  },
-  "wordstar-dos/note-chain-175": {
-   "kinds": {
-    "y": 381,
-    "missing-word": 2
-   },
-   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
-  },
-  "wordstar-dos/note-chain-250": {
-   "kinds": {
-    "y": 612,
-    "missing-word": 13,
-    "extra-word": 8
-   },
-   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
-  },
-  "wordstar-dos/note-chain-250-mb14": {
-   "kinds": {
-    "y": 628,
-    "missing-word": 4
-   },
-   "reason": "E24b the pages after the second of a note chain: page 3 (note-only) sits 1.6 pt lower than the grid and page 4's area ends three rows above the bottom margin with a second blank under ...Continued..., which the teardown does not explain"
-  },
   "wordstar-dos/print-bg-off": {
    "kinds": {
     "variant-plain": 1
