@@ -13350,7 +13350,7 @@
             562.0
           ],
           "pdf_pos": [
-            41.3,
+            41.5,
             450.0
           ],
           "font_class": "no_substitute",
@@ -13386,7 +13386,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            35.3,
+            35.2,
             370.0
           ],
           "font_class": "serif",
@@ -20755,7 +20755,7 @@
         "baseline-shift": 78,
         "extra-word-in-engine": 13,
         "line-start-shift": 7,
-        "univers-drift-exceeds-tolerance": 8,
+        "univers-drift-exceeds-tolerance": 1,
         "word-unmatched": 272
       },
       "divergences": [
@@ -21568,7 +21568,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            308.6,
+            309.5,
             282.0
           ],
           "font_class": "sans",
@@ -21584,7 +21584,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            296.0,
+            288.7,
             402.0
           ],
           "font_class": "sans",
@@ -21800,12 +21800,12 @@
             354.0
           ],
           "pdf_pos": [
-            136.0,
+            137.3,
             354.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -6.30pt (tolerance 2.5pt)"
+          "detail": "line-start residual -5.00pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -21880,12 +21880,12 @@
             420.0
           ],
           "pdf_pos": [
-            198.3,
+            198.2,
             420.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -3.50pt (tolerance 2.5pt)"
+          "detail": "line-start residual -3.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -21906,146 +21906,6 @@
           "font_class": "univers",
           "reason": "line-start-shift",
           "detail": "line-start residual -3.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 354.0,
-          "words": [
-            "Hugo",
-            "Hugo"
-          ],
-          "ws7_pos": [
-            227.5,
-            354.0
-          ],
-          "pdf_pos": [
-            217.2,
-            354.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.30pt at 109.5pt into the line (tolerance 5.69pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 354.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            271.6,
-            354.0
-          ],
-          "pdf_pos": [
-            258.9,
-            354.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.70pt at 153.6pt into the line (tolerance 6.57pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 354.0,
-          "words": [
-            "Nebula",
-            "Nebula"
-          ],
-          "ws7_pos": [
-            303.8,
-            354.0
-          ],
-          "pdf_pos": [
-            289.3,
-            354.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.50pt at 185.8pt into the line (tolerance 7.22pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 1,
-          "line_y_top_pt": 354.0,
-          "words": [
-            "Award-Winner",
-            "Award-Winner"
-          ],
-          "ws7_pos": [
-            360.0,
-            354.0
-          ],
-          "pdf_pos": [
-            342.5,
-            354.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 242.0pt into the line (tolerance 8.34pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 20,
-          "line_y_top_pt": 348.0,
-          "words": [
-            "Trilogy",
-            "Trilogy"
-          ],
-          "ws7_pos": [
-            347.2,
-            348.0
-          ],
-          "pdf_pos": [
-            335.3,
-            348.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -11.90pt at 147.3pt into the line (tolerance 6.45pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 20,
-          "line_y_top_pt": 420.0,
-          "words": [
-            "Neanderthal",
-            "Neanderthal"
-          ],
-          "ws7_pos": [
-            226.8,
-            420.0
-          ],
-          "pdf_pos": [
-            221.0,
-            420.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -5.80pt at 25.0pt into the line (tolerance 4.00pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 20,
-          "line_y_top_pt": 492.0,
-          "words": [
-            "Trilogy",
-            "Trilogy"
-          ],
-          "ws7_pos": [
-            306.0,
-            492.0
-          ],
-          "pdf_pos": [
-            297.7,
-            492.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.30pt at 65.1pt into the line (tolerance 4.80pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
