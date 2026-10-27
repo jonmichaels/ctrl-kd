@@ -73,24 +73,6 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar4-dos/justify-14-over-5": {
-   "kinds": {
-    "end": 1
-   },
-   "reason": "E1 a stored 8D 0A read as a hard return (lines_pass: next word \"would have fit\" a guessed 65-column margin)"
-  },
-  "wordstar4-dos/soft-hyphen": {
-   "kinds": {
-    "end": 1
-   },
-   "reason": "E1 a stored 1F 8D 0A read as a hard return (lines_pass fit test)"
-  },
-  "wordstar4-dos/ruler-margins": {
-   "kinds": {
-    "end": 2
-   },
-   "reason": "E1 a stored 8D 0A read as a hard return (lines_pass: the next line starts with .LM A0 fill)"
-  },
   "wordstar4-dos/ruler-p16": {
    "kinds": {
     "variant-plain": 1
@@ -246,12 +228,6 @@
     "variant-plain": 1
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
-  },
-  "wordstar4-dos/hanging-indent": {
-   "kinds": {
-    "end": 6
-   },
-   "reason": "E1 stored 8D 0A read as hard returns (lines_pass: fit test and A0 indent rule)"
   },
   "wordstar4-dos/footer-after-pa#0": {
    "kinds": {

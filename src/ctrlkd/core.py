@@ -103,9 +103,21 @@ def split_graphic_spans(spans: list) -> list:
 @dataclass
 class Line:
     spans: list = field(default_factory=list)
-    soft: bool = False                   # ends in WordStar's own word wrap (8D soft
-                                          # return): ON PAPER this was a real line break;
-                                          # for reflow it joins the next line (merged_lines)
+    soft: bool = False                   # the line's STORED terminator is a soft return
+                                          # (8D 0A, or 1F 8D 0A after a soft hyphen),
+                                          # exactly what the file says: ON PAPER this is
+                                          # a real line break WordStar justifies under
+                                          # `.oj on` and re-wraps under `.pf on`, and the
+                                          # writer puts it back. Reflow's own decision to
+                                          # keep a break is `keep_break`, not this.
+    keep_break: bool = False             # a STORED soft return that Modern reflow reads
+                                          # as the author's deliberate break (a poem line,
+                                          # an indented continuation, a short heading):
+                                          # `soft` stays True, because WordStar still
+                                          # stores, justifies and re-wraps it as a soft
+                                          # return (WS4 report 2.7, 6.1, 7.7), but
+                                          # `merged_lines` does not join it to the next
+                                          # line (see `Line.wraps`)
     softpage: bool = False               # a 0x0B end-of-page mark fell at this line --
                                           # the EDITOR's last-seen pagination, transient
                                           # per WSFORMAT and ignored by WordStar's own
@@ -238,6 +250,13 @@ class Line:
 
     def text(self):
         return ''.join(s.text for s in self.spans)
+
+    @property
+    def wraps(self) -> bool:
+        """A stored soft return that is plain word wrap to reflow: the next
+        line continues this one (`merged_lines` joins them). A soft return
+        the author kept as a break (`keep_break`) is not."""
+        return self.soft and not self.keep_break
 
 @dataclass
 class Block:
@@ -1156,7 +1175,7 @@ def merged_lines(block: Block) -> list:
                 if stripped != first.text:
                     spans[0] = Span(stripped, first.styles)
             cur.spans.extend(spans)
-        if line.soft:
+        if line.wraps:
             t = cur.spans[-1].text if cur.spans else ''
             sep_span = None
             if t and not t.endswith((' ', '-')):
@@ -2138,6 +2157,8 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
             the next word WOULD have fit — WS4 wrapped only when it didn't fit,
             so breaking early was a choice (poem line, heading). Strict <:
             WS4 wrapped even when the word would land exactly at the margin.
+            This is REFLOW's reading: such a line is still stored with a soft
+            return, and parse_ws marks it `Line.soft` with `Line.keep_break`.
       wrap  a soft return that is just word wrap: join with a space
     Margin is the 90th percentile of soft-wrapped line lengths (outliers from
     hanging punctuation sit 1-2 past the true margin), floor 65 (WS4 default).
@@ -6985,6 +7006,18 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
                                                     # its softness binds the previous
                                                     # printed line, as the old merge did
         elif sep == 'line':
+            if cur_line.spans and _rt_brk and _rt_brk[0] in (0x8D, 0x8A):
+                # A stored soft return that Modern reflow keeps as a break
+                # (lines_pass: the next word would have fit, or the next line
+                # starts with a typed indent). WordStar keeps it a soft
+                # return: it justifies the line, re-wraps it under `.pf on`,
+                # and shows and stores it as 8D 0A (WS4 report 2.7, 6.1,
+                # 7.7). `soft` is the stored terminator; `keep_break` is
+                # reflow's own decision to keep the break anyway.
+                cur_line.soft = True
+                cur_line.keep_break = True
+                if wrap_raw and wrap_raw[-1] == 0x1F:
+                    cur_line.soft_hyphen = True
             close_line()
         elif sep == 'over':
             cur_line.overprint = True

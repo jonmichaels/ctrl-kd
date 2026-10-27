@@ -5859,16 +5859,15 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                 # hard return (the paragraph's last line, or a line the
                 # author ended by hand) is left ragged (WS7 report 11.7.1,
                 # fixture w16-ljls: a hard-returned line inside the same
-                # `.oj on` block stays at its natural widths). In a WS5+
-                # file `line.soft` is exactly that (and after a `.pf on`
-                # re-wrap, planning #270 item 37, it is true of every
-                # produced line but the paragraph's last). An older file's
-                # soft return is only an inference (`lines_pass`), so there
-                # the block's own last line stays the unit, as before.
-                last_in_unit = (not line.soft
-                                if (_era_for(doc.meta.get('variant')).symmetric_blocks
-                                    or getattr(b, 'print_reformat', None) == 'on')
-                                else _idx >= len(blk_lines) - 1)
+                # `.oj on` block stays at its natural widths). `line.soft` is
+                # exactly that in every era: the STORED terminator, whatever
+                # Modern reflow makes of the break (`keep_break`). WS4 stores
+                # a justified line's blanks at wrap time and ends only a
+                # wrapped line in a soft return (WS4 report 2.7, 7.7), so a
+                # hard-returned line there stays ragged too. After a `.pf on`
+                # re-wrap (planning #270 item 37) it is true of every
+                # produced line but the paragraph's last.
+                last_in_unit = not line.soft
                 soft_blanks = ()
                 if printed and b.align == 'justify' and not last_in_unit:
                     po_origin_pt = (own_left if own_left is not None

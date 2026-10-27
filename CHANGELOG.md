@@ -7,6 +7,16 @@ https://github.com/jonmichaels/ctrl-kd/releases
 
 ### Fixed
 
+- **A stored soft return stays soft.** `Line.soft` is now exactly what the
+  file stores (`8D 0A`, and `1F 8D 0A` after a soft hyphen). It used to read
+  some of them as hard when the next word would have fit a guessed 65-column
+  margin, or when the next line starts with a typed indent or `.lm` blank
+  fill. A new `Line.keep_break` carries that Modern reflow decision (the
+  break is kept, as for a poem), so Modern output does not change. Printed
+  follows the stored return: `.oj on` justifies a line only when it ends in
+  a soft return, in WordStar 4 documents too, and `.pf on` re-wraps across
+  every stored soft return. `Line.wraps` is the join test reflow uses.
+
 - **Printed footnotes follow what WordStar 7 does with a note that does not
   fit.** Checked against real runs: when fewer than eight note lines of room
   are left (the program's "footnote run" setting) the reference line and the

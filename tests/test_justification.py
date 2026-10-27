@@ -107,6 +107,25 @@ def test_justified_line_reaches_the_resolved_right_margin():
     assert x_cc + 2 * 7.2 == 144.0
 
 
+def test_a_hard_returned_line_of_a_ws4_block_is_not_stretched():
+    """WS4 stores a justified line's blanks at wrap time and ends only a
+    wrapped line in a soft return (WS4 report 2.7, 7.7): a line the author
+    ended with Return stays ragged in a WS4 document too, and a stored soft
+    return that Modern reflow keeps as a break (`keep_break`) is still a
+    soft line, so it is justified."""
+    doc = _doc(b'.po 0"\r\n.lm 0\r\n.rm 20\r\n.oj on\r\n'
+              b'AA BB CC' + HARD + b'DD EE FF' + SOFT + b'GG HH II' + HARD
+              + b'JJ.' + HARD)
+    lines = doc.blocks[0].lines
+    assert [(l.soft, l.keep_break) for l in lines] == \
+        [(False, False), (True, True), (False, False), (False, False)]
+    out = pdf.emit_pdf(doc, mode='printed')
+    # a stretched line is drawn word by word; a ragged one in a single Tj
+    assert _word_x(out, 'BB') is None                    # hard: ragged
+    assert _word_x(out, 'EE') is not None                # soft: stretched
+    assert _word_x(out, 'HH') is None                    # hard: ragged
+
+
 def test_last_line_of_justified_paragraph_is_not_stretched():
     """WS7 never justifies a paragraph's own trailing line (measured
     directly against LSRBOX.WS's real capture) -- "DD." here is the
