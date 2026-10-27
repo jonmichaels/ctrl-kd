@@ -1122,9 +1122,16 @@ def _pgnum_at(checkpoints, bi):
 # doctrine): the "0/unset" case resolves to this FIXED measured column
 # instead of a dynamically computed lm/rm midpoint. Fit from two
 # independent `.po` values (7.0 exactly, 20.0 exactly) with zero decipoint
-# residual either way -- not a guess, and not (yet) traced to a WSCHANGE
-# factory constant, so it may be THIS install's own customisation the same
-# way its `.po` 7.0 (vs the manual's 8.0) is; flagged, not hidden.
+# residual either way. WS7's code gives the number (WS7 teardown,
+# `wordstar-dos/11-print-engine.md` 11.5): the line is `floor(pos / space)`
+# spaces then the digits, where `pos` is `.pc` in HMI or, unset, the
+# midpoint of the margins the number line is formatted in (LM 0, RM 11700
+# by default) and `space` is the current font's space width (180 HMI in
+# Courier 10) -- floor(5850 / 180) = 32 spaces, so the first digit sits in
+# column 33 and a single digit is centred on 33.5, whatever the digit
+# count. The probes' indifference to a document `.rm` says that margin pair
+# is not the document's ruler. Whether 11700 is the factory value or this
+# install's own is still open.
 _AUTO_PAGENO_DEFAULT_COL = 33.5
 
 
@@ -3353,7 +3360,7 @@ def _symbol_style_op(font, pt, rise, want, tz_state, x, y, text_bytes,
     ever did.) Always writing Tr now, every call, makes each styled run
     self-contained regardless of what the stream's state happened to be
     coming in."""
-    parts = [b'BT /%s %d Tf' % (font.encode(), pt)]
+    parts = [b'BT /%s %s Tf' % (font.encode(), _tf_size(pt))]
     if want != tz_state[0]:
         parts.append(b'%.2f Tz' % want)
         tz_state[0] = want
@@ -6777,9 +6784,9 @@ def _attach_justify_word_x_printed(doc, pages, size):
             if fi and seg_indent:
                 fi = None
             x0 = left_here + (fi or 0)
-            pt, rise = _sized(styles, size_here, roll_pt, family)
+            pt, rise = _sized(styles, size_here, roll_pt, family, entry)
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
-            pitch = (_sup_sub_span_pitch(entry, styles, family, size_here)
+            pitch = (_sup_sub_span_pitch(entry, styles, family, pt)
                     or _span_pitch(entry, pt))
             pieces = _justify_pieces_printed(text, pitch, x0,
                                              line.justify_right_x, basefont, pt)
@@ -8068,33 +8075,72 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
     return ops
 
 
-# Mechanism G (research: 2026-09-06_ws7-blank-lines-and-superscript-advance.
-# md, "G -- superscript/subscript advance in fixed-pitch text"). Real WS7's
-# *Reference* manual (ch. 10 "Style," Sub/Superscript, p. 10-8/9) states the
-# reduced size is "the x-height... of the original height" and gives ONE
-# worked example -- 12pt Times Roman -> 8.1pt (ratio 0.675) -- but that ratio
-# is Times Roman's own, not a universal constant: raw PCL from two
-# independent real WS7 captures (a private paper's own .pcl, -SCREEN.pcl -- byte-identical
-# `ESC(sp9.25v13.04hsb4099T` font-select command in both, typeface 4099 =
-# Courier) measures Courier's own ratio at 9.25pt from a 12pt body = 0.7708,
-# a DIFFERENT number. Confirms the manual's own wording: this is a real,
-# font-specific x-height fraction, not a flat scale -- so it is a lookup
-# keyed by family, not one constant. Only Courier has a captured data point
-# in this corpus (both fixed-pitch documents use it); every other face keeps
-# this emitter's long-standing flat 2/3 default, unverified against any real
-# WS7 sup/sub-in-that-face capture.
-_SUP_SUB_XHEIGHT_RATIO = {'Courier': 9.25 / 12.0}
-_SUP_SUB_DEFAULT_RATIO = 2.0 / 3.0
+# Mechanism G: superscript/subscript size in Printed. WS7 shrinks a sub- or
+# superscript by one byte of the printer font's values record, X+0x38, and
+# the rule is the same for every face (WS7 teardown,
+# `wordstar-dos/9-printer-drivers.md` 9.6):
+#
+#     size' = floor(size_twips * X38 / 256)       (X38 = 0: no scaling)
+#
+# then the LaserJet driver rounds the point size down to its size step, 5
+# twips (0.25pt; PDF header 0x90 bits 7-6 = 00, same report's header table).
+# Courier's X38 is 198: 12pt -> floor(240 * 198 / 256) = 185 twips = 9.25pt,
+# exactly the `ESC(s...9.25v` real WS7 captures send; Times Roman's 175 gives
+# 164 -> 160 twips = 8pt, the `8v` of LYING.WS's capture. Sub and super use
+# the same size and differ only by the `.sr` roll. The values below are
+# factory LASERJET.PDF's, keyed by WordStar typestyle number (the driver's
+# group key; same report, 9.6) and ordered normal, italic, bold, bold italic.
+# A span with no font block is the install's default font, Courier. A
+# typestyle the driver has no group for is matched by WS7 against the
+# nearest record, which this does not reproduce: it falls back to the
+# group of the span's own PDF family (Courier, Tms Rmn, Univers).
+_SUP_SUB_X38 = {
+    3: (198, 198, 199, 199),      # Courier
+    6: (187, 187, 190, 187),      # Gothic
+    5: (175, 174, 174, 178),      # Tms Rmn (CG Times)
+    46: (178, 177, 177, 178),     # Univers
+    45: (177, 177, 178, 177),     # UniversCondensed
+    49: (177, 178, 179, 179),     # Optima
+    18: (158, 162, 170, 173),     # Garamond
+    213: (216, 217, 217, 217),    # Antique Olive
+    27: (194, 194, 194, 194),     # Clarendon
+    50: (178, 178, 178, 178),     # Aachen
+    149: (172, 166, 176, 169),    # Serif (Times New Roman)
+    175: (185, 185, 185, 185),    # Triumvirate (Arial)
+    82: (175, 175, 175, 175),     # ZapfDingbats
+    192: (175, 175, 175, 175),    # Symbol
+    20: (78, 78, 78, 78),         # Coronet
+    81: (0, 0, 0, 0),             # ZapfChancery: no scaling
+    0: (0, 0, 0, 0),              # LinePrinter: no values record
+}
+_SUP_SUB_FAMILY_TYPESTYLE = {'Courier': 3, 'Times': 5, 'Helvetica': 46,
+                             'Symbol': 192, 'ZapfDingbats': 82}
+_SUP_SUB_STEP_TWIPS = 5
+# Modern is not a WS7 print: it keeps its flat 2/3.
+_SUP_SUB_MODERN_RATIO = 2.0 / 3.0
 
 
-def _sized(styles, size, roll_pt=None, family=None):
+def _sup_sub_points(styles, size, family, entry):
+    """The Printed size of a sub/superscript set at `size` points (see
+    `_SUP_SUB_X38`)."""
+    number = (entry or {}).get('typestyle_number') if entry else 3
+    row = _SUP_SUB_X38.get(number)
+    if row is None:
+        row = _SUP_SUB_X38[_SUP_SUB_FAMILY_TYPESTYLE.get(family, 3)]
+    x38 = row[('i' in styles) + 2 * ('b' in styles)]
+    if not x38:
+        return size
+    twips = _math.floor(round(size * 20) * x38 / 256)
+    twips -= twips % _SUP_SUB_STEP_TWIPS
+    return max(_SUP_SUB_STEP_TWIPS, twips) / 20.0
+
+
+def _sized(styles, size, roll_pt=None, family=None, entry=None):
     """(point size, baseline rise) for a span set at `size`. Superscript/
-    subscript are raised/lowered and reduced by `family`'s own x-height
-    ratio (`_SUP_SUB_XHEIGHT_RATIO`, mechanism G) -- 2/3 (8pt at the default
-    12, the ratio this emitter used before mechanism G) for any family with
-    no measured WS7 ratio of its own. `family=None` (every call site that
-    predates mechanism G) keeps the flat 2/3 default unconditionally, so
-    nothing outside Printed's fixed-pitch line renderer changes behaviour.
+    subscript are raised/lowered and reduced: in Printed (`family` given) by
+    WS7's own per-face rule (`_sup_sub_points`, mechanism G); everywhere else
+    (`family=None`, Modern's call sites) by a flat 2/3, rounded to a whole
+    point.
 
     `roll_pt` (round 17, RULINGS-LEDGER row 3, register C22): the declared
     `.sr` roll, ALREADY converted to points -- Printed's own domain only.
@@ -8107,12 +8153,23 @@ def _sized(styles, size, roll_pt=None, family=None):
     +3 happened to already look plausible) and the sub rise (the old -2
     was never spec-derived at all -- confirmed empirically byte-identical
     across `.sr 0`/`.sr 40`/absent, i.e. never actually read)."""
-    ratio = _SUP_SUB_XHEIGHT_RATIO.get(family, _SUP_SUB_DEFAULT_RATIO)
+    if not ({'sup', 'sub'} & styles):
+        return size, 0
+    if family is None:
+        pt = max(1, round(size * _SUP_SUB_MODERN_RATIO))
+    else:
+        pt = _sup_sub_points(styles, size, family, entry)
     if 'sup' in styles:
-        return max(1, round(size * ratio)), (roll_pt if roll_pt is not None else 3)
-    if 'sub' in styles:
-        return max(1, round(size * ratio)), (-roll_pt if roll_pt is not None else -2)
-    return size, 0
+        return pt, (roll_pt if roll_pt is not None else 3)
+    return pt, (-roll_pt if roll_pt is not None else -2)
+
+
+def _tf_size(pt):
+    """A Tf operand: a whole number as an integer (every size but a Printed
+    sub/superscript), otherwise to the hundredth -- `9.25`."""
+    if pt == int(pt):
+        return b'%d' % pt
+    return (b'%.2f' % pt).rstrip(b'0')
 
 
 def _rules(styles, text, x, y, w, continuous=True, strike_sink=None):
@@ -8214,49 +8271,40 @@ def _span_pitch(entry, pt):
     return pt * 0.6
 
 
-# Mechanism G, the pitch half (research: 2026-09-06_ws7-blank-lines-and-
-# superscript-advance.md). The manual is silent on this; the raw PCL is not:
-# WS7 does not merely draw a smaller glyph at the document's ambient
-# fixed-pitch cell -- it RESELECTS a narrower pitch for the sup/sub span, an
-# independent field of the same PCL font-selection command, restored to the
-# body's own H/V values immediately on exit. Measured directly (-SCREEN's
-# own unjustified demo line, clean of any justification confound): a 7.2pt
-# (10.00cpi) Courier body cell narrows to a 5.5pt (13.04cpi) cell for the
-# span -- confirmed to the decipoint against -SCREEN.pcl's raw x-positions.
-# `_SUP_SUB_CELL_RATIO` is that measured 5.5/7.2 fraction, applied
-# proportionally to whatever the span's own body cell actually is (Courier
-# only -- no other face has a captured sup/sub-in-fixed-pitch example in
-# this corpus); a body cell other than 7.2pt is unverified extrapolation.
+# Mechanism G, the pitch half. WS7 does not merely draw a smaller glyph at
+# the document's fixed-pitch cell: it reselects a narrower pitch for the
+# sub/superscript, restored to the body's own values on exit. The driver
+# builds a fixed-pitch width from the scaled size, `round_half_up(size *
+# block+4 * block+6 / 14 745 600)` dots at 300 dpi (WS7 teardown,
+# `wordstar-dos/9-printer-drivers.md` 9.6, DRIVERN +0x1210-0x1258); for
+# Courier (block+4 = 6144, block+6 = 300) that is size_twips / 8, so 185
+# twips -> 23 dots = 5.52pt = 13.04 cpi, the pitch real WS7 captures send
+# (-SCREEN.WS; a private paper).
 #
 # Two real shapes hit this, both confirmed against the corpus directly:
 #   - a WS7 span with its own font block (`entry` carries `width_1800`) --
 #     `_span_pitch` normally IGNORES `pt` entirely once a font block exists,
 #     which is exactly why the engine used to draw the full, un-narrowed
-#     body cell for a sup/sub run and land everything after it +1.7pt (one
-#     character's worth of the 7.2/5.5 shortfall) too far right (-SCREEN).
+#     body cell for a sup/sub run and land everything after it +1.7pt too
+#     far right (-SCREEN).
 #   - a WS4/print-stream span (no font block at all, `entry` is `None`) --
 #     `_span_pitch` falls back to `pt * 0.6`, where `pt` was already the
-#     REDUCED sup/sub size (`_sized`'s own return) -- narrowing the cell
-#     TWICE (once for the smaller drawn glyph, a second time implicitly via
-#     `pt`) to 4.8pt, 0.7pt narrower than WS7's real 5.5pt, landing
-#     everything after it that same 0.7pt too far LEFT (a private paper). Passing
-#     `body_pt` (the span's own UNREDUCED declared size, `size_here` at the
-#     call site) rather than the already-reduced `pt` fixes both shapes with
-#     the one call: `_span_pitch(entry, body_pt)` always answers "the span's
-#     own BODY cell," which this then scales down by the measured ratio.
-_SUP_SUB_CELL_RATIO = 5.5 / 7.2
+#     REDUCED sup/sub size, narrowing the cell TWICE (a private paper).
+# Both now take the cell from the reduced size by the driver's own formula.
+# Courier only: it is the one fixed-pitch face the PDF can draw.
 
 
-def _sup_sub_span_pitch(entry, styles, family, body_pt):
+def _sup_sub_span_pitch(entry, styles, family, pt):
     """The per-character advance for a sup/sub run inside a fixed-pitch
-    span (mechanism G), or `None` when the override does not apply -- the
-    caller falls back to the ordinary `_span_pitch(entry, pt)` unchanged."""
-    if family not in _SUP_SUB_XHEIGHT_RATIO or not ({'sup', 'sub'} & styles):
+    Courier span, `pt` being its reduced size (`_sized`), or `None` when the
+    override does not apply -- the caller falls back to the ordinary
+    `_span_pitch(entry, pt)` unchanged."""
+    if family != 'Courier' or not ({'sup', 'sub'} & styles):
         return None
-    body_cell = _span_pitch(entry, body_pt)
-    if not body_cell:
+    if entry is not None and entry.get('proportional'):
         return None
-    return body_cell * _SUP_SUB_CELL_RATIO
+    dots = _math.floor(round(pt * 20) / 8 + 0.5)
+    return dots * 72 / 300
 
 
 def _tz_scale(text, basefont, pt, target_w):
@@ -8907,7 +8955,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                          page_h, restore_gray)
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
-        pt, rise = _sized(styles, size_here, roll_pt, family)
+        pt, rise = _sized(styles, size_here, roll_pt, family, entry)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         font = res.ref(basefont)
         # Driver-aware colour: a span tagged colourN under a driver whose
@@ -9044,13 +9092,13 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                         font, pt, rise, TZ_DEFAULT, tz_state, x, y,
                         _esc(run_text), symbol_bold, symbol_italic))
                 elif TZ_DEFAULT == tz_state[0]:
-                    ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
+                    ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s)'
                               b' Tj ET' %
-                              (font.encode(), pt, rise, x, y, _esc(run_text)))
+                              (font.encode(), _tf_size(pt), rise, x, y, _esc(run_text)))
                 else:
-                    ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f'
+                    ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f'
                               b' Td (%s) Tj ET' %
-                              (font.encode(), pt, rise, TZ_DEFAULT, x, y,
+                              (font.encode(), _tf_size(pt), rise, TZ_DEFAULT, x, y,
                                _esc(run_text)))
                     tz_state[0] = TZ_DEFAULT
                 if count:
@@ -9186,14 +9234,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                             font, pt, rise, want, tz_state, x, y,
                             _esc(piece), symbol_bold, symbol_italic))
                     elif want == tz_state[0]:
-                        ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s)'
+                        ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s)'
                                    b' Tj ET' %
-                                   (font.encode(), pt, rise, x, y,
+                                   (font.encode(), _tf_size(pt), rise, x, y,
                                     _esc(piece)))
                     else:
-                        ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f'
+                        ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f'
                                    b' Td (%s) Tj ET' %
-                                   (font.encode(), pt, rise, want, x, y,
+                                   (font.encode(), _tf_size(pt), rise, want, x, y,
                                     _esc(piece)))
                         tz_state[0] = want
                     if ul_x0 is None:
@@ -9215,11 +9263,9 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # keeps every fontless PDF byte-identical.
             #
             # A sup/sub run gets mechanism G's own narrower cell instead of
-            # the body's (see `_sup_sub_span_pitch`) -- `size_here` (the
-            # span's UNREDUCED declared size), not `pt` (already reduced by
-            # `_sized`), so a fontless (WS4/print-stream) sup/sub span's
-            # cell is not narrowed twice.
-            pitch = (_sup_sub_span_pitch(entry, styles, family, size_here)
+            # the body's (see `_sup_sub_span_pitch`), built from its reduced
+            # size the way WS7's driver builds it.
+            pitch = (_sup_sub_span_pitch(entry, styles, family, pt)
                      or _span_pitch(entry, pt))
             if justify_eligible:
                 # Planning #238/#251(b): this line IS the whole span
@@ -9259,14 +9305,14 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                     font, pt, rise, pwant, tz_state, piece_x, y,
                                     _esc(piece), symbol_bold, symbol_italic))
                             elif pwant == tz_state[0]:
-                                ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td'
+                                ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td'
                                           b' (%s) Tj ET' %
-                                          (font.encode(), pt, rise, piece_x, y,
+                                          (font.encode(), _tf_size(pt), rise, piece_x, y,
                                            _esc(piece)))
                             else:
-                                ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f'
+                                ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f'
                                           b' %.1f Td (%s) Tj ET' %
-                                          (font.encode(), pt, rise, pwant, piece_x,
+                                          (font.encode(), _tf_size(pt), rise, pwant, piece_x,
                                            y, _esc(piece)))
                                 tz_state[0] = pwant
                             if ul_x0 is None:
@@ -9319,11 +9365,11 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                                             _esc(text), symbol_bold,
                                             symbol_italic))
             elif want == tz_state[0]:
-                ops.append(b'BT /%s %d Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
-                           (font.encode(), pt, rise, x, y, _esc(text)))
+                ops.append(b'BT /%s %s Tf %d Ts %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), _tf_size(pt), rise, x, y, _esc(text)))
             else:
-                ops.append(b'BT /%s %d Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
-                           (font.encode(), pt, rise, want, x, y, _esc(text)))
+                ops.append(b'BT /%s %s Tf %d Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
+                           (font.encode(), _tf_size(pt), rise, want, x, y, _esc(text)))
                 tz_state[0] = want
         ops += _rules(styles, text, x, y, w, ul_continuous,
                       strike_sink=strike_sink)

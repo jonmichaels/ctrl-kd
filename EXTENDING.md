@@ -342,16 +342,18 @@ symmetrical-sequence types 3-6). `doc.footnotes` / `.endnotes` / `.annotations` 
   set on a footnote/endnote, every emitter displays the tag and never
   renumbers it, exactly like an annotation. **UNTESTED AGAINST A REAL
   DOCUMENT** -- no document in the Sawyer archive carries a footnote/endnote
-  tag; this is spec-faithful, synthetic-fixture-verified code (see
-  `tests/test_ctrlkd.py`'s footnote/endnote-tag tests), not measured
-  behaviour. Ruling 2026-08-24 item 4.
+  tag, and no WordStar run has printed one; this is spec-faithful,
+  synthetic-fixture-verified code (see `tests/test_ctrlkd.py`'s
+  footnote/endnote-tag tests), not measured behaviour. Ruling 2026-08-24 item 4.
 - **`Note.number_format`** (0 symbols, 1 upper-case, 2 lower-case, 3 numeric --
-  the conversion-flag byte's high nybble) is honoured when a footnote/endnote's
-  display label is built. Values 0/1/2 are likewise **UNTESTED AGAINST A REAL
-  DOCUMENT** -- every archive document uses 3 (numeric); the symbol cycle
-  (`*`, `†`, `‡`, `§`, `‖`, `¶`) is a documented fallback (the classical
-  printer's/Word's own "symbol" footnote-numbering convention), not a
-  confirmed WordStar sequence. Ruling 2026-08-24 item 5.
+  the conversion-flag byte's high nybble, as WSFORMAT.TXT documents it) is
+  honoured when a footnote/endnote's display label is built. **This differs from
+  WordStar 7**, which prints the number in the `.f#`/`.e#` format in force at
+  print time and never reads the stored nibble (its formatter's codes are 1
+  upper, 2 lower, 3 decimal, 4 symbols); see `ERAS.md`, divergence 7. The
+  symbol cycle (`*`, `†`, `‡`, `§`, `‖`, `¶`) is a fallback (the classical
+  printer's/Word's own "symbol" footnote-numbering convention), not WordStar's
+  own sequence. Ruling 2026-08-24 item 5.
 - **TXT/MD/HTML renumber footnotes/endnotes continuously** (independently per
   kind) when — and only when — WordStar's own per-page-reset numbers actually
   collide within that kind (`emit._pageless_notes`); a document whose notes

@@ -4715,7 +4715,7 @@ def _helv_typestyle():
     return next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('helv'))
 
 
-_SHOW_RE = (rb'/(F\d+) (\d+) Tf -?\d+ Ts (?:([\d.]+) Tz )?'
+_SHOW_RE = (rb'/(F\d+) ([\d.]+) Tf -?\d+ Ts (?:([\d.]+) Tz )?'
             rb'(-?[\d.]+) (-?[\d.]+) Td \(((?:\\.|[^)\\])*)\) Tj')
 
 
@@ -4729,7 +4729,7 @@ def _content_text(pdf):
 
 def _content_spans(pdf):
     """(font, size, tz-or-None, x, y, text) for every span shown."""
-    return [(m[0].decode(), int(m[1]),
+    return [(m[0].decode(), float(m[1]),
              float(m[2]) if m[2] else None, float(m[3]), float(m[4]), m[5])
             for m in re.findall(_SHOW_RE, pdf)]
 
@@ -4754,7 +4754,11 @@ def _basefonts(pdf):
 # exit. Two independent real WS7 captures (-SCREEN.pcl, a private paper's own .pcl -- both
 # Courier, typeface id 4099) carry the byte-identical font-select pair
 # `ESC(sp12v10.00hsb4099T` (body: 12pt, 10.00cpi = 7.2pt/char cell) /
-# `ESC(sp9.25v13.04hsb4099T` (sup/sub: 9.25pt, 13.04cpi = 5.5pt/char cell).
+# `ESC(sp9.25v13.04hsb4099T` (sup/sub: 9.25pt, 13.04cpi = 23 dots at 300 dpi
+# = 5.52pt/char cell). WS7's own rule gives both numbers: Courier's X38 is
+# 198, so floor(240 * 198 / 256) = 185 twips = 9.25pt, and the driver's
+# fixed-pitch width is round_half_up(185 / 8) = 23 dots (WS7 teardown,
+# `wordstar-dos/9-printer-drivers.md` 9.6).
 # These two synthetic fixtures reproduce that measured shape exactly
 # (invented words, same arithmetic) in the TWO real code shapes the corpus
 # exercises: a WS7 span with its own font block (`entry` carries
@@ -4767,7 +4771,7 @@ def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
     full 7.2pt cell -- landing everything after it +1.7pt (7.2 - 5.5) too far
     right, exactly -SCREEN's own recorded residual. 'note: ' (6 chars
     including the trailing space) ends the body run at 72.0 + 6*7.2 = 115.2;
-    the sup '1' now occupies 5.5pt (115.2 -> 120.7), not 7.2pt (-> 122.4)."""
+    the sup '1' now occupies 5.52pt (115.2 -> 120.7), not 7.2pt (-> 122.4)."""
     from ctrlkd.pdf import emit_pdf
     from ctrlkd.typestyles import TYPESTYLE_NAMES
     cour = next(k for k, v in TYPESTYLE_NAMES.items() if v.lower().startswith('courier'))
@@ -4778,10 +4782,10 @@ def test_pdf_sup_in_fixed_pitch_ws7_font_block_uses_the_narrower_courier_cell():
     by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
     assert by_text[b'note: '][2] == 72.0
     sup_size, sup_tz, sup_x = by_text[b'1']
-    assert sup_size == 9                        # round(12 * 9.25/12) -- mechanism G's own ratio
+    assert sup_size == 9.25                     # floor(240 * 198 / 256) twips
     assert sup_x == 115.2                        # unchanged: body cell governs up to the toggle
     tail_size, tail_tz, tail_x = by_text[b' /']
-    assert tail_x == 120.7                        # 115.2 + 5.5 (13.04cpi cell), NOT 115.2 + 7.2
+    assert tail_x == 120.7                        # 115.2 + 5.52 (13.04cpi cell), NOT 115.2 + 7.2
 
 
 def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
@@ -4791,13 +4795,12 @@ def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
     old flat 2/3 ratio) -- narrowing the cell TWICE (once for the smaller
     drawn glyph, again via the reduced `pt`) to 4.8pt, 0.7pt narrower than
     WS7's real 5.5pt, landing everything after it 0.7pt too far LEFT --
-    exactly that paper's own recorded residual sign and magnitude. `size_here`
-    (the span's UNREDUCED declared size) now drives the body-cell lookup
-    instead, so a fontless span's own body cell (12pt document default * 0.6
-    = 7.2pt) narrows ONCE, to the same 5.5pt the WS7-font-block shape gets.
+    exactly that paper's own recorded residual sign and magnitude. The cell
+    now comes from the reduced size by the driver's own formula, so a
+    fontless span gets the same 5.52pt the WS7-font-block shape gets.
     'cd.' (3 chars, no font block, no space before the toggle -- matching
     that paper's own equivalent shape exactly) ends its body run at
-    left + 3*7.2; the sup '1' then occupies 5.5pt, not 4.8pt."""
+    left + 3*7.2; the sup '1' then occupies 5.52pt, not 4.8pt."""
     from ctrlkd.pdf import emit_pdf
     data = b'cd.' + bytes([0x14]) + b'1' + bytes([0x14 | 0x80]) + b'  ef' + HARD
     doc = core.parse_ws(data)
@@ -4806,10 +4809,28 @@ def test_pdf_sup_in_fontless_ws4_span_is_not_narrowed_twice():
     by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
     body_x = by_text[b'cd.'][2]
     sup_size, sup_tz, sup_x = by_text[b'1']
-    assert sup_size == 9
-    assert sup_x == body_x + 3 * 7.2               # immediately after 'cd.', no gap
+    assert sup_size == 9.25
+    assert sup_x == pytest.approx(body_x + 3 * 7.2)  # immediately after 'cd.', no gap
     tail_x = by_text[b'  ef'][2]
-    assert tail_x == sup_x + 5.5                    # NOT sup_x + 4.8 (the old double-narrow)
+    assert tail_x == pytest.approx(sup_x + 5.52, abs=0.05)  # NOT sup_x + 4.8 (the old double-narrow)
+
+
+def test_printed_sup_sub_size_follows_each_faces_x38():
+    """WS7's rule for every face: size' = floor(size_twips * X38 / 256),
+    rounded down to the LaserJet's 5-twip size step (WS7 teardown,
+    `wordstar-dos/9-printer-drivers.md` 9.6). At 12pt: Tms Rmn 175 -> 8pt
+    (LYING.WS's capture sends `8v`), its bold-italic 178 -> 8.25pt, Univers
+    178 -> 8.25pt, ZapfChancery 0 -> unscaled. Modern keeps its flat 2/3."""
+    from ctrlkd.pdf import _sized
+    tms = {'typestyle_number': 5}
+    assert _sized({'sup'}, 12, None, 'Times', tms)[0] == 8.0
+    assert _sized({'sub', 'b', 'i'}, 12, None, 'Times', tms)[0] == 8.25
+    assert _sized({'sup'}, 12, None, 'Helvetica', {'typestyle_number': 46})[0] == 8.25
+    assert _sized({'sup'}, 12, None, 'Times', {'typestyle_number': 81})[0] == 12
+    # a typestyle the driver has no group for falls back by PDF family
+    assert _sized({'sup'}, 12, None, 'Helvetica', {'typestyle_number': 999})[0] == 8.25
+    assert _sized({'sup'}, 12, None, 'Courier', None)[0] == 9.25
+    assert _sized({'sup'}, 12)[0] == 8                   # Modern
 
 
 # ------------------------------------- mechanism G's proportional half (#259)

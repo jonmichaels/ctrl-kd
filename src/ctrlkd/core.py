@@ -3256,12 +3256,13 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # `.po` itself just above (same family, same "re-fires from where it
         # sits onward" rule), but each governs only ONE page parity; a plain
         # `.po` occurring later does not clear whichever of these is already
-        # in force (no corpus evidence either way -- the only real occurrence,
-        # sawyer/REF/-HOW-TO.RJS, never mixes `.po` with `.poe`/`.poo` in the
-        # same document -- so the conservative reading, "every dot command in
-        # this family is independently stateful," the one every sibling
-        # command here already follows, stands until evidence says
-        # otherwise). Carried per line (`Line.poe_cols`/`Line.poo_cols`,
+        # in force. WS7 stores the even and odd offsets apart and picks one
+        # by the page number's low bit (WS7 teardown,
+        # `wordstar-dos/11-print-engine.md` 11.12); whether a later plain
+        # `.po` clears them is still not run, and the only real occurrence,
+        # sawyer/REF/-HOW-TO.RJS, never mixes `.po` with `.poe`/`.poo` -- so
+        # the conservative reading, "every dot command in this family is
+        # independently stateful," stands until evidence says otherwise. Carried per line (`Line.poe_cols`/`Line.poo_cols`,
         # close_line() below) for the same reason `.po` itself is: which of
         # the two ever applies to a given physical line depends on which
         # PAGE it lands on, not known until pagination (pdf.py's
@@ -3436,11 +3437,14 @@ def _parse_format_dot(cmd: bytes, state: dict) -> None:
         # type-9 sequence carrying its own HMI position, so the stops
         # change no rendered byte -- 46 archive files use `.tb` and ZERO of
         # them contain a bare 0x09 (the intersection is empty, corpus-wide).
-        # A bare 0x09's print expansion stays at the spec's own fixed rule
-        # ("modulus 8 print position" -- WSFORMAT control-code table);
-        # whether `.tb` would override THAT is unmeasured and unreachable
-        # in this corpus (probe design logged in the register). Stops are
-        # carried per-block for the layout contract and a future editor.
+        # A bare 0x09's print expansion is the spec's fixed rule ("modulus 8
+        # print position" -- WSFORMAT control-code table), and `.tb` does
+        # not reach it: WS7's `.tb` handler is format state for editing
+        # only, and the driver's bare-tab lattice is 8 cells of the `.cw`
+        # width in a fixed-pitch font, 8 x 180 HMI (0.8in) in a proportional
+        # one (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.8; run
+        # w16-cwtab, 15.10). Stops are carried per-block for the layout
+        # contract and a future editor.
         stops = []
         for tok in arg.replace(b',', b' ').split():
             m2 = _dot_num_match(tok)
@@ -5233,8 +5237,13 @@ def _symmetric_blocks(data: bytes, encoding: str, raw_out=None):
 #
 # WSFORMAT.TXT states the inherit rule for the attribute words as a whole --
 # "if both corresponding bits are off, then the attribute is inherited from
-# the current state" -- but the only attribute the WS7 LaserJet captures can
-# actually DEMONSTRATE it for is strikeout: in every corpus document that
+# the current state" -- and WS7's own code does exactly that for every bit:
+# the style step is `state = (state OR on) AND NOT off`, so a bit in neither
+# word leaves the state alone and a bit in both ends up off (WS7 teardown,
+# `wordstar-dos/3-document-format-files.md` 3.10). What is still not known
+# is whether a paragraph START resets the state before the step runs, and
+# that is the whole question here. The only attribute the WS7 LaserJet
+# captures can actually DEMONSTRATE an answer for is strikeout: in every corpus document that
 # turns bold, underline or italic on in a style, the next style used sets
 # that same bit in its own attrs_off word, so an inheriting model and a
 # reset-per-paragraph model produce identical pages and the captures cannot
