@@ -2170,6 +2170,42 @@ def _resolve_left_pt(po_cols: float, size: float) -> float:
     return max(0.0, min(left, PAGE_W - size * 0.6))
 
 
+# The LaserJet's logical page, in 300-dpi dots from the paper's side edge
+# (HP PCL 5 Technical Reference, tables 2-1 and 2-2): every PCL x WordStar
+# sends is measured from it, not from the paper (WS7 report 7.4). A4 and the
+# metric sizes sit a little closer to the edge than Letter, Legal and
+# Executive; landscape closer still.
+_PCL_LOGICAL_PAGE_DOTS = {('portrait', False): 75, ('portrait', True): 71,
+                          ('landscape', False): 60, ('landscape', True): 59}
+
+
+def logical_page_x(doc, orientation, width_pt):
+    """Where a Printed page's x = 0 sits on the paper, in points: Printed lays
+    a page out in the printer's own frame, the PCL logical page, and the page
+    is placed on the sheet this far in from its left edge. `orientation` is
+    the page's own (a `.pl` shorter than the sheet is wide is still portrait
+    paper); `width_pt` its sheet's width. A print stream carries its own
+    offset in-band, so it is placed at the edge (0)."""
+    if doc.meta.get('variant') == 'printstream':
+        return 0.0
+    a4 = round(width_pt) in (595, 842)      # A4 portrait, A4 landscape
+    return _PCL_LOGICAL_PAGE_DOTS[(orientation, a4)] * 72 / 300
+
+
+def _page_orientation(doc, pg):
+    """The orientation a Printed page was opened in: its own `.pr or=`, else
+    the document's."""
+    return (getattr(pg, 'orientation', None)
+            or (doc.meta.get('formatting') or {}).get('orientation', 'portrait'))
+
+
+def _place_on_sheet(stream, x):
+    """A page's content stream moved `x` points right on the sheet."""
+    if not x:
+        return stream
+    return b'q 1 0 0 1 %s 0 cm\n%s\nQ' % (_tf_size(round(x, 2)), stream)
+
+
 def _printed_left(doc, size):
     """Left edge of text in points for printed mode, from .po: "the number
     of print columns from the left edge of the paper to the left margin of
@@ -11976,6 +12012,12 @@ def _emit_pdf_inner(doc, printed, options):
                 # running head or foot either, the same documented
                 # simplification.
                 page_boxes.append((page_w_doc, page_h))
+        # every page drawn so far, the body's and then any compiled TOC/Index
+        # sheets (the document's own orientation)
+        page_ors = ([_page_orientation(doc, pl) for pl in pages]
+                    + [_page_orientation(doc, None)] * (len(streams) - len(pages)))
+        streams = [_place_on_sheet(s, logical_page_x(doc, o, w))
+                   for s, o, (w, _h) in zip(streams, page_ors, page_boxes)]
     else:
         # Modern: the printed form of the Modern RTF (ruling 2026-08-05) --
         # document fonts carried, proportional reflow at the real measure,

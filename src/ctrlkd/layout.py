@@ -1214,6 +1214,14 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
     12. A page WITHOUT `size` is the document's sheet: the top-level
     `page` object's own `pw_in`/`height_in`, exactly as before.
 
+    version 14 (2026-10-27): every PRINTED PAGE carries `logical_page_x`,
+    in points: where the page's x = 0 sits on the sheet. Printed lays a
+    page out in the LaserJet's own frame, the PCL logical page, which
+    starts 1/4" in from a Letter sheet's left edge (HP's table: 75 dots at
+    300 dpi; 71 on A4; 60 and 59 in landscape). Every x in this file is in
+    that frame; add `logical_page_x` for a position on the paper, as the
+    PDF does. A print stream's is 0.
+
     Old fields ('segments', 'soft', 'overprint', 'lead') are
     unchanged; this is purely additive."""
     import json
@@ -1369,6 +1377,12 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
                 'height_pt': _pdf._page_height_pt_for(pg_sheet),
                 'orientation': pg_or,
             }
+        # `logical_page_x` (version 14): where this page's x = 0 sits on
+        # the sheet. Every x above is in the printer's own frame.
+        pg_or_eff = _pdf._page_orientation(doc, page)
+        pg_sheet = _pdf._page_dict_for_orientation(doc.meta.get('page') or {}, pg_or_eff)
+        pg['logical_page_x'] = round(_pdf.logical_page_x(
+            doc, pg_or_eff, int(round(float(pg_sheet.get('pw_in', 8.5)) * 72))), 2)
         printed_pages.append(pg)
 
     # planning #264 running list (the batch-23 finding): Modern's own Show
@@ -1423,7 +1437,7 @@ def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
 
     out = {
         'format': 'ctrl-kd-layout',
-        'version': 13,
+        'version': 14,
         'meta': _json_meta(doc),
         'page': doc.meta.get('page'),
         'fonts': [dict(f) for f in (getattr(doc, 'fonts', ()) or ())],

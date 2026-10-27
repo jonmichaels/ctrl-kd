@@ -55,15 +55,17 @@ are matched by text, in reading order, against the capture's decoded rows.
 A row item is a run WordStar positioned; only the FIRST word of an item has
 a known x (the blanks inside a run are not positioned). Coordinates: x is
 the item's decipoints plus the PCL logical page's own 1/4" offset from the
-paper's left edge (HP; WS7 teardown, `wordstar-dos/7-configuration.md` 7.7),
-which a PDF has to add because its origin is the paper's edge; y is the
+paper's left edge (HP; WS7 teardown, `wordstar-dos/7-configuration.md` 7.7);
+the engine's side is its page placed on the sheet the same way
+(`pdf.logical_page_x`, read back from the page's leading `cm`). y is the
 row's V, the baseline in decipoints from the page top. Page counts are
 compared too.
 
 `layout-lines` -- WS4's DRAFT driver: rows of text, 1-based, a row = 1/6",
 the paper's own left edge at column 0, blank rows left out, pages split at
 form feeds. The same matching as `layout-printed`, with every word's x known
-(column x 7.2pt) and the baseline of row r at r x 12pt.
+(column x 7.2pt, against the engine's x before it places the page on the
+sheet: DRAFT has no logical page) and the baseline of row r at r x 12pt.
 
 INSTALL. Each manifest's `install` names the settings its layout fixtures
 assume: the FACTORY install of each release. This engine's own defaults are
@@ -444,17 +446,31 @@ def _draft_pos(row, _ix, _wi, col):
     return col * DRAFT_COL_PT, row['row'] * DRAFT_ROW_PT
 
 
-def _engine_tokens(pdf):
+_PLACED_RE = re.compile(rb'\Aq 1 0 0 1 ([\d.]+) 0 cm\n')
+
+
+def _engine_tokens(pdf, on_paper=True):
     """The engine's words, its page count and its sheet height. A word placed
     off its sheet is dropped: WordStar puts words there too (a page number
     under `.pl 0`, or past a short `.PL` on DRAFT's continuous paper), and
     off the sheet neither side can be compared by position. The expected
-    words get the same cut (`compare_layout`)."""
+    words get the same cut (`compare_layout`).
+
+    The engine draws a Printed page in the printer's own frame and places it
+    on the sheet with one leading `cm` (`pdf.logical_page_x`); `on_paper`
+    adds that placement to every x, for a LaserJet reading measured from the
+    paper's edge. DRAFT has no logical page: its columns are compared in the
+    frame the engine laid out."""
     pages = fg.extract_pages(pdf)
     toks = []
     for n, page in enumerate(pages, 1):
         h = page['mediabox'][1]
-        toks += [t for t in fg.engine_page_tokens(page, n) if 0 <= t['y_top'] <= h]
+        placed = _PLACED_RE.match(page['content'])
+        dx = float(placed.group(1)) if placed and on_paper else 0.0
+        for t in fg.engine_page_tokens(page, n):
+            if 0 <= t['y_top'] <= h:
+                t['x'] += dx
+                toks.append(t)
     sheet_h = pages[0]['mediabox'][1] if pages else 11 * 72
     return toks, len(pages), sheet_h
 
@@ -478,8 +494,8 @@ def compare_layout(part, path, variant, hpljet=False):
     with open(path, 'rb') as f:
         found = _variant_check(f.read(), {'ws4': 'ws4', 'ws5+': 'ws5+'}.get(variant, 'nondocument'))
     pdf = render_printed(path, variant)
-    eng, n_pages, sheet_h = _engine_tokens(pdf)
     printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
+    eng, n_pages, sheet_h = _engine_tokens(pdf, on_paper=printed)
     if printed:
         rows = [r for r in prepare_printed_rows(part['rows'])
                 if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
@@ -508,12 +524,7 @@ def compare_layout(part, path, variant, hpljet=False):
                           'want': round(w['y_top'], 2), 'got': round(e['y_top'], 2), 'd': dy})
         if w['x'] is not None:
             dx = round(e['x'] - w['x'], 2)
-            if printed and abs(dx + PCL_LOGICAL_PAGE_X_PT) <= POSITION_TOL_PT:
-                # exactly the logical page's own offset: the engine set x
-                # in the PCL frame, from the logical page's edge
-                found.append({'kind': 'x-logical-page', 'text': w['text'], 'page': w['page'],
-                              'd': dx})
-            elif abs(dx) > POSITION_TOL_PT:
+            if abs(dx) > POSITION_TOL_PT:
                 found.append({'kind': 'x', 'text': w['text'], 'page': w['page'],
                               'want': round(w['x'], 2), 'got': round(e['x'], 2), 'd': dx})
     for w in m['unmatched_ws7']:

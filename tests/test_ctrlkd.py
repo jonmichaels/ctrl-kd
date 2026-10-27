@@ -3882,7 +3882,7 @@ def test_printed_pagelines_carry_column_geometry_and_overflow_to_a_real_page():
     from ctrlkd import layout as _layout
     import json
     out = json.loads(_layout.emit_layout(doc))
-    assert out['version'] == 13
+    assert out['version'] == 14
     jpages = out['printed']['pages']
     assert len(jpages) == 3
     jp1 = jpages[0]
@@ -4968,7 +4968,14 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     the automatic page number M15 added above, so its single drawn op goes
     from 11pt to 12pt and re-centres at the new width. Printed's furniture was
     already the body's own Courier at the body size, which is why those hashes
-    cannot move."""
+    cannot move.
+
+    Re-pinned a NINTH time 2026-10-27 (the `make_prose` PRINTED hash ONLY):
+    a Printed page is placed on its sheet at the LaserJet's logical page,
+    1/4" in from the left edge (one `cm` wrapping the page's content). The
+    page's own ops are untouched. `styled` and the print stream are read as
+    print streams, which carry their own offset and stay at the edge, and
+    Modern never moves."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4980,7 +4987,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
+        '74047110c0fce45fd4e6b3ca36af0c5e6d92dc45a605d8e4f3b4927f797bb041'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'e766708c4040a5e50e8663fc5730fc6c8bbf9fb5be226a1abdeab16b150ca90d'
     assert digest(core.parse_ws(styled), 'printed') == \
@@ -6916,7 +6923,7 @@ def test_head_foot_lines_omitted_when_the_document_has_neither():
     assert pages[0].footer_lines is None
     assert pages[0].auto_pageno is None
     out = json.loads(emit_layout(doc))
-    assert out['version'] == 13
+    assert out['version'] == 14
     jp = out['printed']['pages'][0]
     assert 'header_lines' not in jp and 'footer_lines' not in jp
     assert 'auto_page_number' not in jp
@@ -7159,7 +7166,7 @@ def test_layout_emitter_serializes_the_viewer_contract():
                         + HARD)
     out = emit.get_emitter('layout')['fn'](doc, 'modern')
     d = json.loads(out)
-    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 13
+    assert d['format'] == 'ctrl-kd-layout' and d['version'] == 14
     assert d['meta']['encoding'] == 'cp437'
     assert d['page']['size_name'] == 'Letter'
     assert any(i['kind'] == 'para' for i in d['modern']['items'])
@@ -7934,3 +7941,33 @@ def test_sup_sub_cell_in_a_non_courier_fixed_pitch_face():
     gothic = {'typestyle_number': 6, 'width_1800': 150, 'proportional': False}
     assert _sup_sub_span_pitch(gothic, {'sub'}, 'Courier', 9.0, 12) == 150 / 25 * 9.0 / 12
     assert _sup_sub_span_pitch(None, {'sup'}, 'Courier', 9.25, 12) == 23 * 72 / 300
+
+
+def test_printed_page_sits_on_the_laserjet_logical_page():
+    """Printed lays a page out in the LaserJet's own frame, the PCL logical
+    page, and places it on the sheet where HP puts that page: 75 dots (1/4")
+    in from a Letter or Legal sheet's left edge, 71 on A4, 60 and 59 in
+    landscape (HP PCL 5 Technical Reference, tables 2-1 and 2-2). WS7's x is
+    measured from there (WS7 teardown 7.4); a print stream carries its own
+    offset and stays at the edge. The layout JSON says the same per page."""
+    import json
+    from ctrlkd.pdf import emit_pdf
+    from ctrlkd.layout import emit_layout
+
+    def placement(data):
+        m = re.search(rb'stream\nq 1 0 0 1 ([\d.]+) 0 cm\n', emit_pdf(data, 'printed'))
+        return m and m.group(1)
+
+    letter = core.parse(b'text\r\n', variant='ws4')
+    assert placement(letter) == b'18'
+    assert json.loads(emit_layout(letter, mode='printed'))['printed']['pages'][0][
+        'logical_page_x'] == 18.0
+    assert placement(core.parse(b'.pl 84\r\ntext\r\n', variant='ws4')) == b'18'
+    assert placement(core.parse(b'.pl 70\r\ntext\r\n', variant='ws4')) == b'17.04'
+    assert placement(core.parse(b'.pr or=l\r\ntext\r\n', variant='ws4')) == b'14.4'
+    # a short page is still portrait paper
+    assert placement(core.parse(b'.pl 20\r\ntext\r\n', variant='ws4')) == b'18'
+    assert placement(core.parse(b'text\r\n', variant='printstream')) is None
+    # the page's own x is untouched: the default .po 8 is still 57.6 in the frame
+    spans = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(letter, 'printed'))}
+    assert spans[b'text'] == 57.6
