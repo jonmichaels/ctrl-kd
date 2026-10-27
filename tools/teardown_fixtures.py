@@ -464,8 +464,10 @@ def _positioned_item(item):
     not its first word's carries a third element (FIXTURES.md): leading
     blanks keep their text (the blanks make the first word unpositioned);
     a letter-spaced `.UJ` run is its `word`, with no x."""
-    x, text = item[0], _decode_item(item[1])
     note = item[2] if len(item) > 2 else {}
+    # An LJ6DTP item sent from another symbol set carries the document's own
+    # characters as `doc` (rule T1 inverted): compared as those.
+    x, text = item[0], _decode_item(note.get('doc', item[1]))
     if note.get('unpositioned') == 'letter-spaced':
         return [None, note.get('word', text)]
     return [x, text]
@@ -713,6 +715,12 @@ def compare_layout(part, path, variant, hpljet=False):
     pdf = render_printed(path, variant)
     printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
     eng, n_pages, sheet_h = _engine_tokens(pdf, on_paper=printed)
+    # The engine draws LJ6DTP's substituted glyphs (’ for '); the readings
+    # give document characters (`doc`), so compare in those.
+    lj6dtp = (_doc_for(path, variant).meta.get('printer_driver') or '').upper() == 'LJ6DTP'
+    if lj6dtp:
+        for t in eng:
+            t['text'] = t['text'].translate(pdfmod._LJ_UNSUBST)
     if printed:
         # A `[rect WxH fill]` item is a PCL rectangle the driver drew, not
         # text: this tool does not compare rectangles yet, so each is
@@ -729,6 +737,8 @@ def compare_layout(part, path, variant, hpljet=False):
                 if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
         if not hpljet:
             pieces = _engine_pieces(pdf)
+            if lj6dtp:
+                pieces = {(pg, t.translate(pdfmod._LJ_UNSUBST)): v for (pg, t), v in pieces.items()}
             if pieces_match(rows, pieces) and part.get('pages') in (None, n_pages):
                 return found
             rows = join_kerned_items(rows, pieces, eng)

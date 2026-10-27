@@ -1084,7 +1084,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            148.8,
+            154.5,
             380.0
           ],
           "font_class": "serif",
@@ -1100,7 +1100,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            392.6,
+            399.1,
             394.0
           ],
           "font_class": "serif",
@@ -10822,7 +10822,7 @@
       "divergences": [],
       "document_frame_offset_pt": {
         "n": 1,
-        "median_dx": -2.1,
+        "median_dx": 0.0,
         "iqr_dx": 0.0
       }
     },
@@ -12744,7 +12744,7 @@
       "divergences": [],
       "document_frame_offset_pt": {
         "n": 1,
-        "median_dx": -2.0,
+        "median_dx": 0.1,
         "iqr_dx": 0.0
       }
     },

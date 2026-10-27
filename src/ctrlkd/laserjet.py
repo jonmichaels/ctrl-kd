@@ -24,7 +24,12 @@ Sawyer's LJ6DTP, which DRIVERN runs by the same rules (WS7 teardown,
 it reads, LASERJET by default.
 """
 from . import laserjet_tables, lj6dtp_tables
+from .core import CP437_GRAPHICS
 from .laserjet_tables import BLOCKS, FONTS
+
+# The IBM PC glyphs at the control codes (01h-1Fh, 7Fh), which Python's cp437
+# codec maps to control characters instead.
+_GRAPHIC_CODES = {ch: code for code, ch in CP437_GRAPHICS.items() if code}
 
 DRIVERS = {'laserjet': laserjet_tables, 'lj6dtp': lj6dtp_tables}
 
@@ -119,7 +124,12 @@ def twips(block, pt, script=False):
 
 def code(ch):
     """The printer character code (PC-8) of `ch`; 0, the table's default
-    width, for a character it has none for."""
+    width, for a character it has none for. The euro is the document's 9E,
+    which the patched drivers print as the euro (`euro-swap`)."""
+    if ch == '€':
+        return 0x9E
+    if ch in _GRAPHIC_CODES:
+        return _GRAPHIC_CODES[ch]
     try:
         return ch.encode('cp437')[0]
     except UnicodeEncodeError:

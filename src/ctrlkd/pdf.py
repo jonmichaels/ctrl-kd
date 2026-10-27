@@ -3361,7 +3361,7 @@ def _lj_measured(text, entry):
     return text.translate(_LJ_UNSUBST) if entry.get('laserjet') == 'lj6dtp' else text
 
 
-def _lj_pieces(text, entry, styles, size_here, kerning, prev=None):
+def _lj_pieces(text, entry, styles, size_here, kerning, prev=None, source=None):
     """`text` placed by WS7's LASERJET driver, `[(piece, x_pt, width_pt)]`
     from the start of `text`, or None when `entry` is not one of the
     driver's proportional fonts (`_laserjet_fonts`). A word is split where
@@ -3370,12 +3370,14 @@ def _lj_pieces(text, entry, styles, size_here, kerning, prev=None):
 
     `prev` is `_lj_last` of the span before: a pair still applies across
     a record for the same font, at the same size, script and underline, so
-    the first piece may start left of the span's own start."""
+    the first piece may start left of the span's own start. `source` is
+    the document's own text when `text` has had a character swapped for
+    display one for one (a running head's bullet)."""
     if entry is None or not entry.get('laserjet'):
         return None
     from . import laserjet
     block, tw = _lj_block(entry, styles, size_here)
-    measured = _lj_measured(text, entry)
+    measured = _lj_measured(source if source is not None else text, entry)
     lead = 0
     if kerning and prev is not None and text[:1].strip() and prev[0] == _lj_key(block, tw, styles):
         lead = laserjet.kern_dots(block, tw, prev[1], laserjet.code(measured[0]))
@@ -8133,7 +8135,8 @@ def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
             total += len(run_text) * _PDF_PT_PER_COL
             continue
         styles = styles | style_attrs
-        lj = _lj_pieces(run_text, entry, styles, pt, True)
+        lj = _lj_pieces(run_text, entry, styles, pt, True,
+                        source=run_text.replace('•', '∙'))   # the document's F9
         if lj is not None:
             total += lj[-1][1] + lj[-1][2] if lj else 0.0
             continue
@@ -8983,7 +8986,8 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             styles = styles | style_attrs
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
             font = res.ref(basefont)
-            lj = _lj_pieces(run_text, entry, styles, pt, True)
+            lj = _lj_pieces(run_text, entry, styles, pt, True,
+                            source=run_text.replace('•', '∙'))   # the document's F9
             if lj is not None:
                 # placed by WS7's LASERJET driver, as a body line's words are
                 for piece, px, pw in lj:

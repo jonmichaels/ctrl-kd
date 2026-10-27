@@ -415,40 +415,19 @@
    },
    "reason": "Gothic 12's sub/superscript cell: the engine scales Gothic's body cell, where the driver sizes it from the script's own height (0.3-0.5pt); and a fixed-pitch line drawn as one op cannot be matched move for move, so its scripted words are compared by the word reader, which groups them differently"
   },
-  "wordstar-dos/lj6-kern-faces": {
-   "kinds": {
-    "missing-word": 30,
-    "extra-word": 12
-   },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
-  },
-  "wordstar-dos/lj6-kern-off": {
-   "kinds": {
-    "missing-word": 12,
-    "extra-word": 6
-   },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
-  },
-  "wordstar-dos/lj6-kern-variants": {
-   "kinds": {
-    "missing-word": 27,
-    "extra-word": 9
-   },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
-  },
   "wordstar-dos/lj6-substitutions": {
    "kinds": {
-    "y": 5,
-    "x": 5,
-    "missing-word": 65,
-    "extra-word": 171
+    "y": 8,
+    "x": 8,
+    "missing-word": 41,
+    "extra-word": 144
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
   "wordstar-dos/lj6-full-line": {
    "kinds": {
-    "missing-word": 3,
-    "extra-word": 2
+    "missing-word": 2,
+    "extra-word": 1
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
@@ -463,9 +442,9 @@
   "wordstar-dos/lj6-colour-table": {
    "kinds": {
     "missing-graphic": 1,
-    "x": 9,
-    "missing-word": 15,
-    "extra-word": 11
+    "x": 10,
+    "missing-word": 14,
+    "extra-word": 10
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
@@ -491,106 +470,97 @@
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
-  "wordstar-dos/lj6-justified": {
-   "kinds": {
-    "missing-word": 14,
-    "extra-word": 4
-   },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
-  },
   "wordstar-dos/lj6-manual-p1": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p2": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p3": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p4": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p5": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p6": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p7": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-manual-p8": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 219,
-    "x": 145,
-    "missing-word": 480,
-    "extra-word": 407
+    "missing-graphic": 213,
+    "x": 135,
+    "missing-word": 369,
+    "extra-word": 334
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers; and this tool does not compare the driver's PCL rectangles yet"
   },
   "wordstar-dos/lj6-symbol": {
    "kinds": {
-    "missing-graphic": 2,
     "y": 128,
-    "missing-word": 337,
+    "missing-word": 339,
     "extra-word": 337
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
   "wordstar-dos/lj6-wingding": {
    "kinds": {
-    "missing-graphic": 3,
-    "missing-word": 468,
+    "missing-word": 471,
     "extra-word": 466
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
@@ -615,22 +585,22 @@
   "wordstar-dos/lj6-fontcrib": {
    "kinds": {
     "pages": 1,
-    "missing-graphic": 101,
+    "missing-graphic": 98,
     "x": 9,
     "y": 9,
     "page-of-word": 160,
-    "missing-word": 997,
+    "missing-word": 1000,
     "extra-word": 999
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
   },
   "wordstar-dos/lj6-printerps": {
    "kinds": {
-    "missing-graphic": 30,
+    "missing-graphic": 26,
     "x": 26,
     "y": 6,
     "page-of-word": 163,
-    "missing-word": 1679,
+    "missing-word": 1683,
     "extra-word": 1665
    },
    "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
