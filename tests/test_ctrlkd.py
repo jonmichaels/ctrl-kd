@@ -4968,7 +4968,14 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
     the automatic page number M15 added above, so its single drawn op goes
     from 11pt to 12pt and re-centres at the new width. Printed's furniture was
     already the body's own Courier at the body size, which is why those hashes
-    cannot move."""
+    cannot move.
+
+    Re-pinned a NINTH time 2026-10-27 (the `make_prose` PRINTED hash ONLY):
+    `make_prose` has no header, so it is a WS4 document, and WS4 prints its
+    automatic page number at the `.PC` default 28 (`Era.pc_default`; WS4
+    teardown `wordstar4-dos/4-formatting-printing.md` 3.2, runs x41-*), not
+    at WS7's centred 33.5. Its one drawn number moves 39.6pt left; the
+    body, the page breaks and the other three hashes are unchanged."""
     import hashlib
     from ctrlkd.pdf import emit_pdf
 
@@ -4980,7 +4987,7 @@ def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
               + b'More ordinary prose for the detector to chew on.' + HARD)
     stream = b'Line one of printed page\r\nLine two\r\nLine three\r\n\x1a'
     assert digest(core.parse_ws(make_prose()), 'printed') == \
-        '267278729cfed03a1fecae8a90feb3c6102b43639be92b3eebdc0c658e74f5a6'
+        'c6ec77062f5057037fe7d48bb78e66ac898ea3ef877f113b3259a93530904c56'
     assert digest(core.parse_ws(make_prose()), 'modern') == \
         'e766708c4040a5e50e8663fc5730fc6c8bbf9fb5be226a1abdeab16b150ca90d'
     assert digest(core.parse_ws(styled), 'printed') == \

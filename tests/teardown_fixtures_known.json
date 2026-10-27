@@ -145,107 +145,92 @@
   },
   "wordstar4-dos/print-ignores-8a": {
    "kinds": {
-    "variant": 1,
-    "x": 2
+    "variant": 1
    },
-   "reason": "D1 detect() does not count 0D 8A page marks; E5 WS4's automatic page number at WS7's column 33.5, not .PC 28"
-  },
-  "wordstar4-dos/print-all-8a": {
-   "kinds": {
-    "x": 2
-   },
-   "reason": "E5 WS4's automatic page number at WS7's column 33.5, not .PC 28"
+   "reason": "D1 detect() does not count 0D 8A page marks"
   },
   "wordstar4-dos/print-wi-ignored#0": {
    "kinds": {
     "variant": 1,
     "page-of-word": 2,
     "y": 3,
-    "x": 1,
     "missing-word": 1,
     "extra-word": 1
    },
-   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends"
   },
   "wordstar4-dos/print-wi-ignored#1": {
    "kinds": {
     "variant": 1,
     "page-of-word": 2,
     "y": 3,
-    "x": 1,
     "missing-word": 1,
     "extra-word": 1
    },
-   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends"
   },
   "wordstar4-dos/print-wi-ignored#2": {
    "kinds": {
     "variant": 1,
     "page-of-word": 2,
     "y": 3,
-    "x": 1,
     "missing-word": 1,
     "extra-word": 1
    },
-   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends"
   },
   "wordstar4-dos/print-wi-ignored#3": {
    "kinds": {
     "variant": 1,
     "page-of-word": 2,
     "y": 3,
-    "x": 1,
     "missing-word": 1,
     "extra-word": 1
    },
-   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends; E5 page number column"
+   "reason": "X1 the input has 8D 0D 0A (the run script wrote it; WS4 never does) and the engine reads two line ends"
   },
   "wordstar4-dos/print-header-pagenum": {
    "kinds": {
-    "variant-plain": 1,
-    "x": 4
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E6 ^PK in .HE: WS4 drops it and the blanks after it on an even page; the engine keeps one blank (a WS7 measurement); E5 page number column"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/print-dt-ignored": {
    "kinds": {
-    "variant-plain": 1,
-    "x": 1
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E5 page number column"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/print-hpljet-lines": {
    "kinds": {
     "variant-plain": 1,
     "y-driver-origin": 4,
-    "x-logical-page": 3,
-    "x": 1
+    "x-logical-page": 4
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; E5 page number column"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet"
   },
   "wordstar4-dos/print-hpljet-po": {
    "kinds": {
     "variant-plain": 1,
     "y-driver-origin": 5,
-    "x-logical-page": 3,
-    "x": 1
+    "x-logical-page": 4
    },
-   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; E5 page number column"
+   "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet"
   },
   "wordstar4-dos/ps-hpljet": {
    "kinds": {
     "variant-plain": 1,
     "y-driver-origin": 14,
-    "x-logical-page": 3,
-    "x": 11
+    "x-logical-page": 4,
+    "x": 10
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON on HPLJET: PS14B proportional widths, each word placed (R-40: .ps not rendered)"
   },
   "wordstar4-dos/ps-hpljet-uj-on": {
    "kinds": {
     "y-driver-origin": 14,
-    "x-logical-page": 2,
-    "x": 12,
+    "x-logical-page": 3,
+    "x": 11,
     "missing-word": 48,
     "extra-word": 12
    },
@@ -254,8 +239,8 @@
   "wordstar4-dos/ps-hpljet-uj-off": {
    "kinds": {
     "y-driver-origin": 26,
-    "x-logical-page": 3,
-    "x": 23
+    "x-logical-page": 4,
+    "x": 22
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
   },
@@ -263,32 +248,32 @@
    "kinds": {
     "variant-plain": 1,
     "y-driver-origin": 6,
-    "x-logical-page": 1,
-    "x": 5
+    "x-logical-page": 2,
+    "x": 4
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
   },
   "wordstar4-dos/mj-no-flag#0": {
    "kinds": {
     "y-driver-origin": 26,
-    "x-logical-page": 3,
-    "x": 23
+    "x-logical-page": 4,
+    "x": 22
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
   },
   "wordstar4-dos/mj-no-flag#1": {
    "kinds": {
     "y-driver-origin": 26,
-    "x-logical-page": 3,
-    "x": 23
+    "x-logical-page": 4,
+    "x": 22
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
   },
   "wordstar4-dos/mj-first-word": {
    "kinds": {
     "y-driver-origin": 14,
-    "x-logical-page": 3,
-    "x": 11,
+    "x-logical-page": 4,
+    "x": 10,
     "missing-word": 48,
     "extra-word": 12
    },
@@ -297,8 +282,8 @@
   "wordstar4-dos/mj-two-letters": {
    "kinds": {
     "y-driver-origin": 8,
-    "x-logical-page": 2,
-    "x": 6
+    "x-logical-page": 3,
+    "x": 5
    },
    "reason": "L1 Printed x is set in the PCL frame, without the PCL logical page's 1/4\" offset from the paper edge; O1 WS4's HPLJET driver starts 12pt lower (its own vertical bias); Printed models WS7's LaserJet; O2 .PS ON proportional widths (R-40)"
   },
@@ -338,12 +323,9 @@
   },
   "wordstar4-dos/footer-after-pa#1": {
    "kinds": {
-    "variant-plain": 1,
-    "pages": 1,
-    "page-of-word": 7,
-    "missing-word": 2
+    "variant-plain": 1
    },
-   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on; E7 .CP n with fewer than n lines after it: WS4 breaks when fewer than n remain on the page; the engine counts the lines that follow"
+   "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
   "wordstar4-dos/footer-after-pa#2": {
    "kinds": {
@@ -353,70 +335,21 @@
   },
   "wordstar4-dos/pages-lh-mid": {
    "kinds": {
-    "variant": 1,
-    "page-of-word": 3,
-    "x": 1,
-    "missing-word": 2,
-    "extra-word": 2
+    "variant": 1
    },
-   "reason": "D1 detection; E8 WS4 page capacity at .LH 16 and the lead after a line (R-38: WS4 paginates on the WS7 model); E5 page number column"
+   "reason": "D1 detection"
   },
   "wordstar4-dos/pages-lh12": {
    "kinds": {
-    "variant": 1,
-    "page-of-word": 3,
-    "x": 1,
-    "missing-word": 2,
-    "extra-word": 2
+    "variant": 1
    },
-   "reason": "D1 detection; E8 WS4 page capacity at .LH 12: 37 lines, engine 36 (R-38); E5 page number column"
+   "reason": "D1 detection"
   },
   "wordstar4-dos/pages-mtmb-mid": {
    "kinds": {
-    "variant": 1,
-    "pages": 1,
-    "y": 129,
-    "page-of-word": 21,
-    "missing-word": 3,
-    "extra-word": 3
+    "variant": 1
    },
-   "reason": "D1 detection; E9 a mid-file .MT/.MB changes WS4's current page at once; the engine applies it per block (R-38)"
-  },
-  "wordstar4-dos/sample-chapter1": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
-  },
-  "wordstar4-dos/sample-chapter2": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
-  },
-  "wordstar4-dos/sample-chapter3": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
-  },
-  "wordstar4-dos/sample-sample1": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
-  },
-  "wordstar4-dos/sample-sample2": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
-  },
-  "wordstar4-dos/sample-sample3": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E5 page number column"
+   "reason": "D1 detection"
   },
   "wordstar-dos/ws4-as-nondocument": {
    "kinds": {
