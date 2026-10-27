@@ -3420,6 +3420,71 @@ def test_a_typed_indent_is_still_a_deliberate_break():
     assert core.lines_pass(poem)[0][0][1] == 'line'
 
 
+def _terminators(doc):
+    return [(l.soft, l.keep_break) for b in doc.blocks for l in b.lines
+            if l.spans]
+
+
+def test_a_stored_soft_return_stays_soft_whatever_reflow_decides():
+    """WordStar keeps a stored soft return soft (WS4 report 2.7, 6.1, 7.7).
+    `Line.soft` is that stored terminator; Modern reflow's decision to keep
+    the break as the author's own is `Line.keep_break`, and only the lines
+    reflow keeps carry it."""
+    # a poem: the next word would have fit, so reflow keeps the break
+    poem = (b'     A short poem line,' + SOFT +
+            b'     another short line.' + HARD)
+    doc = core.parse_ws(poem)
+    assert _terminators(doc) == [(True, True), (False, False)]
+    assert [l.wraps for l in doc.blocks[0].lines] == [False, False]
+    assert [l.text() for l in core.merged_lines(doc.blocks[0])] == \
+        ['     A short poem line,', '     another short line.']
+    # a line that really wrapped: soft, and reflow joins it
+    wrapped = ('x' * 58 + ' words').encode() + SOFT + b'tail.' + HARD
+    doc = core.parse_ws(wrapped)
+    assert _terminators(doc) == [(True, False), (False, False)]
+    assert doc.blocks[0].lines[0].wraps
+    assert [l.text() for l in core.merged_lines(doc.blocks[0])] == \
+        ['x' * 58 + ' words tail.']
+    # a hard return is hard
+    doc = core.parse_ws(b'one line' + HARD + b'two line' + HARD)
+    assert _terminators(doc) == [(False, False), (False, False)]
+
+
+def test_a_kept_break_after_a_soft_hyphen_is_still_a_soft_hyphen_line():
+    """`1F 8D 0A`: the discretionary hyphen WordStar wrote with the soft
+    return (WS4 report 2.7, run hyph2). The remainder of the word is short,
+    so reflow keeps the break, but the stored line is soft and ends in the
+    soft hyphen, which `.pf on` drops when it re-joins the paragraph."""
+    data = b'A long word is cut at the hyphenation stop of Indenta\x1f' + SOFT + \
+        b'tion.' + HARD
+    doc = core.parse_ws(data)
+    first = doc.blocks[0].lines[0]
+    assert (first.soft, first.keep_break, first.soft_hyphen) == (True, True, True)
+
+
+def test_a_line_before_a_typed_indent_is_a_stored_soft_return():
+    """The lines_pass A0-fill/typed-indent rule keeps the break for reflow;
+    the stored return is still soft (WS4 report 7.7, run w14-pmhang)."""
+    data = (b'     The first line stops short' + SOFT +
+            b'     and the next line starts indented.' + HARD)
+    doc = core.parse_ws(data)
+    assert _terminators(doc)[0] == (True, True)
+
+
+def test_pf_on_rewraps_a_stored_soft_return_reflow_would_keep():
+    """`.pf on` re-joins what WordStar itself broke: a stored soft return,
+    whether or not Modern reflow keeps the break (WS4 report 6.1). The
+    paragraph ends only at a hard return."""
+    from ctrlkd import pdf
+    doc = core.parse_ws(b'.pf on\r\n.rm 40\r\n'
+                        + b'short line one here' + SOFT
+                        + b'short line two here' + HARD)
+    block = doc.blocks[0]
+    assert block.lines[0].keep_break
+    assert [l.text() for l in pdf.pf_rewrapped_lines(doc, block)] == \
+        ['short line one here short line two here']
+
+
 def test_pn_sets_the_starting_page_number():
     """`.pn n` numbers the page it appears on, so a chapter file in a larger
     manuscript starts where the previous one stopped. MEASURED on WordStar 4

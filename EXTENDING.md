@@ -60,8 +60,12 @@ Block
   .lines      list[Line]     # PHYSICAL lines since 2.0.0 — see below
 Line
   .spans      list[Span]
-  .soft       bool           # True: ends in WordStar's own word wrap (a real line
-                             # break on paper; just a join point for reflow)
+  .soft       bool           # True: the file stores a soft return here (8D 0A), which
+                             # WordStar justifies and re-wraps, and which is a real
+                             # line break on paper
+  .keep_break bool           # True: a stored soft return that reflow keeps as a
+                             # deliberate break (a poem line, a typed indent follows)
+  .wraps      bool           # soft and not keep_break: a join point for reflow
   .lead_48    float | None   # the `.lh` line height in force ON THIS LINE, in
                              # 1/48in units. None = the document default,
                              # doc.meta['page']['lh_48'] — the common case.
@@ -85,7 +89,8 @@ Span
 Semantics worth knowing:
 
 * Within a `para` block, each `Line` is a **physical** line — exactly what sat on
-  one printed line, including WordStar's own word wrap (`line.soft` marks those).
+  one printed line, including WordStar's own word wrap (`line.soft` marks every
+  stored soft return, `line.wraps` the ones reflow joins back).
   Rendering line-for-line (printed mode)? Use `block.lines` directly. Reflowing
   (modern mode)? Call **`core.merged_lines(block)`** to get logical lines with
   soft-wrapped runs joined back (spaces inserted with WordStar's own rule, none
