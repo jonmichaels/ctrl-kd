@@ -3683,7 +3683,7 @@ def test_rr_bare_ruler_image_overprint_terminator_adds_no_blank_line():
         b'.rr\rL----P----!----!-------------R\r\r\n'
         b'.rr\rL----!---------------------------!------------------------------R\r\n'
         b'\r\n'
-        b'Line after the rulers.\r\n')
+        b'Line after the rulers.\r\n', variant='ws5+')
     first, second = doc.blocks
     assert [''.join(s.text for s in ln.spans) for ln in first.lines] == [
         'Line ending before the rulers.', '', '']
