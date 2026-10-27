@@ -209,7 +209,11 @@ def test_real_lj6dtp_printed_header_is_helvetica_not_courier(require_sawyer_doc)
     with open(require_sawyer_doc('LJ6DTP.WS'), 'rb') as fh:
         doc = core.parse_ws(fh.read())
     out = pdf.emit_pdf(doc, mode='printed')
-    fname = _tj_font(out, b'LJ6DTP Desktop-Publishing PDF')
+    # The head's words are placed one by one by the driver: find its
+    # 'Desktop-Publishing' by the head font's own size.
+    pts = round(doc.fonts[doc.header_fonts[1]]['points'])
+    pat = re.compile(rb'/(F\d+) %d Tf[^()]*\(Desktop-Publishing\)' % pts)
+    fname = next(m[1] for st in _decoded_streams(out) for m in pat.finditer(st))
     basefont = _font_map_impl(out)[fname]
     assert basefont == b'Helvetica'
 

@@ -35,6 +35,8 @@ Bezier. A REAL box-drawing ┌┐└┘, typed literally elsewhere in the docume
 (page 4's checkerboard, page 5's table), never touches this table and stays
 exactly as square as before.
 """
+import re
+
 import pytest
 
 from ctrlkd import core, pdf
@@ -133,14 +135,15 @@ def test_lj6dtp_document_kerning_lines_render_differently(require_sawyer_doc):
     assert loose.kerning is False
     assert tight.kerning is True
     out = pdf.emit_pdf(doc, mode='printed')
-    # cp1252: single open/close 0x91/0x92 (loose, unchanged: the pair stays
-    # two separate glyphs), real double open/close 0x93/0x94 (tight, the
-    # fix: the pair collapses to one) -- see _esc's own declared
-    # /WinAnsiEncoding. Each word is its own Tj piece (proportional layout,
-    # `_line_ops_printed`), so the opening pair sits at the head of the
-    # first word's own parenthesized string.
+    # cp1252 single open quotes 0x91 (/WinAnsiEncoding). Loose, `.kr off`:
+    # the pair prints whole, two glyphs in one piece. Tight, `.kr on`: the
+    # driver's own 60 60 pair (WS7 teardown 17.4) moves the second quote in,
+    # so it starts a piece of its own, tucked against the first.
     assert b'(\x91\x91These) Tj' in out
-    assert b'(\x93But) Tj' in out
+    shown = re.findall(rb'([\d.]+) [\d.]+ Td \(((?:[^()\\\\]|\\\\.)*)\) Tj', out)
+    at = next(i for i, (_x, t) in enumerate(shown) if t == b'\x91But')
+    assert shown[at - 1][1] == b'\x91', 'the tight pair is not two pieces'
+    assert 0 < float(shown[at][0]) - float(shown[at - 1][0]) < 3.0   # tucked
 
 
 # ------------------------------------- planning #260: cited-offset regression pins
@@ -206,7 +209,9 @@ def test_lj6dtp_wordstars_apostrophe_curly_on_proportional_face(require_sawyer_d
         data = fh.read()
     doc = core.parse_ws(data)
     out = pdf.emit_pdf(doc, mode='printed')
-    assert b'(WordStar\x92s)' in out  # cp1252 0x92 == U+2019 RIGHT SINGLE QUOTATION MARK
+    # cp1252 0x92 == U+2019 RIGHT SINGLE QUOTATION MARK; LJ6DTP's own W-o
+    # pair prints the word as 'W' + 'ordStar’s'.
+    assert b'(ordStar\x92s)' in out
 
 
 # --------------------------------------------------------- rounded corners

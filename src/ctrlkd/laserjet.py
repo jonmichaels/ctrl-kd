@@ -18,9 +18,15 @@ rules M1, W1, W2, K1, S1, P1):
 - S1: a sub/superscript is set at the block's own script scale.
 - P1: a piece is moved to `floor(x x 720 / unit)` decipoints.
 
-The tables are `laserjet_tables.py`.
+The tables are `laserjet_tables.py`, and `lj6dtp_tables.py` for Robert J.
+Sawyer's LJ6DTP, which DRIVERN runs by the same rules (WS7 teardown,
+`wordstar-dos/17-lj6dtp.md`): every function takes the `driver` whose tables
+it reads, LASERJET by default.
 """
+from . import laserjet_tables, lj6dtp_tables
 from .laserjet_tables import BLOCKS, FONTS
+
+DRIVERS = {'laserjet': laserjet_tables, 'lj6dtp': lj6dtp_tables}
 
 _VARIANT = {(False, False): 0, (False, True): 1, (True, False): 2, (True, True): 3}
 
@@ -29,19 +35,20 @@ def _rhu(n, d):
     return (n + d // 2) // d
 
 
-def match(w, h, k):
+def match(w, h, k, driver='laserjet'):
     """M1: the index in `FONTS` of the font a document's font record (width
     `w` in 1/1800 inch, height `h` in twips, typestyle word `k`) prints in.
     An exact match of all three first, with the request's 0200h bit forced
     to each font's; then each font against the best so far, the first test
     that tells them apart deciding, a later font winning a complete tie."""
+    fonts = DRIVERS[driver].FONTS
     req = [w, h, k]
-    for i, (_n, fw, fh, fk, _b) in enumerate(FONTS):
+    for i, (_n, fw, fh, fk, _b) in enumerate(fonts):
         req[2] ^= (fk ^ req[2]) & 0x200
         if [fw, fh, fk] == req:
             return i
     best, pick = (0xFFFF, 0xFFFF, 0xFFFF), None
-    for i, (_n, fw, fh, fk, _b) in enumerate(FONTS):
+    for i, (_n, fw, fh, fk, _b) in enumerate(fonts):
         if fh == 0:
             fh, fw = req[1], fw * req[1] * 8 // 65536
         dw, dh, dk = abs(req[0] - fw), abs(req[1] - fh), req[2] ^ fk
@@ -77,14 +84,28 @@ def match(w, h, k):
     return pick
 
 
-def block_for(entry, bold, italic):
-    """The proportional driver block a document font entry (`core`'s
-    `doc.fonts`) prints with in this variant, or None when the driver
-    prints it in a fixed-pitch font."""
-    i = match(entry['width_1800'], entry['height_1440'], entry['typestyle'])
-    if i is None:
+def font_for(entry, driver='laserjet'):
+    """The driver's font entry (`FONTS` row) a document font entry (`core`'s
+    `doc.fonts`) prints in."""
+    i = match(entry['width_1800'], entry['height_1440'], entry['typestyle'], driver)
+    return None if i is None else DRIVERS[driver].FONTS[i]
+
+
+def block_for(entry, bold, italic, driver='laserjet'):
+    """The proportional driver block a document font entry prints with in
+    this variant, or None when the driver prints it in a fixed-pitch font."""
+    font = font_for(entry, driver)
+    if font is None:
         return None
-    return BLOCKS.get(FONTS[i][4][_VARIANT[(bool(bold), bool(italic))]])
+    return DRIVERS[driver].BLOCKS.get(font[4][_VARIANT[(bool(bold), bool(italic))]])
+
+
+def is_bitmap(entry, driver='laserjet'):
+    """Whether the driver prints this entry in a bitmap font (a height of its
+    own, like LJ6DTP's COURIER PC 10 and 12): no scaled sub/superscript size,
+    so a script keeps the line's size (teardown 17.8)."""
+    font = font_for(entry, driver)
+    return font is not None and font[2] != 0
 
 
 def twips(block, pt, script=False):

@@ -5931,12 +5931,9 @@ def test_a_laserjet_word_is_drawn_to_the_width_it_had_on_paper():
     """WS7's LASERJET driver places a proportional font's words (laserjet.py);
     the base-14 stand-in is then scaled (Tz) so each word occupies exactly the
     width the driver gave it, neither running into the next word nor leaving
-    it a wider gap. A document printed through LJ6DTP keeps that driver's own
-    model: one face-constant scale that lands the face's AVERAGE lowercase
-    glyph on the font block's HMI grid, so a lone wide glyph is never crushed
-    (Jon's ruling, 2026-08-05: "a lone (c) squeezed to 70% is not a
-    circle")."""
-    from ctrlkd.pdf import emit_pdf, _face_tz, _lj_pieces
+    it a wider gap. A document last printed through LJ6DTP is placed by that
+    driver's own tables the same way."""
+    from ctrlkd.pdf import emit_pdf, _lj_pieces
     from ctrlkd.afm import string_width_pt
     helv = _helv_typestyle()
     data = (ws7_block(0x00) +
@@ -5945,12 +5942,15 @@ def test_a_laserjet_word_is_drawn_to_the_width_it_had_on_paper():
             b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
     doc = core.parse_ws(data)
     span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
-    entry = dict(doc.fonts[0], laserjet=True)
+    entry = dict(doc.fonts[0], laserjet='laserjet')
     paper = _lj_pieces('AAAA', entry, set(), 12, True)[0][2]
     assert abs(string_width_pt('AAAA', 'Helvetica', 12) * span[2] / 100 - paper) < 0.05
+    # A document last printed through LJ6DTP is placed by that driver's own
+    # tables (WS7 teardown 17), the same way.
     doc.meta['printer_driver'] = 'LJ6DTP'
     span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
-    assert span[2] == _face_tz('Helvetica', 180 / 25.0, 12)     # 180 HMI = 7.2pt pitch
+    paper = _lj_pieces('AAAA', dict(doc.fonts[0], laserjet='lj6dtp'), set(), 12, True)[0][2]
+    assert abs(string_width_pt('AAAA', 'Helvetica', 12) * span[2] / 100 - paper) < 0.05
 
 
 def test_tz_is_100_for_courier_by_arithmetic_not_by_special_case():

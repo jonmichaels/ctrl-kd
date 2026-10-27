@@ -87,8 +87,14 @@ font's text as it does (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.17;
 - **Drawing.** Each piece is drawn in its base-14 stand-in, scaled to the
   width it had on paper.
 
-A symbol font, and a document last printed through LJ6DTP, keep their own
-models. Line breaks are the editor's and are unchanged.
+A document last printed through Robert J. Sawyer's LJ6DTP is placed the same
+way by that driver's own tables (WS7 teardown, `wordstar-dos/17-lj6dtp.md`;
+`lj6dtp_tables.py`): its patched widths for the characters it substitutes,
+measured by the document's own character; its added pairs, so `` and '' print
+as two tucked quotes; its own font list, where a default Courier 12 or 10
+record prints in a bitmap Courier whose sub/superscripts keep the line's size.
+A symbol font keeps its own model. Line breaks are the editor's and are
+unchanged.
 
 Documents also *declare* their release: the WS5+ header block carries a BCD
 version byte, surfaced as `doc.meta['ws_header']['release']`. Detection infers;

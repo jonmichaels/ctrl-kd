@@ -2517,7 +2517,9 @@ def _lj_substitute(segs, kerning=True, typography=True, corners=True):
         if entry is not None and entry.get('proportional'):
             if typography:
                 text = text.translate(_LJ_SUBST)
-                if kerning:
+                # Placed by the driver, the pair is tucked by its own kerning
+                # pairs (60 60, 27 27: WS7 teardown 17.4), not drawn as one glyph.
+                if kerning and not entry.get('laserjet'):
                     text = text.replace('‘‘', '“').replace(
                         '’’', '”')
             if corners and (entry.get('typestyle_name') or '').startswith('Univers'):
@@ -3324,24 +3326,39 @@ _LASERJET_ALTERNATE_FONT = {
 
 
 def _laserjet_fonts(doc):
-    """`doc.fonts`, each proportional font that WS7's LASERJET driver prints
-    in one of its own proportional text fonts marked `'laserjet': True`: its
-    words are placed with the driver's own widths and kerning
-    (`laserjet.py`). A symbol font keeps its own path, and a document
-    printed through LJ6DTP keeps that driver's model."""
-    fonts = doc.fonts or ()
-    if (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP':
-        return list(fonts)
+    """`doc.fonts`, each proportional font that WS7's driver prints in one of
+    its own proportional text fonts marked with that driver, `'laserjet':
+    'laserjet'` or `'lj6dtp'` (Sawyer's LJ6DTP, for a document last printed
+    through it): its words are placed with the driver's own widths and
+    kerning (`laserjet.py`). A symbol font keeps its own path. Under LJ6DTP a
+    font the driver prints in a bitmap face is marked `'bitmap': True`: its
+    sub/superscripts keep the line's size (WS7 teardown 17.8)."""
     from . import laserjet
+    driver = ('lj6dtp' if (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP'
+              else 'laserjet')
     out = []
-    for f in fonts:
+    for f in doc.fonts or ():
+        font = laserjet.font_for(f, driver)
         if (f.get('proportional') and f.get('symbol_map') in ('cp437', 'cp850')
-                and laserjet.block_for(f, False, False) is not None
-                and not laserjet.FONTS[laserjet.match(
-                    f['width_1800'], f['height_1440'], f['typestyle'])][3] & 0x2000):
-            f = dict(f, laserjet=True)
+                and laserjet.block_for(f, False, False, driver) is not None
+                and not font[3] & 0x2000):
+            f = dict(f, laserjet=driver)
+        if driver == 'lj6dtp' and laserjet.is_bitmap(f, driver):
+            f = dict(f, bitmap=True)
         out.append(f)
     return out
+
+
+# The document character each of LJ6DTP's display substitutions stands for
+# (`_LJ_SUBST`, `_LJ_SUBST_UNIVERS`): the driver measures and kerns the
+# document character; only the glyph sent changes (WS7 teardown 17.5, T1).
+_LJ_UNSUBST = str.maketrans({v: chr(k) for table in (_LJ_SUBST, _LJ_SUBST_UNIVERS)
+                             for k, v in table.items()})
+
+
+def _lj_measured(text, entry):
+    """`text` as the driver measures it: the document's own characters."""
+    return text.translate(_LJ_UNSUBST) if entry.get('laserjet') == 'lj6dtp' else text
 
 
 def _lj_pieces(text, entry, styles, size_here, kerning, prev=None):
@@ -3358,16 +3375,21 @@ def _lj_pieces(text, entry, styles, size_here, kerning, prev=None):
         return None
     from . import laserjet
     block, tw = _lj_block(entry, styles, size_here)
+    measured = _lj_measured(text, entry)
     lead = 0
     if kerning and prev is not None and text[:1].strip() and prev[0] == _lj_key(block, tw, styles):
-        lead = laserjet.kern_dots(block, tw, prev[1], laserjet.code(text[0]))
-    return [(p, laserjet.dots_to_pt(block, x + lead), laserjet.dots_to_pt(block, w))
-            for p, x, w in laserjet.pieces(text, block, tw, kerning)]
+        lead = laserjet.kern_dots(block, tw, prev[1], laserjet.code(measured[0]))
+    out, at = [], 0
+    for p, x, w in laserjet.pieces(measured, block, tw, kerning):
+        out.append((text[at:at + len(p)], laserjet.dots_to_pt(block, x + lead),
+                    laserjet.dots_to_pt(block, w)))
+        at += len(p)
+    return out
 
 
 def _lj_block(entry, styles, size_here):
     from . import laserjet
-    block = laserjet.block_for(entry, 'b' in styles, 'i' in styles)
+    block = laserjet.block_for(entry, 'b' in styles, 'i' in styles, entry['laserjet'])
     return block, laserjet.twips(block, size_here, bool({'sup', 'sub'} & styles))
 
 
@@ -3387,7 +3409,7 @@ def _lj_last(text, entry, styles, size_here):
         return None
     from . import laserjet
     block, tw = _lj_block(entry, styles, size_here)
-    return _lj_key(block, tw, styles), laserjet.code(text[-1])
+    return _lj_key(block, tw, styles), laserjet.code(_lj_measured(text[-1], entry))
 
 
 def _lj_x(x):
@@ -7644,7 +7666,11 @@ def _soft_blanks_of(segs, soft_blanks):
     if not soft_blanks:
         return frozenset()
     text, recorded = soft_blanks
-    return (frozenset(recorded) if ''.join(t[0] for t in segs) == text
+    joined = ''.join(t[0] for t in segs)
+    # LJ6DTP's display substitutions change characters one for one, never
+    # the blanks, so the offsets still hold through them.
+    return (frozenset(recorded) if joined == text
+            or joined.translate(_LJ_UNSUBST) == text.translate(_LJ_UNSUBST)
             else frozenset())
 
 
@@ -9750,6 +9776,8 @@ def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft,
         if proportional:
             pitch = _span_pitch(entry, size_here)
             factor = _face_tz(basefont, pitch, size_here) / 100.0
+        elif entry is not None and entry.get('bitmap'):
+            pitch = _span_pitch(entry, size_here)   # a bitmap face keeps its size
         else:
             pitch = (_sup_sub_span_pitch(entry, styles, family, pt, size_here)
                      or _span_pitch(entry, pt))
@@ -10093,7 +10121,8 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             x += int(pctl[4:]) / HMI_PER_POINT
             continue
         pt, rise = _sized(styles, size_here, roll_pt, family, entry)
-        if full_scripts:
+        bitmap = entry is not None and entry.get('bitmap')
+        if full_scripts or bitmap:
             pt = size_here
         if face is not None:
             family, pt = face[0], face[1]
@@ -10488,7 +10517,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # A sup/sub run gets mechanism G's own narrower cell instead of
             # the body's (see `_sup_sub_span_pitch`), built from its reduced
             # size the way WS7's driver builds it.
-            pitch = ((None if full_scripts else
+            pitch = ((None if full_scripts or bitmap else
                       _sup_sub_span_pitch(entry, styles, family, pt, size_here))
                      or _span_pitch(entry, pt))
             target = len(text) * pitch

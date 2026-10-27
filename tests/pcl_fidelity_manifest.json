@@ -29,213 +29,12 @@
       "n_engine_pages": 8,
       "no_substitute_word_count": 78,
       "counts_by_reason": {
-        "cgtimes-drift-exceeds-tolerance": 10,
         "exact-drift": 49,
         "extra-word-in-engine": 270,
         "line-start-shift": 7,
         "word-unmatched": 105
       },
       "divergences": [
-        {
-          "doc": "LJ6DTP",
-          "page": 4,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "Use",
-            "Use"
-          ],
-          "ws7_pos": [
-            98.8,
-            240.0
-          ],
-          "pdf_pos": [
-            93.3,
-            240.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -5.50pt at 48.4pt into the line (tolerance 4.47pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 4,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "these",
-            "these"
-          ],
-          "ws7_pos": [
-            121.2,
-            240.0
-          ],
-          "pdf_pos": [
-            115.2,
-            240.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.00pt at 70.8pt into the line (tolerance 4.92pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 4,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "typefaces",
-            "typefaces"
-          ],
-          "ws7_pos": [
-            149.2,
-            240.0
-          ],
-          "pdf_pos": [
-            143.2,
-            240.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.00pt at 98.8pt into the line (tolerance 5.48pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "Laurie",
-            "Laurie"
-          ],
-          "ws7_pos": [
-            213.3,
-            142.0
-          ],
-          "pdf_pos": [
-            205.7,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -7.60pt at 162.9pt into the line (tolerance 6.76pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "Ozone,",
-            "Ozone,"
-          ],
-          "ws7_pos": [
-            251.2,
-            142.0
-          ],
-          "pdf_pos": [
-            241.5,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -9.70pt at 200.8pt into the line (tolerance 7.52pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            291.6,
-            142.0
-          ],
-          "pdf_pos": [
-            278.6,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -13.00pt at 241.2pt into the line (tolerance 8.32pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "Tom",
-            "Tom"
-          ],
-          "ws7_pos": [
-            312.4,
-            142.0
-          ],
-          "pdf_pos": [
-            299.2,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -13.20pt at 262.0pt into the line (tolerance 8.74pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "Pinch,",
-            "Pinch,"
-          ],
-          "ws7_pos": [
-            338.6,
-            142.0
-          ],
-          "pdf_pos": [
-            324.9,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -13.70pt at 288.2pt into the line (tolerance 9.26pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "formerly",
-            "formerly"
-          ],
-          "ws7_pos": [
-            375.6,
-            142.0
-          ],
-          "pdf_pos": [
-            358.8,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -16.80pt at 325.2pt into the line (tolerance 10.00pt)"
-        },
-        {
-          "doc": "LJ6DTP",
-          "page": 8,
-          "line_y_top_pt": 142.0,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            435.1,
-            142.0
-          ],
-          "pdf_pos": [
-            417.4,
-            142.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -17.70pt at 384.7pt into the line (tolerance 11.19pt)"
-        },
         {
           "doc": "LJ6DTP",
           "page": 7,
@@ -1061,7 +860,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            354.4,
+            360.7,
             694.6
           ],
           "font_class": "serif",
@@ -1093,7 +892,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            311.9,
+            314.4,
             324.0
           ],
           "font_class": "serif",
@@ -1109,7 +908,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            145.8,
+            145.4,
             380.0
           ],
           "font_class": "serif",
@@ -1125,7 +924,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            273.5,
+            276.4,
             408.0
           ],
           "font_class": "serif",
@@ -1141,7 +940,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            315.9,
+            320.1,
             450.0
           ],
           "font_class": "serif",
@@ -1173,7 +972,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            399.8,
+            402.9,
             604.0
           ],
           "font_class": "serif",
@@ -1185,7 +984,7 @@
           "page": 2,
           "line_y_top_pt": 632.0,
           "words": [
-            "\u201cBut"
+            "\u2018\u2018But"
           ],
           "ws7_pos": null,
           "pdf_pos": [
@@ -1201,11 +1000,11 @@
           "page": 2,
           "line_y_top_pt": 632.0,
           "words": [
-            "on.\u201d"
+            "on.\u2019\u2019"
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            413.0,
+            417.3,
             632.0
           ],
           "font_class": "serif",
@@ -1221,7 +1020,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            236.4,
+            237.3,
             674.0
           ],
           "font_class": "serif",
@@ -1237,7 +1036,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            98.3,
+            99.1,
             254.0
           ],
           "font_class": "serif",
@@ -1253,7 +1052,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            401.3,
+            404.4,
             254.0
           ],
           "font_class": "serif",
@@ -1269,7 +1068,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            408.0,
+            410.6,
             296.0
           ],
           "font_class": "serif",
@@ -1285,7 +1084,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            147.2,
+            148.8,
             380.0
           ],
           "font_class": "serif",
@@ -1301,7 +1100,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            387.4,
+            392.6,
             394.0
           ],
           "font_class": "serif",
@@ -1317,7 +1116,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            91.9,
+            92.1,
             436.0
           ],
           "font_class": "serif",
@@ -1333,7 +1132,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            98.3,
+            99.1,
             86.0
           ],
           "font_class": "serif",
@@ -1349,7 +1148,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            152.9,
+            153.6,
             100.0
           ],
           "font_class": "serif",
@@ -1365,7 +1164,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            124.9,
+            126.2,
             184.0
           ],
           "font_class": "serif",
@@ -1381,7 +1180,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            280.9,
+            282.4,
             198.0
           ],
           "font_class": "serif",
@@ -1397,7 +1196,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            307.9,
+            307.6,
             226.0
           ],
           "font_class": "serif",
@@ -1413,7 +1212,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            88.8,
+            89.5,
             352.0
           ],
           "font_class": "serif",
@@ -1429,7 +1228,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            365.9,
+            371.5,
             394.0
           ],
           "font_class": "serif",
@@ -1445,7 +1244,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            110.1,
+            111.1,
             422.0
           ],
           "font_class": "serif",
@@ -1509,7 +1308,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            236.4,
+            238.5,
             198.0
           ],
           "font_class": "serif",
@@ -1525,7 +1324,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            180.4,
+            178.5,
             294.0
           ],
           "font_class": "sans",
@@ -1541,7 +1340,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            180.4,
+            178.5,
             330.0
           ],
           "font_class": "sans",
@@ -1557,7 +1356,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            180.4,
+            178.5,
             366.0
           ],
           "font_class": "sans",
@@ -1573,7 +1372,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            187.6,
+            186.7,
             402.0
           ],
           "font_class": "sans",
@@ -1605,7 +1404,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            151.5,
+            154.3,
             128.0
           ],
           "font_class": "serif",
@@ -1621,7 +1420,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            110.4,
+            111.8,
             156.0
           ],
           "font_class": "serif",
@@ -1637,7 +1436,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            124.5,
+            125.7,
             212.0
           ],
           "font_class": "serif",
@@ -1653,7 +1452,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            302.2,
+            303.8,
             268.0
           ],
           "font_class": "serif",
@@ -1669,7 +1468,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            98.9,
+            101.7,
             282.0
           ],
           "font_class": "serif",

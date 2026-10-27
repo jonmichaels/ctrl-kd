@@ -50,8 +50,10 @@ def test_symbol_legend_lines_are_uniformly_14pt_apart(require_sawyer_doc):
         doc = core.parse_ws(fh.read())
     out = pdf.emit_pdf(doc, mode='printed')
     ys = [_last_td_y(out, needle) for needle in
-         (b'long', b'short', b'(individual', b'upper-left',
-          b'upper-right', b'lower-left', b'lower-right')]
+         (b'long', b'short', b'(individual', b'(upper-le)',
+          b'(upper-right)', b'(er-le)', b'(er-right)')]
+    # (WS7's LJ6DTP driver kerns e-f and o-w, so 'upper-left' prints as
+    # 'upper-le' + 'ft' and 'lower-left' as 'lo' + 'w' + 'er-le' + 'ft'.)
     # '(individual' matches BOTH the open- and close-quote lines; take
     # the two in appearance order explicitly instead.
     import re

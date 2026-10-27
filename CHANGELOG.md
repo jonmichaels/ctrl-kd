@@ -38,7 +38,11 @@ the programs' own code and real runs, checked by a new test tier
   per-character widths in whole printer dots, its kerning pairs under `.kr on`
   (a kerned word prints as two pieces), and a script at the block's own script
   size. Each piece is drawn in its base-14 stand-in, scaled to its width on
-  paper. Running heads and feet follow it too. The September LaserJet captures'
+  paper. Running heads and feet follow it too. A document last printed
+  through Sawyer's LJ6DTP is placed by that driver's own tables the same way
+  (WS7 teardown, report 17): its patched widths, its added pairs (`` and ''
+  print as two tucked quotes, no longer one double-quote glyph) and its bitmap
+  Couriers, whose sub/superscripts keep the line's size. The September LaserJet captures'
   word positions now match to the decipoint on WARPRAYR, LYING and PREVIEW.
 
 ### Changed
