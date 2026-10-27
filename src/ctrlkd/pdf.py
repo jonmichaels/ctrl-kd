@@ -25,7 +25,7 @@ import zlib as _zlib
 from dataclasses import replace as _dc_replace
 from . import pix as _pixdecode
 from .core import merged_lines as _merged_lines, Span as _Span, \
-    era_for as _era_for, \
+    era_for as _era_for, printing_era as _printing_era, \
     trailing_blank_lines as _trailing_blank_lines, \
     effective_span_styles as _effective_span_styles, \
     detect_screenplay_blocks as _detect_screenplay_blocks, \
@@ -436,7 +436,7 @@ def _mt_mb_checkpoints(doc):
     from .core import DEFAULT_MT_LINES, DEFAULT_MB_LINES, _resolve_lines_arg
     mt = page.get('mt_lines', DEFAULT_MT_LINES)
     mb = page.get('mb_lines', DEFAULT_MB_LINES)
-    if _era_for(doc.meta.get('variant')).geometry_acts_at_once:
+    if _printing_era(doc).geometry_acts_at_once:
         # WS4 acts on `.mt/.mb` when the line is reached, so a page that
         # opens before the first one prints at the factory margins, not at
         # the first occurrence's (`_pl_checkpoints` seeds the same way; WS4
@@ -772,8 +772,8 @@ def _po_checkpoints(doc):
     right. Confirmed genuine LaserJet PCL (PJL `ENTER LANGUAGE=PCL`,
     `ESC(s...T` font selection), not a different driver family's own
     margin convention -- see `tools/PCL-DIVERGENCE-TRIAGE.md`."""
-    from .core import DEFAULT_PO_COLS, _resolve_cols_arg, era_for
-    bare_po_zero = era_for(doc.meta.get('variant')).bare_po_zero
+    from .core import DEFAULT_PO_COLS, _resolve_cols_arg, printing_era
+    bare_po_zero = printing_era(doc).bare_po_zero
     checkpoints = [(0, DEFAULT_PO_COLS)]
     for bi, _li, cmd in doc.meta.get('dot_positions', ()):
         m = _PO_CMD_RE.match(cmd)
@@ -1336,7 +1336,7 @@ def _auto_pageno_x_pt(doc, po_cols=None):
     neither the head nor the number, measured (planning #241)."""
     page = doc.meta.get('page') or {}
     po = page.get('po_cols', 8.0) if po_cols is None else po_cols
-    pc = page.get('pc_col') or _era_for(doc.meta.get('variant')).pc_default
+    pc = page.get('pc_col') or _printing_era(doc).pc_default
     return (po + pc - 1) * _PDF_PT_PER_COL
 
 
@@ -5882,7 +5882,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # with no rounding up to the cap or "never tighten" clamp, and it is
     # re-read for the page IN PROGRESS whenever one of them changes
     # (WS4 teardown 3.1, `evidence/pass3/exe-static.md` 8; runs t43-mtmb).
-    era = _era_for(doc.meta.get('variant'))
+    era = _printing_era(doc)
     exact_budget = printed and era.geometry_acts_at_once
     body_checkpoints = _body_geometry_checkpoints(doc) if exact_budget else None
 
@@ -7785,7 +7785,7 @@ def _resolve_head_foot_lines(doc, page_no, page_h, lead, size, left, printed,
                 new_cols = max(0, saved_target_col - len(render(stripped_suffix)))
                 txt = txt[:char_idx] + (' ' * new_cols) + suffix
         return render(_ctrl_k_even_page(
-            txt, page_no, _era_for(doc.meta.get('variant')).pk_even_keeps_blank))
+            txt, page_no, _printing_era(doc).pk_even_keeps_blank))
 
     # The header block is anchored to the BODY, not the paper edge: its last
     # line sits `.hm` lines above the first body line, inside `.mt` (".MT ...

@@ -2664,6 +2664,23 @@ def era_for(variant):
     return ERAS.get(variant, ERAS['ws5+'])
 
 
+# Which WordStar prints a WS4 file. Printing behaviour belongs to the program
+# doing the printing, not to the file: WS7 opens a WS4 file and prints it by
+# its own rules (PCL captures of WS7 printing WS4 files centre the page
+# number), while WS4 prints it by WS4's (page number at `.PC` 28, WS4's page
+# counter; WS4 teardown 3.1, 3.2). 'own' is the file's own release, the
+# default; 'ws7' prints a WS4 file as WS7 does. A WS5+ file is always printed
+# by WS7, which is its own release, since WS4 cannot open one.
+PRINTED_BY = ('own', 'ws7')
+
+
+def printing_era(doc):
+    """The Era whose PRINTING rules apply to `doc`: the page counter, margins
+    acting at once, the automatic page number's column, `^PK`, a bare `.po`.
+    What the bytes mean (bit 7, records) is `era_for(variant)`'s, always."""
+    return era_for(doc.meta.get('printing_era') or doc.meta.get('variant'))
+
+
 _DOT_CMD_RE = re.compile(rb'^\.([A-Za-z]{1,3})\s*(.*)$')
 _DOT_NUM_RE = re.compile(rb'^\s*([0-9]*\.?[0-9]+)\s*("|[A-Za-z]{1,2})?')
 
@@ -5735,12 +5752,15 @@ def _trailing_pa_has_content_after(data: bytes) -> bool:
     return bool(extra) and all(b in _TRAILING_PA_WHITESPACE for b in extra)
 
 
-def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document:
+def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
+             printed_by: str = 'own') -> Document:
     """A WordStar document. `variant` ('ws4' or 'ws5+'), when given, is what
     the caller knows the file to be (`parse(variant=...)`, the CLI's
     `--variant`): it chooses the era -- bit 7 as word-end flags or not,
     symmetric records or not -- instead of detection's guess. WordStar
-    itself reads a file the way it was told to open it."""
+    itself reads a file the way it was told to open it. `printed_by`
+    (`PRINTED_BY`) chooses which WordStar's printing rules apply
+    (`printing_era`)."""
     doc = Document()
     marks = {}
     # Round-trip ledger scaffolding (tasks #20/#21). `_rt_original` is a
@@ -5756,6 +5776,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
     doc.meta.update(det)
     era = era_for(det['variant'])
     doc.meta['era'] = era.name
+    doc.meta['printing_era'] = 'ws5+' if printed_by == 'ws7' else era.name
+    print_era = printing_era(doc)
     strip_hibit = era.high_bit_wordwrap
     ws5 = era.symmetric_blocks
     # Offsets where WordStar emitted TAB-derived padding. Only WS5+ carries
@@ -6545,7 +6567,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
             before = _block_format(fmt)
-            _parse_format_dot(cmd, fmt, era.bare_po_zero)
+            _parse_format_dot(cmd, fmt, print_era.bare_po_zero)
             # `.lh` and a paragraph STYLE's own `line_height_vmi` are the
             # SAME WordStar setting -- a line height -- reached two ways, so
             # the one that comes LATER in the file wins. `_style_lead_pt`
@@ -6594,7 +6616,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None) -> Docum
                 close_block()
             _parse_page_dot(cmd, page, meta_extra,
                             has_text=_rt_body_seen[0] or bool(cur_line.spans),
-                            bare_po_zero=era.bare_po_zero)
+                            bare_po_zero=print_era.bare_po_zero)
             # LJ6DTP parity C1: a dot-command line is CONSUMED here -- it never
             # reaches `_decode_spans`, so any mark that landed on it dies with
             # it. That silently dropped LJ6DTP's colour RESTORE: the document
@@ -7306,8 +7328,10 @@ def parse_merge_data(data: bytes, encoding: str = 'cp437',
     return doc
 
 
-def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document:
+def parse(data: bytes, encoding: str = 'cp437', variant: str = None,
+          printed_by: str = 'own') -> Document:
     """Detect (unless told) and parse. This is the library's main entry.
+    `printed_by` (`PRINTED_BY`): which WordStar prints a WS4 file in Printed.
 
     Raises ParseError (a ValueError) for content it cannot convert; the
     exception carries the detection evidence for callers that want to
@@ -7324,7 +7348,7 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document
     if det.get('kind') == MERGE_DATA_KIND:
         return parse_merge_data(data, encoding, det)
     if v in ('ws4', 'ws5+'):
-        return parse_ws(data, encoding, variant=variant)
+        return parse_ws(data, encoding, variant=variant, printed_by=printed_by)
     if v in ('printstream', 'text'):
         return parse_printstream(data, encoding)
     reason = det.get('reason', 'content statistics')
