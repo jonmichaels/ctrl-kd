@@ -91,6 +91,11 @@ def test_e2_enter_under_ls2_keeps_the_soft_return_soft():
         assert first.soft
         z = next(ln for ln in lines if ln.spans and ln.spans[0].text == 'Z')
         assert not z.soft
+        # reflow still ends the paragraph there: no join space is left behind
+        merged = [''.join(sp.text for sp in ln.spans)
+                  for b in core.parse(data, variant='ws5+').blocks
+                  for ln in core.merged_lines(b)]
+        assert 'first line' in merged
 
 
 def test_e3_ws4_reads_a_bare_rr_as_a_rejected_ruler():
@@ -129,3 +134,11 @@ def test_e4_a_nondocument_keeps_bit_7():
     assert text[2] == 'Line before a page mark.'
     assert text[3] == 'Last line.'
     assert emit.emit_text(doc, mode='printed').count('é') == 1
+
+
+def test_e4_a_print_stream_still_masks_stray_high_bits():
+    # Only a file opened as a nondocument keeps bit 7. A print-to-disk
+    # capture's stray high bits are printer noise, as before.
+    data = b'abc\xe4 def\r\n'
+    assert core.parse(data, variant='printstream').blocks[0].lines[0].spans[0].text == 'abcd def'
+    assert core.parse(data, variant='text').blocks[0].lines[0].spans[0].text == 'abc\u03a3 def'

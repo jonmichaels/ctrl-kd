@@ -1072,6 +1072,7 @@ def merged_lines(block: Block) -> list:
     # arrives keeps the print-stream case (one block, interior blanks are the only
     # paragraph separation) without breaking the WS4 case (blank ends the block).
     pending_blanks = 0
+    sep_span = None    # the join space a soft line just appended to `cur`, if any
     for line in block.lines:
         if not line.spans:
             # A blank PHYSICAL line, and the two kinds mean different things.
@@ -1108,6 +1109,12 @@ def merged_lines(block: Block) -> list:
                     # round 10: a private-corpus WS5+ document with exactly
                     # this shape -- three physical lines, soft/soft/soft,
                     # immediately followed by a blank hard line).
+                    # A soft line that ends the paragraph (WordStar keeps the
+                    # stored return soft before `.ls` filler's empty hard
+                    # line, WS7 report 15.10) joins nothing: its separator
+                    # space goes.
+                    if sep_span is not None and cur.spans and cur.spans[-1] is sep_span:
+                        cur.spans.pop()
                     cur.spans = coalesce_spans(cur.spans)
                     out.append(cur)
                     cur = None
@@ -1137,8 +1144,10 @@ def merged_lines(block: Block) -> list:
             cur.spans.extend(spans)
         if line.soft:
             t = cur.spans[-1].text if cur.spans else ''
+            sep_span = None
             if t and not t.endswith((' ', '-')):
-                cur.spans.append(Span(' ', cur.spans[-1].styles))
+                sep_span = Span(' ', cur.spans[-1].styles)
+                cur.spans.append(sep_span)
             continue
         cur.spans = coalesce_spans(cur.spans)
         out.append(cur)
@@ -7207,10 +7216,12 @@ def _detect_comment_bug(data: bytes):
     return {'count': count, 'first_offset': first, 'stray_ctrl_t': b'\x14' in data}
 
 def parse_printstream(data: bytes, encoding: str = 'cp437',
-                      codes: dict = None) -> Document:
+                      codes: dict = None, keep_bit7: bool = False) -> Document:
     """A print-to-disk capture IS the printed page: every line verbatim, printer
-    style codes decoded, everything else below 0x20 stripped. A byte with bit 7
-    set is a CP437 character, as in a WS7 nondocument."""
+    style codes decoded, everything else below 0x20 stripped. Stray high bits are
+    printer noise and are masked, unless the caller says the file is a
+    nondocument (`keep_bit7`): WS7 keeps bit 7 there and the bytes show as
+    CP437 characters."""
     codes = PRINT_CODES if codes is None else codes
     doc = Document(meta={'variant': 'printstream', 'columnar': True})
     cut = data.find(b'\x1a')
@@ -7240,7 +7251,7 @@ def parse_printstream(data: bytes, encoding: str = 'cp437',
         # A nondocument keeps bit 7 (WS7 report 14.2, run ws4an: the bytes
         # of a WS4 file opened as a nondocument show as CP437 characters);
         # only the flagged line end, form feed and return are read as theirs.
-        if b >= 0x80 and c not in (0x0A, 0x0C, 0x0D):
+        if keep_bit7 and b >= 0x80 and c not in (0x0A, 0x0C, 0x0D):
             buf.append(b)
         elif c in codes:
             flush()
@@ -7359,7 +7370,7 @@ def parse(data: bytes, encoding: str = 'cp437', variant: str = None) -> Document
     if v in ('ws4', 'ws5+'):
         return parse_ws(data, encoding, variant=variant)
     if v in ('printstream', 'text'):
-        return parse_printstream(data, encoding)
+        return parse_printstream(data, encoding, keep_bit7=(v == 'text'))
     reason = det.get('reason', 'content statistics')
     raise ParseError(f'not a convertible file (detected: {v} -- {reason})',
                      'binary', det)
