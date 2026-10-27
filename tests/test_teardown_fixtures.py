@@ -59,7 +59,10 @@ def test_fixture_part(teardown_part):
     if problem:
         pytest.fail(problem, pytrace=False)
     case, set_name, fixture, _i, part = teardown_part
-    found = tf.check_part(set_name, fixture, part)
+    try:
+        found = tf.check_part(set_name, fixture, part)
+    except tf.SourceUnavailable as e:
+        pytest.skip(f'{case}: {e}')
     got = Counter(m['kind'] for m in found)
     known = _known().get(case, {}).get('kinds', {})
     if dict(got) != known:

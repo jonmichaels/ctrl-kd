@@ -456,6 +456,9 @@ def prepare_printed_rows(rows, hpljet=False):
     return [r for r in out if r['items']]
 
 
+RECT_RE = re.compile(r'\[rect [\d.]+x[\d.]+ \w+\]')
+
+
 def _positioned_item(item):
     """[x, text] for one reading item, its text decoded. An item whose x is
     not its first word's carries a third element (FIXTURES.md): leading
@@ -711,7 +714,18 @@ def compare_layout(part, path, variant, hpljet=False):
     printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
     eng, n_pages, sheet_h = _engine_tokens(pdf, on_paper=printed)
     if printed:
-        rows = [r for r in prepare_printed_rows(part['rows'], hpljet)
+        # A `[rect WxH fill]` item is a PCL rectangle the driver drew, not
+        # text: this tool does not compare rectangles yet, so each is
+        # counted, never silently dropped.
+        source_rows = []
+        for r in part['rows']:
+            items = [it for it in r.get('items', []) if not RECT_RE.fullmatch(str(it[1]))]
+            for it in r.get('items', []):
+                if RECT_RE.fullmatch(str(it[1])):
+                    found.append({'kind': 'rect-not-compared', 'text': it[1], 'page': r['page']})
+            if items:
+                source_rows.append({**r, 'items': items})
+        rows = [r for r in prepare_printed_rows(source_rows, hpljet)
                 if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
         if not hpljet:
             pieces = _engine_pieces(pdf)
@@ -777,12 +791,54 @@ def check_part(set_name, fixture, part, base=None):
     return compare_layout(part, path, variant, hpljet)
 
 
+class SourceUnavailable(Exception):
+    """A part printed from a file the teardowns do not carry (a private
+    corpus document, kept there only by its hash), and the corpus that has it
+    is not armed here."""
+
+
+def _private_source(part):
+    """The private document a part with no `file` was printed from:
+    `source` `sawyer/<path>` under $CTRLKD_SAWYER_ARCHIVE, or `private
+    corpus: <name>` found by name under it or $CTRLKD_PRIVATE_CORPUS, and
+    in either case only the file with the part's own sha256."""
+    import hashlib
+    source = part.get('source') or ''
+    roots = [os.environ.get('CTRLKD_SAWYER_ARCHIVE'), os.environ.get('CTRLKD_PRIVATE_CORPUS')]
+    roots = [r for r in roots if r]
+    if not roots:
+        raise SourceUnavailable(f'{source}: CTRLKD_SAWYER_ARCHIVE / CTRLKD_PRIVATE_CORPUS not set')
+    want = part.get('sha256')
+
+    def same(path):
+        with open(path, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest() == want
+
+    if source.startswith('sawyer/') and os.environ.get('CTRLKD_SAWYER_ARCHIVE'):
+        path = os.path.join(os.environ['CTRLKD_SAWYER_ARCHIVE'], source[len('sawyer/'):])
+        if os.path.isfile(path):
+            if not same(path):
+                raise ValueError(f'{source}: the archive copy is not the file WordStar printed '
+                                 f'(sha256 differs)')
+            return path
+    name = source.split(':', 1)[-1].strip()
+    for root in roots:
+        for dirpath, _dirs, files in os.walk(root):
+            for fn in files:
+                if fn == name and same(os.path.join(dirpath, fn)):
+                    return os.path.join(dirpath, fn)
+    raise SourceUnavailable(f'{source}: not found, with its sha256, in the armed corpus')
+
+
 def printed_document(runs, part, use):
     """The file a part is about. For a layout part that is the document
     WordStar printed: when the run edited the input before printing (typed
     a note, set a font) and saved it, that is the run's `-out-` file, which
     the reading does not always name; it is used whenever it exists and
-    differs from the named `-in-` file."""
+    differs from the named `-in-` file. A part with no `file` was printed
+    from a private corpus document (`_private_source`)."""
+    if part.get('file') is None:
+        return _private_source(part)
     path = os.path.join(runs, part['file'])
     if use == 'reader' or '-in-' not in part['file']:
         return path
