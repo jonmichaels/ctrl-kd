@@ -6129,7 +6129,9 @@ def test_dot_leader_tab_repeats_the_glyph_instead_of_stretching_it():
                     target_hmi.to_bytes(2, 'little') + bytes([ord('.'), 0]))
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
-            _font_block(helv, 12.0, width=210, style_bits=0x8000) +
+            # a real 12pt Helv record's width (WS7's LaserJet prints it in
+            # Univers; a wider record would match Courier)
+            _font_block(helv, 12.0, width=146, style_bits=0x8000) +
             b'Row' + tab + b'Contents' + HARD +
             b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
     doc = core.parse_ws(data)
@@ -6140,7 +6142,7 @@ def test_dot_leader_tab_repeats_the_glyph_instead_of_stretching_it():
     target_x = left + target_hmi / HMI_PER_POINT
     period_w = string_width_pt('.', 'Helvetica', 12)
     expected_count = int((target_x - dots[3]) / period_w)
-    assert len(dots[5]) == expected_count == 49    # REPEATED to fill, not a
+    assert len(dots[5]) == expected_count == 52    # REPEATED to fill, not a
                                                     # fixed count stretched
                                                     # (the block's own
                                                     # declared column count)

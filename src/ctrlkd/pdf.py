@@ -3343,6 +3343,13 @@ def _laserjet_fonts(doc):
                 and laserjet.block_for(f, False, False, driver) is not None
                 and not font[3] & 0x2000):
             f = dict(f, laserjet=driver)
+        elif f.get('proportional') and f.get('symbol_map') in ('cp437', 'cp850'):
+            # A proportional record the driver matches to one of its fixed
+            # fonts (a display face wider than any it has: Broadway, Uncial)
+            # prints in that font, at its pitch.
+            pitch = laserjet.fixed_pitch_1800(f, driver)
+            if pitch:
+                f = dict(f, proportional=False, width_1800=pitch, cpi=1800.0 / pitch)
         if driver == 'lj6dtp' and laserjet.is_bitmap(f, driver):
             f = dict(f, bitmap=True)
         out.append(f)

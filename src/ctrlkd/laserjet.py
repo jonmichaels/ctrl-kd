@@ -105,6 +105,21 @@ def block_for(entry, bold, italic, driver='laserjet'):
     return DRIVERS[driver].BLOCKS.get(font[4][_VARIANT[(bool(bold), bool(italic))]])
 
 
+def fixed_pitch_1800(entry, driver='laserjet'):
+    """The pitch, in 1/1800 inch, of the fixed-pitch font the driver prints
+    this entry in, or None when it prints it in a proportional one. A
+    scalable fixed font's cell is `width / 8192` em at the record's height
+    floored to a quarter point, rounded to whole dots (WS7 teardown 11.17,
+    W1); a bitmap's is its own width field."""
+    font = font_for(entry, driver)
+    if font is None or font[3] & 0x8000 or DRIVERS[driver].BLOCKS.get(font[4][0]):
+        return None
+    if font[2]:
+        return font[1]
+    tw = entry['height_1440'] - entry['height_1440'] % 5
+    return _rhu(tw * font[1] * 300, 1800 * 8192) * 6
+
+
 def is_bitmap(entry, driver='laserjet'):
     """Whether the driver prints this entry in a bitmap font (a height of its
     own, like LJ6DTP's COURIER PC 10 and 12): no scaled sub/superscript size,

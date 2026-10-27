@@ -65,3 +65,14 @@ def test_a_script_is_measured_at_the_blocks_own_script_size():
     times = _block('Times PC ...')
     assert lj.twips(times, 12, script=True) == 160
     assert lj.twips(times, 12) == 240
+
+
+def test_a_record_wider_than_any_proportional_face_prints_in_courier():
+    # Broadway 18pt (HMI 298): no proportional LASERJET face is that wide, so
+    # WS7 matches Courier and prints it at Courier's pitch, 6.67 cpi
+    # (sawyer/REF/-LASERJE.FNT's capture: ESC(sp18v6.67hsb4099T)
+    entry = {'width_1800': 298, 'height_1440': 360, 'typestyle': 0xCE15}
+    assert lj.FONTS[lj.match(298, 360, 0xCE15)][0] == 'Courier PC ...'
+    assert lj.fixed_pitch_1800(entry) == 270
+    assert lj.fixed_pitch_1800({'width_1800': 137, 'height_1440': 240,
+                                'typestyle': 0xC605}) is None

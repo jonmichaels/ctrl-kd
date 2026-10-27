@@ -567,7 +567,7 @@
   },
   "wordstar-dos/lj6-ljfnt": {
    "kinds": {
-    "x": 17,
+    "x": 15,
     "missing-word": 45,
     "extra-word": 6
    },
@@ -575,7 +575,7 @@
   },
   "wordstar-dos/lj6-fontsref": {
    "kinds": {
-    "x": 274,
+    "x": 271,
     "y": 18,
     "missing-word": 59,
     "extra-word": 27
