@@ -2660,7 +2660,7 @@ class Era:
                  'pk_even_keeps_blank',
                  'blank_lines_make_pages', 'pa_ignored_on_empty_page',
                  'soft_blanks_swallowed', 'overhangs_by_font_rise',
-                 'pageno_row_below_page_line')
+                 'pageno_row_below_page_line', 'forgives_spacing_blank')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
                  has_sb, column_unit, pc_default, bare_po_zero=False, bad_po_zero=False,
@@ -2702,6 +2702,12 @@ class Era:
         # and the page number's baseline is a page line below the foot row
         # whatever `.cw` is.
         self.pageno_row_below_page_line = ws7_paging
+        # The first over-budget blank of a double-spaced WS4 file's spacing
+        # never forces a page break (measured on WS7 printing WS4 sources,
+        # `pdf._ws4_spacing_blank_indices`). WS4 itself has no such
+        # forgiveness: every line, a blank one too, costs LH and may open a
+        # page (WS4 teardown `4-formatting-printing.md` 3.1).
+        self.forgives_spacing_blank = ws7_paging
         # A bare `.po` (no argument) sets the page offset to 0. WS7 Rev. D
         # does that (runs arg-*: x = 0), though a bare `.pl/.mt/.mb/.lh`
         # keeps its previous value (WS7 teardown,

@@ -5439,7 +5439,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # treatment) needs its own oracle evidence -- a real WS7 capture
     # showing the same constant-lines-per-page signature this fix was
     # built from -- not an assumption that the mechanism generalises.
-    ws4_spacing = printed and doc.meta.get('variant') == 'ws4'
+    ws4_spacing = (printed and doc.meta.get('variant') == 'ws4'
+                   and _printing_era(doc).forgives_spacing_blank)
     # Prefer the file's OWN `.LS` dot-state when it exists (WS7 manual,
     # "Line Spacing": ".LS's blank lines become part of the file" -- see
     # `_ws4_spacing_blank_indices`); neither WS4 source measured for this

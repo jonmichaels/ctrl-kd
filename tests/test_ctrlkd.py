@@ -2361,17 +2361,22 @@ def test_ws4_double_spacing_survives_to_pagelines():
     What changes instead is each spacing blank's `ws4_spacing` flag (see
     `_ws4_spacing_blank_indices`) -- pagination reads it to decide whether
     the blank alone may force a page break, never whether it exists as a
-    PageLine at all."""
+    PageLine at all.
+
+    That forgiveness is WS7's, measured on WS7 printing WS4 files, so a WS4
+    file is classified only when WS7 prints it (`printed_by='ws7'`); WS4
+    itself forgives no blank line (WS4 teardown 3.1)."""
     from ctrlkd.pdf import _doc_to_pagelines
     body = b''
     for n in range(6):
         body += ws4_text(f'Line number {n} of the double spaced body text.') + SOFT + SOFT
-    pages = _doc_to_pagelines(core.parse_ws(body), True)
-    pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
-    assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
-    blanks = [ln for ln in pages[0] if not ''.join(t for t, _ in ln).strip()]
-    assert blanks and all(getattr(ln, 'ws4_spacing', False) for ln in blanks), \
-        'spacing blanks not classified: _ws4_spacing_blank_indices'
+    for printed_by, classified in (('ws7', True), ('own', False)):
+        pages = _doc_to_pagelines(core.parse_ws(body, printed_by=printed_by), True)
+        pat = ''.join('T' if ''.join(t for t, _ in ln).strip() else '.' for ln in pages[0])
+        assert pat.startswith('T.T.T.'), f'double spacing collapsed: {pat[:20]!r}'
+        blanks = [ln for ln in pages[0] if not ''.join(t for t, _ in ln).strip()]
+        assert blanks and all(getattr(ln, 'ws4_spacing', False) == classified for ln in blanks), \
+            f'spacing blanks classified wrongly when printed by {printed_by}'
 
 
 # ---------------------------------------------------------------- release eras
