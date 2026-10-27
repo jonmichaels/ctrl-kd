@@ -65,6 +65,31 @@ Printed follows it (WS4 teardown, `wordstar4-dos/4-formatting-printing.md` 15;
   and math as ASCII stand-ins, and a pair (`┼` is `-` then `|`) as one
   character printed over the other.
 
+### WS7's LaserJet driver, LASERJET
+
+A WS5+ file, and a WS4 file printed by WS7, prints through WS7's LASERJET
+driver (LASERJET.PDF, run by DRIVERN), and Printed places a proportional
+font's text as it does (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.17;
+`laserjet.py`, with the driver's tables in `laserjet_tables.py`):
+
+- **Which font.** A document's font record (width, height, typestyle) prints
+  in the driver font WS7's own matching picks: Helv and Avant Garde in
+  Univers, Helv Narrow in Univers Condensed, Palatino 12 in Garamond.
+- **Widths.** Each character is the driver's width rounded to whole dots at
+  300 dpi, on HP's own point (1/72.31") for its Intellifont faces; a TrueType
+  face rounds its pixels per em first. Each word starts at the running sum,
+  moved down to a whole decipoint, as the driver's `&a#H` moves did.
+- **Kerning.** Under `.kr on` (the default), a pair in the driver's table
+  moves the rest of the word in by its amount and starts a new piece there.
+  No pair works across a blank, a style change or a size change.
+- **Sub/superscripts** are measured at the block's own script size.
+- **Justification** is WS7's word-gap rule on those widths.
+- **Drawing.** Each piece is drawn in its base-14 stand-in, scaled to the
+  width it had on paper.
+
+A symbol font, and a document last printed through LJ6DTP, keep their own
+models. Line breaks are the editor's and are unchanged.
+
 Documents also *declare* their release: the WS5+ header block carries a BCD
 version byte, surfaced as `doc.meta['ws_header']['release']`. Detection infers;
 the header states. Both are available to key a future split on.

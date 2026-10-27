@@ -4,6 +4,7 @@ They encode real WordStar behaviors verified against a 1987-92 corpus during
 development (that corpus is personal and is not shipped).
 """
 import pytest
+import math as _math
 import re
 from ctrlkd import core, emit, convert
 
@@ -582,14 +583,11 @@ def test_print_control_display_string_is_screen_only_in_printed_pdf():
     assert b'EMPTY 3-dot rule' not in pdf
     assert b'Heading before the control' in pdf
 
-def test_proportional_font_keeps_its_own_hmi_grid_via_tz():
-    # Every font run is width-matched onto ITS OWN font block's HMI grid
-    # with Tz -- proportional faces included. PS.TST's faces declare
-    # distinct per-character HMIs (Helv Narrow 4.80pt, Univ. Roman
-    # 10.08pt): the grid is what preserves each face's true measure and
-    # keeps text registered with tabs, rules and vector graphics (Jon's
-    # review, 2026-08-05, after a natural-width detour flattened them all
-    # to the substitute's uniform average).
+def test_proportional_words_are_placed_one_op_each_by_the_driver():
+    # A proportional face WS7's LASERJET driver carries is placed by it
+    # (laserjet.py): each word, or each part of a word a kerning pair
+    # splits, is its own op at the driver's x, drawn with Tz to its width
+    # on paper -- here Univers's e-period pair puts the period in alone.
     univers = ws7_block(0x02, (155).to_bytes(2, 'little')
                         + (240).to_bytes(2, 'little')
                         + (49710).to_bytes(2, 'little') + bytes(6))
@@ -597,10 +595,8 @@ def test_proportional_font_keeps_its_own_hmi_grid_via_tz():
             univers + b'iiii mmmm a proportional line of prose.' + HARD)
     from ctrlkd.pdf import emit_pdf
     pdf = emit_pdf(core.parse_ws(body), 'printed')
-    assert b' Tz ' in pdf                       # scaled onto the 6.2pt grid
-    # words are placed one op each (word-anchored grid layout), so the text
-    # appears word by word, never as a phrase
-    assert b'(proportional)' in pdf and b'(prose.)' in pdf
+    assert b' Tz ' in pdf
+    assert b'(proportional)' in pdf and b'(prose)' in pdf and b'(.)' in pdf
 
 def test_detect_honours_the_header_blocks_declaration():
     # A WS5+ file DECLARES itself: a valid type-0 header block at offset 0.
@@ -4938,27 +4934,17 @@ def test_printed_sup_sub_size_follows_each_faces_x38():
 # natural 4.0pt advance (confirmed directly against `tools/fidelity_gate.py
 # --dump-engine-chars` on LYING.WS before/after this fix).
 
-def test_pdf_sup_in_proportional_ws7_font_block_uses_body_size_for_the_tz_scale():
-    """LYING's own shape: a real WS7 font block for typestyle 5 ('Tms Rmn
-    (also CG Times, Times Roman and Dutch)'), proportional bit set,
-    width_1800=137 (LYING's own recorded value) -- 'Prize.' (6 chars) then a
-    superscript '1' with no gap (matching the real capture's own zero-gap
-    footnote-marker join exactly), then ' X' to show the marker's own
-    advance lands correctly too.
+def test_pdf_sup_in_proportional_ws7_font_block_is_measured_at_the_drivers_script_size():
+    """LYING's own shape: a WS7 font block for typestyle 5 (Tms Rmn), 12pt,
+    proportional -- 'Prize.' then a superscript '1' with no gap (the real
+    capture's own zero-gap footnote-marker join), then ' X'.
 
-    'Prize.' sets the line's own Tz to 101.12% (`_span_pitch(entry, 12)`
-    = 137/25 = 5.48pt pitch, over a 12pt Times-Roman reference average of
-    5.4191pt) and draws at 27.97pt (57.6 -> 85.57, rounds to 85.6). Before
-    this fix the sup '1' recomputed `factor` from its OWN reduced pt (8),
-    asking an 8pt-average reference glyph (3.6127pt) to reach the SAME
-    5.48pt pitch -- want=151.69%, not 101.12% -- landing the '1' at
-    6.0676pt (85.6 -> 91.7). Now it reuses `size_here` (12, this span's own
-    UNREDUCED declared size) for both the pitch lookup and `_face_tz`'s own
-    reference measurement, exactly like every other span on the line: NO
-    Tz operator at all (the scale is unchanged from 'Prize.' 's own 101.12%,
-    this emitter's own "written only when it changes" convention), and the
-    '1' draws at its natural 4.0448pt (85.6 -> 89.6...92.6 measured, see
-    below) -- not the old 6.0676pt overshoot."""
+    WS7's LASERJET driver places each piece (laserjet.py): 'Prize.' is 122
+    dots of Times PC at 12pt (29.28pt), so the '1' starts at 57.6 + 29.28,
+    moved to the whole decipoint below (86.8). The '1' is measured at the
+    block's own script size (175/256 of 240 twips, floored to 160: 8pt), 17
+    dots; then a 15-dot blank, so 'X' is at 86.88 + 4.08 + 3.6 = 94.56
+    (94.5). Each piece is drawn to its own width with Tz."""
     from ctrlkd.pdf import emit_pdf
     times = 5
     style_bits = 0x8000 | (1 << 10)   # proportional + generic_style=serif
@@ -4967,20 +4953,10 @@ def test_pdf_sup_in_proportional_ws7_font_block_uses_body_size_for_the_tz_scale(
     doc = core.parse_ws(data)
     assert doc.fonts and doc.fonts[0]['proportional'] and doc.fonts[0]['width_1800'] == 137
     spans = _content_spans(emit_pdf(doc, 'printed'))
-    by_text = {t: (size, tz, x) for _f, size, tz, x, _y, t in spans}
-    body_size, body_tz, body_x = by_text[b'Prize.']
-    sup_size, sup_tz, sup_x = by_text[b'1']
-    tail_size, tail_tz, tail_x = by_text[b'X']
-    assert (body_size, body_tz, body_x) == (12, 101.12, 57.6)
-    assert sup_size == 8                       # round(12 * 2/3) -- default ratio, non-Courier
-    # NO Tz operator for the sup span at all -- the SAME line-wide scale
-    # 'Prize.' already set, never a span-local recompute (mechanism G's
-    # proportional half: `factor` is the font block's property, not this
-    # one span's drawn size).
-    assert sup_tz is None
-    assert sup_x == 85.6                        # immediately after 'Prize.', no gap
-    assert tail_tz is None                       # still unchanged, back to body size too
-    assert tail_x == 92.6                        # 85.6 + 4.0448 (natural '1'), NOT + 6.0676
+    by_text = {t: (size, x) for _f, size, _tz, x, y, t in spans if y > 100}
+    assert by_text[b'Prize.'] == (12, 57.6)
+    assert by_text[b'1'] == (8, 86.8)          # round(12 * 2/3) -- default ratio, non-Courier
+    assert by_text[b'X'] == (12, 94.5)
 
 
 def test_pdf_fontless_documents_are_byte_identical_to_pre_fonts_output():
@@ -5118,7 +5094,9 @@ def test_pdf_printed_renders_the_documents_own_font_and_size():
     helv = next(n for n, b in fonts.items() if b == b'Helvetica')
     assert fonts['F1'] == b'Courier'              # the four are still F1..F4
     shown = _content_text(pdf)
-    assert (helv, 14, b'After.') in shown         # the block's own points
+    # the block's own points; WS7's LASERJET prints Helv in its Univers,
+    # whose r-period kerning pair moves the period in as its own piece
+    assert (helv, 14, b'After') in shown and (helv, 14, b'.') in shown
     assert any(f == 'F1' and sz == 12 and b'Before.' in t for f, sz, t in shown)
 
     # Modern is the printed form of the Modern RTF (ruling 2026-08-05):
@@ -5596,7 +5574,9 @@ def test_pm_first_line_indent_not_doubled_when_source_already_types_it():
     assert doc.blocks[0].para_margin == 4.0    # `.pm 5` -> column 5 -> 4 offset cols
     pdf = emit_pdf(doc, mode='printed')
     spans = {text: x for _, _, _, x, y, text in _content_spans(pdf)}
-    assert spans[b'Ten'] == 129.6              # left 57.6 + 10-space indent 72 (NOT +fi 28.8)
+    # left 57.6 + 10-space indent 72 (NOT +fi 28.8); the driver's T-e
+    # kerning pair prints 'Ten' as 'T' + 'en'
+    assert spans[b'T'] == 129.6
     assert spans[b'Five'] == 93.6              # left 57.6 + 5-space indent 36, unaffected
 
 
@@ -5758,7 +5738,7 @@ def test_typed_indent_still_uses_document_columns_when_pm_really_is_active():
     doc = core.parse_ws(data)
     assert doc.blocks[0].para_margin == 4.0
     pdf = emit_pdf(doc, mode='printed')
-    x = float(re.search(rb'([\d.]+) [\d.]+ Td \(Ten', pdf).group(1))
+    x = float(re.search(rb'([\d.]+) [\d.]+ Td \(T\)', pdf).group(1))   # 'T' + 'en', kerned
     assert x == 129.6                         # left 57.6 + 10-space indent
                                                # 72 (10-CPI columns, .pm
                                                # really is active here)
@@ -5903,34 +5883,30 @@ def test_printed_x_comes_from_wordstars_own_hmi_arithmetic():
     assert b[3] == round(left + 2 * 72.0, 1)             # 2 chars x 1800 HMI
 
 
-def test_tz_matches_a_proportional_span_to_the_hmi_grid():
-    """Times/Helvetica do not set a word in the width WordStar reserved for
-    it, so a genuinely proportional span (round 9: `proportional=True` is
-    what puts it on this path at all -- see pdf._pdf_family) is scaled
-    horizontally (Tz) until it does. Round 9 also surfaced that the scale
-    is FACE-CONSTANT (`_face_tz`), not a per-span exact match -- one
-    percentage per (face, pitch, size), chosen so the face's AVERAGE
-    lowercase character lands on the document's own HMI grid, so a lone
-    wide glyph is never crushed (Jon's ruling, 2026-08-05: "a lone (c)
-    squeezed to 70% is not a circle"). Computed, never tabulated here."""
-    from ctrlkd.pdf import emit_pdf, _printed_left, _face_tz
+def test_a_laserjet_word_is_drawn_to_the_width_it_had_on_paper():
+    """WS7's LASERJET driver places a proportional font's words (laserjet.py);
+    the base-14 stand-in is then scaled (Tz) so each word occupies exactly the
+    width the driver gave it, neither running into the next word nor leaving
+    it a wider gap. A document printed through LJ6DTP keeps that driver's own
+    model: one face-constant scale that lands the face's AVERAGE lowercase
+    glyph on the font block's HMI grid, so a lone wide glyph is never crushed
+    (Jon's ruling, 2026-08-05: "a lone (c) squeezed to 70% is not a
+    circle")."""
+    from ctrlkd.pdf import emit_pdf, _face_tz, _lj_pieces
+    from ctrlkd.afm import string_width_pt
     helv = _helv_typestyle()
-    # round 9: proportional bit set -- a real 'Helv' record IS proportional,
-    # and that flag now decides Helvetica vs Courier (see pdf._pdf_family).
     data = (ws7_block(0x00) +
             b'Prose padding so the detector reads this as a document, plainly.' + HARD +
             _font_block(helv, 12.0, width=180, style_bits=0x8000) + b'AAAA' + HARD +
             b'A closing line of ordinary prose keeps the byte ratio honest.' + HARD)
     doc = core.parse_ws(data)
     span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
-    expected = _face_tz('Helvetica', 180 / 25.0, 12)     # 180 HMI = 7.2pt pitch
-    assert span[2] == expected
-    assert 100.0 < span[2] < 250.0       # Helvetica's AVERAGE lowercase glyph is
-                                          # NARROWER than WordStar's 10-CPI cell, so
-                                          # the constant STRETCHES it to the grid,
-                                          # not squeezes it (contrast a single "AAAA"
-                                          # span's own wide caps, irrelevant here --
-                                          # the scale is the face's, not the span's)
+    entry = dict(doc.fonts[0], laserjet=True)
+    paper = _lj_pieces('AAAA', entry, set(), 12, True)[0][2]
+    assert abs(string_width_pt('AAAA', 'Helvetica', 12) * span[2] / 100 - paper) < 0.05
+    doc.meta['printer_driver'] = 'LJ6DTP'
+    span = next(s for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'AAAA')
+    assert span[2] == _face_tz('Helvetica', 180 / 25.0, 12)     # 180 HMI = 7.2pt pitch
 
 
 def test_tz_is_100_for_courier_by_arithmetic_not_by_special_case():
@@ -6072,7 +6048,9 @@ def test_leading_tab_indent_measures_in_print_columns_not_the_font():
     doc = core.parse_ws(data)
     left = _printed_left(doc, 12)
     x = next(s[3] for s in _content_spans(emit_pdf(doc, 'printed')) if s[5] == b'X')
-    assert x == round(left + 2502 / HMI_PER_POINT, 1)   # the tab's own
+    # the tab's own absolute HMI target, moved to the whole decipoint below
+    # it as WS7's LASERJET driver moves every piece (`&a#H`)
+    assert x == _math.floor((left + 2502 / HMI_PER_POINT) * 10) / 10   # the tab's own
                                                          # absolute HMI target,
                                                          # not 14 columns x the
                                                          # 72pt font's advance

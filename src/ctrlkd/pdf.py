@@ -3323,6 +3323,71 @@ _LASERJET_ALTERNATE_FONT = {
 }
 
 
+def _laserjet_fonts(doc):
+    """`doc.fonts`, each proportional font that WS7's LASERJET driver prints
+    in one of its own proportional text fonts marked `'laserjet': True`: its
+    words are placed with the driver's own widths and kerning
+    (`laserjet.py`). A symbol font keeps its own path, and a document
+    printed through LJ6DTP keeps that driver's model."""
+    fonts = doc.fonts or ()
+    if (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP':
+        return list(fonts)
+    from . import laserjet
+    out = []
+    for f in fonts:
+        if (f.get('proportional') and f.get('symbol_map') == 'cp437'
+                and laserjet.block_for(f, False, False) is not None
+                and not laserjet.FONTS[laserjet.match(
+                    f['width_1800'], f['height_1440'], f['typestyle'])][3] & 0x2000):
+            f = dict(f, laserjet=True)
+        out.append(f)
+    return out
+
+
+def _lj_pieces(text, entry, styles, size_here, kerning):
+    """`text` placed by WS7's LASERJET driver, `[(piece, x_pt, width_pt)]`
+    from the start of `text`, or None when `entry` is not one of the
+    driver's proportional fonts (`_laserjet_fonts`). A word is split where
+    a kerning pair applies. `size_here` is the span's own declared size; a
+    sub/superscript is measured at the driver's own script size."""
+    if entry is None or not entry.get('laserjet'):
+        return None
+    from . import laserjet
+    block = laserjet.block_for(entry, 'b' in styles, 'i' in styles)
+    tw = laserjet.twips(block, size_here, bool({'sup', 'sub'} & styles))
+    return [(p, laserjet.dots_to_pt(block, x), laserjet.dots_to_pt(block, w))
+            for p, x, w in laserjet.pieces(text, block, tw, kerning)]
+
+
+def _lj_x(x):
+    """The x the driver moves a piece to: its dot position floored to a
+    whole decipoint (`&a#H`), as points. `x` is on the dot grid already."""
+    return _math.floor(x * 10.0 + 1e-6) / 10.0
+
+
+def _lj_words(plan):
+    """`[(text, x, width)]`: a driver-placed span's pieces (`plan`, as
+    `_line_ops_printed` builds it) with each word that a kerning pair split
+    joined back into one, from its first piece's x to its last one's end."""
+    out = []
+    for piece, x, w, _tz in plan:
+        if out and piece[0] != ' ' and out[-1][0][-1] != ' ':
+            text, x0, _w = out[-1]
+            out[-1] = (text + piece, x0, x + w - x0)
+        else:
+            out.append((piece, x, w))
+    return out
+
+
+def _lj_piece_tz(piece, basefont, pt, width):
+    """The horizontal scale that draws `piece` in `basefont` at `pt` to the
+    width the driver gave it (`_tz_scale`'s fit), 100 for a blank."""
+    if not piece.strip():
+        return TZ_DEFAULT
+    scale, _ = _tz_scale(piece, basefont, pt, width)
+    return TZ_DEFAULT if scale is None else round(scale, 2)
+
+
 class _RenderFonts(list):
     """`doc.fonts` plus, as `.alt`, the face a ^PA span with no font run of
     its own is printed in (None when the driver's is not known)."""
@@ -3330,7 +3395,7 @@ class _RenderFonts(list):
 
 
 def _render_fonts(doc):
-    fonts = _RenderFonts(doc.fonts or ())
+    fonts = _RenderFonts(_laserjet_fonts(doc))
     if ((doc.meta.get('printer_driver') or '').strip().upper() == 'LASERJET'
             and _era_for(doc.meta.get('variant')).symmetric_blocks):
         fonts.alt = _LASERJET_ALTERNATE_FONT
@@ -7340,7 +7405,8 @@ def _attach_justify_word_x_printed(doc, pages, size):
             pieces = _justify_line_printed(
                 segs, left_here + (fi or 0), line.justify_right_x, roll_pt,
                 getattr(line, 'pm_active', False),
-                _soft_blanks_of(segs, getattr(line, 'soft_blanks', ())))
+                _soft_blanks_of(segs, getattr(line, 'soft_blanks', ())),
+                getattr(line, 'kerning', True))
             if pieces:
                 line.justify_word_x = pieces
 
@@ -7938,7 +8004,7 @@ def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
     derived indent on a PROPORTIONAL line re-stamps as 10-CPI machine
     spaces, not the font's own narrow space glyph) so alignment and
     drawing never disagree about how wide the same text is."""
-    entry = (doc.fonts[font_idx]
+    entry = (_laserjet_fonts(doc)[font_idx]
             if font_idx is not None and 0 <= font_idx < len(doc.fonts) else None)
     family = _pdf_family(entry) if entry is not None else 'Courier'
     pt = (max(1, round(entry['points']))
@@ -7952,6 +8018,10 @@ def _hf_natural_width_pt(txt, font_idx, doc, size, style_attrs=frozenset()):
             total += len(run_text) * _PDF_PT_PER_COL
             continue
         styles = styles | style_attrs
+        lj = _lj_pieces(run_text, entry, styles, pt, True)
+        if lj is not None:
+            total += lj[-1][1] + lj[-1][2] if lj else 0.0
+            continue
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
         total += _natural_width_pt(run_text, basefont, pt)
     return total
@@ -8747,7 +8817,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         font gets used in the page's own /Font resources); a caller that
         omits it gets the old single-Tj behaviour regardless (there is no
         way to register a font without one), same as before this fix."""
-        entry = (doc.fonts[font_idx]
+        entry = (_laserjet_fonts(doc)[font_idx]
                 if font_idx is not None and res is not None
                 and 0 <= font_idx < len(doc.fonts) else None)
         if (entry is None and not style_attrs
@@ -8775,6 +8845,7 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
         pt = (max(1, round(entry['points']))
               if entry is not None and entry.get('points') else size)
         ops, x = [], x0
+        scaled = False
         for i, (run_text, styles) in enumerate(_hf_runs(txt)):
             if not run_text:
                 continue
@@ -8797,9 +8868,22 @@ def _running_ops(doc, page_no, page_h, lead, size, left, printed,
             styles = styles | style_attrs
             basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
             font = res.ref(basefont)
+            lj = _lj_pieces(run_text, entry, styles, pt, True)
+            if lj is not None:
+                # placed by WS7's LASERJET driver, as a body line's words are
+                for piece, px, pw in lj:
+                    if piece.strip():
+                        ops.append(b'BT /%s %d Tf 0 Ts %.2f Tz %.1f %.1f Td (%s) Tj ET' %
+                                   (font.encode(), pt, _lj_piece_tz(piece, basefont, pt, pw),
+                                    _lj_x(x + px), y, _esc(piece)))
+                        scaled = True
+                x += lj[-1][1] + lj[-1][2] if lj else 0.0
+                continue
             ops.append(b'BT /%s %d Tf 0 Ts %.1f %.1f Td (%s) Tj ET' %
                        (font.encode(), pt, x, y, _esc(run_text)))
             x += _natural_width_pt(run_text, basefont, pt)
+        if scaled:
+            ops.append(b'BT 100 Tz ET')
         return ops
 
     def _hf_pcl_ops(controls, y, x0):
@@ -9523,7 +9607,8 @@ def _justify_x_printed(kinds, widths, x0, justify_right_x):
     return out
 
 
-def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft):
+def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft,
+                          kerning=True):
     """[(piece, x, width), ...] left to right across ALL of one justified
     line's spans, or None when the line cannot be justified here (a tab,
     print-control or graphic span, a `.pm` column indent, fewer than two
@@ -9547,6 +9632,26 @@ def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft):
             return None
         pt, _ = _sized(styles, size_here, roll_pt, family, entry)
         basefont = BASE14[family][('b' in styles) + 2 * ('i' in styles)]
+        lj = _lj_pieces(text, entry, styles, size_here, kerning)
+        if lj is not None:
+            # WS7's LASERJET driver: each piece's width is its advance to
+            # the next (kerning included); a run of blanks is as wide as
+            # the blanks that were typed.
+            space = _lj_pieces(' ', entry, styles, size_here, False)[0][2]
+            for j, (piece, px, pw) in enumerate(lj):
+                at = off + len(''.join(p[0] for p in lj[:j]))
+                if piece[0] == ' ':
+                    typed = sum(1 for k in range(at, at + len(piece))
+                                if k not in soft) or 1
+                    w = typed * space
+                    kinds.append('s')
+                else:
+                    w = lj[j + 1][1] - px if j + 1 < len(lj) else pw
+                    kinds.append('w')
+                widths.append(w)
+                texts.append(piece)
+            off += len(text)
+            continue
         proportional = entry is not None and entry.get('proportional')
         if proportional:
             pitch = _span_pitch(entry, size_here)
@@ -9802,7 +9907,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
         if justified is None:
             justified = _justify_line_printed(
                 segs, left + (fi or 0), justify_right_x, roll_pt, pm_active,
-                _soft_blanks_of(segs, soft_blanks))
+                _soft_blanks_of(segs, soft_blanks), kerning)
     seg_pieces, _at = {}, 0
     if justified:
         for _si, _sg in enumerate(segs):
@@ -10087,7 +10192,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             # them. A proportional span keeps its face's constant stretch
             # (`want`, as in its ordinary path below); a fixed-pitch one fits
             # each word to its own width. Nothing is drawn for a blank.
-            if entry is not None and entry.get('proportional'):
+            if entry is not None and entry.get('proportional') and not entry.get('laserjet'):
                 jwant = _face_tz(basefont, _span_pitch(entry, size_here),
                                  size_here)
             else:
@@ -10198,18 +10303,34 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
             symbol_bold = family == 'Symbol' and 'b' in styles
             symbol_italic = family == 'Symbol' and 'i' in styles
             ul_x0 = ul_x1 = None
-            for m in _re.finditer(r' +|[^ ]+', text):
-                piece = m.group(0)
-                if indent and piece[0] == ' ':
-                    # planning #257: this piece IS the whole typed leading
-                    # run (`_split_indent` only ever flags an all-space or
-                    # all-text segment) -- see `_TYPED_INDENT_SPACE_EM`'s
-                    # own comment for the measured ratio and why it skips
-                    # `factor` (the face-average Tz scale) entirely.
-                    pw = len(piece) * pt * _TYPED_INDENT_SPACE_EM
-                else:
-                    nat = _natural_width_pt(piece, basefont, pt)
-                    pw = nat * factor if nat > 0 else len(piece) * pitch
+            # A font WS7's LASERJET driver carries is placed by the driver:
+            # each piece at the x its own widths and kerning give, and drawn
+            # to the width it had on paper, so the stand-in face's glyphs
+            # neither run into the next word nor leave it a wider gap.
+            lj = _lj_pieces(text, entry, styles, size_here, kerning)
+            if lj is not None:
+                plan = [(p, _lj_x(x + px), w, _lj_piece_tz(p, basefont, pt, w))
+                        for p, px, w in lj]
+                x_end = x + (lj[-1][1] + lj[-1][2] if lj else 0.0)
+            else:
+                plan, xx = [], x
+                for m in _re.finditer(r' +|[^ ]+', text):
+                    piece = m.group(0)
+                    if indent and piece[0] == ' ':
+                        # planning #257: this piece IS the whole typed
+                        # leading run (`_split_indent` only ever flags an
+                        # all-space or all-text segment) -- see
+                        # `_TYPED_INDENT_SPACE_EM`'s own comment for the
+                        # measured ratio and why it skips `factor` (the
+                        # face-average Tz scale) entirely.
+                        pw = len(piece) * pt * _TYPED_INDENT_SPACE_EM
+                    else:
+                        nat = _natural_width_pt(piece, basefont, pt)
+                        pw = nat * factor if nat > 0 else len(piece) * pitch
+                    plan.append((piece, xx, pw, want))
+                    xx += pw
+                x_end = xx
+            for piece, x, pw, want in plan:
                 if piece[0] != ' ':
                     if symbol_bold or symbol_italic:
                         ops.append(_symbol_style_op(
@@ -10229,9 +10350,15 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                     if ul_x0 is None:
                         ul_x0 = x
                     ul_x1 = x + pw
-                ops += _rules(piece_styles, piece, x, y, pw, ul_continuous,
-                              strike_sink=strike_sink)
-                x += pw
+                if lj is None:
+                    ops += _rules(piece_styles, piece, x, y, pw, ul_continuous,
+                                  strike_sink=strike_sink)
+            if lj is not None:
+                # a word split at a kerning pair is still one word to rule
+                for piece, gx, gw in _lj_words(plan):
+                    ops += _rules(piece_styles, piece, gx, y, gw, ul_continuous,
+                                  strike_sink=strike_sink)
+            x = x_end
             if span_ul and ul_x0 is not None:
                 ops.append(b'0.6 w %.1f %.1f m %.1f %.1f l S'
                            % (ul_x0, y - 1.5, ul_x1, y - 1.5))

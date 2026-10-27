@@ -30,6 +30,14 @@ the programs' own code and real runs, checked by a new test tier
   on` words placed from WS4's own width tables and drawn in Helvetica Bold or
   Times; sub/superscripts full size; characters outside ASCII through WS4's
   COMPOS table to Roman-8, so box drawing prints as `| - / \`. See ERAS.md.
+- **WS7's own LaserJet driver.** A WS5+ file's proportional text (and a WS4
+  file's printed by WS7) is placed as WS7's LASERJET driver placed it (WS7
+  teardown, report 11.17): the driver's own font for each font record, its
+  per-character widths in whole printer dots, its kerning pairs under `.kr on`
+  (a kerned word prints as two pieces), and a script at the block's own script
+  size. Each piece is drawn in its base-14 stand-in, scaled to its width on
+  paper. Running heads and feet follow it too. The September LaserJet captures'
+  word positions now match to the decipoint on WARPRAYR, LYING and PREVIEW.
 
 ### Changed
 
