@@ -2886,10 +2886,12 @@ rule was not known. WS7's own code now gives it; none is implemented yet.
   not the paper's (`7-configuration.md` 7.7). Printed now places each page on
   the sheet there (one `cm`, `pdf.logical_page_x`); the page's own ops stay in
   the PCL frame, so this gate's frame offset is still 0.
-- **WS4 documents printed by WS7.** Four corpus files are WS4 documents that
-  the v4 captures show WS7 printing (`INSET/CHART.WS`, `MACROS/HOLYMAC/WOMBAT`,
-  `MAILING.DOC`, the keyboard scancode `.doc`). Printed now follows WS4 for a
-  WS4 file, whose automatic page number sits at its `.PC` default 28, not WS7's
-  centred 33.5 (WS4 teardown `4-formatting-printing.md` 3.2, runs x41-*). Each
-  records one `page-number-mismatch` per numbered page against WS7's print of
-  it; nothing else on those pages moved.
+- **WS4 documents printed by WS7.** Two corpus files are WS4 documents that
+  the v4 captures show WS7 printing (`INSET/CHART.WS`, the keyboard scancode
+  `.doc`). Printed follows WS4 for a WS4 file by default (`--printed-by own`),
+  whose automatic page number sits at its `.PC` default 28, not WS7's centred
+  33.5 (WS4 teardown `4-formatting-printing.md` 3.2, runs x41-*). Each records
+  one `page-number-mismatch` per numbered page against WS7's print of it;
+  nothing else on those pages moved, and `--printed-by ws7` matches the
+  capture. (`MACROS/HOLYMAC/WOMBAT` and `MAILING.DOC` looked like two more
+  until detection learned they are headerless WS7 files, WS4 teardown 3.14.)
