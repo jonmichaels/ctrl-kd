@@ -196,7 +196,19 @@ def test_blanks_share_by_their_own_width():
     assert xs == [0, 240, 384, 624, 696]
 
 
-def test_a_line_that_is_too_long_is_left_alone():
+def test_a_line_that_is_slightly_too_long_is_squeezed():
+    """Negative slack (report 11.7.3): the same loop with the sign reversed,
+    the amount capped at half the total width of the blanks. Two 100pt words
+    and a 7.2pt blank (30 dots) end 60/1800 in (10 dots) past the margin: the
+    blank gives up 10 dots, the second word moves 10 dots left."""
+    xs = pdf._justify_x_printed(['w', 's', 'w'], [100.0, 7.2, 100.0], 0.0,
+                                204.96)
+    assert xs == [0, 417 * 12 // 5, (417 + 30 - 10) * 12 // 5]
+
+
+def test_a_line_too_long_to_squeeze_is_left_alone():
+    """Past the cap WS7's own wrap could not have produced the line: the
+    margin is not this line's, so it keeps its natural widths."""
     assert pdf._justify_x_printed(['w', 's', 'w'], [100.0, 7.2, 100.0], 0.0,
                                   150.0) is None
 

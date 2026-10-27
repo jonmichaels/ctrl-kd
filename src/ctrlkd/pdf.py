@@ -3191,9 +3191,9 @@ def _span_font(styles, fonts):
 # 7.7), and WordStar asks the driver for the closest match to the installed
 # width 150, height 200, typestyle 0 -- on LASERJET that is Gothic PC (the
 # driver's `^[(10U^[(sp%Pv%2phsb4102T` block), sent as 10 point at 14.29
-# cpi, i.e. 126/1800 inch = 21 dots a character (run raw01-lj,
-# `wordstar-dos/14-runs.md`; the normal font prints Courier 12 point,
-# 10 cpi). The Gothic face is drawn in Courier here, as every fixed-pitch
+# cpi, i.e. 126/1800 inch = 21 dots a character (run raw01-lj, in
+# `wordstar-dos/reference/drivera-map.txt`; the normal font prints Courier
+# 12 point, 10 cpi). The Gothic face is drawn in Courier here, as every fixed-pitch
 # face is. Sawyer's installation chose LinePrinter 16.7 cpi instead; a
 # document cannot tell the two apart, so the factory one is used.
 _LASERJET_ALTERNATE_FONT = {
@@ -4089,7 +4089,7 @@ class PageLine(list):
     # `_attach_justify_word_x_printed` on a `justify_right_x`-carrying line
     # that WS7's word-gap rule can spread (`_justify_line_printed`); a line
     # it cannot (a tab, print-control or graphic span, no blank between two
-    # words, too long) leaves this None, and `_line_ops_printed` draws it at
+    # words) leaves this None, and `_line_ops_printed` draws it at
     # its natural widths.
     # `line_no` (planning #251(d), 2026-09-09): this line's own `.l#`
     # gutter label and ABSOLUTE x, as `(label, x_pt)`, or None for a line
@@ -6834,9 +6834,9 @@ def _attach_justify_word_x_printed(doc, pages, size):
     fallback`; `_split_indent`), to plain text that WS7's word-gap rule can
     spread: any number of spans, fixed-pitch or proportional (WS7 report
     11.7.3, 14.15). A line with a tab, print-control or graphic span, a
-    `.pm` column indent, no run of blanks between two words, or no slack
-    (it is too long) leaves `justify_word_x` unset; `_line_ops_printed`
-    then draws it at its natural widths, as before this function existed."""
+    `.pm` column indent, or no run of blanks between two words leaves
+    `justify_word_x` unset; `_line_ops_printed` then draws it at its natural
+    widths, as before this function existed."""
     fonts = _render_fonts(doc)
     left = _printed_left(doc, size)
     roll_pt = _printed_roll_pt(doc)
@@ -8791,7 +8791,11 @@ def _justify_x_printed(kinds, widths, x0, justify_right_x):
     single blank's share, a proportional blank its own width's, and the
     remainder of every division falls to the later runs. An item lands at
     `floor(x_dots * 720 / 300)` decipoints. A line that is too long
-    (negative slack) is left alone."""
+    (negative slack) runs the same loop with the sign reversed, the amount
+    capped at half the total width of the blanks (`+0x0E6A`): it is squeezed,
+    never overlapped. WS7's own wrap never leaves a line longer than that, so
+    a line over the cap has the wrong margin here (a `.co` column's own
+    right edge is not modelled) and is left at its natural widths."""
     n = len(kinds)
     words = [i for i in range(n) if kinds[i] == 'w']
     if len(words) < 2:
@@ -8807,14 +8811,19 @@ def _justify_x_printed(kinds, widths, x0, justify_right_x):
         xd.append(cur)
         cur += wd[i]
     slack = _units_1800(justify_right_x) - 6 * (xd[last] + wd[last])
+    sign = 1
     if slack < 0:
-        return None
+        sign = -1
+        cap = sum(_units_1800(widths[i]) for i in gaps) // 2
+        if -slack > cap:
+            return None
+        slack = -slack
     s_rem = (slack + 3) // 6
     w_rem = sum(wd[i] for i in gaps)
     carry = 0
     out = []
     for i in range(n):
-        out.append((xd[i] + carry) * 12 // 5)
+        out.append((xd[i] + sign * carry) * 12 // 5)
         if kinds[i] == 's' and first < i < last:
             if s_rem != 0 and w_rem > 0:
                 share = wd[i] * s_rem // w_rem
@@ -8828,8 +8837,8 @@ def _justify_line_printed(segs, x0, justify_right_x, roll_pt, pm_active, soft):
     """[(piece, x, width), ...] left to right across ALL of one justified
     line's spans, or None when the line cannot be justified here (a tab,
     print-control or graphic span, a `.pm` column indent, fewer than two
-    words, no run of blanks between them, or negative slack -- it is drawn
-    at its natural widths instead). WS7 report 11.7.3: the rule runs over the
+    words, or no run of blanks between them -- it is drawn at its natural
+    widths instead). WS7 report 11.7.3: the rule runs over the
     whole line with each item's own width, so a mixed-font or proportional
     line is justified like a Courier one (mixj1-mixj4); the pieces are the
     runs of blanks and the words, each at the width the line's ordinary
@@ -8984,7 +8993,7 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
     with each item's own width, so a mixed-font or proportional line is
     spread like a Courier one (14.15, runs mixj1-mixj4); see
     `_justify_x_printed` and `_justify_line_printed`. A line with a tab, a
-    print control or a graphic, or that is too long, is drawn at its
+    print control or a graphic is drawn at its
     natural widths instead.
 
     Every span gets its own text object at an ABSOLUTE x, and that x is
