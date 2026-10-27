@@ -194,7 +194,9 @@ def test_lj6dtp_copyright_cluster_at_offset_0x3da(require_sawyer_doc):
     assert triple_at - 0x3da < 40, 'the (c) triple should follow "Copyright " closely'
     doc = core.parse_ws(data)
     out = pdf.emit_pdf(doc, mode='printed')
-    assert b'(\xa9) Tj' in out  # cp1252 0xa9 == Latin-1 == (c), U+00A9
+    # drawn from Symbol at the capture's own code: E3, copyrightsans, for Univers
+    assert b'(\xe3) Tj' in out
+    assert b'/BaseFont /Symbol' in out
 
 
 @pytest.mark.sawyer

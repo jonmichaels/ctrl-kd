@@ -716,11 +716,14 @@ def compare_layout(part, path, variant, hpljet=False):
     printed = 'v' in (part['rows'][0] if part['rows'] else {'v': 0})
     eng, n_pages, sheet_h = _engine_tokens(pdf, on_paper=printed)
     # The engine draws LJ6DTP's substituted glyphs (’ for '); the readings
-    # give document characters (`doc`), so compare in those.
+    # give document characters (`doc`), so compare in those. Its © is drawn
+    # from Symbol (copyrightsans E3, copyrightserif D3), which this reader
+    # decodes as WinAnsi ã and Ó.
     lj6dtp = (_doc_for(path, variant).meta.get('printer_driver') or '').upper() == 'LJ6DTP'
+    unsubst = {**pdfmod._LJ_UNSUBST, ord('ã'): '☻', ord('Ó'): '☻'}
     if lj6dtp:
         for t in eng:
-            t['text'] = t['text'].translate(pdfmod._LJ_UNSUBST)
+            t['text'] = t['text'].translate(unsubst)
     if printed:
         # A `[rect WxH fill]` item is a PCL rectangle the driver drew, not
         # text: this tool does not compare rectangles yet, so each is
@@ -738,7 +741,7 @@ def compare_layout(part, path, variant, hpljet=False):
         if not hpljet:
             pieces = _engine_pieces(pdf)
             if lj6dtp:
-                pieces = {(pg, t.translate(pdfmod._LJ_UNSUBST)): v for (pg, t), v in pieces.items()}
+                pieces = {(pg, t.translate(unsubst)): v for (pg, t), v in pieces.items()}
             if pieces_match(rows, pieces) and part.get('pages') in (None, n_pages):
                 return found
             rows = join_kerned_items(rows, pieces, eng)

@@ -161,7 +161,7 @@ _PDF_PY_SRC = open(os.path.join(
 def test_bt_writing_call_site_count_is_the_one_this_reader_was_checked_against():
     """A grep-driven trip-wire, not a parser: pdf.py has exactly two
     mechanisms that write a `BT..ET` text-showing op --
-      (a) 19 literal `b'BT ...'` byte-string sites (16 `ops.append`/`return`
+      (a) 20 literal `b'BT ...'` byte-string sites (17 `ops.append`/`return`
           call sites building either the FIXED-RISE-ONLY shape ('0 Ts', no
           Tz ever -- 5 sites) or the VARIABLE-RISE-WITH-OPTIONAL-Tz PAIR
           shape (5 with/without-Tz site pairs -- planning #238's own
@@ -171,7 +171,8 @@ def test_bt_writing_call_site_count_is_the_one_this_reader_was_checked_against()
           `parts = [b'BT ...']` builder line, `_page_stream`'s WS4
           HPLJET overstrike, the Tz shape at a '0 Ts' rise, `_hf_line_ops`'s
           driver-placed running-head piece, the same shape, and its
-          `BT 100 Tz ET` that puts the scale back, no text at all) -- all covered
+          `BT 100 Tz ET` that puts the scale back, no text at all, and
+          LJ6DTP's © drawn from Symbol, the plain or Tz shape) -- all covered
           by test_parse_text_ops_reads_the_plain_shape (and the existing
           test_parse_text_ops_reads_plain_and_tz_scaled_runs's Tz case)
           above.
@@ -192,8 +193,8 @@ def test_bt_writing_call_site_count_is_the_one_this_reader_was_checked_against()
     machine replaced went blind to three of them at once)."""
     n_literal = len(re.findall(r"b'BT ", _PDF_PY_SRC))
     n_symbol_style_op = len(re.findall(r'_symbol_style_op\(', _PDF_PY_SRC)) - 1  # minus `def`
-    assert n_literal == 19, (
-        f'pdf.py now has {n_literal} literal BT-writing sites (was 19) -- see this '
+    assert n_literal == 20, (
+        f'pdf.py now has {n_literal} literal BT-writing sites (was 20) -- see this '
         'test\'s own docstring')
     assert n_symbol_style_op == 4, (
         f'pdf.py now has {n_symbol_style_op} _symbol_style_op call sites (was 4) -- '

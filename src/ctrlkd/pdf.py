@@ -3390,10 +3390,28 @@ def _lj_pieces(text, entry, styles, size_here, kerning, prev=None, source=None):
         lead = laserjet.kern_dots(block, tw, prev[1], laserjet.code(measured[0]))
     out, at = [], 0
     for p, x, w in laserjet.pieces(measured, block, tw, kerning):
-        out.append((text[at:at + len(p)], laserjet.dots_to_pt(block, x + lead),
-                    laserjet.dots_to_pt(block, w)))
+        t = text[at:at + len(p)]
+        if entry['laserjet'] == 'lj6dtp' and '©' in t and len(t) > 1:
+            # LJ6DTP's © is its own glyph from another symbol set
+            # (`_LJ6DTP_COPYRIGHT`): a piece of its own, at the driver's x.
+            for m in _re.finditer('©|[^©]+', t):
+                run = p[m.start():m.end()]
+                rw = sum(laserjet.char_dots(block, tw, laserjet.code(c)) for c in run)
+                out.append((m.group(0), laserjet.dots_to_pt(block, x + lead),
+                            laserjet.dots_to_pt(block, rw)))
+                x += rw
+        else:
+            out.append((t, laserjet.dots_to_pt(block, x + lead),
+                        laserjet.dots_to_pt(block, w)))
         at += len(p)
     return out
+
+
+# LJ6DTP prints its © from the PS Math symbol set (its manual, page 3): E3,
+# a sans-serif C, in Arial, Omega and Univers; D3, a serif C, in Times and
+# Times New Roman. Those are Symbol's own copyrightsans and copyrightserif.
+_LJ6DTP_COPYRIGHT = {'Helvetica': b'\343'}
+_LJ6DTP_COPYRIGHT_SERIF = b'\323'
 
 
 def _lj_block(entry, styles, size_here):
@@ -10511,7 +10529,16 @@ def _line_ops_printed(segs, left, y, size, res, tz_state,
                 record_pieces.extend((p, px, pw) for p, px, pw, _w in plan)
                 rec_open = None
             for piece, x, pw, want in plan:
-                if piece[0] != ' ':
+                if piece == '©' and entry.get('laserjet') == 'lj6dtp':
+                    tz = b'' if tz_state[0] == TZ_DEFAULT else b'%.2f Tz ' % TZ_DEFAULT
+                    ops.append(b'BT /%s %s Tf %s Ts %s%.1f %.1f Td (%s) Tj ET' %
+                               (res.ref('Symbol').encode(), _tf_size(pt), _tf_size(rise), tz, x, y,
+                                _LJ6DTP_COPYRIGHT.get(family, _LJ6DTP_COPYRIGHT_SERIF)))
+                    tz_state[0] = TZ_DEFAULT
+                    if ul_x0 is None:
+                        ul_x0 = x
+                    ul_x1 = x + pw
+                elif piece[0] != ' ':
                     if symbol_bold or symbol_italic:
                         ops.append(_symbol_style_op(
                             font, pt, rise, want, tz_state, x, y,
