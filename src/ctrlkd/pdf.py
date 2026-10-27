@@ -3830,7 +3830,7 @@ class _NoteArea:
     footnote/annotation area and the endnote section, so a document whose
     footnotes and endnotes land on the same page agree on one column."""
 
-    def __init__(self, doc, items, default_lead, sentence_spacing):
+    def __init__(self, doc, default_lead, sentence_spacing):
         self.default_lead = default_lead
         self.sentence_spacing = sentence_spacing
         self.pad_cols = _notes_marker_pad_cols(doc)
@@ -5840,7 +5840,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     pages, page, spent = [], [], 0.0
     # The note area (planning #577): `None` outside Printed. For a document
     # with no footnote/annotation reference every hook below is a no-op.
-    notes = _NoteArea(doc, lines, default_lead, sentence_spacing) if printed else None
+    notes = _NoteArea(doc, default_lead, sentence_spacing) if printed else None
     carry_open = True            # the open page's note-area carry-over is not yet admitted
     last_room_lines = 0          # whole lines free on the page closed last, under its area
     last_has_area = False        # ...and whether that page ends with a note area
