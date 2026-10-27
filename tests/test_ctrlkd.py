@@ -1275,14 +1275,12 @@ def test_note_number_field_marker_and_area_agree_when_nonzero():
     mtexts = b' '.join(re.findall(rb'\(((?:\\.|[^)\\])*)\)\s*Tj', pm))
     assert b'2. Footnote body.' in mtexts       # no brackets (ruling 2026-08-23/24 item 2)
 
-def test_footnote_number_start_hook_ready_for_future_dot_command():
-    # core.py doesn't parse a `.f#`-style starting-number dot command yet
-    # (another agent is adding dot-command parsing separately) -- this
-    # proves the one named place designed to receive that value
-    # (doc.meta['footnote_number_start']) already produces the right
-    # display number today, so wiring in real `.f#` parsing later is a
-    # one-line change in core.py, not a redesign here.
-    data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=0) + b' y' + HARD
+def test_footnote_number_start_is_already_in_the_stored_number():
+    # WS7 folds the `.f#` start value into the note numbers it stores when
+    # it paginates and saves (WS7 report 15.1, run fnnum5: a bare `.f# 5`
+    # stores 4 and 5), so the shown number is the stored one plus one and the
+    # recorded start is not added a second time.
+    data = ws7_block(0x00) + b'x ' + ws7_note(0x03, b'Only footnote.', number=4) + b' y' + HARD
     doc = core.parse_ws(data)
     doc.meta['footnote_number_start'] = 5
     md = emit.emit_markdown(doc, mode='modern')
@@ -1939,12 +1937,13 @@ def test_pdf_printed_footnote_splits_with_continuation_and_loses_nothing():
     ref_page = next(i for i, pg in enumerate(texts) if any('First body line' in l for l in pg))
     assert ref_page == 0
 
-    # the floor: pages before the note is fully drained still carry >= 3 body lines
-    # (every non-footnote, non-blank, non-separator line counts as body)
+    # a note that runs fills the rest of its page (WS7 report 14.15): the
+    # reference line is the page's last body line, no floor of body lines
+    # is kept against the area
     def body_count(pg):
         return sum(1 for l in pg if l and l != CONTINUATION_TEXT and 'word' not in l
                    and not l.startswith('-'))
-    assert body_count(texts[0]) == 3
+    assert body_count(texts[0]) == 1
 
     # continuation marker shows up, and nothing after page 0 repeats the "1." marker
     later_lines = [l for pg in texts[1:] for l in pg]
@@ -2181,10 +2180,12 @@ def test_doc_to_pagelines_modern_notes_dump_uses_per_kind_labels():
 
 def test_footnote_endnote_number_start_dot_commands():
     # .F#/.E# (WordStar 7.0 file format spec): set the starting numbering
-    # value -- the hook emit.py's per-kind numbering already reads.
+    # value, recorded in doc.meta. WS7 stores the notes it numbers with it
+    # already folded in (4 for a first footnote under `.F# 5`), so the
+    # display is the stored number plus one.
     data = (b'.F# 5' + HARD + b'.E# 10' + HARD +
-            ws7_block(0x00) + b'x' + ws7_note(0x03, b'Foot.', number=0) +
-            b' y' + ws7_note(0x04, b'End.', number=0) + b' z' + HARD)
+            ws7_block(0x00) + b'x' + ws7_note(0x03, b'Foot.', number=4) +
+            b' y' + ws7_note(0x04, b'End.', number=9) + b' z' + HARD)
     doc = core.parse_ws(data)
     assert doc.meta['footnote_number_start'] == 5
     assert doc.meta['endnote_number_start'] == 10
@@ -7921,20 +7922,26 @@ def test_forced_variant_chooses_the_era():
     assert 'Ç' not in text and 'Body line one.' in text
 
 
-def test_bare_po_sets_zero_in_ws7_only():
+def test_bare_po_sets_zero():
     """A bare `.po` sets the page offset to 0 in WS7 Rev. D (runs arg-*,
     x = 0), though a bare `.pl/.mt/.mb/.lh` keeps the previous value (WS7
-    teardown, `wordstar-dos/7-configuration.md` 7.9). WS4 has not been run,
-    so a WS4 file keeps the old reading: a bare `.PO` changes nothing."""
+    teardown, `wordstar-dos/7-configuration.md` 7.9). WS4 sets 0 for a bare,
+    a bad (`.PO x`) and a blank-only argument alike: its reader collects no
+    digits and an empty number is 0 (WS4 teardown 4 §2.3, 3.12; runs
+    po-args). A bad `.po` in a WS7 file keeps its value: WS7 has not been
+    run on one."""
     from ctrlkd.pdf import emit_pdf
-    body = b'.po\r\nflush left\r\n.po 8\r\nindented\r\n'
+    body = b'.po\r\nflush left\r\n.po 8\r\nindented\r\n.po x\r\nafter bad\r\n'
     doc7 = core.parse(ws7_block(0x00) + body, variant='ws5+')
     spans = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc7, 'printed'))}
     assert spans[b'flush left'] == 0.0
     assert spans[b'indented'] == 57.6
+    assert spans[b'after bad'] == 57.6
     doc4 = core.parse(body, variant='ws4')
     spans4 = {t: x for _f, _s, _tz, x, _y, t in _content_spans(emit_pdf(doc4, 'printed'))}
-    assert spans4[b'flush left'] == 57.6
+    assert spans4[b'flush left'] == 0.0
+    assert spans4[b'indented'] == 57.6
+    assert spans4[b'after bad'] == 0.0
 
 
 def test_sup_sub_cell_in_a_non_courier_fixed_pitch_face():

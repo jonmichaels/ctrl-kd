@@ -310,7 +310,9 @@ these; none are required.
 | `variant` | `ws4` / `ws5+` / `printstream` / `text` — how the file is *encoded* |
 | `producer` | who *wrote* it, when detectable. `'wordtsar'` when the WordTsar-only dot commands `.PT`/`.PSA`/`.PSB` are present — those are not WordStar commands. Provenance, not format: a WordTsar file is still `ws5+` |
 | `page` | page geometry from the file's own `.pl`/`.po`/`.mt`/`.mb`/`.hm`/`.fm`/`.lh`/`.ls`/`.cw`, with provenance: `size_name`, `size_source` (`'file'` \| `'default'`), `height_in`, `pl_lines`, `mt_lines`, `mb_lines`, `po_cols`, `hm_lines`, `fm_lines`, `lh_48` (line height, 1/48 in units), `ls`, `cw_120` (character width, 1/120 in units — 12 is 10 CPI) and their `*_source`. **Unit-less dot-command arguments are LINES, not inches** (`.lh`'s are 1/48 in; `.po`'s are columns; `.cw`'s are 1/120 in). Also carries the derived `text_lines` — printed text lines per page from WordStar's own model, `(pl − mt − mb)` at the `.lh` line height (55 for the defaults). `.po` defaults to **8** columns — the WS7 manual's ".8 inch" — and positions printed text at `po × cw` from the paper edge. `.hm`/`.fm` never reserve space (header/footer print *inside* `.mt`/`.mb`) and `.ls` never divides capacity (its blank lines are literal lines in the file); both are recorded for diagnosis only. Lets a caller say "Legal (from file)" vs "Letter (default)" |
-| `footnote_number_start` / `endnote_number_start` | starting values from `.f#` / `.e#`, default 1. Footnotes and endnotes number **independently** — WordStar has separate commands for separate sequences |
+| `footnote_number_start` / `endnote_number_start` | starting values from `.f#` / `.e#`, default 1, recorded only: WS7 already folds them into the note numbers it stores, so the shown number is the stored one plus one. Footnotes and endnotes number **independently** — WordStar has separate commands for separate sequences |
+| `footnote_number_format` / `endnote_number_format` | `'lower'` or `'upper'` when `.f#` / `.e#` names a letter (`.f# a`, `.f# A`); absent for digits. Printed output labels the notes a, b, c / A, B, C; Modern ignores it |
+| `fnrun` | optional, set by a caller: WS7's "footnote run" setting (default 8). A note that does not fit under its reference moves to the next page with its line when fewer than this many note lines of room are left, and otherwise runs on. It is a WSCHANGE setting of the program, not of the document |
 | `comment_bug` | printstream only. WordStar's own print-time damage: documents containing `^ONC` comments, printed to disk with the ASCII/ASC256/PRVIEW/WS4 drivers (not XTRACT), lost the rest of the line after the comment. `{count, first_offset, stray_ctrl_t}`. **Report this as 1990s damage, not as a parse failure** — telling those apart is the point of a rescue tool |
 | `margin_estimate` | statistically recovered wrap column |
 | `dot_commands` | every dot-command line, verbatim and in order, recognised or not |
@@ -347,15 +349,15 @@ symmetrical-sequence types 3-6). `doc.footnotes` / `.endnotes` / `.annotations` 
   footnote/endnote-tag tests), not measured behaviour. Ruling 2026-08-24 item 4.
 - **`Note.number_format`** (0 symbols, 1 upper-case, 2 lower-case, 3 numeric --
   the conversion-flag byte's high nybble, as WSFORMAT.TXT documents it) is
-  parsed and kept but not used for display: footnote/endnote labels are always
-  arabic, as WordStar 7 prints them (it never reads the stored nibble). WS7 does
-  print letters when the document's own `.f#`/`.e#` sets a letter format; this
-  project does not follow that yet (see `ERAS.md`, divergence 7).
+  parsed and kept but not used for display, as WordStar 7 prints them (it never
+  reads the stored nibble). Printed output follows the document's own `.f#` /
+  `.e#` letter format instead (`footnote_number_format` /
+  `endnote_number_format`, below; see `ERAS.md`, divergence 7).
 - **TXT/MD/HTML renumber footnotes/endnotes continuously** (independently per
   kind) when — and only when — WordStar's own per-page-reset numbers actually
   collide within that kind (`emit._pageless_notes`); a document whose notes
-  already number consecutively (WordStar's `.F#`/`.E#` dot command, unparsed
-  by this project on purpose) is left untouched. Printed, Modern PDF, and RTF
+  already number consecutively (WordStar's `.F#`/`.E#` dot command) is left
+  untouched. Printed, Modern PDF, and RTF
   never renumber — they keep WordStar's own numbers (RTF via `\chftn`/
   `\ftnalt` auto-numbering instead). A tagged note never participates in
   collision detection or renumbering, in any format. Ruling 2026-08-24 item 1.

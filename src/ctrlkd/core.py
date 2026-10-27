@@ -2326,6 +2326,15 @@ def lines_pass(data: bytes, tab_at=frozenset(), marks=None,
         n_total = 0 if kind == 'eof' else 1
         j = i + 1
         while j < len(lines) and not _visible(lines[j][0]).strip():
+            if (j == len(lines) - 1 and lines[j][1] == 'eof'
+                    and any(m[0] == 'fnref' for _off, m in lines[j][3])):
+                # The file's last, unterminated, blank line holds a note
+                # reference (a note typed on a trailing empty line): it is the
+                # anchor of that note, so it stays a line of its own -- the run
+                # of blanks the end of file consumes must not swallow it
+                # (WS7 report 14.8, run fnmb0: the reference prints on the
+                # line after line 05).
+                break
             k = lines[j][1]
             if k != 'eof':
                 n_total += 1
@@ -2561,12 +2570,12 @@ class Era:
     versions: ask `era.high_bit_wordwrap`, never `variant == 'ws4'`."""
 
     __slots__ = ('name', 'high_bit_wordwrap', 'symmetric_blocks', 'has_notes',
-                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero',
+                 'has_sb', 'column_unit', 'pc_default', 'bare_po_zero', 'bad_po_zero',
                  'line_starts_in_room', 'geometry_acts_at_once',
                  'pk_even_keeps_blank')
 
     def __init__(self, name, high_bit_wordwrap, symmetric_blocks, has_notes,
-                 has_sb, column_unit, pc_default, bare_po_zero=False,
+                 has_sb, column_unit, pc_default, bare_po_zero=False, bad_po_zero=False,
                  line_starts_in_room=False, geometry_acts_at_once=False,
                  pk_even_keeps_blank=True):
         self.name = name
@@ -2592,8 +2601,12 @@ class Era:
         # A bare `.po` (no argument) sets the page offset to 0. WS7 Rev. D
         # does that (runs arg-*: x = 0), though a bare `.pl/.mt/.mb/.lh`
         # keeps its previous value (WS7 teardown,
-        # `wordstar-dos/7-configuration.md` 7.9). WS4 has not been run.
+        # `wordstar-dos/7-configuration.md` 7.9). So does WS4, and there a
+        # bad argument (`.PO x`) is 0 too: its reader collects no digits and
+        # an empty number is 0 (WS4 teardown 4 §2.3, 3.12; runs po-args).
+        # WS7's answer for a bad `.po` has not been run.
         self.bare_po_zero = bare_po_zero
+        self.bad_po_zero = bad_po_zero
         # WS4 and earlier set bit 7 on the LAST character of each word
         # (microjustify flags). WS5+ dropped it, and a high byte there is an
         # extended cp437 character instead -- so this decides whether stripping
@@ -2631,7 +2644,7 @@ ERAS = {
     'ws3':  Era('ws3',  True,  False, False, False, 'font',       33),
     'ws4':  Era('ws4',  True,  False, False, False, 'font',       28,
                 line_starts_in_room=True, geometry_acts_at_once=True,
-                pk_even_keeps_blank=False),
+                pk_even_keeps_blank=False, bare_po_zero=True, bad_po_zero=True),
     'ws5+': Era('ws5+', False, True,  True,  True,  'tenth-inch', 33.5,
                 bare_po_zero=True),
 }
@@ -3205,7 +3218,8 @@ def _apply_ruler_margins(ruler: bytes, state: dict) -> None:
     state['right_margin'] = float(r) if r is not None else None
 
 
-def _parse_format_dot(cmd: bytes, state: dict, bare_po_zero: bool = False) -> None:
+def _parse_format_dot(cmd: bytes, state: dict, bare_po_zero: bool = False,
+                      bad_po_zero: bool = False) -> None:
     """Update running FORMATTING state from one dot-command line.
 
     These differ from the page-geometry commands in `_parse_page_dot`: those
@@ -3306,8 +3320,8 @@ def _parse_format_dot(cmd: bytes, state: dict, bare_po_zero: bool = False) -> No
                 resolved = _resolve_cols_arg(value, m.group(2))
                 if resolved is not None:
                     state['po_cols'] = resolved
-        elif bare_po_zero and not arg.strip():
-            state['po_cols'] = 0.0             # Era.bare_po_zero
+        elif (bare_po_zero and not arg.strip()) or (bad_po_zero and arg.strip()):
+            state['po_cols'] = 0.0             # Era.bare_po_zero / bad_po_zero
     elif name in (b'POE', b'POO'):          # planning #231: even/odd page offset
         # WSFORMAT.WS: ".PO can optionally specify even or odd number page
         # offsets" -- `.poe`/`.poo` are independently STATEFUL, exactly like
@@ -3932,7 +3946,7 @@ def _cp_lines(cmd: bytes) -> int:
 
 
 def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = False,
-                    bare_po_zero: bool = False):
+                    bare_po_zero: bool = False, bad_po_zero: bool = False):
     """Try to interpret one dot-command line as page geometry (.pl/.po/.mt/.mb)
     or a WordTsar-invented command (.PT/.PSA/.PSB -- "not a Wordstar command"
     per WordTsar's own source, so their mere presence is a producer signal).
@@ -4004,6 +4018,18 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
             meta_extra[which + '_number_mode'] = 'page'
         elif low.startswith((b'cont', b'consec')):
             meta_extra[which + '_number_mode'] = 'continuous'
+        else:
+            # The label FORMAT: WS7's `.f#` parser takes a digit (decimal),
+            # an upper-case letter (upper) or a lower-case letter (lower);
+            # `d` and `p` are the continuous / per-page modes, not formats
+            # (WS7 report 15.1, 15.10). The format in force at print time is
+            # what prints, whatever the note records store, so the first
+            # `.f#` / `.e#` that names one is kept.
+            fmt_key = which + '_number_format'
+            first = rest.strip()[:1]
+            if (fmt_key not in meta_extra and first.isalpha()
+                    and first.lower() not in (b'd', b'p')):
+                meta_extra[fmt_key] = 'upper' if first.isupper() else 'lower'
         return
     m = _DOT_CMD_RE.match(cmd)
     if not m:
@@ -4022,8 +4048,9 @@ def _parse_page_dot(cmd: bytes, page: dict, meta_extra: dict, has_text: bool = F
             return
         num = _dot_num_match(arg)
         if not num or not num.group(1):
-            if key == 'po_cols' and bare_po_zero and not arg.strip():
-                page[key] = 0.0                 # Era.bare_po_zero
+            if key == 'po_cols' and ((bare_po_zero and not arg.strip())
+                                     or (bad_po_zero and arg.strip())):
+                page[key] = 0.0                 # Era.bare_po_zero / bad_po_zero
             return
         value = float(num.group(1))
         unit = num.group(2)
@@ -6567,7 +6594,7 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
             # the lines after it are centred and the ones before it are not, and a
             # single block cannot hold both.
             before = _block_format(fmt)
-            _parse_format_dot(cmd, fmt, print_era.bare_po_zero)
+            _parse_format_dot(cmd, fmt, print_era.bare_po_zero, print_era.bad_po_zero)
             # `.lh` and a paragraph STYLE's own `line_height_vmi` are the
             # SAME WordStar setting -- a line height -- reached two ways, so
             # the one that comes LATER in the file wins. `_style_lead_pt`
@@ -6616,7 +6643,8 @@ def parse_ws(data: bytes, encoding: str = 'cp437', variant: str = None,
                 close_block()
             _parse_page_dot(cmd, page, meta_extra,
                             has_text=_rt_body_seen[0] or bool(cur_line.spans),
-                            bare_po_zero=print_era.bare_po_zero)
+                            bare_po_zero=print_era.bare_po_zero,
+                            bad_po_zero=print_era.bad_po_zero)
             # LJ6DTP parity C1: a dot-command line is CONSUMED here -- it never
             # reaches `_decode_spans`, so any mark that landed on it dies with
             # it. That silently dropped LJ6DTP's colour RESTORE: the document

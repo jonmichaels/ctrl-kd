@@ -392,7 +392,7 @@ def prepare_printed_rows(rows):
     """
     out = []
     for row in rows:
-        items = [[x, _decode_item(t)] for x, t in row['items']]
+        items = [_positioned_item(item) for item in row['items']]
         xs = [x for x, t in items if not re.fullmatch(r'-+', t)]
         items = [[x, t] for x, t in items if not (re.fullmatch(r'-+', t) and x in xs)]
         out.append({**row, 'items': items})
@@ -404,19 +404,33 @@ def prepare_printed_rows(rows):
                 continue
             for item in list(row['items']):
                 ix, itext = item
+                if ix is None:
+                    continue
                 for b in base['items']:
                     bx, btext = b
-                    if abs(bx + len(btext) * COURIER_CELL_DP - ix) <= 2:
+                    if bx is not None and abs(bx + len(btext) * COURIER_CELL_DP - ix) <= 2:
                         b[1] = btext + itext
                         tail_x = ix + len(itext) * SUPSUB_CELL_DP
                         for nxt in list(base['items']):
-                            if nxt is not b and abs(nxt[0] - tail_x) <= 3:
+                            if nxt is not b and nxt[0] is not None and abs(nxt[0] - tail_x) <= 3:
                                 b[1] += nxt[1]
                                 base['items'].remove(nxt)
                                 break
                         row['items'].remove(item)
                         break
     return [r for r in out if r['items']]
+
+
+def _positioned_item(item):
+    """[x, text] for one reading item, its text decoded. An item whose x is
+    not its first word's carries a third element (FIXTURES.md): leading
+    blanks keep their text (the blanks make the first word unpositioned);
+    a letter-spaced `.UJ` run is its `word`, with no x."""
+    x, text = item[0], _decode_item(item[1])
+    note = item[2] if len(item) > 2 else {}
+    if note.get('unpositioned') == 'letter-spaced':
+        return [None, note.get('word', text)]
+    return [x, text]
 
 
 def _first_word_tokens(rows, page_key, pos_of):
@@ -438,7 +452,7 @@ def _first_word_tokens(rows, page_key, pos_of):
 
 
 def _printed_pos(row, ix, wi, _col):
-    x = ix / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT if wi == 0 else None
+    x = ix / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT if wi == 0 and ix is not None else None
     return x, row['v'] / fg.DECIPT_PER_PT
 
 
@@ -480,11 +494,21 @@ def _doc_for(path, variant):
         return core.parse(f.read(), variant=variant)
 
 
+# Runs made with a WS.EXE patched to another footnote-run setting (WS7 report
+# 14.15): the setting lives in the program, not the document, so the harness
+# hands it to the engine (`doc.meta['fnrun']`) for these runs by file prefix.
+PATCHED_FNRUN = {'fnr0': 0, 'fnr3': 3, 'fnr4': 4, 'fnr5': 5, 'fnr6': 6,
+                 'fnr7': 7, 'fnr99': 99}
+
+
 def render_printed(path, variant):
     """The Printed PDF the CLI would write for `path` read as `variant`."""
     with open(path, 'rb') as f:
         data = f.read()
     doc = core.parse(data, variant=variant)
+    run = os.path.basename(path).split('-')[0]
+    if run in PATCHED_FNRUN:
+        doc.meta['fnrun'] = PATCHED_FNRUN[run]
     pix = ctrlkd_pictures.resolve_document_pictures(doc, path)
     return pdfmod.emit_pdf(doc, mode='printed', pictures='embed', pix_results=pix)
 

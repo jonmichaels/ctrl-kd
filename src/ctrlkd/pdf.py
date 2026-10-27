@@ -83,10 +83,9 @@ FOOTNOTE_SEPARATOR = '-' * 20     # "Footnotes are separated from the text by a
                                   # the text measure.
 CONTINUATION_TEXT = '...Continued...'   # WSCHANGE factory default (footnote
                                         # continuation text)
-FOOTNOTE_FLOOR = 3               # "A minimum of three lines of regular text
-                                  # are printed on a page regardless of the
-                                  # size of the footnote area" (except the
-                                  # last page of the document)
+FOOTNOTE_FLOOR = 3               # the fewest text lines a page's geometry may
+                                  # leave (a page-capacity floor only; WS7 keeps
+                                  # no body-line floor against a note area)
 
 def _landscape_page(page):
     """A copy of the page dict with height_in/pw_in SWAPPED -- `.pr or=l`
@@ -773,13 +772,15 @@ def _po_checkpoints(doc):
     `ESC(s...T` font selection), not a different driver family's own
     margin convention -- see `tools/PCL-DIVERGENCE-TRIAGE.md`."""
     from .core import DEFAULT_PO_COLS, _resolve_cols_arg, printing_era
-    bare_po_zero = printing_era(doc).bare_po_zero
+    era = printing_era(doc)
     checkpoints = [(0, DEFAULT_PO_COLS)]
     for bi, _li, cmd in doc.meta.get('dot_positions', ()):
         m = _PO_CMD_RE.match(cmd)
         if not m:
-            if bare_po_zero and _PO_BARE_RE.match(cmd):
-                resolved = 0.0                 # core.Era.bare_po_zero
+            bare = _PO_BARE_RE.match(cmd)
+            bad = not bare and _PO_ANY_RE.match(cmd)
+            if (era.bare_po_zero and bare) or (era.bad_po_zero and bad):
+                resolved = 0.0                 # core.Era.bare_po_zero / bad_po_zero
                 if resolved != checkpoints[-1][1]:
                     checkpoints.append((bi, resolved))
             continue
@@ -793,6 +794,7 @@ def _po_checkpoints(doc):
 _PO_CMD_RE = _re.compile(r'^\.PO\s*([0-9.]+)\s*("|[A-Za-z]{1,2})?',
                          _re.IGNORECASE)
 _PO_BARE_RE = _re.compile(r'^\.PO\s*$', _re.IGNORECASE)
+_PO_ANY_RE = _re.compile(r'^\.PO(\s|$)', _re.IGNORECASE)
 
 
 def _po_at(checkpoints, bi):
@@ -3504,23 +3506,30 @@ def _wrap_line(spans, width):
 
 # ----------------------------------------------- printed footnote layout
 #
-# WordStar Professional 5 manual, pp. 138-139 (quoted in full in the module
-# docstring's spirit, restated here at the point it's implemented):
+# WordStar Professional 5 manual, pp. 138-139, and the WS7 teardown it was
+# checked against (WS7 report 11.11, 14.8, 14.15, 15.1; runs fn1, fn2, fnfit51,
+# fnfit52, fnlong2, fnr0-fnr99, fnbig, fnhuge, fnlong120, ann52):
 #
 #   "Footnotes are separated from the text by a line of 20 dashes. If a
 #   footnote doesn't fit at the bottom of the page, the continued text is
-#   printed in the footnote area at the bottom of the next page (except
-#   after the last page of regular text, where footnotes are printed at
-#   the top of the page). A minimum of three lines of regular text are
-#   printed on a page regardless of the size of the footnote area except
-#   on the last page of the document."
+#   printed in the footnote area at the bottom of the next page."
 #
-# The reference NEVER moves (no reserve-and-push/TeX-style lookahead --
-# WordStar didn't do that); the footnote area at the page bottom grows to
-# hold its notes, eating body-text space down to a floor of FOOTNOTE_FLOOR
-# lines; whatever doesn't fit is split, continuing in the next page's area
-# (marked with CONTINUATION_TEXT); the floor is lifted, and any final
-# leftover prints at the page TOP instead, once there's no more body text.
+# What WS7 does with a note that does not fit under its reference (the room
+# is counted in lines from the reference line down to the bottom margin):
+#   - the room left (the reference line included) is under `fnrun` note
+#     lines (factory 8): the reference line and the WHOLE note move to the
+#     next page, where the note fits;
+#   - otherwise the note RUNS: its first part prints under the reference with
+#     the area ending on the bottom margin line, and the rest continues on
+#     the next page under a separator with `...Continued...` directly below
+#     it, then a blank line. A first part is the room after the reference
+#     line less four lines (separator, blank, and two lines WS7 keeps).
+#   - a note that fits whole prints with its last line one line above the
+#     bottom margin (the reserve below), a running one with its last line
+#     ON it.
+# There is no floor of body lines: a carried-over note takes as much of the
+# next page as it needs, a whole page when it is long enough (run fnlong120:
+# a 120-line note makes a note-only page).
 #
 # Endnotes never touch the per-page footnote area at all -- WordStar collects
 # them at the true end of the document (no .pe support here -- see report),
@@ -3528,6 +3537,11 @@ def _wrap_line(spans, width):
 # Annotations print at the page bottom exactly like footnotes (same ruling).
 # Comments never print (WordStar's own rule) and never reach this code --
 # core.py never emits a reference sentinel for them.
+
+# WSCHANGE's "footnote run" setting: below this many note lines of room a note
+# moves to the next page with its reference line instead of running over
+# (WS7 report 14.15, root:1A12). `doc.meta['fnrun']` overrides it.
+FOOTNOTE_RUN_LINES = 8
 
 def _note_marker(note, label, pad_cols=None):
     """Footnote reference-in-the-note, WSCHANGE factory default: no lead
@@ -3608,7 +3622,7 @@ def _notes_marker_pad_cols(doc):
     ask this question -- of one marker width, so the answer is None and
     their own single-space join stands, which is what WS7 prints."""
     widths = set()
-    for note, label in _annotated_notes(doc):
+    for note, label in _annotated_notes(doc, True):
         if any(getattr(note, 'text_indents', ()) or ()):
             continue
         if note.kind == 'footnote':
@@ -3784,7 +3798,7 @@ def _area_size(entries):
     """Total lines the footnote area occupies FOR PAGE-CAPACITY PURPOSES
     (how many body lines this paginator admits onto a page before the
     footnote area needs room, and this area's own share of
-    `_footnote_ceiling`'s budget): the fixed 3-line header (blank / 20-dash
+    the page's room): the fixed 3-line header (blank / 20-dash
     separator / blank -- VMI 240 = one blank line at 6 LPI) plus each
     entry's own lines plus one blank line between entries (VMI 240
     "between notes"). 0 when there's nothing to show at all.
@@ -3808,23 +3822,46 @@ def _area_size(entries):
         return 0
     return 3 + sum(len(e) for e in entries) + (len(entries) - 1)
 
+def _is_continuation(chunk):
+    """True for a note chunk that opens with the `...Continued...` line."""
+    return (len(chunk[0]) == 1 and chunk[0][0][0] == CONTINUATION_TEXT)
+
 def _render_area(entries):
+    """The note area's drawn lines: the separator, a blank, the notes with a
+    blank between them. A carried-over note puts `...Continued...` directly
+    under the separator, then the blank (WS7 report 14.15, runs fnr0, fnbig:
+    separator, Continued, blank, note lines)."""
     if not entries:
         return []
-    out = [[(FOOTNOTE_SEPARATOR, frozenset())], []]
-    for k, e in enumerate(entries):
-        if k:
-            out.append([])
+    sep = [(FOOTNOTE_SEPARATOR, frozenset())]
+    if _is_continuation(entries[0]):
+        out = [sep, entries[0][0], []]
+        out.extend(entries[0][1:])
+        rest = entries[1:]
+    else:
+        out = [sep, []]
+        out.extend(entries[0])
+        rest = entries[1:]
+    for e in rest:
+        out.append([])
         out.extend(e)
     return out
 
-def _admit_footnotes(entries, queue, ceiling):
+def _admit_footnotes(entries, queue, ceiling, fresh_slack=0):
     """Move whole/partial rendered note-chunks from the FRONT of `queue`
     into `entries` (mutating both) until the footnote area would exceed
     `ceiling` lines. A chunk that only partly fits is split: the part that
     fits joins `entries`, and the remainder goes back on the front of
     `queue` with CONTINUATION_TEXT prepended, ready to resume on a later
-    page's area -- this is the only place a note's text is ever cut."""
+    page's area -- this is the only place a note's text is ever cut.
+
+    `fresh_slack`: lines a NEW note's first part leaves unused when it is
+    split under its reference (WS7 report 14.15: room after the reference
+    line less four, the area's own three being counted in `ceiling`); a
+    carried-over chunk uses every line it is given.
+
+    Returns True when a chunk was split, i.e. the note area on this page ends
+    in a running note. A chunk with no room at all stays on `queue`."""
     while queue:
         chunk = queue[0]
         overhead = 1 if entries else 3          # inter-note blank, or the
@@ -3834,37 +3871,30 @@ def _admit_footnotes(entries, queue, ceiling):
             entries.append(chunk)
             queue.pop(0)
             continue
-        # Splitting prepends a CONTINUATION_TEXT line to the remainder, so it
-        # only advances when room >= 2: at room == 1 we would admit one line
-        # and add one straight back, forever. When the page cannot even manage
-        # that AND the area is still empty, force two lines through -- a page
-        # that overflows slightly beats a hang or lost text (Jon's ruling on
-        # the Modern spill case: no text lost, no infinite loops).
-        if room >= 2:
-            split = room
+        # Splitting prepends a CONTINUATION_TEXT line to the remainder. A
+        # chunk already carrying one only advances when it admits two lines
+        # or more: at one it would admit that line and add it straight back,
+        # forever. A new note's first line is progress, so it needs one.
+        carried = _is_continuation(chunk)
+        avail = room - (0 if carried else fresh_slack)
+        if avail >= (2 if carried else 1):
+            split = avail
         elif not entries:
+            # a page that cannot even manage that AND is still empty forces
+            # two lines through -- a page that overflows slightly beats a
+            # hang or lost text (Jon's ruling on the Modern spill case: no
+            # text lost, no infinite loops).
             split = min(len(chunk), 2)
         else:
-            break                                # defer: next page starts empty
+            return False                         # defer: next page starts empty
         entries.append(chunk[:split])
         rest = chunk[split:]
         if rest:
             queue[0] = [[(CONTINUATION_TEXT, frozenset())]] + rest
         else:
             queue.pop(0)
-        break
-
-def _footnote_ceiling(room, capacity, is_terminal):
-    """Max lines the footnote area may occupy on a page with `room` whole
-    default-lead lines left under the body already placed (the
-    paginator's `_room_lines`, which floors, never rounds, so a
-    fractional line of room already spent by a styled body line is never
-    credited as a whole line the area can use). Always bounded by that
-    room -- entries can never push the total past the page. Additionally
-    bounded by capacity - FOOTNOTE_FLOOR on every page EXCEPT the one
-    holding the document's last line of regular text, where the floor's
-    protection lifts (the WS5 manual's stated exception)."""
-    return room if is_terminal else min(room, capacity - FOOTNOTE_FLOOR)
+        return True
+    return False
 
 def _pagelines(lines):
     """The note area's own lines as PageLines, like every other line of a
@@ -3888,17 +3918,17 @@ class _NoteArea:
 
     `queue`: notes whose reference has been read but whose text has not yet
     been admitted to a page's area, in document order. `entries`: the
-    chunks admitted to the OPEN page's area. `is_terminal`: the open page
-    holds the document's last line of regular text, so the three-line floor
-    lifts and the area may grow to the whole remaining page (rule 5).
-    `last_ink_index`: index (in the body items) of the last item carrying
-    real ink -- an image, or any non-blank text; the page that admits it is
-    the terminal page. `pad_cols`: Finding 4 (b26 visual pass), see
+    chunks admitted to the OPEN page's area. `running`: that area ends in a
+    note that runs on (a split first part, or a carried-over part), which
+    WS7 anchors on the bottom margin line instead of one line above it.
+    `sealed`: a note was split under its reference on this page, so the page
+    takes no more body lines (the rest of it is the running note's).
+    `pad_cols`: Finding 4 (b26 visual pass), see
     `_notes_marker_pad_cols` -- computed ONCE, shared by the
     footnote/annotation area and the endnote section, so a document whose
     footnotes and endnotes land on the same page agree on one column."""
 
-    def __init__(self, doc, items, default_lead, sentence_spacing):
+    def __init__(self, doc, default_lead, sentence_spacing):
         self.default_lead = default_lead
         self.sentence_spacing = sentence_spacing
         self.pad_cols = _notes_marker_pad_cols(doc)
@@ -3907,12 +3937,8 @@ class _NoteArea:
         self.euro = _peseta_euro_table(doc)
         self.queue = []
         self.entries = []
-        self.is_terminal = False
-        self.last_ink_index = -1
-        for i, item in enumerate(items):
-            if isinstance(item, PageLine) and (
-                    item.image is not None or any(t.strip() for t, _ in item)):
-                self.last_ink_index = i
+        self.running = False
+        self.sealed = False
 
     @property
     def height_pt(self):
@@ -3924,7 +3950,8 @@ class _NoteArea:
         not hold is admitted by `admit` before any new reference queues
         behind it."""
         self.entries = []
-        self.is_terminal = False
+        self.running = False
+        self.sealed = False
 
     def enqueue(self, refs, width):
         """The notes referenced on a body line just placed, in order."""
@@ -3935,12 +3962,33 @@ class _NoteArea:
                 width, getattr(note, 'tag_line', 0),
                 getattr(note, 'text_indents', ())))
 
-    def admit(self, room_lines, capacity):
+    def admit(self, room_lines, fresh_slack=1):
         """Admit queued notes while the area fits `room_lines` of the open
-        page (`capacity` is that page's own line capacity, the floor's
-        reference) -- see `_footnote_ceiling`."""
-        _admit_footnotes(self.entries, self.queue,
-                         _footnote_ceiling(room_lines, capacity, self.is_terminal))
+        page. `fresh_slack` is the line a new note's first part leaves
+        unused when it runs (`_admit_footnotes`); the carry-over a page
+        opens with takes every line it can."""
+        if self.queue and _is_continuation(self.queue[0]):
+            self.running = True
+        if _admit_footnotes(self.entries, self.queue, room_lines, fresh_slack):
+            self.running = True
+            if fresh_slack:
+                self.sealed = True
+
+    def run_would_split(self, refs, width, room_lines):
+        """Whether queueing the notes of `refs` now would leave one of them
+        running or deferred, and how many lines of the last of them the open
+        page's area would take. Leaves the area untouched."""
+        saved = (list(self.entries), list(self.queue), self.running)
+        try:
+            before = sum(len(e) for e in self.entries)
+            self.enqueue(refs, width)
+            split = _admit_footnotes(self.entries, self.queue, room_lines, 1)
+            split = split or bool(self.queue)
+            taken = sum(len(e) for e in self.entries) - before
+        finally:
+            self.entries, self.queue, self.running = (
+                saved[0], saved[1], saved[2])
+        return split, taken
 
     def anchored_area(self, geometry_doc, body_y):
         """The area as page lines, bottom-anchored on its page.
@@ -3980,6 +4028,8 @@ class _NoteArea:
             return area
         page_h = _resolved_page_height(geometry_doc, True)
         reserve = _printed_notes_reserve_pt(geometry_doc)
+        if self.running:
+            reserve -= self.default_lead      # ends ON the bottom margin line
         target_first = page_h - reserve - (len(area) - 1) * self.default_lead
         override = target_first - body_y
         if override > 0:
@@ -4008,7 +4058,7 @@ def _endnote_lines(doc, pad_cols, width, sentence_spacing):
     NOT the shared fn_counter position -- so a document with 2 footnotes
     then 2 endnotes shows endnotes (1)/(2), matching the same labels their
     body references display, not (3)/(4)."""
-    endnotes = [(note, label) for note, label in _annotated_notes(doc)
+    endnotes = [(note, label) for note, label in _annotated_notes(doc, True)
                 if note.kind == 'endnote']
     # planning #266: this document's own driver-keyed cp437-158 rule
     # (`_peseta_euro_table`), resolved once.
@@ -5207,7 +5257,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     # planning #266: this document's own driver-keyed cp437-158 rule
     # (`_peseta_euro_table`), resolved once.
     euro = _peseta_euro_table(doc)
-    refs_all = _ref_pairs(_annotated_notes(doc))
+    refs_all = _ref_pairs(_annotated_notes(doc, printed))
 
     def _note_ref(s):
         """The (note, label) a footnote/endnote/annotation reference span
@@ -5907,7 +5957,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
     page_end_geom = None     # (mt, mb, pl) at the open page's last line (WS4)
     # The note area (planning #577): `None` outside Printed. For a document
     # with no footnote/annotation reference every hook below is a no-op.
-    notes = _NoteArea(doc, lines, default_lead, sentence_spacing) if printed else None
+    notes = _NoteArea(doc, default_lead, sentence_spacing) if printed else None
     carry_open = True            # the open page's note-area carry-over is not yet admitted
     last_room_lines = 0          # whole lines free on the page closed last, under its area
     last_has_area = False        # ...and whether that page ends with a note area
@@ -6332,7 +6382,25 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         if not carry_open:
             return
         carry_open = False
-        notes.admit(_room_lines(), cap)
+        notes.admit(_room_lines())
+
+    def _note_moves_with_line(ln):
+        """Whether `ln`, a body line that fits, goes to the next page
+        together with its notes (WS7 report 14.8, 14.15): its notes do not
+        fit whole under it and the room left from this line down, the
+        line itself and any area already committed counted out, is under
+        `fnrun` note lines -- or leaves no room to run a first part at
+        all. Otherwise the line stays and the notes run (`_NoteArea`)."""
+        if not ln.refs:
+            return False
+        room_after = int(_math.floor(
+            (budget - _col_cut() - spent - _cost(ln)) / default_lead + 1e-9))
+        split, taken = notes.run_would_split(ln.refs, MAX_COLS, room_after)
+        if not split:
+            return False
+        room_before = _room_lines() - _area_size(notes.entries)
+        return (room_before < doc.meta.get('fnrun', FOOTNOTE_RUN_LINES)
+                or taken < 1)
 
     for _li, l in enumerate(lines):
         if isinstance(l, tuple) and l and l[0] == 'hf':
@@ -6498,6 +6566,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         already_over = printed and spent + notes.height_pt > budget - _col_cut() + 1e-6
         full = overflow and not (printed and getattr(l, 'ws4_spacing', False)
                                  and not already_over)
+        if printed and not full and page and l is not None:
+            full = notes.sealed or _note_moves_with_line(l)
         if l is None or full:
             if page or l is None:
                 _close_page(); _open_new_page()
@@ -6511,6 +6581,13 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
                     budget = _budget_for(cap, cur_mt, cur_mb, cur_pl)
                 if printed and full and l is not None:
                     _open_area()
+                    # A page of nothing but a carried-over note is a page
+                    # too: the note takes the whole of it and the line waits
+                    # for the next (WS7 report 15.1, run fnlong120).
+                    while (notes.entries and spent + _cost(l) + notes.height_pt
+                           > budget - _col_cut() + 1e-6):
+                        _close_page(); _open_new_page()
+                        _open_area()
             if l is None:
                 trailing_pagebreak = True
                 continue
@@ -6543,10 +6620,8 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
             # The page that admits the document's last line of regular text
             # is the terminal page: the floor lifts there (rule 5). Then this
             # line's notes queue, and as many as fit join the area.
-            if _li == notes.last_ink_index:
-                notes.is_terminal = True
             notes.enqueue(l.refs, MAX_COLS)
-            notes.admit(_room_lines(), cap)
+            notes.admit(_room_lines())
     if page:
         _close_page()
     elif trailing_pagebreak and printed and doc.meta.get('pa_eof_blank_after'):
@@ -6595,8 +6670,7 @@ def _doc_to_pagelines(doc, printed, pix_results=None, pictures='off',
         # pages ARE the manual's stated exception.
         while notes.queue:
             entries = []
-            _admit_footnotes(entries, notes.queue,
-                             _footnote_ceiling(cap, cap, True))
+            _admit_footnotes(entries, notes.queue, cap)
             _close_tail_page(_render_area(entries))
             last_room_lines = cap - _area_size(entries)
             last_has_area = True

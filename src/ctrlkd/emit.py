@@ -203,28 +203,39 @@ def _note_symbol(n):
     reps = (n - 1) // cycle + 1
     return _NOTE_SYMBOLS[(n - 1) % cycle] * reps
 
-def _format_note_number(n, number_format):
-    """A footnote/endnote's display index, ALWAYS arabic.
+def _format_note_number(n, style=None):
+    """A footnote/endnote's display index: arabic, or letters when the
+    document's `.f#` / `.e#` command asked for them and the output is
+    Printed.
 
-    WordStar's format spec documents a conversion-flag high nybble ("0 means to
-    use symbols, 1 is for upper case, 2 is for lower case, and three is for
-    numbers"), and this function briefly honoured it (ruling 2026-08-24 item 5).
-    GROUND TRUTH SAYS OTHERWISE.
+    The format WS7 prints is the `.f#` (`.e#`) setting in force at print
+    time, NOT the format nibble stored in the note record (WS7 report 15.10
+    and 11.11, runs w16-fnup / w16-fnlow / w16-fnsym / w16-fnlow2 /
+    w16-fnup2). `.f# a` prints a, b, c ... and `.f# A` prints A, B, C ...;
+    a digit or no argument prints arabic. The stored nibble is the editor's
+    copy only: `DISPLAY.WS` carries a footnote at nibble 2 and an endnote at
+    nibble 1, and printed through WS7 it shows `1.` and `(1)`, so
+    `Note.number_format` stays PARSED (preserve-what-you-find governs the
+    IR) and is never consulted for display.
 
-    `DISPLAY.WS` -- WordStar's own tutorial file in the archive -- carries a
-    footnote at number_format=2 and an endnote at number_format=1. Printed
-    through REAL WordStar 7 under DOSBox-X, it puts `1.` and `(1)` on the page:
-    plain arabic, the same as every other document. WordStar does not use those
-    bits for the printed label. Capture kept as ground truth so this never has
-    to be re-derived.
-
-    `number_format` stays PARSED -- preserve-what-you-find governs the IR -- and
-    is simply not consulted for display. `n` is arrives 1-based via
-    `_display_number`.
-    """
+    `style` is 'lower' / 'upper' / None (`_note_style`); `n` arrives 1-based
+    via `_display_number`. Past 26 the labels continue aa, ab ...
+    (`_alpha_label`); the teardown does not say what WS7 does there."""
+    if style == 'lower':
+        return _alpha_label(n, False)
+    if style == 'upper':
+        return _alpha_label(n, True)
     return str(n)
 
-def _annotated_notes(doc):
+def _note_style(doc, kind, printed):
+    """The label format the document's `.f#` / `.e#` asked for ('lower',
+    'upper' or None for arabic), in Printed output only. Modern's labels
+    follow their own `--note-refs` scheme and are never lettered here."""
+    if not printed or kind not in ('footnote', 'endnote'):
+        return None
+    return doc.meta.get(kind + '_number_format')
+
+def _annotated_notes(doc, printed=False):
     """doc.notes, each paired with its DISPLAY LABEL, computed once so every
     emitter/section builds identical labels and inline markers stay in
     lockstep with the trailing note text:
@@ -235,7 +246,8 @@ def _annotated_notes(doc):
                         real note number for THAT kind — footnote #1 and
                         endnote #1 are different notes with the same
                         number, which is why they need separate counters,
-                        not one merged one — always arabic
+                        not one merged one — arabic, or letters in Printed
+                        output when `.f#` / `.e#` asked for them
                         (`_format_note_number`)
       annotation        its own tag string (e.g. "AC1"), which is what
                         WordStar itself displays/prints for an annotation
@@ -268,13 +280,13 @@ def _annotated_notes(doc):
                 label = n.tag
             else:
                 index = _display_number(doc, n, counters[n.kind] - 1)
-                label = _format_note_number(index, n.number_format)
+                label = _format_note_number(index, _note_style(doc, n.kind, printed))
         else:
             label = str(counters[n.kind])
         out.append((n, label))
     return out
 
-def _pageless_notes(doc):
+def _pageless_notes(doc, printed=False):
     """`_annotated_notes(doc)`, with footnote/endnote labels renumbered
     CONTINUOUSLY across the whole document wherever WordStar's own
     per-page-reset numbers actually COLLIDE (ruling 2026-08-24: "renumber
@@ -297,7 +309,7 @@ def _pageless_notes(doc):
     auto-numbering) and must keep WordStar's own numbers exactly as
     stored.
     """
-    pairs = _annotated_notes(doc)
+    pairs = _annotated_notes(doc, printed)
     resolved = {id(n): label for n, label in pairs}
     for kind in ('footnote', 'endnote'):
         members = [(n, l) for n, l in pairs if n.kind == kind and n.tag is None]
@@ -305,33 +317,27 @@ def _pageless_notes(doc):
         if len(set(labels)) == len(labels):
             continue                       # no collision -- untouched
         for i, (n, _) in enumerate(members, 1):
-            resolved[id(n)] = _format_note_number(i, n.number_format)
+            resolved[id(n)] = _format_note_number(i, _note_style(doc, n.kind, printed))
     return [(n, resolved[id(n)]) for n, _ in pairs]
 
 def _display_number(doc, note, position):
-    """The number WordStar would actually SHOW for a footnote/endnote --
-    NOT note.number as stored.
+    """The number WordStar would actually SHOW for a footnote/endnote.
 
-    Verified against a real WS7 file: core.py's note.number is the file's
-    raw internal index, and that index is 0-based, while WordStar's own
-    documented numbering starts at 1 (a `.f#`-style dot command can move
-    the start point, but the default is 1) -- so displaying note.number
-    directly leaks a storage detail a WordStar user never saw ("footnote 0"
-    never appeared on anyone's printed page). `position` is this note's
-    0-based rank among its own kind, used as a fallback only for the rare/
-    malformed case where the file never resolved a number at all.
+    core.py's `Note.number` is the file's stored index, 0-based, and WS7
+    already folds the `.f#` / `.e#` start value and the per-page restart
+    into it when it paginates and saves (WS7 report 15.1, runs fnnum5 and
+    fnnumd: a bare `.f# 5` stores 4, 5 on page 1 and 0, 1 on page 2, which
+    print 5., 6. / 1., 2.). So the displayed number is the stored index plus
+    one; adding the `.f#` start again numbered those notes 9., 10. / 5., 6.
+    `doc.meta['footnote_number_start']` stays a record of the command, and
+    is read only for a note whose file never stored a number (`position` is
+    its 0-based rank among its own kind).
 
     note.number itself is left untouched (preserve-what-you-find is a rule
-    about the IR, not about presentation) -- this derives a display label
-    without mutating anything. core.py doesn't parse a footnote/endnote
-    start-value dot command yet (another agent is adding dot-command
-    parsing separately); doc.meta['footnote_number_start'] /
-    ['endnote_number_start'] is the one place designed to receive that
-    value when it does. Until then both default to WordStar's documented 1.
-    """
-    start = doc.meta.get(f'{note.kind}_number_start', 1)
-    index = note.number if note.number is not None else position
-    return index + start
+    about the IR, not about presentation)."""
+    if note.number is not None:
+        return note.number + 1
+    return position + doc.meta.get(f'{note.kind}_number_start', 1)
 
 def _ref_pairs(pairs):
     """The subset of _annotated_notes() output that carries an inline
@@ -447,7 +453,7 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # WordStar's own per-page footnote numbers stay unambiguous there, same
     # as Printed/Modern PDF (ruling 2026-08-24: "Printed... keep WS7's
     # per-page numbering"). Only Modern TXT is genuinely page-less.
-    pairs = _annotated_notes(doc) if printed else _pageless_notes(doc)
+    pairs = _annotated_notes(doc, True) if printed else _pageless_notes(doc)
     refs = _ref_pairs(pairs)
     if printed:
         # printed is always silent about comments (ruling 2026-08-06):
@@ -2157,10 +2163,10 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # So HTML takes the same collision-triggered continuous renumbering as
     # Modern TXT/MD, in printed mode too (ruling 2026-08-24: "HTML needs it
     # as well" -- measured and ruled without a mode qualifier).
-    pairs = _pageless_notes(doc)
+    printed = mode == 'printed' or _printed(doc)
+    pairs = _pageless_notes(doc, printed)
     refs = _ref_pairs(pairs)
     parts = []
-    printed = mode == 'printed' or _printed(doc)
     if printed:
         # printed is always silent about comments (ruling 2026-08-06)
         keep = keep - {'comment'}
@@ -4484,9 +4490,9 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
            else _merge_pageno_marked(doc))
     pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
-    pairs = _annotated_notes(doc)
-    refs = _ref_pairs(pairs)
     printed = mode == 'printed' or _printed(doc)
+    pairs = _annotated_notes(doc, printed)
+    refs = _ref_pairs(pairs)
     if printed:
         # printed is always silent about comments (ruling 2026-08-06)
         keep = keep - {'comment'}
@@ -5178,6 +5184,14 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # not move. BOTH MODES since M17b -- see `_rtf_section_breaks`.
     pagesetup += _rtf_cols_control(*(_rtf_columns_state(doc)[0]
                                      if doc.blocks else (1, None)))
+    # `.f# a` / `.f# A` (`.e#` the same) print letters in Printed (WS7 report
+    # 15.10): the notes are Word-numbered by \chftn, so the letter format is
+    # the document's footnote / endnote number format, \ftnnalc / \ftnnauc
+    # and \aftnnalc / \aftnnauc. Modern keeps Word's own defaults.
+    for kind, ctl in (('footnote', r'\ftnn'), ('endnote', r'\aftnn')):
+        style = _note_style(doc, kind, printed)
+        if style:
+            pagesetup += ctl + ('alc' if style == 'lower' else 'auc')
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,
     # gated by `--toc` (default off, the ruled default).
     toc_index = _rtf_toc_index(doc, printed) if toc else ''
