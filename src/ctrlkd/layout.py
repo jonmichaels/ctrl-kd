@@ -605,7 +605,7 @@ def _shown_labels(pairs, note_refs):
     return shown
 
 
-def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
+def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs=None,
                 verse_flags=None, print_controls=None):
     """The document as the semantic Modern flow — see the module docstring
     for the item contract. This is the single implementation of the
@@ -644,7 +644,7 @@ def modern_flow(doc, notes=DEFAULT_NOTE_KINDS, note_refs='word',
     function cannot ask for. Same shape as pdf.py's own
     `record_sem_index` list parameter, for the same reason."""
     keep = frozenset(notes)
-    pairs = _annotated_notes(doc)
+    pairs = _annotated_notes(doc, note_refs=note_refs)
     refs = _ref_pairs(pairs)
     shown_by_id = _shown_labels(pairs, note_refs)
 
@@ -999,7 +999,7 @@ def _hf_line_json(e):
 
 @emitter('layout', ext='.json')
 def emit_layout(doc, mode='modern', notes=DEFAULT_NOTE_KINDS,
-                note_refs='word', **_options):
+                note_refs=None, **_options):
     """The `layout` format: the full viewer contract as JSON — semantic
     Modern flow, printed page-lines, page geometry with provenance, notes,
     and the invisible layer (dot commands with anchors, running-head

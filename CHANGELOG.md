@@ -89,7 +89,10 @@ the programs' own code and real runs, checked by a new test tier
 - **`.f# a` / `.f# A` (and `.e#`) letter the notes in Printed output**, as
   WordStar 7 prints them: a, b, c / A, B, C in the PDF, layout, text,
   Markdown and HTML, and as the footnote / endnote number format in RTF.
-  Modern keeps its own labels.
+  Modern letters them too when no `--note-refs` is given; a `--note-refs`
+  scheme, `word` or `prefixed`, wins over the document. `--note-refs` no
+  longer defaults to `word`: without it, Modern follows `.f#`/`.e#` and is
+  otherwise `word`.
 
 ## [4.10.1] — 2026-10-26
 

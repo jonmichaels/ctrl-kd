@@ -136,15 +136,18 @@ def main(argv=None):
                          '(where it bypasses the overwrite prompt); ctrl-kd '
                          'always overwrites existing outputs')
     ap.add_argument('--note-refs', choices=('word', 'prefixed'),
-                    default='word',
+                    default=None,
                     help='note reference-mark display in Modern output. '
-                         '"word" (default): the Word standard -- arabic '
-                         'footnotes, lowercase-roman endnotes, WordStar '
-                         'tags for annotations. "prefixed": footnotes 1 2 '
-                         '3, endnotes e1 e2, annotations a1 a2 -- the same '
+                         '"word": the Word standard -- arabic footnotes, '
+                         'lowercase-roman endnotes, WordStar tags for '
+                         'annotations. "prefixed": footnotes 1 2 3, '
+                         'endnotes e1 e2, annotations a1 a2 -- the same '
                          'labels the markdown output always uses, matched '
-                         'across formats. Printed output is a facsimile '
-                         'and ignores this.')
+                         'across formats. Either one overrides the '
+                         "document's own .f#/.e# letter format. Without "
+                         "this flag, Modern follows the document's .f#/.e# "
+                         'and is otherwise "word". Printed output is a '
+                         'facsimile and ignores this.')
     ap.add_argument('--no-styles', action='store_true',
                     help='omit paragraph-style pass-through (HTML classes + '
                          'generated CSS, RTF stylesheet) from the output')

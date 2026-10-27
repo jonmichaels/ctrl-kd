@@ -227,15 +227,18 @@ def _format_note_number(n, style=None):
         return _alpha_label(n, True)
     return str(n)
 
-def _note_style(doc, kind, printed):
+def _note_style(doc, kind, printed, note_refs=None):
     """The label format the document's `.f#` / `.e#` asked for ('lower',
-    'upper' or None for arabic), in Printed output only. Modern's labels
-    follow their own `--note-refs` scheme and are never lettered here."""
-    if not printed or kind not in ('footnote', 'endnote'):
+    'upper' or None for arabic). Printed always follows it. Modern follows
+    it only when no `--note-refs` scheme was given (`note_refs` None): a
+    scheme the caller names wins over the document."""
+    if kind not in ('footnote', 'endnote'):
+        return None
+    if not printed and note_refs is not None:
         return None
     return doc.meta.get(kind + '_number_format')
 
-def _annotated_notes(doc, printed=False):
+def _annotated_notes(doc, printed=False, note_refs=None):
     """doc.notes, each paired with its DISPLAY LABEL, computed once so every
     emitter/section builds identical labels and inline markers stay in
     lockstep with the trailing note text:
@@ -246,8 +249,9 @@ def _annotated_notes(doc, printed=False):
                         real note number for THAT kind — footnote #1 and
                         endnote #1 are different notes with the same
                         number, which is why they need separate counters,
-                        not one merged one — arabic, or letters in Printed
-                        output when `.f#` / `.e#` asked for them
+                        not one merged one — arabic, or letters when
+                        `.f#` / `.e#` asked for them (`_note_style`:
+                        Printed always, Modern when `note_refs` is None)
                         (`_format_note_number`)
       annotation        its own tag string (e.g. "AC1"), which is what
                         WordStar itself displays/prints for an annotation
@@ -283,13 +287,14 @@ def _annotated_notes(doc, printed=False):
                 label = n.tag
             else:
                 index = _display_number(doc, n, counters[n.kind] - 1)
-                label = _format_note_number(index, _note_style(doc, n.kind, printed))
+                label = _format_note_number(
+                    index, _note_style(doc, n.kind, printed, note_refs))
         else:
             label = str(counters[n.kind])
         out.append((n, label))
     return out
 
-def _pageless_notes(doc, printed=False):
+def _pageless_notes(doc, printed=False, note_refs=None):
     """`_annotated_notes(doc)`, with footnote/endnote labels renumbered
     CONTINUOUSLY across the whole document wherever WordStar's own
     per-page-reset numbers actually COLLIDE (ruling 2026-08-24: "renumber
@@ -312,7 +317,7 @@ def _pageless_notes(doc, printed=False):
     auto-numbering) and must keep WordStar's own numbers exactly as
     stored.
     """
-    pairs = _annotated_notes(doc, printed)
+    pairs = _annotated_notes(doc, printed, note_refs)
     resolved = {id(n): label for n, label in pairs}
     for kind in ('footnote', 'endnote'):
         members = [(n, l) for n, l in pairs if n.kind == kind and n.tag is None]
@@ -320,7 +325,8 @@ def _pageless_notes(doc, printed=False):
         if len(set(labels)) == len(labels):
             continue                       # no collision -- untouched
         for i, (n, _) in enumerate(members, 1):
-            resolved[id(n)] = _format_note_number(i, _note_style(doc, n.kind, printed))
+            resolved[id(n)] = _format_note_number(
+                i, _note_style(doc, n.kind, printed, note_refs))
     return [(n, resolved[id(n)]) for n, _ in pairs]
 
 def _display_number(doc, note, position):
@@ -456,7 +462,8 @@ def emit_text(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # WordStar's own per-page footnote numbers stay unambiguous there, same
     # as Printed/Modern PDF (ruling 2026-08-24: "Printed... keep WS7's
     # per-page numbering"). Only Modern TXT is genuinely page-less.
-    pairs = _annotated_notes(doc, True) if printed else _pageless_notes(doc)
+    pairs = (_annotated_notes(doc, True) if printed
+             else _pageless_notes(doc, note_refs=_options.get('note_refs')))
     refs = _ref_pairs(pairs)
     if printed:
         # printed is always silent about comments (ruling 2026-08-06):
@@ -915,7 +922,7 @@ def emit_markdown(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, toc=False,
     # own printed facsimile, `\f` pages included) -- Modern MD has no pages
     # of its own, so it takes the same collision-triggered continuous
     # renumbering as Modern TXT (ruling 2026-08-24).
-    pairs = _pageless_notes(doc)
+    pairs = _pageless_notes(doc, note_refs=_options.get('note_refs'))
     refs = _ref_pairs(pairs)
     margin = _doc_margin(doc)
     convention_indent, head_position = paragraph_layout_context(doc)
@@ -2140,7 +2147,7 @@ def _html_toc_index(doc):
 
 
 def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
-              styles=True, note_refs='word', inline_styling=True, toc=False,
+              styles=True, note_refs=None, inline_styling=True, toc=False,
               pictures='off', pix_results=None, image_links=None,
               sentence_spacing='auto', **_options):
     # planning #264 item 1: see emit_text's identical call.
@@ -2167,7 +2174,7 @@ def emit_html(doc, mode='printed', title='', notes=DEFAULT_NOTE_KINDS,
     # Modern TXT/MD, in printed mode too (ruling 2026-08-24: "HTML needs it
     # as well" -- measured and ruled without a mode qualifier).
     printed = mode == 'printed' or _printed(doc)
-    pairs = _pageless_notes(doc, printed)
+    pairs = _pageless_notes(doc, printed, note_refs)
     refs = _ref_pairs(pairs)
     parts = []
     if printed:
@@ -4472,7 +4479,7 @@ def _rtf_structure_row(parts, rtf_state, b, s, line, rtf_seg, doc, li, ri,
 
 
 def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
-             fonts_target='office', note_refs='word', headers=True,
+             fonts_target='office', note_refs=None, headers=True,
              line_numbers=True, inline_styling=True, toc=False,
              pictures='off', pix_results=None, sentence_spacing='auto',
              page_numbers='auto', **_options):
@@ -4494,7 +4501,7 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     pix_map = {r.index: r for r in (pix_results or [])}
     keep = frozenset(notes)
     printed = mode == 'printed' or _printed(doc)
-    pairs = _annotated_notes(doc, printed)
+    pairs = _annotated_notes(doc, printed, note_refs)
     refs = _ref_pairs(pairs)
     if printed:
         # printed is always silent about comments (ruling 2026-08-06)
@@ -5190,9 +5197,10 @@ def emit_rtf(doc, mode='printed', notes=DEFAULT_NOTE_KINDS, styles=True,
     # `.f# a` / `.f# A` (`.e#` the same) print letters in Printed (WS7 report
     # 15.10): the notes are Word-numbered by \chftn, so the letter format is
     # the document's footnote / endnote number format, \ftnnalc / \ftnnauc
-    # and \aftnnalc / \aftnnauc. Modern keeps Word's own defaults.
+    # and \aftnnalc / \aftnnauc. Modern does the same unless a note-refs
+    # scheme was given, which keeps Word's own defaults.
     for kind, ctl in (('footnote', r'\ftnn'), ('endnote', r'\aftnn')):
-        style = _note_style(doc, kind, printed)
+        style = _note_style(doc, kind, printed, note_refs)
         if style:
             pagesetup += ctl + ('alc' if style == 'lower' else 'auc')
     # round 18 (RULINGS-LEDGER row 4): TOC/Index at the document's own end,

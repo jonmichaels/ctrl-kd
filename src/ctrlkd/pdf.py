@@ -11029,7 +11029,7 @@ def _modern_bullet_gap_toks(toks, structure, col_pt):
     return toks
 
 
-def _modern_flow(doc, keep, note_refs='word', pix_results=None,
+def _modern_flow(doc, keep, note_refs=None, pix_results=None,
                  pictures='off', text_width_pt=0.0, sentence_spacing=False,
                  record_sem_index=None, sem_cached=None,
                  record_block_index=None):
@@ -11725,7 +11725,7 @@ def _modern_streams(doc, options, res, attach_graphic_cells=None,
     col_state = _rtf_columns_state(doc)
     colbreak_bis = frozenset(i for i, b in enumerate(doc.blocks)
                              if b.kind == 'colbreak')
-    flow = _modern_flow(doc, keep, options.get('note_refs') or 'word',
+    flow = _modern_flow(doc, keep, options.get('note_refs'),
                         pix_results=options.get('pix_results'),
                         pictures=options.get('pictures', 'off'),
                         text_width_pt=width, sentence_spacing=ss_on,

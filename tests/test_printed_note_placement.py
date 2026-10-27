@@ -3,7 +3,7 @@
 fnhuge, fnlong120, fnnum5, w16-fnlow2, w16-fnup2). Synthetic documents only;
 the teardown fixtures themselves run in test_teardown_fixtures.py.
 """
-from ctrlkd import core, emit, pdf
+from ctrlkd import core, emit, layout, pdf
 from ctrlkd.pdf import CONTINUATION_TEXT, FOOTNOTE_SEPARATOR
 
 HARD = b'\x0d\x0a'
@@ -215,14 +215,32 @@ def test_digits_and_modes_in_f_hash_keep_arabic_labels():
             ('1.', '3.')), arg
 
 
-def test_f_hash_letters_reach_the_other_printed_exports_and_not_modern():
+def test_f_hash_letters_reach_the_other_printed_exports():
     doc = core.parse_ws(_f_hash(b'a'))
     rtf = emit.emit_rtf(doc, mode='printed')
     assert r'\ftnnalc' in rtf
-    assert r'\ftnnalc' not in emit.emit_rtf(doc, mode='modern')
     e_doc = core.parse_ws(b'.e# A' + HARD + ws7_block(0x00) + b'x' +
                           ws7_block(0x04, (1).to_bytes(2, 'little') + bytes(2) +
                                     bytes([0x30]) + b'end') + HARD)
     assert r'\aftnnauc' in emit.emit_rtf(e_doc, mode='printed')
-    modern = emit.emit_text(doc, mode='modern')
-    assert '[1] n' in modern and '[a]' not in modern
+
+
+def test_modern_follows_f_hash_letters_unless_note_refs_is_given():
+    # a note-refs scheme the caller names wins over the document; without
+    # one, Modern follows the document's .f#/.e# like Printed
+    doc = core.parse_ws(_f_hash(b'a'))
+    assert '[a] n' in emit.emit_text(doc, mode='modern')
+    assert r'\ftnnalc' in emit.emit_rtf(doc, mode='modern')
+    flow = layout.modern_flow(doc)
+    assert [n['shown'] for n in flow['notes'] if n['kind'] == 'footnote'][:2] == ['a', 'b']
+    for scheme in ('word', 'prefixed'):
+        text = emit.emit_text(doc, mode='modern', note_refs=scheme)
+        assert '[1] n' in text and '[a]' not in text, scheme
+        assert r'\ftnnalc' not in emit.emit_rtf(doc, mode='modern', note_refs=scheme)
+        flow = layout.modern_flow(doc, note_refs=scheme)
+        assert [n['shown'] for n in flow['notes'] if n['kind'] == 'footnote'][:2] == ['1', '2']
+    e_doc = core.parse_ws(b'.e# A' + HARD + ws7_block(0x00) + b'x' +
+                          ws7_block(0x04, (1).to_bytes(2, 'little') + bytes(2) +
+                                    bytes([0x30]) + b'end') + HARD)
+    assert [n['shown'] for n in layout.modern_flow(e_doc)['notes']] == ['A']
+    assert [n['shown'] for n in layout.modern_flow(e_doc, note_refs='word')['notes']] == ['i']
