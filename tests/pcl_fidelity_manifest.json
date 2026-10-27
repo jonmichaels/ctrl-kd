@@ -2472,71 +2472,8 @@
       "n_ws7_pages": 3,
       "n_engine_pages": 3,
       "no_substitute_word_count": 1563,
-      "counts_by_reason": {
-        "cgtimes-drift-exceeds-tolerance": 3
-      },
-      "divergences": [
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 52.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            294.2,
-            52.0
-          ],
-          "pdf_pos": [
-            285.3,
-            52.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -8.90pt at 117.1pt into the line (tolerance 5.84pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 52.0,
-          "words": [
-            "Art",
-            "Art"
-          ],
-          "ws7_pos": [
-            320.4,
-            52.0
-          ],
-          "pdf_pos": [
-            309.4,
-            52.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -11.00pt at 143.3pt into the line (tolerance 6.37pt)"
-        },
-        {
-          "doc": "LYING",
-          "page": 1,
-          "line_y_top_pt": 52.0,
-          "words": [
-            "Lying",
-            "Lying"
-          ],
-          "ws7_pos": [
-            367.4,
-            52.0
-          ],
-          "pdf_pos": [
-            352.5,
-            52.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -14.90pt at 190.3pt into the line (tolerance 7.31pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 146,
         "median_dx": 0.0,
@@ -3026,338 +2963,15 @@
     },
     "sawyer__ARTICLES__YOURWAY_EXT_WS": {
       "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/ARTICLES/YOURWAY.WS",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 17,
       "n_engine_pages": 17,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "line-start-shift": 16
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 6,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 7,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 9,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            469.2,
-            12.0
-          ],
-          "pdf_pos": [
-            473.6,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +4.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 14,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 15,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 16,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__ARTICLES__YOURWAY_EXT_WS",
-          "page": 17,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            462.2,
-            12.0
-          ],
-          "pdf_pos": [
-            467.5,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +5.30pt (tolerance 2.5pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 516,
         "median_dx": 0.0,
@@ -3983,7 +3597,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            112.1,
+            112.0,
             192.0
           ],
           "font_class": "sans",
@@ -4079,7 +3693,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            107.2,
             456.0
           ],
           "font_class": "sans",
@@ -4759,12 +4373,12 @@
             276.0
           ],
           "pdf_pos": [
-            181.9,
+            181.2,
             276.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +9.60pt (tolerance 2.5pt)"
+          "detail": "line-start residual +8.90pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__FONTS__PS__ERROR_EXT_WS",
@@ -4790,18 +4404,18 @@
             276.0
           ],
           "pdf_pos": [
-            381.1,
+            375.6,
             276.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +14.40pt at 225.3pt into the line (tolerance 8.01pt)"
+          "detail": "residual +8.90pt at 225.3pt into the line (tolerance 8.01pt)"
         }
       ],
       "document_frame_offset_pt": {
         "n": 3,
         "median_dx": -10.5,
-        "iqr_dx": 18.15
+        "iqr_dx": 17.8
       }
     },
     "sawyer__HIJAAK__PEANUTS_EXT_WS": {
@@ -4881,7 +4495,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -4901,7 +4515,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -4921,7 +4535,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -4941,7 +4555,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -4961,7 +4575,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -4981,7 +4595,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5001,7 +4615,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5021,7 +4635,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5041,7 +4655,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5061,7 +4675,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5081,7 +4695,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5101,7 +4715,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5121,7 +4735,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5141,7 +4755,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5161,7 +4775,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5181,7 +4795,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5201,7 +4815,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5221,7 +4835,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5241,7 +4855,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5261,7 +4875,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5281,7 +4895,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5301,7 +4915,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5321,7 +4935,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5341,7 +4955,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5361,7 +4975,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5381,7 +4995,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5401,7 +5015,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5421,7 +5035,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -5441,7 +5055,7 @@
             24.0
           ],
           "pdf_pos": [
-            389.3,
+            379.9,
             12.0
           ],
           "font_class": "univers",
@@ -5461,7 +5075,7 @@
             24.0
           ],
           "pdf_pos": [
-            420.47,
+            413.5,
             12.0
           ],
           "font_class": "univers",
@@ -5481,7 +5095,7 @@
             24.0
           ],
           "pdf_pos": [
-            441.25,
+            436.3,
             12.0
           ],
           "font_class": "univers",
@@ -5501,7 +5115,7 @@
             24.0
           ],
           "pdf_pos": [
-            463.87,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -9625,7 +9239,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            112.1,
+            112.0,
             192.0
           ],
           "font_class": "sans",
@@ -9721,7 +9335,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            108.0,
+            107.2,
             456.0
           ],
           "font_class": "sans",
@@ -10330,8 +9944,7 @@
       "n_engine_pages": 12,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "baseline-shift": 82,
-        "univers-drift-exceeds-tolerance": 25
+        "baseline-shift": 82
       },
       "divergences": [
         {
@@ -10367,7 +9980,7 @@
             97.9
           ],
           "pdf_pos": [
-            445.5,
+            442.5,
             96.0
           ],
           "font_class": "univers",
@@ -10387,7 +10000,7 @@
             97.9
           ],
           "pdf_pos": [
-            524.9,
+            514.0,
             96.0
           ],
           "font_class": "univers",
@@ -10407,7 +10020,7 @@
             97.9
           ],
           "pdf_pos": [
-            598.6,
+            582.0,
             96.0
           ],
           "font_class": "univers",
@@ -10427,7 +10040,7 @@
             97.9
           ],
           "pdf_pos": [
-            660.6,
+            637.9,
             96.0
           ],
           "font_class": "univers",
@@ -10467,7 +10080,7 @@
             133.9
           ],
           "pdf_pos": [
-            467.5,
+            467.0,
             132.0
           ],
           "font_class": "univers",
@@ -10487,7 +10100,7 @@
             133.9
           ],
           "pdf_pos": [
-            484.8,
+            485.0,
             132.0
           ],
           "font_class": "univers",
@@ -10507,7 +10120,7 @@
             133.9
           ],
           "pdf_pos": [
-            534.7,
+            535.6,
             132.0
           ],
           "font_class": "univers",
@@ -10527,7 +10140,7 @@
             133.9
           ],
           "pdf_pos": [
-            556.0,
+            556.8,
             132.0
           ],
           "font_class": "univers",
@@ -10547,7 +10160,7 @@
             133.9
           ],
           "pdf_pos": [
-            587.8,
+            590.4,
             132.0
           ],
           "font_class": "univers",
@@ -10567,7 +10180,7 @@
             157.9
           ],
           "pdf_pos": [
-            450.7,
+            451.2,
             156.0
           ],
           "font_class": "univers",
@@ -10587,7 +10200,7 @@
             157.9
           ],
           "pdf_pos": [
-            468.1,
+            469.2,
             156.0
           ],
           "font_class": "univers",
@@ -10607,7 +10220,7 @@
             157.9
           ],
           "pdf_pos": [
-            531.8,
+            535.6,
             156.0
           ],
           "font_class": "univers",
@@ -10627,7 +10240,7 @@
             157.9
           ],
           "pdf_pos": [
-            566.6,
+            571.2,
             156.0
           ],
           "font_class": "univers",
@@ -10647,7 +10260,7 @@
             157.9
           ],
           "pdf_pos": [
-            600.1,
+            606.7,
             156.0
           ],
           "font_class": "univers",
@@ -10667,7 +10280,7 @@
             157.9
           ],
           "pdf_pos": [
-            617.4,
+            624.7,
             156.0
           ],
           "font_class": "univers",
@@ -10687,7 +10300,7 @@
             157.9
           ],
           "pdf_pos": [
-            664.1,
+            671.5,
             156.0
           ],
           "font_class": "univers",
@@ -10707,7 +10320,7 @@
             157.9
           ],
           "pdf_pos": [
-            700.5,
+            708.9,
             156.0
           ],
           "font_class": "univers",
@@ -10727,7 +10340,7 @@
             157.9
           ],
           "pdf_pos": [
-            732.8,
+            741.3,
             156.0
           ],
           "font_class": "univers",
@@ -10747,7 +10360,7 @@
             157.9
           ],
           "pdf_pos": [
-            757.0,
+            766.0,
             156.0
           ],
           "font_class": "univers",
@@ -10767,7 +10380,7 @@
             157.9
           ],
           "pdf_pos": [
-            799.1,
+            807.8,
             156.0
           ],
           "font_class": "univers",
@@ -10787,7 +10400,7 @@
             157.9
           ],
           "pdf_pos": [
-            818.7,
+            828.2,
             156.0
           ],
           "font_class": "univers",
@@ -10807,7 +10420,7 @@
             157.9
           ],
           "pdf_pos": [
-            858.4,
+            869.5,
             156.0
           ],
           "font_class": "univers",
@@ -10827,7 +10440,7 @@
             157.9
           ],
           "pdf_pos": [
-            878.6,
+            889.6,
             156.0
           ],
           "font_class": "univers",
@@ -10867,7 +10480,7 @@
             169.9
           ],
           "pdf_pos": [
-            456.5,
+            457.2,
             168.0
           ],
           "font_class": "univers",
@@ -10887,7 +10500,7 @@
             193.9
           ],
           "pdf_pos": [
-            496.3,
+            493.4,
             192.0
           ],
           "font_class": "univers",
@@ -10907,7 +10520,7 @@
             193.9
           ],
           "pdf_pos": [
-            525.2,
+            524.6,
             192.0
           ],
           "font_class": "univers",
@@ -10927,7 +10540,7 @@
             193.9
           ],
           "pdf_pos": [
-            542.5,
+            542.6,
             192.0
           ],
           "font_class": "univers",
@@ -10947,7 +10560,7 @@
             193.9
           ],
           "pdf_pos": [
-            563.8,
+            563.7,
             192.0
           ],
           "font_class": "univers",
@@ -10967,7 +10580,7 @@
             193.9
           ],
           "pdf_pos": [
-            595.6,
+            597.3,
             192.0
           ],
           "font_class": "univers",
@@ -10987,7 +10600,7 @@
             193.9
           ],
           "pdf_pos": [
-            621.6,
+            624.2,
             192.0
           ],
           "font_class": "univers",
@@ -11007,7 +10620,7 @@
             193.9
           ],
           "pdf_pos": [
-            650.4,
+            651.8,
             192.0
           ],
           "font_class": "univers",
@@ -11027,7 +10640,7 @@
             193.9
           ],
           "pdf_pos": [
-            687.3,
+            690.0,
             192.0
           ],
           "font_class": "univers",
@@ -11047,7 +10660,7 @@
             193.9
           ],
           "pdf_pos": [
-            704.6,
+            708.0,
             192.0
           ],
           "font_class": "univers",
@@ -11067,7 +10680,7 @@
             193.9
           ],
           "pdf_pos": [
-            754.5,
+            758.6,
             192.0
           ],
           "font_class": "univers",
@@ -11087,7 +10700,7 @@
             193.9
           ],
           "pdf_pos": [
-            783.9,
+            787.6,
             192.0
           ],
           "font_class": "univers",
@@ -11107,7 +10720,7 @@
             193.9
           ],
           "pdf_pos": [
-            816.3,
+            819.8,
             192.0
           ],
           "font_class": "univers",
@@ -11127,512 +10740,12 @@
             193.9
           ],
           "pdf_pos": [
-            836.4,
+            841.2,
             192.0
           ],
           "font_class": "univers",
           "reason": "baseline-shift",
           "detail": "baseline residual -1.90pt (tolerance 1.0pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 10,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "LaserJet",
-            "LaserJet"
-          ],
-          "ws7_pos": [
-            308.1,
-            192.0
-          ],
-          "pdf_pos": [
-            298.8,
-            192.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.30pt at 286.5pt into the line (tolerance 9.23pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 10,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "produce",
-            "produce"
-          ],
-          "ws7_pos": [
-            183.3,
-            216.0
-          ],
-          "pdf_pos": [
-            175.7,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -7.60pt at 161.7pt into the line (tolerance 6.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 10,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "landscape",
-            "landscape"
-          ],
-          "ws7_pos": [
-            223.9,
-            216.0
-          ],
-          "pdf_pos": [
-            216.0,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -7.90pt at 202.3pt into the line (tolerance 7.55pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 10,
-          "line_y_top_pt": 420.0,
-          "words": [
-            "ONE.",
-            "ONE."
-          ],
-          "ws7_pos": [
-            127.2,
-            420.0
-          ],
-          "pdf_pos": [
-            132.9,
-            420.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +5.70pt at 105.6pt into the line (tolerance 5.61pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 10,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "(using",
-            "(using"
-          ],
-          "ws7_pos": [
-            143.2,
-            444.0
-          ],
-          "pdf_pos": [
-            137.2,
-            444.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.00pt at 121.6pt into the line (tolerance 5.93pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "set",
-            "set"
-          ],
-          "ws7_pos": [
-            577.2,
-            192.0
-          ],
-          "pdf_pos": [
-            570.1,
-            192.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -7.10pt at 159.6pt into the line (tolerance 6.69pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "flush",
-            "flush"
-          ],
-          "ws7_pos": [
-            607.2,
-            192.0
-          ],
-          "pdf_pos": [
-            598.4,
-            192.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.80pt at 189.6pt into the line (tolerance 7.29pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 192.0,
-          "words": [
-            "right.)",
-            "right.)"
-          ],
-          "ws7_pos": [
-            633.1,
-            192.0
-          ],
-          "pdf_pos": [
-            623.2,
-            192.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.90pt at 215.5pt into the line (tolerance 7.81pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "This",
-            "This"
-          ],
-          "ws7_pos": [
-            528.9,
-            240.0
-          ],
-          "pdf_pos": [
-            523.1,
-            240.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -5.80pt at 111.3pt into the line (tolerance 5.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "produce",
-            "produce"
-          ],
-          "ws7_pos": [
-            570.9,
-            240.0
-          ],
-          "pdf_pos": [
-            562.9,
-            240.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.00pt at 153.3pt into the line (tolerance 6.57pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "file",
-            "file"
-          ],
-          "ws7_pos": [
-            620.1,
-            240.0
-          ],
-          "pdf_pos": [
-            611.9,
-            240.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.20pt at 202.5pt into the line (tolerance 7.55pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "disk",
-            "disk"
-          ],
-          "ws7_pos": [
-            652.0,
-            240.0
-          ],
-          "pdf_pos": [
-            642.5,
-            240.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.50pt at 234.4pt into the line (tolerance 8.19pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 11,
-          "line_y_top_pt": 240.0,
-          "words": [
-            "containing",
-            "containing"
-          ],
-          "ws7_pos": [
-            673.9,
-            240.0
-          ],
-          "pdf_pos": [
-            663.8,
-            240.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.10pt at 256.3pt into the line (tolerance 8.63pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "will",
-            "will"
-          ],
-          "ws7_pos": [
-            247.4,
-            216.0
-          ],
-          "pdf_pos": [
-            239.1,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.30pt at 225.8pt into the line (tolerance 8.02pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "only",
-            "only"
-          ],
-          "ws7_pos": [
-            266.6,
-            216.0
-          ],
-          "pdf_pos": [
-            256.4,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.20pt at 245.0pt into the line (tolerance 8.40pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "form",
-            "form"
-          ],
-          "ws7_pos": [
-            289.4,
-            216.0
-          ],
-          "pdf_pos": [
-            278.3,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -11.10pt at 267.8pt into the line (tolerance 8.86pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 216.0,
-          "words": [
-            "feed",
-            "feed"
-          ],
-          "ws7_pos": [
-            314.4,
-            216.0
-          ],
-          "pdf_pos": [
-            302.0,
-            216.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.40pt at 292.8pt into the line (tolerance 9.36pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "Since",
-            "Since"
-          ],
-          "ws7_pos": [
-            113.7,
-            252.0
-          ],
-          "pdf_pos": [
-            120.3,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +6.60pt at 92.1pt into the line (tolerance 5.34pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "two",
-            "two"
-          ],
-          "ws7_pos": [
-            142.3,
-            252.0
-          ],
-          "pdf_pos": [
-            149.1,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +6.80pt at 120.7pt into the line (tolerance 5.91pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 264.0,
-          "words": [
-            "different",
-            "different"
-          ],
-          "ws7_pos": [
-            183.6,
-            264.0
-          ],
-          "pdf_pos": [
-            176.8,
-            264.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.80pt at 162.0pt into the line (tolerance 6.74pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 264.0,
-          "words": [
-            "page",
-            "page"
-          ],
-          "ws7_pos": [
-            225.8,
-            264.0
-          ],
-          "pdf_pos": [
-            217.2,
-            264.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.60pt at 204.2pt into the line (tolerance 7.58pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            238.0,
-            312.0
-          ],
-          "pdf_pos": [
-            229.9,
-            312.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.10pt at 216.4pt into the line (tolerance 7.83pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 312.0,
-          "words": [
-            "command:",
-            "command:"
-          ],
-          "ws7_pos": [
-            256.0,
-            312.0
-          ],
-          "pdf_pos": [
-            247.2,
-            312.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.80pt at 234.4pt into the line (tolerance 8.19pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "1990),",
-            "1990),"
-          ],
-          "ws7_pos": [
-            190.0,
-            444.0
-          ],
-          "pdf_pos": [
-            198.7,
-            444.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.70pt at 168.4pt into the line (tolerance 6.87pt)"
-        },
-        {
-          "doc": "sawyer__REF__-HOW-TO_EXT_RJS",
-          "page": 12,
-          "line_y_top_pt": 444.0,
-          "words": [
-            "1992),",
-            "1992),"
-          ],
-          "ws7_pos": [
-            303.8,
-            444.0
-          ],
-          "pdf_pos": [
-            315.2,
-            444.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +11.40pt at 282.2pt into the line (tolerance 9.14pt)"
         }
       ],
       "document_frame_offset_pt": {
@@ -11671,7 +10784,6 @@
         "exact-drift": 1,
         "extra-word-in-engine": 1,
         "line-start-shift": 1,
-        "univers-drift-exceeds-tolerance": 42,
         "word-unmatched": 3
       },
       "divergences": [
@@ -11730,806 +10842,6 @@
           "font_class": "univers",
           "reason": "line-start-shift",
           "detail": "line-start residual +10.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "36,",
-            "36,"
-          ],
-          "ws7_pos": [
-            278.4,
-            135.0
-          ],
-          "pdf_pos": [
-            273.1,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -5.30pt at 76.8pt into the line (tolerance 5.04pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "42,",
-            "42,"
-          ],
-          "ws7_pos": [
-            297.6,
-            135.0
-          ],
-          "pdf_pos": [
-            291.0,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.60pt at 96.0pt into the line (tolerance 5.42pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "48,",
-            "48,"
-          ],
-          "ws7_pos": [
-            316.8,
-            135.0
-          ],
-          "pdf_pos": [
-            308.8,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.00pt at 115.2pt into the line (tolerance 5.80pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "54,",
-            "54,"
-          ],
-          "ws7_pos": [
-            336.0,
-            135.0
-          ],
-          "pdf_pos": [
-            326.7,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.30pt at 134.4pt into the line (tolerance 6.19pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            135.0
-          ],
-          "pdf_pos": [
-            344.6,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 153.6pt into the line (tolerance 6.57pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            135.0
-          ],
-          "pdf_pos": [
-            362.4,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 172.8pt into the line (tolerance 6.96pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            135.0
-          ],
-          "pdf_pos": [
-            380.3,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 192.0pt into the line (tolerance 7.34pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            135.0
-          ],
-          "pdf_pos": [
-            398.2,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 211.2pt into the line (tolerance 7.72pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            135.0
-          ],
-          "pdf_pos": [
-            416.1,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 230.4pt into the line (tolerance 8.11pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            135.0
-          ],
-          "pdf_pos": [
-            439.9,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 255.8pt into the line (tolerance 8.62pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            135.0
-          ],
-          "pdf_pos": [
-            463.7,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 281.2pt into the line (tolerance 9.12pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "36,",
-            "36,"
-          ],
-          "ws7_pos": [
-            278.4,
-            252.0
-          ],
-          "pdf_pos": [
-            273.1,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -5.30pt at 76.8pt into the line (tolerance 5.04pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "42,",
-            "42,"
-          ],
-          "ws7_pos": [
-            297.6,
-            252.0
-          ],
-          "pdf_pos": [
-            291.0,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.60pt at 96.0pt into the line (tolerance 5.42pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "48,",
-            "48,"
-          ],
-          "ws7_pos": [
-            316.8,
-            252.0
-          ],
-          "pdf_pos": [
-            308.8,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.00pt at 115.2pt into the line (tolerance 5.80pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "54,",
-            "54,"
-          ],
-          "ws7_pos": [
-            336.0,
-            252.0
-          ],
-          "pdf_pos": [
-            326.7,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.30pt at 134.4pt into the line (tolerance 6.19pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            252.0
-          ],
-          "pdf_pos": [
-            344.6,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 153.6pt into the line (tolerance 6.57pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            252.0
-          ],
-          "pdf_pos": [
-            362.4,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 172.8pt into the line (tolerance 6.96pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            252.0
-          ],
-          "pdf_pos": [
-            380.3,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 192.0pt into the line (tolerance 7.34pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            252.0
-          ],
-          "pdf_pos": [
-            398.2,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 211.2pt into the line (tolerance 7.72pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            252.0
-          ],
-          "pdf_pos": [
-            416.1,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 230.4pt into the line (tolerance 8.11pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            252.0
-          ],
-          "pdf_pos": [
-            439.9,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 255.8pt into the line (tolerance 8.62pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            252.0
-          ],
-          "pdf_pos": [
-            463.7,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 281.2pt into the line (tolerance 9.12pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 369.0,
-          "words": [
-            "24,",
-            "24,"
-          ],
-          "ws7_pos": [
-            349.4,
-            369.0
-          ],
-          "pdf_pos": [
-            338.6,
-            369.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.80pt at 335.0pt into the line (tolerance 10.20pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "36,",
-            "36,"
-          ],
-          "ws7_pos": [
-            278.4,
-            388.5
-          ],
-          "pdf_pos": [
-            273.1,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -5.30pt at 76.8pt into the line (tolerance 5.04pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "42,",
-            "42,"
-          ],
-          "ws7_pos": [
-            297.6,
-            388.5
-          ],
-          "pdf_pos": [
-            291.0,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.60pt at 96.0pt into the line (tolerance 5.42pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "48,",
-            "48,"
-          ],
-          "ws7_pos": [
-            316.8,
-            388.5
-          ],
-          "pdf_pos": [
-            308.8,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.00pt at 115.2pt into the line (tolerance 5.80pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "54,",
-            "54,"
-          ],
-          "ws7_pos": [
-            336.0,
-            388.5
-          ],
-          "pdf_pos": [
-            326.7,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.30pt at 134.4pt into the line (tolerance 6.19pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            388.5
-          ],
-          "pdf_pos": [
-            344.6,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 153.6pt into the line (tolerance 6.57pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            388.5
-          ],
-          "pdf_pos": [
-            362.4,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 172.8pt into the line (tolerance 6.96pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            388.5
-          ],
-          "pdf_pos": [
-            380.3,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 192.0pt into the line (tolerance 7.34pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            388.5
-          ],
-          "pdf_pos": [
-            398.2,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 211.2pt into the line (tolerance 7.72pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            388.5
-          ],
-          "pdf_pos": [
-            416.1,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 230.4pt into the line (tolerance 8.11pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            388.5
-          ],
-          "pdf_pos": [
-            439.9,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 255.8pt into the line (tolerance 8.62pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            388.5
-          ],
-          "pdf_pos": [
-            463.7,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 281.2pt into the line (tolerance 9.12pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "(R/B/I/BI)",
-            "(R/B/I/BI)"
-          ],
-          "ws7_pos": [
-            124.3,
-            466.5
-          ],
-          "pdf_pos": [
-            117.5,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.80pt at 109.9pt into the line (tolerance 5.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            466.5
-          ],
-          "pdf_pos": [
-            344.6,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 340.8pt into the line (tolerance 10.32pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            466.5
-          ],
-          "pdf_pos": [
-            362.4,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 360.0pt into the line (tolerance 10.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "(90,",
-            "(90,"
-          ],
-          "ws7_pos": [
-            409.4,
-            466.5
-          ],
-          "pdf_pos": [
-            395.2,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.20pt at 395.0pt into the line (tolerance 11.40pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            466.5
-          ],
-          "pdf_pos": [
-            414.7,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.30pt at 417.6pt into the line (tolerance 11.85pt)"
-        },
-        {
-          "doc": "sawyer__REF__-LASERJE_EXT_FNT",
-          "page": 1,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            466.5
-          ],
-          "pdf_pos": [
-            436.4,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -21.00pt at 443.0pt into the line (tolerance 12.36pt)"
         },
         {
           "doc": "sawyer__REF__-LASERJE_EXT_FNT",
@@ -12711,7 +11023,7 @@
       "divergences": [],
       "document_frame_offset_pt": {
         "n": 1,
-        "median_dx": 0.5,
+        "median_dx": -2.1,
         "iqr_dx": 0.0
       }
     },
@@ -12751,98 +11063,15 @@
     },
     "sawyer__REF__BOOKLET_EXT_HOW": {
       "doc": "sawyer__REF__BOOKLET_EXT_HOW",
-      "verdict": "divergent",
+      "verdict": "clean",
       "source_ws": "sawyer/REF/BOOKLET.HOW",
       "capture_set": "v4",
       "install": "pristine",
       "n_ws7_pages": 8,
       "n_engine_pages": 8,
       "no_substitute_word_count": 0,
-      "counts_by_reason": {
-        "line-start-shift": 4
-      },
-      "divergences": [
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_HOW",
-          "page": 1,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Making",
-            "Making"
-          ],
-          "ws7_pos": [
-            628.3,
-            48.0
-          ],
-          "pdf_pos": [
-            634.7,
-            48.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +6.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_HOW",
-          "page": 3,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Making",
-            "Making"
-          ],
-          "ws7_pos": [
-            628.3,
-            48.0
-          ],
-          "pdf_pos": [
-            634.7,
-            48.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +6.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_HOW",
-          "page": 5,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Making",
-            "Making"
-          ],
-          "ws7_pos": [
-            628.3,
-            48.0
-          ],
-          "pdf_pos": [
-            634.7,
-            48.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +6.40pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__BOOKLET_EXT_HOW",
-          "page": 7,
-          "line_y_top_pt": 48.0,
-          "words": [
-            "Making",
-            "Making"
-          ],
-          "ws7_pos": [
-            628.3,
-            48.0
-          ],
-          "pdf_pos": [
-            634.7,
-            48.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +6.40pt (tolerance 2.5pt)"
-        }
-      ],
+      "counts_by_reason": {},
+      "divergences": [],
       "document_frame_offset_pt": {
         "n": 142,
         "median_dx": 0.0,
@@ -13993,814 +12222,12 @@
       "n_engine_pages": 10,
       "no_substitute_word_count": 18,
       "counts_by_reason": {
-        "cgtimes-drift-exceeds-tolerance": 88,
         "exact-drift": 1,
         "extra-word-in-engine": 17,
         "line-start-shift": 1,
-        "univers-drift-exceeds-tolerance": 30,
         "word-unmatched": 23
       },
       "divergences": [
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 1,
-          "line_y_top_pt": 284.0,
-          "words": [
-            "Style",
-            "Style"
-          ],
-          "ws7_pos": [
-            75.8,
-            284.0
-          ],
-          "pdf_pos": [
-            69.4,
-            284.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.40pt at 61.4pt into the line (tolerance 4.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 1,
-          "line_y_top_pt": 354.0,
-          "words": [
-            "Mediaeval",
-            "Mediaeval"
-          ],
-          "ws7_pos": [
-            49.9,
-            354.0
-          ],
-          "pdf_pos": [
-            54.2,
-            354.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +4.30pt at 35.5pt into the line (tolerance 4.21pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            103.4,
-            120.0
-          ],
-          "pdf_pos": [
-            97.1,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.30pt at 53.0pt into the line (tolerance 4.56pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            156.4,
-            120.0
-          ],
-          "pdf_pos": [
-            145.5,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -10.90pt at 106.0pt into the line (tolerance 5.62pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "author",
-            "author"
-          ],
-          "ws7_pos": [
-            174.7,
-            120.0
-          ],
-          "pdf_pos": [
-            162.7,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 124.3pt into the line (tolerance 5.99pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Golden",
-            "Golden"
-          ],
-          "ws7_pos": [
-            222.9,
-            120.0
-          ],
-          "pdf_pos": [
-            208.2,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -14.70pt at 172.5pt into the line (tolerance 6.95pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Fleece,",
-            "Fleece,"
-          ],
-          "ws7_pos": [
-            261.8,
-            120.0
-          ],
-          "pdf_pos": [
-            246.6,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -15.20pt at 211.4pt into the line (tolerance 7.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            350.1,
-            120.0
-          ],
-          "pdf_pos": [
-            333.7,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -16.40pt at 299.7pt into the line (tolerance 9.49pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Fossil",
-            "Fossil"
-          ],
-          "ws7_pos": [
-            371.0,
-            120.0
-          ],
-          "pdf_pos": [
-            353.5,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 320.6pt into the line (tolerance 9.91pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "Hunter.",
-            "Hunter."
-          ],
-          "ws7_pos": [
-            402.2,
-            120.0
-          ],
-          "pdf_pos": [
-            385.9,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -16.30pt at 351.8pt into the line (tolerance 10.54pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 120.0,
-          "words": [
-            "lives",
-            "lives"
-          ],
-          "ws7_pos": [
-            465.1,
-            120.0
-          ],
-          "pdf_pos": [
-            445.3,
-            120.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -19.80pt at 414.7pt into the line (tolerance 11.79pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 134.0,
-          "words": [
-            "his",
-            "his"
-          ],
-          "ws7_pos": [
-            173.2,
-            134.0
-          ],
-          "pdf_pos": [
-            166.9,
-            134.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.30pt at 122.8pt into the line (tolerance 5.96pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 134.0,
-          "words": [
-            "wife,",
-            "wife,"
-          ],
-          "ws7_pos": [
-            190.8,
-            134.0
-          ],
-          "pdf_pos": [
-            183.5,
-            134.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -7.30pt at 140.4pt into the line (tolerance 6.31pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 134.0,
-          "words": [
-            "Carolyn.",
-            "Carolyn."
-          ],
-          "ws7_pos": [
-            219.8,
-            134.0
-          ],
-          "pdf_pos": [
-            210.1,
-            134.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -9.70pt at 169.4pt into the line (tolerance 6.89pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 260.0,
-          "words": [
-            "Fleece,",
-            "Fleece,"
-          ],
-          "ws7_pos": [
-            261.8,
-            260.0
-          ],
-          "pdf_pos": [
-            273.3,
-            260.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +11.50pt at 211.4pt into the line (tolerance 7.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 260.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            350.1,
-            260.0
-          ],
-          "pdf_pos": [
-            372.3,
-            260.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +22.20pt at 299.7pt into the line (tolerance 9.49pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 260.0,
-          "words": [
-            "Fossil",
-            "Fossil"
-          ],
-          "ws7_pos": [
-            371.0,
-            260.0
-          ],
-          "pdf_pos": [
-            394.8,
-            260.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +23.80pt at 320.6pt into the line (tolerance 9.91pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 260.0,
-          "words": [
-            "Hunter.",
-            "Hunter."
-          ],
-          "ws7_pos": [
-            402.2,
-            260.0
-          ],
-          "pdf_pos": [
-            431.7,
-            260.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +29.50pt at 351.8pt into the line (tolerance 10.54pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 274.0,
-          "words": [
-            "Ontario",
-            "Ontario"
-          ],
-          "ws7_pos": [
-            145.2,
-            274.0
-          ],
-          "pdf_pos": [
-            152.0,
-            274.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +6.80pt at 94.8pt into the line (tolerance 5.40pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 274.0,
-          "words": [
-            "with",
-            "with"
-          ],
-          "ws7_pos": [
-            187.4,
-            274.0
-          ],
-          "pdf_pos": [
-            198.0,
-            274.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +10.60pt at 137.0pt into the line (tolerance 6.24pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 274.0,
-          "words": [
-            "his",
-            "his"
-          ],
-          "ws7_pos": [
-            212.4,
-            274.0
-          ],
-          "pdf_pos": [
-            224.9,
-            274.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +12.50pt at 162.0pt into the line (tolerance 6.74pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 274.0,
-          "words": [
-            "wife,",
-            "wife,"
-          ],
-          "ws7_pos": [
-            229.9,
-            274.0
-          ],
-          "pdf_pos": [
-            243.7,
-            274.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +13.80pt at 179.5pt into the line (tolerance 7.09pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 274.0,
-          "words": [
-            "Carolyn.",
-            "Carolyn."
-          ],
-          "ws7_pos": [
-            258.9,
-            274.0
-          ],
-          "pdf_pos": [
-            274.0,
-            274.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +15.10pt at 208.5pt into the line (tolerance 7.67pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 512.0,
-          "words": [
-            "STYLE",
-            "STYLE"
-          ],
-          "ws7_pos": [
-            126.9,
-            512.0
-          ],
-          "pdf_pos": [
-            120.6,
-            512.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.30pt at 76.5pt into the line (tolerance 5.03pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            103.4,
-            540.0
-          ],
-          "pdf_pos": [
-            97.1,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.30pt at 53.0pt into the line (tolerance 4.56pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            156.4,
-            540.0
-          ],
-          "pdf_pos": [
-            145.5,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -10.90pt at 106.0pt into the line (tolerance 5.62pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "author",
-            "author"
-          ],
-          "ws7_pos": [
-            174.7,
-            540.0
-          ],
-          "pdf_pos": [
-            162.7,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 124.3pt into the line (tolerance 5.99pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Golden",
-            "Golden"
-          ],
-          "ws7_pos": [
-            222.9,
-            540.0
-          ],
-          "pdf_pos": [
-            208.2,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -14.70pt at 172.5pt into the line (tolerance 6.95pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Fleece,",
-            "Fleece,"
-          ],
-          "ws7_pos": [
-            261.8,
-            540.0
-          ],
-          "pdf_pos": [
-            246.6,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -15.20pt at 211.4pt into the line (tolerance 7.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            350.1,
-            540.0
-          ],
-          "pdf_pos": [
-            333.7,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -16.40pt at 299.7pt into the line (tolerance 9.49pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Fossil",
-            "Fossil"
-          ],
-          "ws7_pos": [
-            371.0,
-            540.0
-          ],
-          "pdf_pos": [
-            353.5,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 320.6pt into the line (tolerance 9.91pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Hunter.",
-            "Hunter."
-          ],
-          "ws7_pos": [
-            402.2,
-            540.0
-          ],
-          "pdf_pos": [
-            385.9,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -16.30pt at 351.8pt into the line (tolerance 10.54pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "lives",
-            "lives"
-          ],
-          "ws7_pos": [
-            465.1,
-            540.0
-          ],
-          "pdf_pos": [
-            445.3,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -19.80pt at 414.7pt into the line (tolerance 11.79pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 540.0,
-          "words": [
-            "Thornhill,",
-            "Thornhill,"
-          ],
-          "ws7_pos": [
-            504.2,
-            540.0
-          ],
-          "pdf_pos": [
-            482.3,
-            540.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -21.90pt at 453.8pt into the line (tolerance 12.58pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 554.0,
-          "words": [
-            "Carolyn.",
-            "Carolyn."
-          ],
-          "ws7_pos": [
-            164.1,
-            554.0
-          ],
-          "pdf_pos": [
-            157.7,
-            554.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -6.40pt at 113.7pt into the line (tolerance 5.77pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 680.0,
-          "words": [
-            "Fleece,",
-            "Fleece,"
-          ],
-          "ws7_pos": [
-            261.8,
-            680.0
-          ],
-          "pdf_pos": [
-            273.3,
-            680.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +11.50pt at 211.4pt into the line (tolerance 7.73pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 680.0,
-          "words": [
-            "and",
-            "and"
-          ],
-          "ws7_pos": [
-            350.1,
-            680.0
-          ],
-          "pdf_pos": [
-            372.3,
-            680.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +22.20pt at 299.7pt into the line (tolerance 9.49pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 680.0,
-          "words": [
-            "Fossil",
-            "Fossil"
-          ],
-          "ws7_pos": [
-            371.0,
-            680.0
-          ],
-          "pdf_pos": [
-            394.8,
-            680.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +23.80pt at 320.6pt into the line (tolerance 9.91pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 680.0,
-          "words": [
-            "Hunter.",
-            "Hunter."
-          ],
-          "ws7_pos": [
-            402.2,
-            680.0
-          ],
-          "pdf_pos": [
-            431.7,
-            680.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +29.50pt at 351.8pt into the line (tolerance 10.54pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 2,
-          "line_y_top_pt": 680.0,
-          "words": [
-            "lives",
-            "lives"
-          ],
-          "ws7_pos": [
-            465.1,
-            680.0
-          ],
-          "pdf_pos": [
-            499.1,
-            680.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual +34.00pt at 414.7pt into the line (tolerance 11.79pt)"
-        },
         {
           "doc": "sawyer__REF__FONTS_EXT_REF",
           "page": 10,
@@ -14862,7 +12289,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            284.5,
+            300.9,
             120.0
           ],
           "font_class": "serif",
@@ -14878,7 +12305,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            316.4,
+            300.9,
             260.0
           ],
           "font_class": "serif",
@@ -14894,7 +12321,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            287.4,
+            303.6,
             400.0
           ],
           "font_class": "sans",
@@ -14910,7 +12337,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            336.8,
+            350.8,
             400.0
           ],
           "font_class": "sans",
@@ -14926,7 +12353,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            284.5,
+            300.9,
             540.0
           ],
           "font_class": "serif",
@@ -14942,7 +12369,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            316.4,
+            300.9,
             680.0
           ],
           "font_class": "serif",
@@ -14990,7 +12417,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            284.5,
+            300.9,
             120.0
           ],
           "font_class": "serif",
@@ -15006,7 +12433,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            316.4,
+            300.9,
             92.0
           ],
           "font_class": "serif",
@@ -15022,7 +12449,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            287.4,
+            303.6,
             92.0
           ],
           "font_class": "sans",
@@ -15038,7 +12465,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            336.8,
+            350.8,
             92.0
           ],
           "font_class": "sans",
@@ -15054,7 +12481,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            284.5,
+            300.9,
             92.0
           ],
           "font_class": "serif",
@@ -15070,7 +12497,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            316.4,
+            300.9,
             92.0
           ],
           "font_class": "serif",
@@ -15112,606 +12539,6 @@
           "font_class": "univers",
           "reason": "line-start-shift",
           "detail": "line-start residual +10.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            135.0
-          ],
-          "pdf_pos": [
-            344.6,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 340.8pt into the line (tolerance 10.32pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            135.0
-          ],
-          "pdf_pos": [
-            362.4,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 360.0pt into the line (tolerance 10.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            135.0
-          ],
-          "pdf_pos": [
-            380.3,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 379.2pt into the line (tolerance 11.08pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            135.0
-          ],
-          "pdf_pos": [
-            398.2,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 398.4pt into the line (tolerance 11.47pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            135.0
-          ],
-          "pdf_pos": [
-            416.1,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 417.6pt into the line (tolerance 11.85pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            135.0
-          ],
-          "pdf_pos": [
-            439.9,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 443.0pt into the line (tolerance 12.36pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 135.0,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            135.0
-          ],
-          "pdf_pos": [
-            463.7,
-            135.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 468.4pt into the line (tolerance 12.87pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            252.0
-          ],
-          "pdf_pos": [
-            344.6,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 340.8pt into the line (tolerance 10.32pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            252.0
-          ],
-          "pdf_pos": [
-            362.4,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 360.0pt into the line (tolerance 10.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            252.0
-          ],
-          "pdf_pos": [
-            380.3,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 379.2pt into the line (tolerance 11.08pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            252.0
-          ],
-          "pdf_pos": [
-            398.2,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 398.4pt into the line (tolerance 11.47pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            252.0
-          ],
-          "pdf_pos": [
-            416.1,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 417.6pt into the line (tolerance 11.85pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            252.0
-          ],
-          "pdf_pos": [
-            439.9,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 443.0pt into the line (tolerance 12.36pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 252.0,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            252.0
-          ],
-          "pdf_pos": [
-            463.7,
-            252.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 468.4pt into the line (tolerance 12.87pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 369.0,
-          "words": [
-            "24,",
-            "24,"
-          ],
-          "ws7_pos": [
-            349.4,
-            369.0
-          ],
-          "pdf_pos": [
-            338.6,
-            369.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.80pt at 335.0pt into the line (tolerance 10.20pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            388.5
-          ],
-          "pdf_pos": [
-            344.6,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 340.8pt into the line (tolerance 10.32pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            388.5
-          ],
-          "pdf_pos": [
-            362.4,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 360.0pt into the line (tolerance 10.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "72,",
-            "72,"
-          ],
-          "ws7_pos": [
-            393.6,
-            388.5
-          ],
-          "pdf_pos": [
-            380.3,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -13.30pt at 379.2pt into the line (tolerance 11.08pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "90,",
-            "90,"
-          ],
-          "ws7_pos": [
-            412.8,
-            388.5
-          ],
-          "pdf_pos": [
-            398.2,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.60pt at 398.4pt into the line (tolerance 11.47pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            388.5
-          ],
-          "pdf_pos": [
-            416.1,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.90pt at 417.6pt into the line (tolerance 11.85pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            388.5
-          ],
-          "pdf_pos": [
-            439.9,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.50pt at 443.0pt into the line (tolerance 12.36pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 388.5,
-          "words": [
-            "144",
-            "144"
-          ],
-          "ws7_pos": [
-            482.8,
-            388.5
-          ],
-          "pdf_pos": [
-            463.7,
-            388.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.10pt at 468.4pt into the line (tolerance 12.87pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "(R/B/I/BI)",
-            "(R/B/I/BI)"
-          ],
-          "ws7_pos": [
-            124.3,
-            466.5
-          ],
-          "pdf_pos": [
-            117.5,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.80pt at 109.9pt into the line (tolerance 5.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "60,",
-            "60,"
-          ],
-          "ws7_pos": [
-            355.2,
-            466.5
-          ],
-          "pdf_pos": [
-            344.6,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -10.60pt at 340.8pt into the line (tolerance 10.32pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "66,",
-            "66,"
-          ],
-          "ws7_pos": [
-            374.4,
-            466.5
-          ],
-          "pdf_pos": [
-            362.4,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -12.00pt at 360.0pt into the line (tolerance 10.70pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "(90,",
-            "(90,"
-          ],
-          "ws7_pos": [
-            409.4,
-            466.5
-          ],
-          "pdf_pos": [
-            395.2,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -14.20pt at 395.0pt into the line (tolerance 11.40pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "108,",
-            "108,"
-          ],
-          "ws7_pos": [
-            432.0,
-            466.5
-          ],
-          "pdf_pos": [
-            414.7,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.30pt at 417.6pt into the line (tolerance 11.85pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "126,",
-            "126,"
-          ],
-          "ws7_pos": [
-            457.4,
-            466.5
-          ],
-          "pdf_pos": [
-            436.4,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -21.00pt at 443.0pt into the line (tolerance 12.36pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 466.5,
-          "words": [
-            "144)",
-            "144)"
-          ],
-          "ws7_pos": [
-            482.8,
-            466.5
-          ],
-          "pdf_pos": [
-            458.1,
-            466.5
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -24.70pt at 468.4pt into the line (tolerance 12.87pt)"
-        },
-        {
-          "doc": "sawyer__REF__FONTS_EXT_REF",
-          "page": 10,
-          "line_y_top_pt": 564.0,
-          "words": [
-            "(R/B)",
-            "(R/B)"
-          ],
-          "ws7_pos": [
-            127.6,
-            564.0
-          ],
-          "pdf_pos": [
-            136.5,
-            564.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.90pt at 113.2pt into the line (tolerance 5.76pt)"
         },
         {
           "doc": "sawyer__REF__FONTS_EXT_REF",
@@ -16118,7 +12945,7 @@
       "divergences": [],
       "document_frame_offset_pt": {
         "n": 1,
-        "median_dx": 0.6,
+        "median_dx": -2.0,
         "iqr_dx": 0.0
       }
     },
@@ -17583,72 +14410,12 @@
       "n_engine_pages": 26,
       "no_substitute_word_count": 0,
       "counts_by_reason": {
-        "cgtimes-drift-exceeds-tolerance": 78
+        "cgtimes-drift-exceeds-tolerance": 75
       },
       "divergences": [
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
           "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "WordStar",
-            "WordStar"
-          ],
-          "ws7_pos": [
-            277.2,
-            72.0
-          ],
-          "pdf_pos": [
-            271.7,
-            72.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -5.50pt at 83.3pt into the line (tolerance 5.17pt)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "Release",
-            "Release"
-          ],
-          "ws7_pos": [
-            331.4,
-            72.0
-          ],
-          "pdf_pos": [
-            324.4,
-            72.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -7.00pt at 137.5pt into the line (tolerance 6.25pt)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 72.0,
-          "words": [
-            "7.0",
-            "7.0"
-          ],
-          "ws7_pos": [
-            373.4,
-            72.0
-          ],
-          "pdf_pos": [
-            364.3,
-            72.0
-          ],
-          "font_class": "cgtimes",
-          "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -9.10pt at 179.5pt into the line (tolerance 7.09pt)"
-        },
-        {
-          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
-          "page": 2,
           "line_y_top_pt": 792.0,
           "words": [
             "File",
@@ -17659,12 +14426,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17679,12 +14446,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17699,12 +14466,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17719,12 +14486,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17739,12 +14506,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17759,12 +14526,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17779,12 +14546,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17799,12 +14566,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17819,12 +14586,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17839,12 +14606,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17859,12 +14626,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17879,12 +14646,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17899,12 +14666,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17919,12 +14686,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17939,12 +14706,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17959,12 +14726,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17979,12 +14746,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -17999,12 +14766,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18019,12 +14786,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18039,12 +14806,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18059,12 +14826,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18079,12 +14846,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.97pt at 60.9pt into the line (tolerance 4.72pt)"
+          "detail": "residual -61.90pt at 60.9pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18099,12 +14866,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -62.36pt at 79.9pt into the line (tolerance 5.10pt)"
+          "detail": "residual -61.90pt at 79.9pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18119,12 +14886,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -64.15pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -62.00pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18139,12 +14906,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18159,12 +14926,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.76pt at 80.0pt into the line (tolerance 5.10pt)"
+          "detail": "residual -59.30pt at 80.0pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18179,12 +14946,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.45pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -59.30pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18199,12 +14966,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18219,12 +14986,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.76pt at 80.0pt into the line (tolerance 5.10pt)"
+          "detail": "residual -59.30pt at 80.0pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18239,12 +15006,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.45pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -59.30pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18259,12 +15026,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18279,12 +15046,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.76pt at 80.0pt into the line (tolerance 5.10pt)"
+          "detail": "residual -59.30pt at 80.0pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18299,12 +15066,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.45pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -59.30pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18319,12 +15086,12 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18339,12 +15106,12 @@
             792.0
           ],
           "pdf_pos": [
-            230.64,
+            231.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.76pt at 80.0pt into the line (tolerance 5.10pt)"
+          "detail": "residual -59.30pt at 80.0pt into the line (tolerance 5.10pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18359,12 +15126,12 @@
             792.0
           ],
           "pdf_pos": [
-            277.85,
+            280.0,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -61.45pt at 128.9pt into the line (tolerance 6.08pt)"
+          "detail": "residual -59.30pt at 128.9pt into the line (tolerance 6.08pt)"
         },
         {
           "doc": "sawyer__REF__WSFORMAT_EXT_WS",
@@ -18379,12 +15146,72 @@
             792.0
           ],
           "pdf_pos": [
-            212.03,
+            212.1,
             792.0
           ],
           "font_class": "cgtimes",
           "reason": "cgtimes-drift-exceeds-tolerance",
-          "detail": "residual -59.37pt at 61.0pt into the line (tolerance 4.72pt)"
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
+        },
+        {
+          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "Format",
+            "Format"
+          ],
+          "ws7_pos": [
+            290.4,
+            792.0
+          ],
+          "pdf_pos": [
+            231.1,
+            792.0
+          ],
+          "font_class": "cgtimes",
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -59.30pt at 80.0pt into the line (tolerance 5.10pt)"
+        },
+        {
+          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
+          "page": 14,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "Page",
+            "Page"
+          ],
+          "ws7_pos": [
+            339.3,
+            792.0
+          ],
+          "pdf_pos": [
+            280.0,
+            792.0
+          ],
+          "font_class": "cgtimes",
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -59.30pt at 128.9pt into the line (tolerance 6.08pt)"
+        },
+        {
+          "doc": "sawyer__REF__WSFORMAT_EXT_WS",
+          "page": 15,
+          "line_y_top_pt": 792.0,
+          "words": [
+            "File",
+            "File"
+          ],
+          "ws7_pos": [
+            271.4,
+            792.0
+          ],
+          "pdf_pos": [
+            212.1,
+            792.0
+          ],
+          "font_class": "cgtimes",
+          "reason": "cgtimes-drift-exceeds-tolerance",
+          "detail": "residual -59.30pt at 61.0pt into the line (tolerance 4.72pt)"
         }
       ],
       "document_frame_offset_pt": {
@@ -23692,7 +20519,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            109.7,
+            116.1,
             72.0
           ],
           "font_class": "sans",
@@ -23708,7 +20535,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            106.4,
+            108.7,
             84.0
           ],
           "font_class": "sans",
@@ -23724,7 +20551,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            71.6,
+            72.4,
             96.0
           ],
           "font_class": "sans",
@@ -23740,7 +20567,7 @@
           ],
           "ws7_pos": null,
           "pdf_pos": [
-            92.8,
+            94.0,
             144.0
           ],
           "font_class": "sans",
@@ -23894,7 +20721,7 @@
       ],
       "document_frame_offset_pt": {
         "n": 9,
-        "median_dx": -0.1,
+        "median_dx": 0.0,
         "iqr_dx": 0.0
       }
     },
@@ -23927,8 +20754,8 @@
       "counts_by_reason": {
         "baseline-shift": 78,
         "extra-word-in-engine": 13,
-        "line-start-shift": 38,
-        "univers-drift-exceeds-tolerance": 110,
+        "line-start-shift": 7,
+        "univers-drift-exceeds-tolerance": 8,
         "word-unmatched": 272
       },
       "divergences": [
@@ -23945,7 +20772,7 @@
             12.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -23965,7 +20792,7 @@
             12.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -23985,7 +20812,7 @@
             12.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24005,7 +20832,7 @@
             12.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24045,7 +20872,7 @@
             732.0
           ],
           "pdf_pos": [
-            84.61,
+            85.4,
             732.0
           ],
           "font_class": "univers",
@@ -24065,7 +20892,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24085,7 +20912,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24105,7 +20932,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24125,7 +20952,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24145,7 +20972,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24165,7 +20992,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24185,7 +21012,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24205,7 +21032,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24225,7 +21052,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24245,7 +21072,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24265,7 +21092,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24285,7 +21112,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24305,7 +21132,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24325,7 +21152,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24345,7 +21172,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24365,7 +21192,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24385,7 +21212,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24405,7 +21232,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24425,7 +21252,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24445,7 +21272,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24465,7 +21292,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24485,7 +21312,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24505,7 +21332,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24525,7 +21352,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24545,7 +21372,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24565,7 +21392,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24585,7 +21412,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24605,7 +21432,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24625,7 +21452,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24645,7 +21472,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -24665,7 +21492,7 @@
             24.0
           ],
           "pdf_pos": [
-            382.56,
+            374.1,
             12.0
           ],
           "font_class": "univers",
@@ -24685,7 +21512,7 @@
             24.0
           ],
           "pdf_pos": [
-            452.25,
+            445.2,
             12.0
           ],
           "font_class": "univers",
@@ -24705,7 +21532,7 @@
             24.0
           ],
           "pdf_pos": [
-            314.7,
+            301.9,
             12.0
           ],
           "font_class": "univers",
@@ -24725,7 +21552,7 @@
             24.0
           ],
           "pdf_pos": [
-            360.55,
+            351.3,
             12.0
           ],
           "font_class": "univers",
@@ -25013,372 +21840,12 @@
             618.0
           ],
           "pdf_pos": [
-            252.1,
+            252.0,
             618.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual +47.70pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 6,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 7,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 9,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            308.8,
-            12.0
-          ],
-          "pdf_pos": [
-            320.8,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.00pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 14,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 15,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 16,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 17,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 18,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 19,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 20,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+          "detail": "line-start residual +47.60pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -25422,106 +21889,6 @@
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 21,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 22,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 23,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 24,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 25,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
           "page": 25,
           "line_y_top_pt": 84.0,
           "words": [
@@ -25533,172 +21900,12 @@
             84.0
           ],
           "pdf_pos": [
-            206.5,
+            206.4,
             84.0
           ],
           "font_class": "univers",
           "reason": "line-start-shift",
-          "detail": "line-start residual -3.20pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 26,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 27,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 28,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 29,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 30,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 31,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 32,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 33,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Sawyer",
-            "Sawyer"
-          ],
-          "ws7_pos": [
-            301.9,
-            12.0
-          ],
-          "pdf_pos": [
-            314.7,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "line-start-shift",
-          "detail": "line-start residual +12.80pt (tolerance 2.5pt)"
+          "detail": "line-start residual -3.30pt (tolerance 2.5pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -25782,723 +21989,83 @@
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 12.0,
+          "page": 20,
+          "line_y_top_pt": 348.0,
           "words": [
-            "The",
-            "The"
+            "Trilogy",
+            "Trilogy"
           ],
           "ws7_pos": [
-            358.3,
-            12.0
+            347.2,
+            348.0
           ],
           "pdf_pos": [
-            366.65,
-            12.0
+            335.3,
+            348.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
+          "detail": "residual -11.90pt at 147.3pt into the line (tolerance 6.45pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 12.0,
+          "page": 20,
+          "line_y_top_pt": 420.0,
           "words": [
-            "Oppenheimer",
-            "Oppenheimer"
+            "Neanderthal",
+            "Neanderthal"
           ],
           "ws7_pos": [
-            381.1,
-            12.0
+            226.8,
+            420.0
           ],
           "pdf_pos": [
-            388.66,
-            12.0
+            221.0,
+            420.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
+          "detail": "residual -5.80pt at 25.0pt into the line (tolerance 4.00pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
+          "page": 20,
+          "line_y_top_pt": 492.0,
           "words": [
-            "Request",
-            "Request"
+            "Trilogy",
+            "Trilogy"
           ],
           "ws7_pos": [
-            225.8,
-            180.0
+            306.0,
+            492.0
           ],
           "pdf_pos": [
-            218.6,
-            180.0
+            297.7,
+            492.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -7.20pt at 99.4pt into the line (tolerance 5.49pt)"
+          "detail": "residual -8.30pt at 65.1pt into the line (tolerance 4.80pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
+          "page": 25,
+          "line_y_top_pt": 84.0,
           "words": [
-            "the",
-            "the"
+            "Personae",
+            "Personae"
           ],
           "ws7_pos": [
-            324.2,
-            180.0
+            292.0,
+            84.0
           ],
           "pdf_pos": [
-            309.2,
-            180.0
+            283.7,
+            84.0
           ],
           "font_class": "univers",
           "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -15.00pt at 197.8pt into the line (tolerance 7.46pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Art",
-            "Art"
-          ],
-          "ws7_pos": [
-            356.4,
-            180.0
-          ],
-          "pdf_pos": [
-            338.8,
-            180.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -17.60pt at 230.0pt into the line (tolerance 8.10pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 2,
-          "line_y_top_pt": 180.0,
-          "words": [
-            "Director",
-            "Director"
-          ],
-          "ws7_pos": [
-            387.3,
-            180.0
-          ],
-          "pdf_pos": [
-            367.4,
-            180.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -19.90pt at 260.9pt into the line (tolerance 8.72pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "the",
-            "the"
-          ],
-          "ws7_pos": [
-            270.0,
-            108.0
-          ],
-          "pdf_pos": [
-            263.7,
-            108.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.30pt at 84.3pt into the line (tolerance 5.19pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 3,
-          "line_y_top_pt": 108.0,
-          "words": [
-            "Copyeditor",
-            "Copyeditor"
-          ],
-          "ws7_pos": [
-            302.1,
-            108.0
-          ],
-          "pdf_pos": [
-            293.3,
-            108.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -8.80pt at 116.4pt into the line (tolerance 5.83pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 4,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 5,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 6,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 6,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 7,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 7,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 8,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 9,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            358.3,
-            12.0
-          ],
-          "pdf_pos": [
-            366.65,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.35pt at 49.5pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 9,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            381.1,
-            12.0
-          ],
-          "pdf_pos": [
-            388.66,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.56pt at 72.3pt into the line (tolerance 4.95pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            351.3,
-            12.0
-          ],
-          "pdf_pos": [
-            360.55,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            374.1,
-            12.0
-          ],
-          "pdf_pos": [
-            382.56,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 10,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Alternative",
-            "Alternative"
-          ],
-          "ws7_pos": [
-            445.2,
-            12.0
-          ],
-          "pdf_pos": [
-            452.25,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 87.9,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            209.7,
-            87.9
-          ],
-          "pdf_pos": [
-            203.5,
-            81.9
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -6.20pt at 88.3pt into the line (tolerance 5.27pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 87.9,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            246.9,
-            87.9
-          ],
-          "pdf_pos": [
-            237.7,
-            81.9
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -9.20pt at 125.5pt into the line (tolerance 6.01pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 11,
-          "line_y_top_pt": 87.9,
-          "words": [
-            "Alternative",
-            "Alternative"
-          ],
-          "ws7_pos": [
-            368.4,
-            87.9
-          ],
-          "pdf_pos": [
-            349.5,
-            81.9
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual -18.90pt at 247.0pt into the line (tolerance 8.44pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            351.3,
-            12.0
-          ],
-          "pdf_pos": [
-            360.55,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            374.1,
-            12.0
-          ],
-          "pdf_pos": [
-            382.56,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 12,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Alternative",
-            "Alternative"
-          ],
-          "ws7_pos": [
-            445.2,
-            12.0
-          ],
-          "pdf_pos": [
-            452.25,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            351.3,
-            12.0
-          ],
-          "pdf_pos": [
-            360.55,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            374.1,
-            12.0
-          ],
-          "pdf_pos": [
-            382.56,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 13,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Alternative",
-            "Alternative"
-          ],
-          "ws7_pos": [
-            445.2,
-            12.0
-          ],
-          "pdf_pos": [
-            452.25,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +7.05pt at 143.3pt into the line (tolerance 6.37pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 14,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "The",
-            "The"
-          ],
-          "ws7_pos": [
-            351.3,
-            12.0
-          ],
-          "pdf_pos": [
-            360.55,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +9.25pt at 49.4pt into the line (tolerance 4.49pt)"
-        },
-        {
-          "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
-          "page": 14,
-          "line_y_top_pt": 12.0,
-          "words": [
-            "Oppenheimer",
-            "Oppenheimer"
-          ],
-          "ws7_pos": [
-            374.1,
-            12.0
-          ],
-          "pdf_pos": [
-            382.56,
-            12.0
-          ],
-          "font_class": "univers",
-          "reason": "univers-drift-exceeds-tolerance",
-          "detail": "residual +8.46pt at 72.2pt into the line (tolerance 4.94pt)"
+          "detail": "residual -8.30pt at 82.3pt into the line (tolerance 5.15pt)"
         },
         {
           "doc": "sawyer__RTF-RJS__NOVEL_EXT_WS",
@@ -27708,7 +23275,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27728,7 +23295,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27748,7 +23315,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27768,7 +23335,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27788,7 +23355,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27808,7 +23375,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27828,7 +23395,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27848,7 +23415,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27868,7 +23435,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27888,7 +23455,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27908,7 +23475,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27928,7 +23495,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27948,7 +23515,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -27968,7 +23535,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -27988,7 +23555,7 @@
             16.0
           ],
           "pdf_pos": [
-            418.0,
+            409.9,
             12.0
           ],
           "font_class": "univers",
@@ -28008,7 +23575,7 @@
             16.0
           ],
           "pdf_pos": [
-            463.85,
+            459.3,
             12.0
           ],
           "font_class": "univers",
@@ -28028,7 +23595,7 @@
             16.0
           ],
           "pdf_pos": [
-            411.9,
+            402.9,
             12.0
           ],
           "font_class": "univers",
@@ -28048,7 +23615,7 @@
             16.0
           ],
           "pdf_pos": [
-            457.75,
+            452.4,
             12.0
           ],
           "font_class": "univers",
