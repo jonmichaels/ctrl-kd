@@ -369,59 +369,11 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar-dos/lh-fixed": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E19 Times metrics (about 0.6pt)"
-  },
-  "wordstar-dos/lh-auto": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E19 Times metrics"
-  },
-  "wordstar-dos/lh-auto-carry": {
-   "kinds": {
-    "x": 3
-   },
-   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt)"
-  },
   "wordstar-dos/attributes": {
    "kinds": {
     "variant-plain": 1
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
-  },
-  "wordstar-dos/justify-font-change": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E19 Times metrics: the Times 24 word is about 2 dots wider than WS7's, which moves the words after it by 0.3pt"
-  },
-  "wordstar-dos/justify-times": {
-   "kinds": {
-    "x": 7
-   },
-   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
-  },
-  "wordstar-dos/justify-share-by-width": {
-   "kinds": {
-    "x": 5
-   },
-   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
-  },
-  "wordstar-dos/justify-times24-blank": {
-   "kinds": {
-    "x": 6
-   },
-   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
-  },
-  "wordstar-dos/tall-line-stays": {
-   "kinds": {
-    "x": 1
-   },
-   "reason": "E19 Times metrics"
   },
   "wordstar-dos/unformatted-56": {
    "kinds": {
@@ -455,11 +407,13 @@
    },
    "reason": "D0 a plain-ASCII input the run wrote: nothing in the bytes for detect() to go on"
   },
-  "wordstar-dos/lj-no-letter-spacing": {
+  "wordstar-dos/script-sizes": {
    "kinds": {
-    "x": 5
+    "x": 2,
+    "missing-word": 11,
+    "extra-word": 4
    },
-   "reason": "E19 Times metrics: AFM widths where WS7 uses HP TFM widths (about 0.6pt a word), which the justification carries into every word of the line"
+   "reason": "Gothic 12's sub/superscript cell: the engine scales Gothic's body cell, where the driver sizes it from the script's own height (0.3-0.5pt); and a fixed-pitch line drawn as one op cannot be matched move for move, so its scripted words are compared by the word reader, which groups them differently"
   }
  }
 }

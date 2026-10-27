@@ -524,6 +524,117 @@ def _engine_tokens(pdf, on_paper=True):
     return toks, len(pages), sheet_h
 
 
+def _engine_pieces(pdf, on_paper=True):
+    """{(page, text): [(x, baseline from the top)]} for every text op the
+    engine draws: the pieces WS7's LASERJET moves to, one op each."""
+    out = {}
+    for n, page in enumerate(fg.extract_pages(pdf), 1):
+        h = page['mediabox'][1]
+        placed = _PLACED_RE.match(page['content'])
+        dx = float(placed.group(1)) if placed and on_paper else 0.0
+        for op in fg.parse_text_ops(page['content']):
+            out.setdefault((n, op['text'].strip()), []).append((op['x'] + dx, h - op['y']))
+    return out
+
+
+def pieces_match(rows, pieces):
+    """True when the capture and the engine agree move for move: every item
+    WS7 positioned starts at an engine piece with the same x, on its row or,
+    for a sub/superscript pass, on the row it was raised from, and is that
+    piece's text, or the text of that piece and the ones after it on the
+    row (spans the driver printed with no move between them); and the
+    engine draws no other piece. Stronger than matching words, and what a
+    kerned or scripted WS7 line needs: its moves split words the word
+    reader joins differently on each side."""
+    rise = SUPSUB_RISE_DP / fg.DECIPT_PER_PT
+    ops = sorted((page, x, y, text) for (page, text), spots in pieces.items() if text
+                 for x, y in spots)
+    used = set()
+    for row in rows:
+        y = row['v'] / fg.DECIPT_PER_PT
+        lines = [y, y + rise, y - rise]
+        for ix, text in row['items']:
+            t = text.strip()
+            if ix is None or not t or ' ' in t or t != text:
+                return False
+            x = ix / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT
+            on_row = [k for k, (pg, ox, oy, _t) in enumerate(ops) if pg == row['page']
+                      and k not in used and any(abs(oy - ly) <= POSITION_TOL_PT for ly in lines)]
+            start = next((k for k in on_row if abs(ops[k][1] - x) <= POSITION_TOL_PT
+                          and t.startswith(ops[k][3])), None)
+            if start is None:
+                return False
+            got, chain = ops[start][3], [start]
+            for k in on_row:
+                if len(got) >= len(t):
+                    break
+                if ops[k][1] > ops[chain[-1]][1] and t.startswith(got + ops[k][3]):
+                    got += ops[k][3]
+                    chain.append(k)
+            if got != t:
+                return False
+            used.update(chain)
+    return len(used) == len(ops)
+
+
+def join_kerned_items(rows, pieces, words):
+    """A word a kerning pair splits is two moves in WS7's PCL, so two items
+    on its row (WS7 teardown, `wordstar-dos/11-print-engine.md` 11.17): join
+    them into the one word the engine shows, but only where the engine draws
+    BOTH pieces at the capture's own x's on that row and reads them as one
+    word starting there. `pieces` is `_engine_pieces`; `words` the engine's
+    tokens."""
+    def drawn(page, x, y, text):
+        return any(abs(px - x) <= POSITION_TOL_PT and abs(py - y) <= POSITION_TOL_PT
+                   for px, py in pieces.get((page, text), ()))
+
+    # A proportional sub/superscript is a pass 45 decipoints off its line
+    # that `prepare_printed_rows` cannot glue by Courier cells: an item the
+    # engine draws at that x on the base row (its rise apart) moves there.
+    by_key = {(r['page'], r['v']): r for r in rows}
+    for row in rows:
+        for rise in (SUPSUB_RISE_DP, -SUPSUB_RISE_DP):
+            base = by_key.get((row['page'], row['v'] + rise))
+            if base is None:
+                continue
+            base_y = base['v'] / fg.DECIPT_PER_PT
+            for item in list(row['items']):
+                ix, text = item
+                if ix is not None and text.strip() and ' ' not in text.strip() and drawn(
+                        row['page'], ix / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT, base_y,
+                        text.strip()):
+                    row['items'].remove(item)
+                    base['items'].append(item)
+                    base['items'].sort(key=lambda it: (it[0] is None, it[0] or 0))
+    rows = [r for r in rows if r['items']]
+
+    for row in rows:
+        y = row['v'] / fg.DECIPT_PER_PT
+        items = row['items']
+        i = 0
+        head = None             # the first piece of the word items[i] has become
+        while i + 1 < len(items):
+            (ax, at), (bx, bt) = items[i], items[i + 1]
+            if (ax is None or bx is None or ' ' in at.strip() or not at.strip() or not bt.strip()
+                    or at != at.rstrip() or bt != bt.lstrip()):
+                i, head = i + 1, None
+                continue
+            head = head or at
+            pa = ax / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT
+            pb = bx / fg.DECIPT_PER_PT + PCL_LOGICAL_PAGE_X_PT
+            first = (at + bt).split()[0]
+            one_word = any(w['page'] == row['page'] and abs(w['x'] - pa) <= POSITION_TOL_PT
+                           and abs(w['y_top'] - y) <= POSITION_TOL_PT
+                           and w['text'].startswith(first) for w in words)
+            if one_word and drawn(row['page'], pa, y, head) and \
+                    drawn(row['page'], pb, y, bt.split()[0] if ' ' in bt else bt):
+                items[i] = [ax, at + bt]
+                del items[i + 1]
+            else:
+                i, head = i + 1, None
+    return rows
+
+
 def _doc_for(path, variant):
     with open(path, 'rb') as f:
         return core.parse(f.read(), variant=variant)
@@ -602,6 +713,11 @@ def compare_layout(part, path, variant, hpljet=False):
     if printed:
         rows = [r for r in prepare_printed_rows(part['rows'], hpljet)
                 if 0 <= r['v'] / fg.DECIPT_PER_PT <= sheet_h]
+        if not hpljet:
+            pieces = _engine_pieces(pdf)
+            if pieces_match(rows, pieces) and part.get('pages') in (None, n_pages):
+                return found
+            rows = join_kerned_items(rows, pieces, eng)
         want = _first_word_tokens(rows, 'page', _printed_pos)
         check_y = True
     else:
