@@ -473,8 +473,8 @@
   "wordstar-dos/lj6-manual-p1": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -483,8 +483,8 @@
   "wordstar-dos/lj6-manual-p2": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -493,8 +493,8 @@
   "wordstar-dos/lj6-manual-p3": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -503,8 +503,8 @@
   "wordstar-dos/lj6-manual-p4": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -513,8 +513,8 @@
   "wordstar-dos/lj6-manual-p5": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -523,8 +523,8 @@
   "wordstar-dos/lj6-manual-p6": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -533,8 +533,8 @@
   "wordstar-dos/lj6-manual-p7": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -543,8 +543,8 @@
   "wordstar-dos/lj6-manual-p8": {
    "kinds": {
     "rect-not-compared": 164,
-    "missing-graphic": 213,
-    "x": 141,
+    "missing-graphic": 3,
+    "x": 85,
     "missing-word": 360,
     "extra-word": 329
    },
@@ -567,11 +567,11 @@
   },
   "wordstar-dos/lj6-ljfnt": {
    "kinds": {
-    "x": 15,
+    "x": 16,
     "missing-word": 45,
     "extra-word": 6
    },
-   "reason": "LJ6DTP's own driver is not modelled yet: Printed keeps its rough LJ6DTP model (planning #210), not that driver's tables, added kerning pairs, character translations or bitmap Couriers"
+   "reason": "the document names LASERJET, so Printed places it with LASERJET's tables; this run printed it through LJ6DTP, whose fonts and matches differ (its bitmap COURIER PC 12 takes the Prestige row at 25 dots, LASERJET's scalable Courier 24)"
   },
   "wordstar-dos/lj6-fontsref": {
    "kinds": {

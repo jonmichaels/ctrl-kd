@@ -76,3 +76,21 @@ def test_a_record_wider_than_any_proportional_face_prints_in_courier():
     assert lj.fixed_pitch_1800(entry) == 270
     assert lj.fixed_pitch_1800({'width_1800': 137, 'height_1440': 240,
                                 'typestyle': 0xC605}) is None
+
+
+def test_a_fixed_record_advances_at_the_driver_pitch_not_its_own_width():
+    # Sawyer's LJ6DTP.WS page-7 Courier record (151, 201, 4603h): both
+    # drivers print it in the scalable Courier at 201 twips floored to 200,
+    # 25 dots = 6.0pt a character (12 cpi); the record's 151 only picks the
+    # font (teardown 11.17, 7a). Another printer keeps the record's width.
+    from types import SimpleNamespace
+    from ctrlkd.pdf import _laserjet_fonts, _span_pitch
+    entry = {'width_1800': 151, 'height_1440': 201, 'typestyle': 0x4603,
+             'proportional': False, 'symbol_map': 'cp437'}
+    for driver in ('LASERJET', 'LJ6DTP', 'HP4'):
+        doc = SimpleNamespace(meta={'printer_driver': driver}, fonts=[entry])
+        f = _laserjet_fonts(doc)[0]
+        assert f['width_1800'] == 151
+        assert _span_pitch(f, 10) == 6.0
+    doc = SimpleNamespace(meta={'printer_driver': 'EPSONLQ'}, fonts=[entry])
+    assert _span_pitch(_laserjet_fonts(doc)[0], 10) == 151 / 25

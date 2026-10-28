@@ -3337,6 +3337,12 @@ _LASERJET_ALTERNATE_FONT = {
 }
 
 
+# The drivers whose fixed-pitch fonts advance at the driver's own pitch, not
+# the record's width (`_laserjet_fonts`): LASERJET, Sawyer's LJ6DTP, and HP4,
+# whose faces and widths are LASERJET's (WS7 teardown 11.17, 7a and 8).
+_LJ_FIXED_PITCH_DRIVERS = ('LASERJET', 'LJ6DTP', 'HP4')
+
+
 def _laserjet_fonts(doc):
     """`doc.fonts`, each proportional font that WS7's driver prints in one of
     its own proportional text fonts marked with that driver, `'laserjet':
@@ -3344,10 +3350,12 @@ def _laserjet_fonts(doc):
     through it): its words are placed with the driver's own widths and
     kerning (`laserjet.py`). A symbol font keeps its own path. Under LJ6DTP a
     font the driver prints in a bitmap face is marked `'bitmap': True`: its
-    sub/superscripts keep the line's size (WS7 teardown 17.8)."""
+    sub/superscripts keep the line's size (WS7 teardown 17.8). A fixed-pitch
+    font of a document printed through one of `_LJ_FIXED_PITCH_DRIVERS`
+    carries `'pitch_1800'`, the driver's own pitch for it (`_span_pitch`)."""
     from . import laserjet
-    driver = ('lj6dtp' if (doc.meta.get('printer_driver') or '').strip().upper() == 'LJ6DTP'
-              else 'laserjet')
+    named = (doc.meta.get('printer_driver') or '').strip().upper()
+    driver = 'lj6dtp' if named == 'LJ6DTP' else 'laserjet'
     out = []
     for f in doc.fonts or ():
         font = laserjet.font_for(f, driver)
@@ -3362,6 +3370,14 @@ def _laserjet_fonts(doc):
             pitch = laserjet.fixed_pitch_1800(f, driver)
             if pitch:
                 f = dict(f, proportional=False, width_1800=pitch, cpi=1800.0 / pitch)
+        elif (named in _LJ_FIXED_PITCH_DRIVERS and not f.get('proportional')
+              and f.get('symbol_map') in ('cp437', 'cp850')):
+            # A fixed-pitch record printed through a LaserJet driver advances
+            # at the pitch of the driver font it matches, whatever its own
+            # width: that width only picks the font (WS7 teardown 11.17, 7a).
+            pitch = laserjet.fixed_pitch_1800(f, driver)
+            if pitch:
+                f = dict(f, pitch_1800=pitch)
         if driver == 'lj6dtp' and laserjet.is_bitmap(f, driver):
             f = dict(f, bitmap=True)
         out.append(f)
@@ -9283,9 +9299,11 @@ def _rules(styles, text, x, y, w, continuous=True, strike_sink=None):
 def _span_pitch(entry, pt):
     """Per-character advance in POINTS for one span -- WordStar's own number.
 
-    A WS5+ font block's FIRST word is the font width in HMIs (1/1800in): the
-    pitch WordStar itself laid the document out on, and the pitch it sent the
-    printer. 1800 HMI = 1 inch = 72 pt, so the conversion is /25.
+    A WS5+ font block's FIRST word is the font width in HMIs (1/1800in), the
+    pitch the document declares. 1800 HMI = 1 inch = 72 pt, so the conversion
+    is /25. Under WS7's LASERJET driver the driver's own pitch for the font it
+    prints in (`pitch_1800`, `_laserjet_fonts`) wins: the record's width only
+    picks that font (Sawyer's 151 prints at 150, 12 cpi).
 
     A span with no font block -- every WS4 file, every print stream, and every
     run before a WS5+ document's first font change -- gets the document's own
@@ -9301,7 +9319,7 @@ def _span_pitch(entry, pt):
     Soft Return.app's Native renderer can pin fixed-pitch advances to this same
     number instead of deriving one of its own -- Python has no public/internal
     split, so this docstring is that side's contract."""
-    w = (entry or {}).get('width_1800')
+    w = (entry or {}).get('pitch_1800') or (entry or {}).get('width_1800')
     if w:
         return w / HMI_PER_POINT
     return pt * 0.6
